@@ -4,9 +4,11 @@ import "github.com/google/uuid"
 
 type Lead struct {
 	ID uuid.UUID `db:"id"`
-	Name  string `db:"name"`
+	Nome  string `db:"nome"`
 	Email string `db:"email"`
 	Telefone string `db:"telefone"`
 	Ativo bool `db:"ativo"`
-	Funil uuid.UUID `db:"funil_id"`
+
+	FunilID uuid.UUID `db:"funil_id"`
+	EtapaID uuid.UUID `db:"etapa_id"`
 }
