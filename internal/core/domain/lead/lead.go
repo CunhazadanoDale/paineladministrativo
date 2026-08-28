@@ -9,6 +9,5 @@ type Lead struct {
 	Telefone string `db:"telefone"`
 	Ativo bool `db:"ativo"`
 
-	FunilID uuid.UUID `db:"funil_id"`
 	EtapaID uuid.UUID `db:"etapa_id"`
 }
