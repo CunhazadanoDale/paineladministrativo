@@ -5,6 +5,7 @@ import "github.com/google/uuid"
 type Funil struct {
 	FunilID uuid.UUID `db:"funil_id"`
 	Nome    string    `db:"nome"`
+	Ativo bool 	`db:"ativo"`
 }
 
 type Etapa struct {
@@ -12,14 +13,5 @@ type Etapa struct {
 	Nome    string    `db:"nome"`
 	Ordem  int       `db:"ordem"`
 	FunilID uuid.UUID `db:"funil_id"`
-	Tipo TipoEtapa `db:"tipo_etapa"`
+	Ativo bool 	`db:"ativo"`
 }
-
-
-type TipoEtapa string
-
-const (
-	TipoEtapaContato  = "CONTATO"
-	TipoEtapaPerdido = "PERDIDO"
-	TipoEtapaFechado = "FECHADO"
-)
