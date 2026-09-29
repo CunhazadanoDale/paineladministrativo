@@ -1,0 +1,68 @@
+package lead
+
+import (
+	"net/http"
+
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto"
+	leaddto "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto/lead"
+	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/leads"
+)
+
+type LeadHistoryHandler struct {
+	usecase portsin.LeadHistoryUseCase
+}
+
+func NewLeadHistoryHandler(usecase portsin.LeadHistoryUseCase) *LeadHistoryHandler {
+	return &LeadHistoryHandler{usecase: usecase}
+}
+
+func (h *LeadHistoryHandler) RegistrarRotas(mux *http.ServeMux) {
+	mux.HandleFunc("GET /leads/{lead_id}/historico", h.Listar)
+	mux.HandleFunc("POST /leads/{lead_id}/historico", h.RegistrarMovimentacao)
+}
+
+func (h *LeadHistoryHandler) Listar(w http.ResponseWriter, r *http.Request) {
+	leadID, ok := parametroUUID(w, r, "lead_id")
+	if !ok {
+		return
+	}
+
+	paginacao := consultaPaginacao(r)
+
+	itens, err := h.usecase.ListByLead(r.Context(), leadID, paginacao)
+	if err != nil {
+		responderErro(w, err)
+		return
+	}
+
+	responderJSON(w, http.StatusOK, dto.Paginado[leaddto.LeadHistoricoResponse]{
+		Dados:   leaddto.NovaLeadHistoricoResponses(itens),
+		Pagina:  paginacao.Page,
+		Tamanho: paginacao.Size,
+	})
+}
+
+func (h *LeadHistoryHandler) RegistrarMovimentacao(w http.ResponseWriter, r *http.Request) {
+	leadID, ok := parametroUUID(w, r, "lead_id")
+	if !ok {
+		return
+	}
+
+	var requisicao leaddto.RegistrarMovimentacaoRequest
+	if !corpoJSON(w, r, &requisicao) {
+		return
+	}
+
+	err := h.usecase.RegistrarMovimentacao(
+		r.Context(),
+		leadID,
+		requisicao.EtapaAnteriorID,
+		requisicao.EtapaAtualID,
+	)
+	if err != nil {
+		responderErro(w, err)
+		return
+	}
+
+	responderVazio(w, http.StatusNoContent)
+}

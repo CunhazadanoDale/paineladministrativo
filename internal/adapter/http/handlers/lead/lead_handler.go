@@ -1,0 +1,234 @@
+package lead
+
+import (
+	"net/http"
+
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto"
+	leaddto "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto/lead"
+	domainlead "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/lead"
+	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/leads"
+)
+
+type LeadHandler struct {
+	usecase portsin.LeadUseCase
+}
+
+func NewLeadHandler(usecase portsin.LeadUseCase) *LeadHandler {
+	return &LeadHandler{usecase: usecase}
+}
+
+func (h *LeadHandler) RegistrarRotas(mux *http.ServeMux) {
+	mux.HandleFunc("POST /leads", h.Criar)
+	mux.HandleFunc("GET /leads", h.Listar)
+	mux.HandleFunc("GET /leads/{id}", h.Obter)
+	mux.HandleFunc("PUT /leads/{id}", h.Atualizar)
+	mux.HandleFunc("DELETE /leads/{id}", h.Remover)
+	mux.HandleFunc("PATCH /leads/{id}/etapa", h.MoverEtapa)
+	mux.HandleFunc("GET /funils/{funil_id}/leads", h.ListarPorFunil)
+	mux.HandleFunc("GET /etapas/{etapa_id}/leads", h.ListarPorEtapa)
+	mux.HandleFunc("GET /funils/{funil_id}/leads/contagem", h.ContarPorFunil)
+	mux.HandleFunc("GET /etapas/{etapa_id}/leads/contagem", h.ContarPorEtapa)
+}
+
+func (h *LeadHandler) Criar(w http.ResponseWriter, r *http.Request) {
+	var requisicao leaddto.CriarLeadRequest
+	if !corpoJSON(w, r, &requisicao) {
+		return
+	}
+
+	id, err := h.usecase.Create(r.Context(), requisicao.ParaLead())
+	if err != nil {
+		responderErro(w, err)
+		return
+	}
+
+	item, err := h.usecase.GetByID(r.Context(), id)
+	if err != nil {
+		responderErro(w, err)
+		return
+	}
+
+	responderJSON(w, http.StatusCreated, dto.Resposta[leaddto.LeadResponse]{
+		Dados: leaddto.NovaLeadResponse(item),
+	})
+}
+
+func (h *LeadHandler) Listar(w http.ResponseWriter, r *http.Request) {
+	paginacao := consultaPaginacao(r)
+	busca := consultaTexto(r, "q")
+
+	var (
+		itens []*domainlead.Lead
+		err   error
+	)
+
+	if busca != "" {
+		itens, err = h.usecase.Search(r.Context(), busca, paginacao)
+	} else {
+		itens, err = h.usecase.ListAtivos(r.Context(), paginacao)
+	}
+
+	if err != nil {
+		responderErro(w, err)
+		return
+	}
+
+	responderJSON(w, http.StatusOK, dto.Paginado[leaddto.LeadResponse]{
+		Dados:   leaddto.NovaLeadResponses(itens),
+		Pagina:  paginacao.Page,
+		Tamanho: paginacao.Size,
+	})
+}
+
+func (h *LeadHandler) Obter(w http.ResponseWriter, r *http.Request) {
+	id, ok := parametroUUID(w, r, "id")
+	if !ok {
+		return
+	}
+
+	item, err := h.usecase.GetByID(r.Context(), id)
+	if err != nil {
+		responderErro(w, err)
+		return
+	}
+
+	responderJSON(w, http.StatusOK, dto.Resposta[leaddto.LeadResponse]{
+		Dados: leaddto.NovaLeadResponse(item),
+	})
+}
+
+func (h *LeadHandler) Atualizar(w http.ResponseWriter, r *http.Request) {
+	id, ok := parametroUUID(w, r, "id")
+	if !ok {
+		return
+	}
+
+	var requisicao leaddto.AtualizarLeadRequest
+	if !corpoJSON(w, r, &requisicao) {
+		return
+	}
+
+	if err := h.usecase.Update(r.Context(), requisicao.ParaLead(id)); err != nil {
+		responderErro(w, err)
+		return
+	}
+
+	item, err := h.usecase.GetByID(r.Context(), id)
+	if err != nil {
+		responderErro(w, err)
+		return
+	}
+
+	responderJSON(w, http.StatusOK, dto.Resposta[leaddto.LeadResponse]{
+		Dados: leaddto.NovaLeadResponse(item),
+	})
+}
+
+func (h *LeadHandler) Remover(w http.ResponseWriter, r *http.Request) {
+	id, ok := parametroUUID(w, r, "id")
+	if !ok {
+		return
+	}
+
+	if err := h.usecase.Delete(r.Context(), id); err != nil {
+		responderErro(w, err)
+		return
+	}
+
+	responderVazio(w, http.StatusNoContent)
+}
+
+func (h *LeadHandler) MoverEtapa(w http.ResponseWriter, r *http.Request) {
+	id, ok := parametroUUID(w, r, "id")
+	if !ok {
+		return
+	}
+
+	var requisicao leaddto.MoverLeadRequest
+	if !corpoJSON(w, r, &requisicao) {
+		return
+	}
+
+	if err := h.usecase.UpdateEtapa(r.Context(), id, requisicao.EtapaID); err != nil {
+		responderErro(w, err)
+		return
+	}
+
+	item, err := h.usecase.GetByID(r.Context(), id)
+	if err != nil {
+		responderErro(w, err)
+		return
+	}
+
+	responderJSON(w, http.StatusOK, dto.Resposta[leaddto.LeadResponse]{
+		Dados: leaddto.NovaLeadResponse(item),
+	})
+}
+
+func (h *LeadHandler) ListarPorFunil(w http.ResponseWriter, r *http.Request) {
+	funilID, ok := parametroUUID(w, r, "funil_id")
+	if !ok {
+		return
+	}
+
+	itens, err := h.usecase.ListByFunil(r.Context(), funilID)
+	if err != nil {
+		responderErro(w, err)
+		return
+	}
+
+	responderJSON(w, http.StatusOK, dto.Resposta[[]leaddto.LeadResponse]{
+		Dados: leaddto.NovaLeadResponses(itens),
+	})
+}
+
+func (h *LeadHandler) ListarPorEtapa(w http.ResponseWriter, r *http.Request) {
+	etapaID, ok := parametroUUID(w, r, "etapa_id")
+	if !ok {
+		return
+	}
+
+	itens, err := h.usecase.ListByEtapa(r.Context(), etapaID)
+	if err != nil {
+		responderErro(w, err)
+		return
+	}
+
+	responderJSON(w, http.StatusOK, dto.Resposta[[]leaddto.LeadResponse]{
+		Dados: leaddto.NovaLeadResponses(itens),
+	})
+}
+
+func (h *LeadHandler) ContarPorFunil(w http.ResponseWriter, r *http.Request) {
+	funilID, ok := parametroUUID(w, r, "funil_id")
+	if !ok {
+		return
+	}
+
+	total, err := h.usecase.CountByFunil(r.Context(), funilID)
+	if err != nil {
+		responderErro(w, err)
+		return
+	}
+
+	responderJSON(w, http.StatusOK, dto.Resposta[leaddto.ContagemResponse]{
+		Dados: leaddto.ContagemResponse{Total: total},
+	})
+}
+
+func (h *LeadHandler) ContarPorEtapa(w http.ResponseWriter, r *http.Request) {
+	etapaID, ok := parametroUUID(w, r, "etapa_id")
+	if !ok {
+		return
+	}
+
+	total, err := h.usecase.CountByEtapa(r.Context(), etapaID)
+	if err != nil {
+		responderErro(w, err)
+		return
+	}
+
+	responderJSON(w, http.StatusOK, dto.Resposta[leaddto.ContagemResponse]{
+		Dados: leaddto.ContagemResponse{Total: total},
+	})
+}
