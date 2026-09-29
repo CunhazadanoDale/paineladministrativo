@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: mia-database
+    environment:
+      - POSTGRES_DB=mia
+      - POSTGRES_USER=mia
+      - POSTGRES_PASSWORD=mia
+    ports:
+      - 5444:5432
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trads -d trads"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - mia_network
+  
+  adminer:
+    image: adminer:6.1.0
+    container_name: mia-adminer
+    ports:
+      - 8084:8080
+    depends_on:
+      - postgres
+    networks:
+      - mia_network
+  
+  migrate:
+    image: migrate/migrate:v4.20.1
+    container_name: mia-migrate
+    entrypoint: ["migrate"]
+    command: ["-path=/migrations", "-database", "postgres://mia:mia@postgres:5432/mia?sslmode=disable", "up"]
+    depends_on:
+      - postgres
+    networks:
+      - mia_network
