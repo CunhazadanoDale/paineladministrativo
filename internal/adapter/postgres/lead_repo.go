@@ -130,8 +130,8 @@ func (l *LeadRepository) ListByEtapa(ctx context.Context, etapaID uuid.UUID) ([]
 	return itens, nil
 }
 
-// ListByFunnil implements [leads.LeadRepository].
-func (l *LeadRepository) ListByFunnil(ctx context.Context, funilID uuid.UUID) ([]*lead.Lead, error) {
+// ListByFunil implements [leads.LeadRepository].
+func (l *LeadRepository) ListByFunil(ctx context.Context, funilID uuid.UUID) ([]*lead.Lead, error) {
 	query := `
 		SELECT l.id, l.nome, l.email, l.telefone, l.ativo, l.origem, l.criado_em, l.atualizado_em, l.etapa_id
 		FROM lead l
@@ -198,4 +198,42 @@ func (l *LeadRepository) UpdateEtapa(ctx context.Context, leadID uuid.UUID, newE
 
 	_, err := l.db.ExecContext(ctx, query, newEtapaID, leadID)
 	return err
+}
+
+func (l *LeadRepository) MoverParaEtapa(ctx context.Context, leadID uuid.UUID, etapaAnteriorID uuid.UUID, etapaAtualID uuid.UUID) error {
+	tx, err := l.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	result, err := tx.ExecContext(ctx, `
+		UPDATE lead
+		SET etapa_id = $1,
+		    atualizado_em = NOW()
+		WHERE id = $2
+	`, etapaAtualID, leadID)
+	if err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+
+	afetados, err := result.RowsAffected()
+	if err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	if afetados == 0 {
+		_ = tx.Rollback()
+		return domain.ErrNotFound
+	}
+
+	if _, err = tx.ExecContext(ctx, `
+		INSERT INTO lead_historico (id, lead_id, etapa_anterior_id, etapa_atual_id, movido_em)
+		VALUES (gen_random_uuid(), $1, $2, $3, NOW())
+	`, leadID, etapaAnteriorID, etapaAtualID); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+
+	return tx.Commit()
 }

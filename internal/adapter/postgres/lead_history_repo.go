@@ -6,6 +6,7 @@ import (
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/lead"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/leads"
+	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -19,8 +20,7 @@ func NewLeadHistoryRepository(db *sqlx.DB) *LeadHistoryRepository {
 	return &LeadHistoryRepository{db: db}
 }
 
-// ListByLead implements [leads.LeadHistoryRepository].
-func (l *LeadHistoryRepository) ListByLead(ctx context.Context, leadID string, paginacao domain.PaginacaoFiltro) ([]lead.LeadHistorico, error) {
+func (l *LeadHistoryRepository) ListByLead(ctx context.Context, leadID uuid.UUID, paginacao domain.PaginacaoFiltro) ([]lead.LeadHistorico, error) {
 	query := `
 		SELECT id, lead_id, etapa_anterior_id, etapa_atual_id, movido_em
 		FROM lead_historico
@@ -36,8 +36,7 @@ func (l *LeadHistoryRepository) ListByLead(ctx context.Context, leadID string, p
 	return itens, nil
 }
 
-// RegistrarMovimentacao implements [leads.LeadHistoryRepository].
-func (l *LeadHistoryRepository) RegistrarMovimentacao(ctx context.Context, leadID string, etapaAnteriorID string, etapaAtualID string) error {
+func (l *LeadHistoryRepository) RegistrarMovimentacao(ctx context.Context, leadID uuid.UUID, etapaAnteriorID uuid.UUID, etapaAtualID uuid.UUID) error {
 	query := `
 		INSERT INTO lead_historico (id, lead_id, etapa_anterior_id, etapa_atual_id, movido_em)
 		VALUES (gen_random_uuid(), $1, $2, $3, NOW())

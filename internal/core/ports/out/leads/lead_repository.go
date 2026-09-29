@@ -12,7 +12,7 @@ type LeadRepository interface {
 	Create(ctx context.Context, lead *lead.Lead) (uuid.UUID, error)
 	Update(ctx context.Context, lead *lead.Lead) error
 	GetByID(ctx context.Context, id uuid.UUID) (*lead.Lead, error)
-	ListByFunnil(ctx context.Context, funilID uuid.UUID) ([]*lead.Lead, error)
+	ListByFunil(ctx context.Context, funilID uuid.UUID) ([]*lead.Lead, error)
 	ListByEtapa(ctx context.Context, etapaID uuid.UUID) ([]*lead.Lead, error)
 	ListAtivos(ctx context.Context, paginacao domain.PaginacaoFiltro) ([]*lead.Lead, error)
 	Search(ctx context.Context, query string, paginacao domain.PaginacaoFiltro) ([]*lead.Lead, error)
@@ -20,4 +20,5 @@ type LeadRepository interface {
 	CountByEtapa(ctx context.Context, etapaID uuid.UUID) (int, error)
 	CountByFunil(ctx context.Context, funilID uuid.UUID) (int, error)
 	UpdateEtapa(ctx context.Context, leadID uuid.UUID, newEtapaID uuid.UUID) error
+	MoverParaEtapa(ctx context.Context, leadID uuid.UUID, etapaAnteriorID uuid.UUID, etapaAtualID uuid.UUID) error
 }
