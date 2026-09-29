@@ -23,7 +23,7 @@ type Lead struct {
 type LeadHistorico struct {
 	ID uuid.UUID `db:"id"`
 	LeadID uuid.UUID `db:"lead_id"`
-	EtapAnteriorID uuid.UUID `db:"etapa_anterior_id"`
+	EtapaAnteriorID uuid.UUID `db:"etapa_anterior_id"`
 	EtapaAtualID uuid.UUID `db:"etapa_atual_id"`
 	MovidoEm time.Time `db:"movido_em"`
 }

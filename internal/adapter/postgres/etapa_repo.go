@@ -139,30 +139,24 @@ func (e *EtapaRepository) Reordenar(ctx context.Context, funilID uuid.UUID, etap
 	if err != nil {
 		return err
 	}
-	defer func() {
-		if err != nil {
-			_ = tx.Rollback()
-			return
-		}
-		_ = tx.Commit()
-	}()
 
 	for i, etapa := range etapas {
 		if etapa == nil {
+			_ = tx.Rollback()
 			return fmt.Errorf("etapa %d é nula", i)
 		}
-		_, err = tx.ExecContext(ctx,
+		if _, err = tx.ExecContext(ctx,
 			`UPDATE etapa SET ordem = $1 WHERE etapa_id = $2 AND funil_id = $3`,
 			i+1,
 			etapa.EtapaID,
 			funilID,
-		)
-		if err != nil {
+		); err != nil {
+			_ = tx.Rollback()
 			return err
 		}
 	}
 
-	return nil
+	return tx.Commit()
 }
 
 func (e *EtapaRepository) Update(ctx context.Context, etapa *lead.Etapa) error {
