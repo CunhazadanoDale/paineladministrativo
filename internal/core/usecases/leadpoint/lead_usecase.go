@@ -2,7 +2,6 @@ package leadpoint
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"time"
 
@@ -25,17 +24,17 @@ func NewLeadUsecase(repo portsout.LeadRepository) *LeadUsecaseImpl {
 
 func (l *LeadUsecaseImpl) Create(ctx context.Context, lead *lead.Lead) (uuid.UUID, error) {
 	if lead == nil {
-		return uuid.Nil, errors.New("lead não informado")
+		return uuid.Nil, domain.ErroValidacao("lead não informado")
 	}
 
 	lead.Nome = strings.TrimSpace(lead.Nome)
 	lead.Email = strings.TrimSpace(lead.Email)
 
 	if lead.Nome == "" {
-		return uuid.Nil, errors.New("nome do lead é obrigatório")
+		return uuid.Nil, domain.ErroValidacao("nome do lead é obrigatório")
 	}
 	if lead.EtapaID == uuid.Nil {
-		return uuid.Nil, errors.New("etapa do lead é obrigatória")
+		return uuid.Nil, domain.ErroValidacao("etapa do lead é obrigatória")
 	}
 	if lead.ID == uuid.Nil {
 		lead.ID = uuid.New()
@@ -53,14 +52,14 @@ func (l *LeadUsecaseImpl) Create(ctx context.Context, lead *lead.Lead) (uuid.UUI
 
 func (l *LeadUsecaseImpl) Update(ctx context.Context, lead *lead.Lead) error {
 	if lead == nil || lead.ID == uuid.Nil {
-		return errors.New("lead inválido")
+		return domain.ErroValidacao("lead inválido")
 	}
 
 	lead.Nome = strings.TrimSpace(lead.Nome)
 	lead.Email = strings.TrimSpace(lead.Email)
 
 	if lead.Nome == "" {
-		return errors.New("nome do lead é obrigatório")
+		return domain.ErroValidacao("nome do lead é obrigatório")
 	}
 
 	atual, err := l.repo.GetByID(ctx, lead.ID)
@@ -78,7 +77,7 @@ func (l *LeadUsecaseImpl) Update(ctx context.Context, lead *lead.Lead) error {
 
 func (l *LeadUsecaseImpl) GetByID(ctx context.Context, id uuid.UUID) (*lead.Lead, error) {
 	if id == uuid.Nil {
-		return nil, errors.New("id do lead não informado")
+		return nil, domain.ErroValidacao("id do lead não informado")
 	}
 
 	item, err := l.repo.GetByID(ctx, id)
@@ -94,7 +93,7 @@ func (l *LeadUsecaseImpl) GetByID(ctx context.Context, id uuid.UUID) (*lead.Lead
 
 func (l *LeadUsecaseImpl) ListByFunil(ctx context.Context, funilID uuid.UUID) ([]*lead.Lead, error) {
 	if funilID == uuid.Nil {
-		return nil, errors.New("funil não informado")
+		return nil, domain.ErroValidacao("funil não informado")
 	}
 
 	return l.repo.ListByFunil(ctx, funilID)
@@ -102,7 +101,7 @@ func (l *LeadUsecaseImpl) ListByFunil(ctx context.Context, funilID uuid.UUID) ([
 
 func (l *LeadUsecaseImpl) ListByEtapa(ctx context.Context, etapaID uuid.UUID) ([]*lead.Lead, error) {
 	if etapaID == uuid.Nil {
-		return nil, errors.New("etapa não informada")
+		return nil, domain.ErroValidacao("etapa não informada")
 	}
 
 	return l.repo.ListByEtapa(ctx, etapaID)
@@ -118,7 +117,7 @@ func (l *LeadUsecaseImpl) Search(ctx context.Context, query string, paginacao do
 
 func (l *LeadUsecaseImpl) Delete(ctx context.Context, id uuid.UUID) error {
 	if id == uuid.Nil {
-		return errors.New("id do lead não informado")
+		return domain.ErroValidacao("id do lead não informado")
 	}
 
 	atual, err := l.repo.GetByID(ctx, id)
@@ -134,7 +133,7 @@ func (l *LeadUsecaseImpl) Delete(ctx context.Context, id uuid.UUID) error {
 
 func (l *LeadUsecaseImpl) CountByEtapa(ctx context.Context, etapaID uuid.UUID) (int, error) {
 	if etapaID == uuid.Nil {
-		return 0, errors.New("etapa não informada")
+		return 0, domain.ErroValidacao("etapa não informada")
 	}
 
 	return l.repo.CountByEtapa(ctx, etapaID)
@@ -142,7 +141,7 @@ func (l *LeadUsecaseImpl) CountByEtapa(ctx context.Context, etapaID uuid.UUID) (
 
 func (l *LeadUsecaseImpl) CountByFunil(ctx context.Context, funilID uuid.UUID) (int, error) {
 	if funilID == uuid.Nil {
-		return 0, errors.New("funil não informado")
+		return 0, domain.ErroValidacao("funil não informado")
 	}
 
 	return l.repo.CountByFunil(ctx, funilID)
@@ -150,10 +149,10 @@ func (l *LeadUsecaseImpl) CountByFunil(ctx context.Context, funilID uuid.UUID) (
 
 func (l *LeadUsecaseImpl) UpdateEtapa(ctx context.Context, leadID uuid.UUID, newEtapaID uuid.UUID) error {
 	if leadID == uuid.Nil {
-		return errors.New("lead não informado")
+		return domain.ErroValidacao("lead não informado")
 	}
 	if newEtapaID == uuid.Nil {
-		return errors.New("etapa de destino não informada")
+		return domain.ErroValidacao("etapa de destino não informada")
 	}
 
 	atual, err := l.repo.GetByID(ctx, leadID)

@@ -2,7 +2,6 @@ package leadpoint
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
@@ -24,13 +23,13 @@ func NewFunilUsecase(repo portsout.FunilRepository) *FunilUsecaseImpl {
 
 func (f *FunilUsecaseImpl) Create(ctx context.Context, funil *lead.Funil) (uuid.UUID, error) {
 	if funil == nil {
-		return uuid.Nil, errors.New("funil não informado")
+		return uuid.Nil, domain.ErroValidacao("funil não informado")
 	}
 
 	funil.Nome = strings.TrimSpace(funil.Nome)
 
 	if funil.Nome == "" {
-		return uuid.Nil, errors.New("nome do funil é obrigatório")
+		return uuid.Nil, domain.ErroValidacao("nome do funil é obrigatório")
 	}
 	if funil.FunilID == uuid.Nil {
 		funil.FunilID = uuid.New()
@@ -43,13 +42,13 @@ func (f *FunilUsecaseImpl) Create(ctx context.Context, funil *lead.Funil) (uuid.
 
 func (f *FunilUsecaseImpl) Update(ctx context.Context, funil *lead.Funil) error {
 	if funil == nil || funil.FunilID == uuid.Nil {
-		return errors.New("funil inválido")
+		return domain.ErroValidacao("funil inválido")
 	}
 
 	funil.Nome = strings.TrimSpace(funil.Nome)
 
 	if funil.Nome == "" {
-		return errors.New("nome do funil é obrigatório")
+		return domain.ErroValidacao("nome do funil é obrigatório")
 	}
 
 	atual, err := f.repo.GetByID(ctx, funil.FunilID)
@@ -65,7 +64,7 @@ func (f *FunilUsecaseImpl) Update(ctx context.Context, funil *lead.Funil) error 
 
 func (f *FunilUsecaseImpl) GetByID(ctx context.Context, funilID uuid.UUID) (*lead.Funil, error) {
 	if funilID == uuid.Nil {
-		return nil, errors.New("id do funil não informado")
+		return nil, domain.ErroValidacao("id do funil não informado")
 	}
 
 	item, err := f.repo.GetByID(ctx, funilID)
@@ -89,7 +88,7 @@ func (f *FunilUsecaseImpl) ListAtivos(ctx context.Context, filtro domain.Paginac
 
 func (f *FunilUsecaseImpl) Delete(ctx context.Context, funilID uuid.UUID) error {
 	if funilID == uuid.Nil {
-		return errors.New("id do funil não informado")
+		return domain.ErroValidacao("id do funil não informado")
 	}
 
 	atual, err := f.repo.GetByID(ctx, funilID)
@@ -105,7 +104,7 @@ func (f *FunilUsecaseImpl) Delete(ctx context.Context, funilID uuid.UUID) error 
 
 func (f *FunilUsecaseImpl) ExistsByID(ctx context.Context, funilID uuid.UUID) (bool, error) {
 	if funilID == uuid.Nil {
-		return false, errors.New("id do funil não informado")
+		return false, domain.ErroValidacao("id do funil não informado")
 	}
 
 	return f.repo.ExistsByID(ctx, funilID)

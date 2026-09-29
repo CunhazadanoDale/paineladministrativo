@@ -2,7 +2,6 @@ package leadpoint
 
 import (
 	"context"
-	"errors"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/lead"
@@ -23,7 +22,7 @@ func NewLeadHistoryUsecase(repo portsout.LeadHistoryRepository) *LeadHistoryUsec
 
 func (h *LeadHistoryUsecaseImpl) ListByLead(ctx context.Context, leadID uuid.UUID, paginacao domain.PaginacaoFiltro) ([]lead.LeadHistorico, error) {
 	if leadID == uuid.Nil {
-		return nil, errors.New("lead não informado")
+		return nil, domain.ErroValidacao("lead não informado")
 	}
 
 	return h.repo.ListByLead(ctx, leadID, paginacao.Normalizada())
@@ -31,16 +30,16 @@ func (h *LeadHistoryUsecaseImpl) ListByLead(ctx context.Context, leadID uuid.UUI
 
 func (h *LeadHistoryUsecaseImpl) RegistrarMovimentacao(ctx context.Context, leadID uuid.UUID, etapaAnteriorID uuid.UUID, etapaAtualID uuid.UUID) error {
 	if leadID == uuid.Nil {
-		return errors.New("lead não informado")
+		return domain.ErroValidacao("lead não informado")
 	}
 	if etapaAnteriorID == uuid.Nil {
-		return errors.New("etapa anterior não informada")
+		return domain.ErroValidacao("etapa anterior não informada")
 	}
 	if etapaAtualID == uuid.Nil {
-		return errors.New("etapa atual não informada")
+		return domain.ErroValidacao("etapa atual não informada")
 	}
 	if etapaAnteriorID == etapaAtualID {
-		return errors.New("etapa anterior e atual não podem ser iguais")
+		return domain.ErroValidacao("etapa anterior e atual não podem ser iguais")
 	}
 
 	return h.repo.RegistrarMovimentacao(ctx, leadID, etapaAnteriorID, etapaAtualID)
