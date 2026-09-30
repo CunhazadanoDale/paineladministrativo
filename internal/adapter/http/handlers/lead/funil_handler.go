@@ -17,14 +17,6 @@ func NewFunilHandler(usecase portsin.FunilUseCase) *FunilHandler {
 	return &FunilHandler{usecase: usecase}
 }
 
-func (h *FunilHandler) RegistrarRotas(mux *http.ServeMux) {
-	mux.HandleFunc("POST /funils", h.Criar)
-	mux.HandleFunc("GET /funils", h.Listar)
-	mux.HandleFunc("GET /funils/{funil_id}", h.Obter)
-	mux.HandleFunc("PUT /funils/{funil_id}", h.Atualizar)
-	mux.HandleFunc("DELETE /funils/{funil_id}", h.Remover)
-}
-
 func (h *FunilHandler) Criar(w http.ResponseWriter, r *http.Request) {
 	var requisicao leaddto.CriarFunilRequest
 	if !corpoJSON(w, r, &requisicao) {
@@ -43,7 +35,7 @@ func (h *FunilHandler) Criar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responderJSON(w, http.StatusCreated, dto.Resposta[leaddto.FunilResponse]{
+	dto.EscreverJSON(w, http.StatusCreated, dto.Resposta[leaddto.FunilResponse]{
 		Dados: leaddto.NovaFunilResponse(item),
 	})
 }
@@ -67,7 +59,7 @@ func (h *FunilHandler) Listar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responderJSON(w, http.StatusOK, dto.Paginado[leaddto.FunilResponse]{
+	dto.EscreverJSON(w, http.StatusOK, dto.Paginado[leaddto.FunilResponse]{
 		Dados:   leaddto.NovaFunilResponses(itens),
 		Pagina:  paginacao.Page,
 		Tamanho: paginacao.Size,
@@ -86,7 +78,7 @@ func (h *FunilHandler) Obter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responderJSON(w, http.StatusOK, dto.Resposta[leaddto.FunilResponse]{
+	dto.EscreverJSON(w, http.StatusOK, dto.Resposta[leaddto.FunilResponse]{
 		Dados: leaddto.NovaFunilResponse(item),
 	})
 }
@@ -113,7 +105,7 @@ func (h *FunilHandler) Atualizar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responderJSON(w, http.StatusOK, dto.Resposta[leaddto.FunilResponse]{
+	dto.EscreverJSON(w, http.StatusOK, dto.Resposta[leaddto.FunilResponse]{
 		Dados: leaddto.NovaFunilResponse(item),
 	})
 }
@@ -129,5 +121,5 @@ func (h *FunilHandler) Remover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responderVazio(w, http.StatusNoContent)
+	dto.EscreverVazio(w, http.StatusNoContent)
 }

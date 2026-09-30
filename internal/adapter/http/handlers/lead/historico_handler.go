@@ -16,11 +16,6 @@ func NewLeadHistoryHandler(usecase portsin.LeadHistoryUseCase) *LeadHistoryHandl
 	return &LeadHistoryHandler{usecase: usecase}
 }
 
-func (h *LeadHistoryHandler) RegistrarRotas(mux *http.ServeMux) {
-	mux.HandleFunc("GET /leads/{lead_id}/historico", h.Listar)
-	mux.HandleFunc("POST /leads/{lead_id}/historico", h.RegistrarMovimentacao)
-}
-
 func (h *LeadHistoryHandler) Listar(w http.ResponseWriter, r *http.Request) {
 	leadID, ok := parametroUUID(w, r, "lead_id")
 	if !ok {
@@ -35,7 +30,7 @@ func (h *LeadHistoryHandler) Listar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responderJSON(w, http.StatusOK, dto.Paginado[leaddto.LeadHistoricoResponse]{
+	dto.EscreverJSON(w, http.StatusOK, dto.Paginado[leaddto.LeadHistoricoResponse]{
 		Dados:   leaddto.NovaLeadHistoricoResponses(itens),
 		Pagina:  paginacao.Page,
 		Tamanho: paginacao.Size,
@@ -64,5 +59,5 @@ func (h *LeadHistoryHandler) RegistrarMovimentacao(w http.ResponseWriter, r *htt
 		return
 	}
 
-	responderVazio(w, http.StatusNoContent)
+	dto.EscreverVazio(w, http.StatusNoContent)
 }

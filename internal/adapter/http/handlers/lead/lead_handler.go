@@ -17,19 +17,6 @@ func NewLeadHandler(usecase portsin.LeadUseCase) *LeadHandler {
 	return &LeadHandler{usecase: usecase}
 }
 
-func (h *LeadHandler) RegistrarRotas(mux *http.ServeMux) {
-	mux.HandleFunc("POST /leads", h.Criar)
-	mux.HandleFunc("GET /leads", h.Listar)
-	mux.HandleFunc("GET /leads/{id}", h.Obter)
-	mux.HandleFunc("PUT /leads/{id}", h.Atualizar)
-	mux.HandleFunc("DELETE /leads/{id}", h.Remover)
-	mux.HandleFunc("PATCH /leads/{id}/etapa", h.MoverEtapa)
-	mux.HandleFunc("GET /funils/{funil_id}/leads", h.ListarPorFunil)
-	mux.HandleFunc("GET /etapas/{etapa_id}/leads", h.ListarPorEtapa)
-	mux.HandleFunc("GET /funils/{funil_id}/leads/contagem", h.ContarPorFunil)
-	mux.HandleFunc("GET /etapas/{etapa_id}/leads/contagem", h.ContarPorEtapa)
-}
-
 func (h *LeadHandler) Criar(w http.ResponseWriter, r *http.Request) {
 	var requisicao leaddto.CriarLeadRequest
 	if !corpoJSON(w, r, &requisicao) {
@@ -48,7 +35,7 @@ func (h *LeadHandler) Criar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responderJSON(w, http.StatusCreated, dto.Resposta[leaddto.LeadResponse]{
+	dto.EscreverJSON(w, http.StatusCreated, dto.Resposta[leaddto.LeadResponse]{
 		Dados: leaddto.NovaLeadResponse(item),
 	})
 }
@@ -73,7 +60,7 @@ func (h *LeadHandler) Listar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responderJSON(w, http.StatusOK, dto.Paginado[leaddto.LeadResponse]{
+	dto.EscreverJSON(w, http.StatusOK, dto.Paginado[leaddto.LeadResponse]{
 		Dados:   leaddto.NovaLeadResponses(itens),
 		Pagina:  paginacao.Page,
 		Tamanho: paginacao.Size,
@@ -92,7 +79,7 @@ func (h *LeadHandler) Obter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responderJSON(w, http.StatusOK, dto.Resposta[leaddto.LeadResponse]{
+	dto.EscreverJSON(w, http.StatusOK, dto.Resposta[leaddto.LeadResponse]{
 		Dados: leaddto.NovaLeadResponse(item),
 	})
 }
@@ -119,7 +106,7 @@ func (h *LeadHandler) Atualizar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responderJSON(w, http.StatusOK, dto.Resposta[leaddto.LeadResponse]{
+	dto.EscreverJSON(w, http.StatusOK, dto.Resposta[leaddto.LeadResponse]{
 		Dados: leaddto.NovaLeadResponse(item),
 	})
 }
@@ -135,7 +122,7 @@ func (h *LeadHandler) Remover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responderVazio(w, http.StatusNoContent)
+	dto.EscreverVazio(w, http.StatusNoContent)
 }
 
 func (h *LeadHandler) MoverEtapa(w http.ResponseWriter, r *http.Request) {
@@ -160,7 +147,7 @@ func (h *LeadHandler) MoverEtapa(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responderJSON(w, http.StatusOK, dto.Resposta[leaddto.LeadResponse]{
+	dto.EscreverJSON(w, http.StatusOK, dto.Resposta[leaddto.LeadResponse]{
 		Dados: leaddto.NovaLeadResponse(item),
 	})
 }
@@ -177,7 +164,7 @@ func (h *LeadHandler) ListarPorFunil(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responderJSON(w, http.StatusOK, dto.Resposta[[]leaddto.LeadResponse]{
+	dto.EscreverJSON(w, http.StatusOK, dto.Resposta[[]leaddto.LeadResponse]{
 		Dados: leaddto.NovaLeadResponses(itens),
 	})
 }
@@ -194,7 +181,7 @@ func (h *LeadHandler) ListarPorEtapa(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responderJSON(w, http.StatusOK, dto.Resposta[[]leaddto.LeadResponse]{
+	dto.EscreverJSON(w, http.StatusOK, dto.Resposta[[]leaddto.LeadResponse]{
 		Dados: leaddto.NovaLeadResponses(itens),
 	})
 }
@@ -211,7 +198,7 @@ func (h *LeadHandler) ContarPorFunil(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responderJSON(w, http.StatusOK, dto.Resposta[leaddto.ContagemResponse]{
+	dto.EscreverJSON(w, http.StatusOK, dto.Resposta[leaddto.ContagemResponse]{
 		Dados: leaddto.ContagemResponse{Total: total},
 	})
 }
@@ -228,7 +215,7 @@ func (h *LeadHandler) ContarPorEtapa(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responderJSON(w, http.StatusOK, dto.Resposta[leaddto.ContagemResponse]{
+	dto.EscreverJSON(w, http.StatusOK, dto.Resposta[leaddto.ContagemResponse]{
 		Dados: leaddto.ContagemResponse{Total: total},
 	})
 }

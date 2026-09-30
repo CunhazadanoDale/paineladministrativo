@@ -19,17 +19,6 @@ func NewEtapaHandler(usecase portsin.EtapaUseCase) *EtapaHandler {
 	return &EtapaHandler{usecase: usecase}
 }
 
-func (h *EtapaHandler) RegistrarRotas(mux *http.ServeMux) {
-	mux.HandleFunc("POST /etapas", h.Criar)
-	mux.HandleFunc("GET /funils/{funil_id}/etapas", h.ListarPorFunil)
-	mux.HandleFunc("PUT /funils/{funil_id}/etapas/ordem", h.Reordenar)
-	mux.HandleFunc("GET /etapas/{etapa_id}", h.Obter)
-	mux.HandleFunc("PUT /etapas/{etapa_id}", h.Atualizar)
-	mux.HandleFunc("DELETE /etapas/{etapa_id}", h.Remover)
-	mux.HandleFunc("GET /etapas/{etapa_id}/proxima", h.Proxima)
-	mux.HandleFunc("GET /etapas/{etapa_id}/anterior", h.Anterior)
-}
-
 func (h *EtapaHandler) Criar(w http.ResponseWriter, r *http.Request) {
 	var requisicao leaddto.CriarEtapaRequest
 	if !corpoJSON(w, r, &requisicao) {
@@ -48,7 +37,7 @@ func (h *EtapaHandler) Criar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responderJSON(w, http.StatusCreated, dto.Resposta[leaddto.EtapaResponse]{
+	dto.EscreverJSON(w, http.StatusCreated, dto.Resposta[leaddto.EtapaResponse]{
 		Dados: leaddto.NovaEtapaResponse(item),
 	})
 }
@@ -65,7 +54,7 @@ func (h *EtapaHandler) ListarPorFunil(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responderJSON(w, http.StatusOK, dto.Resposta[[]leaddto.EtapaResponse]{
+	dto.EscreverJSON(w, http.StatusOK, dto.Resposta[[]leaddto.EtapaResponse]{
 		Dados: leaddto.NovaEtapaResponses(itens),
 	})
 }
@@ -82,7 +71,7 @@ func (h *EtapaHandler) Obter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responderJSON(w, http.StatusOK, dto.Resposta[leaddto.EtapaResponse]{
+	dto.EscreverJSON(w, http.StatusOK, dto.Resposta[leaddto.EtapaResponse]{
 		Dados: leaddto.NovaEtapaResponse(item),
 	})
 }
@@ -109,7 +98,7 @@ func (h *EtapaHandler) Atualizar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responderJSON(w, http.StatusOK, dto.Resposta[leaddto.EtapaResponse]{
+	dto.EscreverJSON(w, http.StatusOK, dto.Resposta[leaddto.EtapaResponse]{
 		Dados: leaddto.NovaEtapaResponse(item),
 	})
 }
@@ -125,7 +114,7 @@ func (h *EtapaHandler) Remover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responderVazio(w, http.StatusNoContent)
+	dto.EscreverVazio(w, http.StatusNoContent)
 }
 
 func (h *EtapaHandler) Reordenar(w http.ResponseWriter, r *http.Request) {
@@ -178,7 +167,7 @@ func (h *EtapaHandler) Reordenar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responderJSON(w, http.StatusOK, dto.Resposta[[]leaddto.EtapaResponse]{
+	dto.EscreverJSON(w, http.StatusOK, dto.Resposta[[]leaddto.EtapaResponse]{
 		Dados: leaddto.NovaEtapaResponses(ordenadas),
 	})
 }
@@ -221,7 +210,7 @@ func (h *EtapaHandler) seguinte(w http.ResponseWriter, r *http.Request, proxima 
 		return
 	}
 
-	responderJSON(w, http.StatusOK, dto.Resposta[leaddto.EtapaResponse]{
+	dto.EscreverJSON(w, http.StatusOK, dto.Resposta[leaddto.EtapaResponse]{
 		Dados: leaddto.NovaEtapaResponse(item),
 	})
 }

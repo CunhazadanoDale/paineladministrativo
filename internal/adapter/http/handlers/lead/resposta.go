@@ -11,27 +11,10 @@ import (
 	"github.com/google/uuid"
 )
 
-func responderJSON(w http.ResponseWriter, status int, conteudo any) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(status)
-
-	if conteudo == nil {
-		return
-	}
-
-	_ = json.NewEncoder(w).Encode(conteudo)
-}
-
-func responderVazio(w http.ResponseWriter, status int) {
-	w.WriteHeader(status)
-}
-
 func responderErro(w http.ResponseWriter, err error) {
 	status, mensagem := mapearErro(err)
 
-	responderJSON(w, status, dto.RespostaErro{
-		Erro: dto.ErroInterno{Codigo: status, Mensagem: mensagem},
-	})
+	dto.EscreverErro(w, status, mensagem)
 }
 
 func mapearErro(err error) (int, string) {
