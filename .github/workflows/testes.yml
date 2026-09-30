@@ -1,0 +1,59 @@
+name: testes
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  unitarios:
+    name: Unitários
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Verifica o código
+        run: go vet ./...
+
+      - name: Testes unitários
+        run: go test ./internal/... ./cmd/... -count=1
+
+  infraestrutura:
+    name: Integração e E2E
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: mia
+          POSTGRES_USER: mia
+          POSTGRES_PASSWORD: mia
+        ports:
+          - 5444:5432
+        options: >-
+          --health-cmd "pg_isready -U mia -d mia"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    # Com a URL definida o banco é obrigatório: se o Postgres não subir, o
+    # job falha em vez de pular os testes e passar verde sem testar nada.
+    env:
+      TEST_DATABASE_URL: postgres://mia:mia@localhost:5444/mia?sslmode=disable
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Testes de integração e E2E
+        run: go test -tags=e2e ./test/... -count=1 -v
