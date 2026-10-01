@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Define o builder
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Nome da imagem em minúsculas
         id: imagem
