@@ -19,13 +19,13 @@ func TestNewRouterAplicaCORS(t *testing.T) {
 	requisicao.Header.Set("Access-Control-Request-Method", "POST")
 	registrador := httptest.NewRecorder()
 
-	NewRouter(nil, nil, nil, nil, nil).ServeHTTP(registrador, requisicao)
+	NewRouter(nil, []string{"http://localhost:5173"}, nil, nil, nil, nil).ServeHTTP(registrador, requisicao)
 
 	if registrador.Code != http.StatusNoContent {
 		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusNoContent)
 	}
-	if origem := registrador.Header().Get("Access-Control-Allow-Origin"); origem != "*" {
-		t.Errorf("Access-Control-Allow-Origin %q, esperado %q", origem, "*")
+	if origem := registrador.Header().Get("Access-Control-Allow-Origin"); origem != "http://localhost:5173" {
+		t.Errorf("Access-Control-Allow-Origin %q, esperado %q", origem, "http://localhost:5173")
 	}
 }
 

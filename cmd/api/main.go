@@ -29,6 +29,7 @@ func main() {
 
 	rotas := httpapi.NewRouter(
 		banco,
+		cfg.CORSOrigins,
 		leadpoint.NewLeadUsecase(postgres.NewLeadRepository(banco)),
 		leadpoint.NewFunilUsecase(postgres.NewFunilRepo(banco)),
 		leadpoint.NewEtapaUsecase(postgres.NewEtapaRepository(banco)),

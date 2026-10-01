@@ -12,12 +12,13 @@ import (
 
 func NewRouter(
 	banco *sqlx.DB,
+	origensCORS []string,
 	leadUseCase portsin.LeadUseCase,
 	funilUseCase portsin.FunilUseCase,
 	etapaUseCase portsin.EtapaUseCase,
 	historicoUseCase portsin.LeadHistoryUseCase,
 ) http.Handler {
-	return middleware.CORS(novasRotas(banco, leadUseCase, funilUseCase, etapaUseCase, historicoUseCase))
+	return middleware.CORS(origensCORS, novasRotas(banco, leadUseCase, funilUseCase, etapaUseCase, historicoUseCase))
 }
 
 func novasRotas(
