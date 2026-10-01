@@ -55,5 +55,12 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Aplica as migrations com o golang-migrate
+        run: |
+          go run -tags "postgres" github.com/golang-migrate/migrate/v4/cmd/migrate@v4.20.1 \
+            -path ./migrations \
+            -database "postgres://mia:mia@localhost:5444/mia?sslmode=disable" \
+            up
+
       - name: Testes de integração e E2E
         run: go test -tags=e2e ./test/... -count=1 -v
