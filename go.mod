@@ -1,6 +1,6 @@
 module github.com/CunhazadanoDale/paineladministrativo.git
 
-go 1.26.3
+go 1.27.1
 
 require (
 	github.com/google/uuid v1.6.0
