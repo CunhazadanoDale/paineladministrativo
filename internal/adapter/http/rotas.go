@@ -5,6 +5,7 @@ import (
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/lead"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/saude"
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/middleware"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/leads"
 	"github.com/jmoiron/sqlx"
 )
@@ -16,6 +17,16 @@ func NewRouter(
 	etapaUseCase portsin.EtapaUseCase,
 	historicoUseCase portsin.LeadHistoryUseCase,
 ) http.Handler {
+	return middleware.CORS(novasRotas(banco, leadUseCase, funilUseCase, etapaUseCase, historicoUseCase))
+}
+
+func novasRotas(
+	banco *sqlx.DB,
+	leadUseCase portsin.LeadUseCase,
+	funilUseCase portsin.FunilUseCase,
+	etapaUseCase portsin.EtapaUseCase,
+	historicoUseCase portsin.LeadHistoryUseCase,
+) *http.ServeMux {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /health", saude.Responder)

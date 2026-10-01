@@ -2,6 +2,7 @@ package http
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -9,12 +10,23 @@ import (
 func muxDoTeste(t *testing.T) *http.ServeMux {
 	t.Helper()
 
-	mux, ok := NewRouter(nil, nil, nil, nil, nil).(*http.ServeMux)
-	if !ok {
-		t.Fatal("NewRouter não devolveu um *http.ServeMux")
-	}
+	return novasRotas(nil, nil, nil, nil, nil)
+}
 
-	return mux
+func TestNewRouterAplicaCORS(t *testing.T) {
+	requisicao := httptest.NewRequest(http.MethodOptions, "/api/v1/leads", nil)
+	requisicao.Header.Set("Origin", "http://localhost:5173")
+	requisicao.Header.Set("Access-Control-Request-Method", "POST")
+	registrador := httptest.NewRecorder()
+
+	NewRouter(nil, nil, nil, nil, nil).ServeHTTP(registrador, requisicao)
+
+	if registrador.Code != http.StatusNoContent {
+		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusNoContent)
+	}
+	if origem := registrador.Header().Get("Access-Control-Allow-Origin"); origem != "*" {
+		t.Errorf("Access-Control-Allow-Origin %q, esperado %q", origem, "*")
+	}
 }
 
 func TestRotasRegistradasSemConflito(t *testing.T) {
