@@ -118,19 +118,19 @@ func TestCargoCriaAtualizaELista(t *testing.T) {
 	if err != nil {
 		t.Fatalf("listagem falhou: %v", err)
 	}
-	if len(todos) != 3 {
-		t.Errorf("listagem devolveu %d cargos, esperado 3", len(todos))
+	if len(todos) != 4 {
+		t.Errorf("listagem devolveu %d cargos, esperado 4", len(todos))
 	}
 
 	ativos, err := cargos.ListAtivos(ctx, todasAsPaginas)
 	if err != nil {
 		t.Fatalf("listagem de ativos falhou: %v", err)
 	}
-	if len(ativos) != 2 {
-		t.Fatalf("listagem de ativos devolveu %d cargos, esperado 2", len(ativos))
+	if len(ativos) != 3 {
+		t.Fatalf("listagem de ativos devolveu %d cargos, esperado 3", len(ativos))
 	}
-	if ativos[0].Nome != "Arquiteto" || ativos[1].Nome != "Mestre de obras" {
-		t.Errorf("ordem inesperada: %q, %q", ativos[0].Nome, ativos[1].Nome)
+	if ativos[0].Nome != "Administrador" || ativos[1].Nome != "Arquiteto" || ativos[2].Nome != "Mestre de obras" {
+		t.Errorf("ordem inesperada: %q, %q, %q", ativos[0].Nome, ativos[1].Nome, ativos[2].Nome)
 	}
 }
 
@@ -329,19 +329,19 @@ func TestUsuarioListasEBusca(t *testing.T) {
 	if err != nil {
 		t.Fatalf("listagem falhou: %v", err)
 	}
-	if len(todos) != 4 {
-		t.Fatalf("listagem devolveu %d usuários, esperado 4", len(todos))
+	if len(todos) != 5 {
+		t.Fatalf("listagem devolveu %d usuários, esperado 5", len(todos))
 	}
-	if todos[0].Nome != "Ana Souza" || todos[3].Nome != "Diego Ramos" {
-		t.Errorf("ordem inesperada: %q, %q", todos[0].Nome, todos[3].Nome)
+	if todos[0].Nome != "Administrador" || todos[4].Nome != "Diego Ramos" {
+		t.Errorf("ordem inesperada: %q, %q", todos[0].Nome, todos[4].Nome)
 	}
 
 	ativos, err := usuarios.ListAtivos(ctx, todasAsPaginas)
 	if err != nil {
 		t.Fatalf("listagem de ativos falhou: %v", err)
 	}
-	if len(ativos) != 3 {
-		t.Fatalf("listagem de ativos devolveu %d usuários, esperado 3", len(ativos))
+	if len(ativos) != 4 {
+		t.Fatalf("listagem de ativos devolveu %d usuários, esperado 4", len(ativos))
 	}
 	for _, item := range ativos {
 		if item.ID == ids[3] {
@@ -397,16 +397,16 @@ func TestUsuarioListaPaginada(t *testing.T) {
 	if err != nil {
 		t.Fatalf("primeira página falhou: %v", err)
 	}
-	if len(primeira) != 2 || primeira[0].Nome != "Ana Souza" || primeira[1].Nome != "Bruno Lima" {
-		t.Errorf("primeira página devolveu %+v, esperado Ana Souza e Bruno Lima", nomes(primeira))
+	if len(primeira) != 2 || primeira[0].Nome != "Administrador" || primeira[1].Nome != "Ana Souza" {
+		t.Errorf("primeira página devolveu %+v, esperado Administrador e Ana Souza", nomes(primeira))
 	}
 
 	segunda, err := usuarios.List(ctx, domain.PaginacaoFiltro{Page: 2, Size: 2})
 	if err != nil {
 		t.Fatalf("segunda página falhou: %v", err)
 	}
-	if len(segunda) != 1 || segunda[0].Nome != "Carla Dias" {
-		t.Errorf("segunda página devolveu %+v, esperado Carla Dias", nomes(segunda))
+	if len(segunda) != 2 || segunda[0].Nome != "Bruno Lima" || segunda[1].Nome != "Carla Dias" {
+		t.Errorf("segunda página devolveu %+v, esperado Bruno Lima e Carla Dias", nomes(segunda))
 	}
 
 	terceira, err := usuarios.List(ctx, domain.PaginacaoFiltro{Page: 3, Size: 2})
