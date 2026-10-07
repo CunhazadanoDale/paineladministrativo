@@ -16,10 +16,10 @@ jobs:
       packages: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Define o builder
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Nome da imagem em minúsculas
         id: imagem
@@ -35,7 +35,7 @@ jobs:
 
       - name: Tags
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ steps.imagem.outputs.nome }}
           tags: |
@@ -44,7 +44,7 @@ jobs:
             type=semver,pattern={{version}}
 
       - name: Build e push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: ${{ github.event_name != 'pull_request' }}
