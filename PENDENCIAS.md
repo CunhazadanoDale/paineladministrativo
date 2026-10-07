@@ -61,6 +61,57 @@ nginx/Caddy da frente (sobrevive a restarts, mas exige mudar o deploy).
 
 ---
 
+## Padronização do módulo de solicitações (rodada de outubro/2026)
+
+O módulo foi alinhado ao padrão dos módulos `lead`/`usuarios` + miolo transversal.
+
+**Concluído**
+
+- Pacote único de resposta HTTP: `adapter/http/handlers/resposta` (as três cópias de
+  `resposta.go`/`resposta_test.go` foram apagadas) e helpers de teste em
+  `adapter/http/apoioteste`.
+- Rota unificada: `POST` **e** `GET` `/api/v1/solicitacoes/{id}/pagamento` (antes POST era
+  `/pagamentos` e GET `/pagamento`).
+- Ports do módulo reescritos em português (`Criar`, `Obter`, `Listar`,
+  `AtualizarStatus`, `CriarPagamento`, `ObterPagamento`, `ListarPorProprietario`,
+  `Remover`, `ObterPorUsuarioID`); `SolicitacaoFiltro.Aprovador` removido.
+- Código morto removido: `Status.Validado()`, `domain.PaginacaoResponse`, pacote
+  `adapter/storage/memoria` e índice `idx_solicitacao_aprovador` (migração `000017`).
+- `tratarErro` (FK `23503` → `400`) aplicado a todos os `Delete`, inclusive os de
+  `lead`/`funil`/`etapa`, que devolviam `500`.
+- `escopo` + `status`: o filtro de status de query agora tem que caber na definição do
+  escopo (`aprovacao` só aceita `pendente_aprovacao`, `financeiro` aceita qualquer exceto
+  pendente) — antes um aprovador conseguia enxergar pagamentos por query string.
+- Comprovante vira vínculo da solicitação em `CriarPagamento`, o que uniformiza o `DELETE
+  /arquivos/{id}` em `409`, permite baixar o recibo por quem vê a solicitação e impede
+  reuso em outra solicitação (`UNIQUE (arquivo_id)`, migração `000016`).
+- `validarComprovante` passou a comparar a solicitação dona do vínculo: o comprovante da
+  **mesma** solicitação não é mais rejeitado como "já vinculado".
+- `atualizarStatusComGuarda` só escreve colunas de transição (valor, prazo, observação e
+  forma de pagamento ficaram fora do `UPDATE` condicionado ao status anterior).
+- `API.md` corrigido: valor aceito `cartao` (sem acento), `403` sem prefixo, mensagem do
+  comprovante "a outra solicitação", comportamento do `status=` por escopo e vínculo do
+  comprovante nos anexos.
+- Testes de handler novos (`solicitacao_handler_test.go`, `aprovador_handler_test.go`)
+  e e2e ampliado (rejeição, remoção de aprovador, paginação, `400` de validação, `409` do
+  comprovante, filtro de status por escopo).
+
+**Decisões registradas**
+
+- Rota de pagamento **singular nos dois verbos**, alinhada ao `id` único de `pagamento`.
+- Nomenclatura de ports **em português em todo o módulo** — ver "Em aberto" abaixo.
+- Regra única de erro: `400`/`404` **com** prefixo da sentinela (`erro de validação: X`,
+  `registro não encontrado: X`), `403`/`409` **sem** prefixo, `500` fixo.
+
+**Em aberto**
+
+- [ ] **Nomenclatura dos ports divergente entre módulos** — `lead`/`usuarios` ainda usam
+  nomes em inglês (`Create`, `GetByID`, `Delete`, `List`). Padronizar os dois lados é
+  mexer em código já commitado e testado: decidir se a próxima rodada traduz o baseline
+  para português ou devolve o módulo de solicitações para inglês.
+
+---
+
 ## Sem pendência (verificado nesta rodada)
 
 - **CI**: os 4 workflows cobrem `gofmt`+`staticcheck`, `go vet`, testes unitários,
