@@ -10,7 +10,9 @@ import (
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/autenticacao"
 	httpapi "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/postgres"
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/storage/disco"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/leadpoint"
+	solicitacaousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/solicitacao"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/usuarios"
 	"github.com/jmoiron/sqlx"
 )
@@ -28,6 +30,10 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 	t.Helper()
 
 	cargoRepository := postgres.NewCargoRepository(banco)
+	usuarioRepository := postgres.NewUsuarioRepository(banco)
+	solicitacaoRepository := postgres.NewSolicitacaoRepository(banco)
+	arquivoRepository := postgres.NewArquivoRepository(banco)
+	aprovadorRepository := postgres.NewAprovadorRepository(banco)
 
 	rotas := httpapi.NewRouter(
 		banco,
@@ -36,8 +42,24 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 		leadpoint.NewFunilUsecase(postgres.NewFunilRepo(banco)),
 		leadpoint.NewEtapaUsecase(postgres.NewEtapaRepository(banco)),
 		leadpoint.NewLeadHistoryUsecase(postgres.NewLeadHistoryRepository(banco)),
-		usuarios.NewUsuarioUsecase(postgres.NewUsuarioRepository(banco), cargoRepository),
+		usuarios.NewUsuarioUsecase(usuarioRepository, cargoRepository),
 		usuarios.NewCargoUsecase(cargoRepository),
+		solicitacaousecases.NewSolicitacaoUsecase(
+			solicitacaoRepository,
+			arquivoRepository,
+			aprovadorRepository,
+			usuarioRepository,
+			cargoRepository,
+		),
+		solicitacaousecases.NewArquivoUsecase(
+			arquivoRepository,
+			solicitacaoRepository,
+			disco.Novo(t.TempDir()),
+			usuarioRepository,
+			cargoRepository,
+			aprovadorRepository,
+		),
+		solicitacaousecases.NewAprovadorUsecase(aprovadorRepository, usuarioRepository),
 		autenticacao.NovoTokenService(segredoDoTeste, time.Hour),
 	)
 

@@ -5,10 +5,12 @@ import (
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/lead"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/saude"
+	solicitacaohandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/solicitacao"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/usuarios"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/middleware"
 	portsinautenticacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/autenticacao"
 	portsinlead "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/leads"
+	portsinsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/solicitacao"
 	portsinusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/usuarios"
 	"github.com/jmoiron/sqlx"
 )
@@ -22,9 +24,18 @@ func NewRouter(
 	historicoUseCase portsinlead.LeadHistoryUseCase,
 	usuarioUseCase portsinusuarios.UsuarioUseCase,
 	cargoUseCase portsinusuarios.CargoUseCase,
+	solicitacaoUseCase portsinsolicitacao.SolicitacaoUseCase,
+	arquivoUseCase portsinsolicitacao.ArquivoUseCase,
+	aprovadorUseCase portsinsolicitacao.AprovadorUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
-	return middleware.CORS(origensCORS, novasRotas(banco, leadUseCase, funilUseCase, etapaUseCase, historicoUseCase, usuarioUseCase, cargoUseCase, tokens))
+	return middleware.CORS(origensCORS, novasRotas(
+		banco,
+		leadUseCase, funilUseCase, etapaUseCase, historicoUseCase,
+		usuarioUseCase, cargoUseCase,
+		solicitacaoUseCase, arquivoUseCase, aprovadorUseCase,
+		tokens,
+	))
 }
 
 func novasRotas(
@@ -35,6 +46,9 @@ func novasRotas(
 	historicoUseCase portsinlead.LeadHistoryUseCase,
 	usuarioUseCase portsinusuarios.UsuarioUseCase,
 	cargoUseCase portsinusuarios.CargoUseCase,
+	solicitacaoUseCase portsinsolicitacao.SolicitacaoUseCase,
+	arquivoUseCase portsinsolicitacao.ArquivoUseCase,
+	aprovadorUseCase portsinsolicitacao.AprovadorUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -101,6 +115,29 @@ func novasRotas(
 	administrador("POST /api/v1/usuarios/{id}/senha", usuarioHandler.TrocarSenha)
 	administrador("PATCH /api/v1/usuarios/{id}/ativar", usuarioHandler.Ativar)
 	administrador("PATCH /api/v1/usuarios/{id}/desativar", usuarioHandler.Desativar)
+
+	solicitacaoHandler := solicitacaohandlers.NewSolicitacaoHandler(solicitacaoUseCase)
+	protegido("POST /api/v1/solicitacoes", solicitacaoHandler.Criar)
+	protegido("GET /api/v1/solicitacoes", solicitacaoHandler.Listar)
+	protegido("GET /api/v1/solicitacoes/{id}", solicitacaoHandler.Obter)
+	protegido("POST /api/v1/solicitacoes/{id}/aprovar", solicitacaoHandler.Aprovar)
+	protegido("POST /api/v1/solicitacoes/{id}/rejeitar", solicitacaoHandler.Rejeitar)
+	protegido("POST /api/v1/solicitacoes/{id}/cancelar", solicitacaoHandler.Cancelar)
+	protegido("POST /api/v1/solicitacoes/{id}/pagamentos", solicitacaoHandler.RegistrarPagamento)
+	protegido("GET /api/v1/solicitacoes/{id}/pagamento", solicitacaoHandler.ObterPagamento)
+	protegido("GET /api/v1/solicitacoes/{id}/historico", solicitacaoHandler.ListarHistorico)
+	protegido("GET /api/v1/solicitacoes/{id}/arquivos", solicitacaoHandler.ListarArquivos)
+
+	arquivoHandler := solicitacaohandlers.NewArquivoHandler(arquivoUseCase)
+	protegido("POST /api/v1/arquivos", arquivoHandler.Enviar)
+	protegido("GET /api/v1/arquivos", arquivoHandler.Listar)
+	protegido("GET /api/v1/arquivos/{id}", arquivoHandler.Baixar)
+	protegido("DELETE /api/v1/arquivos/{id}", arquivoHandler.Remover)
+
+	aprovadorHandler := solicitacaohandlers.NewAprovadorHandler(aprovadorUseCase)
+	administrador("POST /api/v1/aprovadores", aprovadorHandler.Designar)
+	administrador("GET /api/v1/aprovadores", aprovadorHandler.Listar)
+	administrador("DELETE /api/v1/aprovadores/{id}", aprovadorHandler.Remover)
 
 	mux.HandleFunc("GET /", saude.NaoEncontrado)
 

@@ -10,7 +10,7 @@ import (
 func muxDoTeste(t *testing.T) *http.ServeMux {
 	t.Helper()
 
-	return novasRotas(nil, nil, nil, nil, nil, nil, nil, nil)
+	return novasRotas(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 }
 
 func TestNewRouterAplicaCORS(t *testing.T) {
@@ -19,7 +19,7 @@ func TestNewRouterAplicaCORS(t *testing.T) {
 	requisicao.Header.Set("Access-Control-Request-Method", "POST")
 	registrador := httptest.NewRecorder()
 
-	NewRouter(nil, []string{"http://localhost:5173"}, nil, nil, nil, nil, nil, nil, nil).ServeHTTP(registrador, requisicao)
+	NewRouter(nil, []string{"http://localhost:5173"}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).ServeHTTP(registrador, requisicao)
 
 	if registrador.Code != http.StatusNoContent {
 		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusNoContent)
@@ -78,6 +78,23 @@ func TestRotasRegistradasSemConflito(t *testing.T) {
 		{"POST /api/v1/usuarios/55555555-5555-5555-5555-555555555555/senha", "POST /api/v1/usuarios/{id}/senha"},
 		{"PATCH /api/v1/usuarios/55555555-5555-5555-5555-555555555555/ativar", "PATCH /api/v1/usuarios/{id}/ativar"},
 		{"PATCH /api/v1/usuarios/55555555-5555-5555-5555-555555555555/desativar", "PATCH /api/v1/usuarios/{id}/desativar"},
+		{"POST /api/v1/solicitacoes", "POST /api/v1/solicitacoes"},
+		{"GET /api/v1/solicitacoes", "GET /api/v1/solicitacoes"},
+		{"GET /api/v1/solicitacoes/66666666-6666-6666-6666-666666666666", "GET /api/v1/solicitacoes/{id}"},
+		{"POST /api/v1/solicitacoes/66666666-6666-6666-6666-666666666666/aprovar", "POST /api/v1/solicitacoes/{id}/aprovar"},
+		{"POST /api/v1/solicitacoes/66666666-6666-6666-6666-666666666666/rejeitar", "POST /api/v1/solicitacoes/{id}/rejeitar"},
+		{"POST /api/v1/solicitacoes/66666666-6666-6666-6666-666666666666/cancelar", "POST /api/v1/solicitacoes/{id}/cancelar"},
+		{"POST /api/v1/solicitacoes/66666666-6666-6666-6666-666666666666/pagamentos", "POST /api/v1/solicitacoes/{id}/pagamentos"},
+		{"GET /api/v1/solicitacoes/66666666-6666-6666-6666-666666666666/pagamento", "GET /api/v1/solicitacoes/{id}/pagamento"},
+		{"GET /api/v1/solicitacoes/66666666-6666-6666-6666-666666666666/historico", "GET /api/v1/solicitacoes/{id}/historico"},
+		{"GET /api/v1/solicitacoes/66666666-6666-6666-6666-666666666666/arquivos", "GET /api/v1/solicitacoes/{id}/arquivos"},
+		{"POST /api/v1/arquivos", "POST /api/v1/arquivos"},
+		{"GET /api/v1/arquivos", "GET /api/v1/arquivos"},
+		{"GET /api/v1/arquivos/77777777-7777-7777-7777-777777777777", "GET /api/v1/arquivos/{id}"},
+		{"DELETE /api/v1/arquivos/77777777-7777-7777-7777-777777777777", "DELETE /api/v1/arquivos/{id}"},
+		{"POST /api/v1/aprovadores", "POST /api/v1/aprovadores"},
+		{"GET /api/v1/aprovadores", "GET /api/v1/aprovadores"},
+		{"DELETE /api/v1/aprovadores/88888888-8888-8888-8888-888888888888", "DELETE /api/v1/aprovadores/{id}"},
 	}
 
 	for _, caso := range casos {
