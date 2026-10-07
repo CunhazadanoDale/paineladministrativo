@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -17,7 +18,23 @@ import (
 
 type dtoRespostaUsuario = dto.Resposta[usuariosdto.UsuarioResponse]
 
-type dtoRespostaUsuarios = dto.Resposta[[]usuariosdto.UsuarioResponse]
+type dtoRespostaUsuarios = dto.Paginado[usuariosdto.UsuarioResponse]
+
+func paginar[T any](itens []T, filtro domain.PaginacaoFiltro) []T {
+	filtro = filtro.Normalizada()
+
+	inicio := (filtro.Page - 1) * filtro.Size
+	if inicio >= len(itens) {
+		return nil
+	}
+
+	fim := inicio + filtro.Size
+	if fim > len(itens) {
+		fim = len(itens)
+	}
+
+	return itens[inicio:fim]
+}
 
 type fakeUsuarioUseCase struct {
 	usuarios      map[uuid.UUID]*domainusuarios.Usuario
@@ -96,17 +113,18 @@ func (f *fakeUsuarioUseCase) GetByEmail(_ context.Context, email string) (*domai
 	return nil, domain.ErroNaoEncontrado("usuário não encontrado")
 }
 
-func (f *fakeUsuarioUseCase) List(_ context.Context) ([]*domainusuarios.Usuario, error) {
+func (f *fakeUsuarioUseCase) List(_ context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
 	var itens []*domainusuarios.Usuario
 	for _, usuario := range f.usuarios {
 		copia := *usuario
 		itens = append(itens, &copia)
 	}
+	ordenarUsuarios(itens)
 
-	return itens, nil
+	return paginar(itens, filtro), nil
 }
 
-func (f *fakeUsuarioUseCase) ListAtivos(_ context.Context) ([]*domainusuarios.Usuario, error) {
+func (f *fakeUsuarioUseCase) ListAtivos(_ context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
 	var itens []*domainusuarios.Usuario
 	for _, usuario := range f.usuarios {
 		if !usuario.Ativo {
@@ -116,11 +134,12 @@ func (f *fakeUsuarioUseCase) ListAtivos(_ context.Context) ([]*domainusuarios.Us
 		copia := *usuario
 		itens = append(itens, &copia)
 	}
+	ordenarUsuarios(itens)
 
-	return itens, nil
+	return paginar(itens, filtro), nil
 }
 
-func (f *fakeUsuarioUseCase) Search(_ context.Context, termo string) ([]*domainusuarios.Usuario, error) {
+func (f *fakeUsuarioUseCase) Search(_ context.Context, termo string, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
 	pesquisa := strings.ToLower(termo)
 
 	var itens []*domainusuarios.Usuario
@@ -132,8 +151,15 @@ func (f *fakeUsuarioUseCase) Search(_ context.Context, termo string) ([]*domainu
 		copia := *usuario
 		itens = append(itens, &copia)
 	}
+	ordenarUsuarios(itens)
 
-	return itens, nil
+	return paginar(itens, filtro), nil
+}
+
+func ordenarUsuarios(itens []*domainusuarios.Usuario) {
+	sort.Slice(itens, func(i, j int) bool {
+		return itens[i].Nome < itens[j].Nome
+	})
 }
 
 func (f *fakeUsuarioUseCase) Authenticate(_ context.Context, email, senha string) (*domainusuarios.Usuario, error) {
@@ -321,10 +347,14 @@ func TestUsuarioHandlerListarComFiltros(t *testing.T) {
 		nome      string
 		caminho   string
 		esperados int
+		pagina    int
+		tamanho   int
 	}{
-		{"sem filtro", "/api/v1/usuarios", 3},
-		{"somente ativos", "/api/v1/usuarios?ativos=true", 2},
-		{"busca por texto", "/api/v1/usuarios?q=bruno", 1},
+		{"sem filtro", "/api/v1/usuarios", 3, 1, 20},
+		{"somente ativos", "/api/v1/usuarios?ativos=true", 2, 1, 20},
+		{"busca por texto", "/api/v1/usuarios?q=bruno", 1, 1, 20},
+		{"tamanho cortado", "/api/v1/usuarios?tamanho=2", 2, 1, 2},
+		{"segunda pagina", "/api/v1/usuarios?pagina=2&tamanho=2", 1, 2, 2},
 	}
 
 	for _, caso := range casos {
@@ -341,6 +371,12 @@ func TestUsuarioHandlerListarComFiltros(t *testing.T) {
 		}
 		if len(resposta.Dados) != caso.esperados {
 			t.Errorf("%s: %d usuários, esperados %d", caso.nome, len(resposta.Dados), caso.esperados)
+		}
+		if resposta.Pagina != caso.pagina {
+			t.Errorf("%s: página %d, esperada %d", caso.nome, resposta.Pagina, caso.pagina)
+		}
+		if resposta.Tamanho != caso.tamanho {
+			t.Errorf("%s: tamanho %d, esperado %d", caso.nome, resposta.Tamanho, caso.tamanho)
 		}
 	}
 }

@@ -47,6 +47,8 @@ func cenarioUsuarios(t *testing.T) (*postgres.UsuarioRepository, *postgres.Cargo
 	return postgres.NewUsuarioRepository(banco), postgres.NewCargoRepository(banco), banco
 }
 
+var todasAsPaginas = domain.PaginacaoFiltro{Page: 1, Size: domain.TamanhoPaginaMaximo}
+
 func TestCargoCriaAtualizaELista(t *testing.T) {
 	_, cargos, _ := cenarioUsuarios(t)
 	ctx := context.Background()
@@ -112,7 +114,7 @@ func TestCargoCriaAtualizaELista(t *testing.T) {
 		t.Fatalf("criação do terceiro cargo falhou: %v", err)
 	}
 
-	todos, err := cargos.List(ctx)
+	todos, err := cargos.List(ctx, todasAsPaginas)
 	if err != nil {
 		t.Fatalf("listagem falhou: %v", err)
 	}
@@ -120,7 +122,7 @@ func TestCargoCriaAtualizaELista(t *testing.T) {
 		t.Errorf("listagem devolveu %d cargos, esperado 3", len(todos))
 	}
 
-	ativos, err := cargos.ListAtivos(ctx)
+	ativos, err := cargos.ListAtivos(ctx, todasAsPaginas)
 	if err != nil {
 		t.Fatalf("listagem de ativos falhou: %v", err)
 	}
@@ -323,7 +325,7 @@ func TestUsuarioListasEBusca(t *testing.T) {
 		t.Fatalf("desativação falhou: %v", err)
 	}
 
-	todos, err := usuarios.List(ctx)
+	todos, err := usuarios.List(ctx, todasAsPaginas)
 	if err != nil {
 		t.Fatalf("listagem falhou: %v", err)
 	}
@@ -334,7 +336,7 @@ func TestUsuarioListasEBusca(t *testing.T) {
 		t.Errorf("ordem inesperada: %q, %q", todos[0].Nome, todos[3].Nome)
 	}
 
-	ativos, err := usuarios.ListAtivos(ctx)
+	ativos, err := usuarios.ListAtivos(ctx, todasAsPaginas)
 	if err != nil {
 		t.Fatalf("listagem de ativos falhou: %v", err)
 	}
@@ -347,7 +349,7 @@ func TestUsuarioListasEBusca(t *testing.T) {
 		}
 	}
 
-	porNome, err := usuarios.Search(ctx, "SILVA")
+	porNome, err := usuarios.Search(ctx, "SILVA", todasAsPaginas)
 	if err != nil {
 		t.Fatalf("busca falhou: %v", err)
 	}
@@ -355,7 +357,7 @@ func TestUsuarioListasEBusca(t *testing.T) {
 		t.Errorf("busca por nome devolveu %d usuários, esperado 0", len(porNome))
 	}
 
-	porNome, err = usuarios.Search(ctx, "BRUNO")
+	porNome, err = usuarios.Search(ctx, "BRUNO", todasAsPaginas)
 	if err != nil {
 		t.Fatalf("busca falhou: %v", err)
 	}
@@ -363,13 +365,66 @@ func TestUsuarioListasEBusca(t *testing.T) {
 		t.Errorf("busca por nome devolveu %+v, esperado o usuário %s", porNome, ids[1])
 	}
 
-	porEmail, err := usuarios.Search(ctx, "carla@exemplo")
+	porEmail, err := usuarios.Search(ctx, "carla@exemplo", todasAsPaginas)
 	if err != nil {
 		t.Fatalf("busca por email falhou: %v", err)
 	}
 	if len(porEmail) != 1 || porEmail[0].ID != ids[2] {
 		t.Errorf("busca por email devolveu %+v, esperado o usuário %s", porEmail, ids[2])
 	}
+}
+
+func TestUsuarioListaPaginada(t *testing.T) {
+	usuarios, cargos, _ := cenarioUsuarios(t)
+	ctx := context.Background()
+
+	cargoID, err := cargos.Create(ctx, novoCargo("Gerente de obra"))
+	if err != nil {
+		t.Fatalf("criação do cargo falhou: %v", err)
+	}
+
+	for _, item := range []struct{ nome, email string }{
+		{"Ana Souza", "ana@exemplo.com"},
+		{"Bruno Lima", "bruno@exemplo.com"},
+		{"Carla Dias", "carla@exemplo.com"},
+	} {
+		if _, err := usuarios.Create(ctx, novoUsuario(cargoID, item.nome, item.email)); err != nil {
+			t.Fatalf("criação do usuário %q falhou: %v", item.nome, err)
+		}
+	}
+
+	primeira, err := usuarios.List(ctx, domain.PaginacaoFiltro{Page: 1, Size: 2})
+	if err != nil {
+		t.Fatalf("primeira página falhou: %v", err)
+	}
+	if len(primeira) != 2 || primeira[0].Nome != "Ana Souza" || primeira[1].Nome != "Bruno Lima" {
+		t.Errorf("primeira página devolveu %+v, esperado Ana Souza e Bruno Lima", nomes(primeira))
+	}
+
+	segunda, err := usuarios.List(ctx, domain.PaginacaoFiltro{Page: 2, Size: 2})
+	if err != nil {
+		t.Fatalf("segunda página falhou: %v", err)
+	}
+	if len(segunda) != 1 || segunda[0].Nome != "Carla Dias" {
+		t.Errorf("segunda página devolveu %+v, esperado Carla Dias", nomes(segunda))
+	}
+
+	terceira, err := usuarios.List(ctx, domain.PaginacaoFiltro{Page: 3, Size: 2})
+	if err != nil {
+		t.Fatalf("terceira página falhou: %v", err)
+	}
+	if len(terceira) != 0 {
+		t.Errorf("terceira página devolveu %d usuários, esperado 0", len(terceira))
+	}
+}
+
+func nomes(itens []*domainusuarios.Usuario) []string {
+	resultado := make([]string, 0, len(itens))
+	for _, item := range itens {
+		resultado = append(resultado, item.Nome)
+	}
+
+	return resultado
 }
 
 func TestUsuarioAtivaDesativaEAtualizaUltimoLogin(t *testing.T) {

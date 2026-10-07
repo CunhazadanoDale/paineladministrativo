@@ -42,15 +42,17 @@ func (h *CargoHandler) Criar(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CargoHandler) Listar(w http.ResponseWriter, r *http.Request) {
+	paginacao := consultaPaginacao(r)
+
 	var (
 		itens []*domainusuarios.Cargo
 		err   error
 	)
 
 	if consultaBooleana(r, "ativos") {
-		itens, err = h.usecase.ListAtivos(r.Context())
+		itens, err = h.usecase.ListAtivos(r.Context(), paginacao)
 	} else {
-		itens, err = h.usecase.List(r.Context())
+		itens, err = h.usecase.List(r.Context(), paginacao)
 	}
 
 	if err != nil {
@@ -58,8 +60,10 @@ func (h *CargoHandler) Listar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dto.EscreverJSON(w, http.StatusOK, dto.Resposta[[]usuariosdto.CargoResponse]{
-		Dados: usuariosdto.NovaCargoResponses(itens),
+	dto.EscreverJSON(w, http.StatusOK, dto.Paginado[usuariosdto.CargoResponse]{
+		Dados:   usuariosdto.NovaCargoResponses(itens),
+		Pagina:  paginacao.Page,
+		Tamanho: paginacao.Size,
 	})
 }
 

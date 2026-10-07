@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"sort"
 	"testing"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto"
@@ -15,7 +16,7 @@ import (
 
 type dtoRespostaCargo = dto.Resposta[usuariosdto.CargoResponse]
 
-type dtoRespostaCargos = dto.Resposta[[]usuariosdto.CargoResponse]
+type dtoRespostaCargos = dto.Paginado[usuariosdto.CargoResponse]
 
 type fakeCargoUseCase struct {
 	cargos map[uuid.UUID]*domainusuarios.Cargo
@@ -81,17 +82,18 @@ func (f *fakeCargoUseCase) GetByNome(_ context.Context, nome string) (*domainusu
 	return nil, domain.ErroNaoEncontrado("cargo não encontrado")
 }
 
-func (f *fakeCargoUseCase) List(_ context.Context) ([]*domainusuarios.Cargo, error) {
+func (f *fakeCargoUseCase) List(_ context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
 	var itens []*domainusuarios.Cargo
 	for _, cargo := range f.cargos {
 		copia := *cargo
 		itens = append(itens, &copia)
 	}
+	ordenarCargos(itens)
 
-	return itens, nil
+	return paginar(itens, filtro), nil
 }
 
-func (f *fakeCargoUseCase) ListAtivos(_ context.Context) ([]*domainusuarios.Cargo, error) {
+func (f *fakeCargoUseCase) ListAtivos(_ context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
 	var itens []*domainusuarios.Cargo
 	for _, cargo := range f.cargos {
 		if !cargo.Ativo {
@@ -101,8 +103,15 @@ func (f *fakeCargoUseCase) ListAtivos(_ context.Context) ([]*domainusuarios.Carg
 		copia := *cargo
 		itens = append(itens, &copia)
 	}
+	ordenarCargos(itens)
 
-	return itens, nil
+	return paginar(itens, filtro), nil
+}
+
+func ordenarCargos(itens []*domainusuarios.Cargo) {
+	sort.Slice(itens, func(i, j int) bool {
+		return itens[i].Nome < itens[j].Nome
+	})
 }
 
 func (f *fakeCargoUseCase) Delete(_ context.Context, id uuid.UUID) error {
@@ -174,9 +183,11 @@ func TestCargoHandlerListarComFiltro(t *testing.T) {
 		nome      string
 		caminho   string
 		esperados int
+		tamanho   int
 	}{
-		{"sem filtro", "/api/v1/cargos", 2},
-		{"somente ativos", "/api/v1/cargos?ativos=true", 1},
+		{"sem filtro", "/api/v1/cargos", 2, 20},
+		{"somente ativos", "/api/v1/cargos?ativos=true", 1, 20},
+		{"tamanho cortado", "/api/v1/cargos?tamanho=1", 1, 1},
 	}
 
 	for _, caso := range casos {
@@ -193,6 +204,9 @@ func TestCargoHandlerListarComFiltro(t *testing.T) {
 		}
 		if len(resposta.Dados) != caso.esperados {
 			t.Errorf("%s: %d cargos, esperados %d", caso.nome, len(resposta.Dados), caso.esperados)
+		}
+		if resposta.Tamanho != caso.tamanho {
+			t.Errorf("%s: tamanho %d, esperado %d", caso.nome, resposta.Tamanho, caso.tamanho)
 		}
 	}
 }

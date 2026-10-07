@@ -75,12 +75,12 @@ func (c *CargoUsecaseImpl) GetByNome(ctx context.Context, nome string) (*domainu
 	return cargo, nil
 }
 
-func (c *CargoUsecaseImpl) List(ctx context.Context) ([]*domainusuarios.Cargo, error) {
-	return c.repo.List(ctx)
+func (c *CargoUsecaseImpl) List(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
+	return c.repo.List(ctx, filtro.Normalizada())
 }
 
-func (c *CargoUsecaseImpl) ListAtivos(ctx context.Context) ([]*domainusuarios.Cargo, error) {
-	return c.repo.ListAtivos(ctx)
+func (c *CargoUsecaseImpl) ListAtivos(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
+	return c.repo.ListAtivos(ctx, filtro.Normalizada())
 }
 
 func (c *CargoUsecaseImpl) Update(ctx context.Context, cargo *domainusuarios.Cargo) error {

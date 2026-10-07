@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	domainusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/usuarios"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/usuarios"
 	"github.com/google/uuid"
@@ -77,30 +78,34 @@ func (c *CargoRepository) GetByNome(ctx context.Context, nome string) (*domainus
 	return &item, nil
 }
 
-func (c *CargoRepository) List(ctx context.Context) ([]*domainusuarios.Cargo, error) {
+func (c *CargoRepository) List(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
+	offset := (filtro.Page - 1) * filtro.Size
 	query := `
 		SELECT id, nome, descricao, ativo
 		FROM cargo
 		ORDER BY nome ASC
+		LIMIT $1 OFFSET $2
 	`
 
 	var itens []*domainusuarios.Cargo
-	if err := c.db.SelectContext(ctx, &itens, query); err != nil {
+	if err := c.db.SelectContext(ctx, &itens, query, filtro.Size, offset); err != nil {
 		return nil, err
 	}
 	return itens, nil
 }
 
-func (c *CargoRepository) ListAtivos(ctx context.Context) ([]*domainusuarios.Cargo, error) {
+func (c *CargoRepository) ListAtivos(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
+	offset := (filtro.Page - 1) * filtro.Size
 	query := `
 		SELECT id, nome, descricao, ativo
 		FROM cargo
 		WHERE ativo = TRUE
 		ORDER BY nome ASC
+		LIMIT $1 OFFSET $2
 	`
 
 	var itens []*domainusuarios.Cargo
-	if err := c.db.SelectContext(ctx, &itens, query); err != nil {
+	if err := c.db.SelectContext(ctx, &itens, query, filtro.Size, offset); err != nil {
 		return nil, err
 	}
 	return itens, nil

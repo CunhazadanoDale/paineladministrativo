@@ -44,6 +44,7 @@ func (h *UsuarioHandler) Criar(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UsuarioHandler) Listar(w http.ResponseWriter, r *http.Request) {
+	paginacao := consultaPaginacao(r)
 	busca := consultaTexto(r, "q")
 
 	var (
@@ -53,11 +54,11 @@ func (h *UsuarioHandler) Listar(w http.ResponseWriter, r *http.Request) {
 
 	switch {
 	case busca != "":
-		itens, err = h.usecase.Search(r.Context(), busca)
+		itens, err = h.usecase.Search(r.Context(), busca, paginacao)
 	case consultaBooleana(r, "ativos"):
-		itens, err = h.usecase.ListAtivos(r.Context())
+		itens, err = h.usecase.ListAtivos(r.Context(), paginacao)
 	default:
-		itens, err = h.usecase.List(r.Context())
+		itens, err = h.usecase.List(r.Context(), paginacao)
 	}
 
 	if err != nil {
@@ -65,8 +66,10 @@ func (h *UsuarioHandler) Listar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dto.EscreverJSON(w, http.StatusOK, dto.Resposta[[]usuariosdto.UsuarioResponse]{
-		Dados: usuariosdto.NovaUsuarioResponses(itens),
+	dto.EscreverJSON(w, http.StatusOK, dto.Paginado[usuariosdto.UsuarioResponse]{
+		Dados:   usuariosdto.NovaUsuarioResponses(itens),
+		Pagina:  paginacao.Page,
+		Tamanho: paginacao.Size,
 	})
 }
 

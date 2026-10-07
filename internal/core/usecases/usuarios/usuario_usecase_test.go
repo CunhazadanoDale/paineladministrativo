@@ -18,6 +18,24 @@ import (
 
 var _ portsout.UsuarioRepository = (*memoriaUsuarios)(nil)
 
+var todasAsPaginas = domain.PaginacaoFiltro{Page: 1, Size: domain.TamanhoPaginaMaximo}
+
+func paginar[T any](itens []T, filtro domain.PaginacaoFiltro) []T {
+	filtro = filtro.Normalizada()
+
+	inicio := (filtro.Page - 1) * filtro.Size
+	if inicio >= len(itens) {
+		return nil
+	}
+
+	fim := inicio + filtro.Size
+	if fim > len(itens) {
+		fim = len(itens)
+	}
+
+	return itens[inicio:fim]
+}
+
 type memoriaUsuarios struct {
 	itens map[uuid.UUID]*domainusuarios.Usuario
 }
@@ -69,14 +87,14 @@ func (m *memoriaUsuarios) GetByEmail(ctx context.Context, email string) (*domain
 	return nil, nil
 }
 
-func (m *memoriaUsuarios) List(ctx context.Context) ([]*domainusuarios.Usuario, error) {
+func (m *memoriaUsuarios) List(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
 	itens := m.copias()
 	ordenarUsuarios(itens)
 
-	return itens, nil
+	return paginar(itens, filtro), nil
 }
 
-func (m *memoriaUsuarios) ListAtivos(ctx context.Context) ([]*domainusuarios.Usuario, error) {
+func (m *memoriaUsuarios) ListAtivos(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
 	var itens []*domainusuarios.Usuario
 	for _, usuario := range m.copias() {
 		if usuario.Ativo {
@@ -85,10 +103,10 @@ func (m *memoriaUsuarios) ListAtivos(ctx context.Context) ([]*domainusuarios.Usu
 	}
 	ordenarUsuarios(itens)
 
-	return itens, nil
+	return paginar(itens, filtro), nil
 }
 
-func (m *memoriaUsuarios) Search(ctx context.Context, termo string) ([]*domainusuarios.Usuario, error) {
+func (m *memoriaUsuarios) Search(ctx context.Context, termo string, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
 	termo = strings.ToLower(termo)
 
 	var itens []*domainusuarios.Usuario
@@ -99,7 +117,7 @@ func (m *memoriaUsuarios) Search(ctx context.Context, termo string) ([]*domainus
 	}
 	ordenarUsuarios(itens)
 
-	return itens, nil
+	return paginar(itens, filtro), nil
 }
 
 func (m *memoriaUsuarios) UpdateUltimoLogin(ctx context.Context, id uuid.UUID, ultimoLogin time.Time) error {
@@ -545,7 +563,7 @@ func TestUsuarioListasEBusca(t *testing.T) {
 	c.criarUsuario(t, "Bruno Lima", "bruno@exemplo.com", "segredo123")
 	diego := c.criarUsuario(t, "Diego Ramos", "diego@exemplo.com", "segredo123")
 
-	todos, err := c.usuario.List(ctx)
+	todos, err := c.usuario.List(ctx, todasAsPaginas)
 	if err != nil {
 		t.Fatalf("listagem falhou: %v", err)
 	}
@@ -560,7 +578,7 @@ func TestUsuarioListasEBusca(t *testing.T) {
 		t.Fatalf("desativação falhou: %v", err)
 	}
 
-	ativos, err := c.usuario.ListAtivos(ctx)
+	ativos, err := c.usuario.ListAtivos(ctx, todasAsPaginas)
 	if err != nil {
 		t.Fatalf("listagem de ativos falhou: %v", err)
 	}
@@ -573,7 +591,7 @@ func TestUsuarioListasEBusca(t *testing.T) {
 		}
 	}
 
-	encontrados, err := c.usuario.Search(ctx, "  BRUNO  ")
+	encontrados, err := c.usuario.Search(ctx, "  BRUNO  ", todasAsPaginas)
 	if err != nil {
 		t.Fatalf("busca falhou: %v", err)
 	}
@@ -581,7 +599,7 @@ func TestUsuarioListasEBusca(t *testing.T) {
 		t.Errorf("busca devolveu %+v, esperado Bruno Lima", encontrados)
 	}
 
-	porEmail, err := c.usuario.Search(ctx, "ANA@exemplo")
+	porEmail, err := c.usuario.Search(ctx, "ANA@exemplo", todasAsPaginas)
 	if err != nil {
 		t.Fatalf("busca por email falhou: %v", err)
 	}

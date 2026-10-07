@@ -58,6 +58,10 @@ func consultaBooleana(r *http.Request, nome string) bool {
 	return valor == "true" || valor == "1"
 }
 
+func consultaPaginacao(r *http.Request) domain.PaginacaoFiltro {
+	return dto.NovaPaginacaoQuery(r.URL.Query()).ParaFiltro().Normalizada()
+}
+
 func consultaTexto(r *http.Request, nome string) string {
 	return strings.TrimSpace(r.URL.Query().Get(nome))
 }

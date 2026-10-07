@@ -6,6 +6,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	domainusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/usuarios"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/usuarios"
 	"github.com/google/uuid"
@@ -110,46 +111,52 @@ func (u *UsuarioRepository) GetByID(ctx context.Context, id uuid.UUID) (*domainu
 	return &item, nil
 }
 
-func (u *UsuarioRepository) List(ctx context.Context) ([]*domainusuarios.Usuario, error) {
+func (u *UsuarioRepository) List(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
+	offset := (filtro.Page - 1) * filtro.Size
 	query := `
 		SELECT id, nome, email, senha, cargo_id, ativo, ultimo_login, criado_em, atualizado_em
 		FROM usuario
 		ORDER BY nome ASC
+		LIMIT $1 OFFSET $2
 	`
 
 	var itens []*domainusuarios.Usuario
-	if err := u.db.SelectContext(ctx, &itens, query); err != nil {
+	if err := u.db.SelectContext(ctx, &itens, query, filtro.Size, offset); err != nil {
 		return nil, err
 	}
 	return itens, nil
 }
 
-func (u *UsuarioRepository) ListAtivos(ctx context.Context) ([]*domainusuarios.Usuario, error) {
+func (u *UsuarioRepository) ListAtivos(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
+	offset := (filtro.Page - 1) * filtro.Size
 	query := `
 		SELECT id, nome, email, senha, cargo_id, ativo, ultimo_login, criado_em, atualizado_em
 		FROM usuario
 		WHERE ativo = TRUE
 		ORDER BY nome ASC
+		LIMIT $1 OFFSET $2
 	`
 
 	var itens []*domainusuarios.Usuario
-	if err := u.db.SelectContext(ctx, &itens, query); err != nil {
+	if err := u.db.SelectContext(ctx, &itens, query, filtro.Size, offset); err != nil {
 		return nil, err
 	}
 	return itens, nil
 }
 
-func (u *UsuarioRepository) Search(ctx context.Context, termo string) ([]*domainusuarios.Usuario, error) {
+func (u *UsuarioRepository) Search(ctx context.Context, termo string, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
+	offset := (filtro.Page - 1) * filtro.Size
 	query := `
 		SELECT id, nome, email, senha, cargo_id, ativo, ultimo_login, criado_em, atualizado_em
 		FROM usuario
 		WHERE LOWER(nome) LIKE '%' || LOWER($1) || '%'
 		   OR LOWER(email) LIKE '%' || LOWER($1) || '%'
 		ORDER BY nome ASC
+		LIMIT $2 OFFSET $3
 	`
 
 	var itens []*domainusuarios.Usuario
-	if err := u.db.SelectContext(ctx, &itens, query, termo); err != nil {
+	if err := u.db.SelectContext(ctx, &itens, query, termo, filtro.Size, offset); err != nil {
 		return nil, err
 	}
 	return itens, nil

@@ -156,16 +156,16 @@ func (u *UsuarioUsecaseImpl) GetByID(ctx context.Context, id uuid.UUID) (*domain
 	return u.buscar(ctx, id)
 }
 
-func (u *UsuarioUsecaseImpl) List(ctx context.Context) ([]*domainusuarios.Usuario, error) {
-	return u.repo.List(ctx)
+func (u *UsuarioUsecaseImpl) List(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
+	return u.repo.List(ctx, filtro.Normalizada())
 }
 
-func (u *UsuarioUsecaseImpl) ListAtivos(ctx context.Context) ([]*domainusuarios.Usuario, error) {
-	return u.repo.ListAtivos(ctx)
+func (u *UsuarioUsecaseImpl) ListAtivos(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
+	return u.repo.ListAtivos(ctx, filtro.Normalizada())
 }
 
-func (u *UsuarioUsecaseImpl) Search(ctx context.Context, termo string) ([]*domainusuarios.Usuario, error) {
-	return u.repo.Search(ctx, strings.TrimSpace(termo))
+func (u *UsuarioUsecaseImpl) Search(ctx context.Context, termo string, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
+	return u.repo.Search(ctx, strings.TrimSpace(termo), filtro.Normalizada())
 }
 
 func (u *UsuarioUsecaseImpl) Update(ctx context.Context, usuario *domainusuarios.Usuario) error {

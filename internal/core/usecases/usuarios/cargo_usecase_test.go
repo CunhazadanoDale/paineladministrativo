@@ -65,14 +65,14 @@ func (m *memoriaCargos) GetByNome(ctx context.Context, nome string) (*domainusua
 	return nil, nil
 }
 
-func (m *memoriaCargos) List(ctx context.Context) ([]*domainusuarios.Cargo, error) {
+func (m *memoriaCargos) List(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
 	itens := m.copias()
 	ordenarCargos(itens)
 
-	return itens, nil
+	return paginar(itens, filtro), nil
 }
 
-func (m *memoriaCargos) ListAtivos(ctx context.Context) ([]*domainusuarios.Cargo, error) {
+func (m *memoriaCargos) ListAtivos(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
 	var itens []*domainusuarios.Cargo
 	for _, cargo := range m.copias() {
 		if cargo.Ativo {
@@ -81,7 +81,7 @@ func (m *memoriaCargos) ListAtivos(ctx context.Context) ([]*domainusuarios.Cargo
 	}
 	ordenarCargos(itens)
 
-	return itens, nil
+	return paginar(itens, filtro), nil
 }
 
 func (m *memoriaCargos) Delete(ctx context.Context, id uuid.UUID) error {
@@ -268,7 +268,7 @@ func TestCargoListas(t *testing.T) {
 		t.Fatalf("criação do segundo cargo falhou: %v", err)
 	}
 
-	todos, err := c.cargo.List(ctx)
+	todos, err := c.cargo.List(ctx, todasAsPaginas)
 	if err != nil {
 		t.Fatalf("listagem falhou: %v", err)
 	}
@@ -288,7 +288,7 @@ func TestCargoListas(t *testing.T) {
 		t.Fatalf("atualização falhou: %v", err)
 	}
 
-	ativos, err := c.cargo.ListAtivos(ctx)
+	ativos, err := c.cargo.ListAtivos(ctx, todasAsPaginas)
 	if err != nil {
 		t.Fatalf("listagem de ativos falhou: %v", err)
 	}
