@@ -135,7 +135,8 @@ Observações:
 - Campos desconhecidos no corpo rejeitam a requisição (`400` com `json: unknown field`)
 - IDs que não forem UUID devolvem `400` (`parâmetro id inválido`)
 - Mensagens iniciadas com `erro de validação:` ou `registro não encontrado:` vêm das
-  regras de negócio
+  regras de negócio. `403` e `409` devolvem só o detalhe, **sem** o prefixo da
+  sentinela (mesmo estilo do middleware: `perfil sem permissão para esta operação`)
 
 ---
 
@@ -440,7 +441,7 @@ Fluxo: **solicitante → aprovador designado → financeiro**.
 | `pendente_aprovacao` | `aprovado` | `POST /{id}/aprovar` |
 | `pendente_aprovacao` | `rejeitado` | `POST /{id}/rejeitar` |
 | `pendente_aprovacao`, `aprovado` | `cancelado` | `POST /{id}/cancelar` |
-| `aprovado` | `pago` | `POST /{id}/pagamentos` |
+| `aprovado` | `pago` | `POST /{id}/pagamento` |
 
 `pago`, `rejeitado` e `cancelado` são estados terminais. Toda transição grava um registro
 no histórico **na mesma transação**, e o `UPDATE` só acontece se o status anterior bater:
@@ -457,7 +458,7 @@ se outra pessoa mudar primeiro, a segunda recebe `409`
 | `POST` | `/api/v1/solicitacoes/{id}/aprovar` | aprovador ou administrador | `200` |
 | `POST` | `/api/v1/solicitacoes/{id}/rejeitar` | aprovador ou administrador | `200` |
 | `POST` | `/api/v1/solicitacoes/{id}/cancelar` | solicitante ou administrador | `200` |
-| `POST` | `/api/v1/solicitacoes/{id}/pagamentos` | financeiro ou administrador | `201` |
+| `POST` | `/api/v1/solicitacoes/{id}/pagamento` | financeiro ou administrador | `201` |
 | `GET` | `/api/v1/solicitacoes/{id}/pagamento` | quem pode ver | `200` objeto único |
 | `GET` | `/api/v1/solicitacoes/{id}/historico` | quem pode ver | `200` lista |
 | `GET` | `/api/v1/solicitacoes/{id}/arquivos` | quem pode ver | `200` lista |
@@ -478,9 +479,12 @@ solicitações fora de `pendente_aprovacao`). Quem não pode ver recebe `403`
 | `financeiro` | cargo com `"financeiro": true` ou administrador | as `aprovado` |
 | `todas` | administrador | todas |
 
-`status=` (ex.: `?escopo=todas&status=pago`) sobrescreve o status implícito do escopo — a
-checagem de perfil continua valendo. `escopo` fora da lista devolve `400`
-(`escopo de listagem inválido`); escopo de outro perfil devolve `403`.
+`status=` (ex.: `?escopo=todas&status=pago`) filtra dentro do que o escopo já deixa
+enxergar — não serve para furar a definição do escopo. `escopo=aprovacao` só aceita
+`status=pendente_aprovacao` e `escopo=financeiro` aceita qualquer status **exceto**
+`pendente_aprovacao`; a combinação fora da regra devolve `400`
+(`status não permitido para o escopo de listagem informado`). `escopo` fora da lista
+devolve `400` (`escopo de listagem inválido`); escopo de outro perfil devolve `403`.
 
 ### `POST /api/v1/solicitacoes`
 
@@ -499,7 +503,7 @@ checagem de perfil continua valendo. `escopo` fora da lista devolve `400`
 | `valor_centavos` | inteiro em centavos, maior que zero (`150000` = R$ 1.500,00) |
 | `prazo_pagamento` | `AAAA-MM-DD` (ou RFC3339). Obrigatório e não pode ser anterior a hoje |
 | `observacao` | obrigatória, no máximo 1000 caracteres |
-| `forma_pagamento` | `pix`, `cartão` ou `boleto` |
+| `forma_pagamento` | `pix`, `cartao` ou `boleto` |
 | `arquivo_ids` | opcional. Cada anexo tem que existir, pertencer ao solicitante e não estar em outra solicitação |
 
 **Objeto de solicitação:**
@@ -528,8 +532,8 @@ checagem de perfil continua valendo. `escopo` fora da lista devolve `400`
 | --- | --- | --- |
 | Valor zero ou negativo | `400` | `erro de validação: valor deve ser maior que zero` |
 | Prazo vazio ou anterior a hoje | `400` | `erro de validação: prazo de pagamento é obrigatório` / `...não pode ser anterior a hoje` |
-| Forma diferente das três | `400` | `erro de validação: forma de pagamento deve ser pix, cartão ou boleto` |
-| Anexo de outra pessoa | `400` | `erro de validação: arquivo não pertence ao solicitante` |
+| Forma diferente das três | `400` | `erro de validação: forma de pagamento deve ser pix, cartao ou boleto` |
+| Anexo de outra pessoa | `403` | `arquivo não pertence ao solicitante` |
 | Anexo já em uso | `400` | `erro de validação: arquivo já vinculado a outra solicitação` |
 
 ### `POST /api/v1/solicitacoes/{id}/rejeitar`
@@ -540,7 +544,7 @@ checagem de perfil continua valendo. `escopo` fora da lista devolve `400`
 
 `motivo` é obrigatório e aceita no máximo 500 caracteres (`400` quando vazio).
 
-### `POST /api/v1/solicitacoes/{id}/pagamentos`
+### `POST /api/v1/solicitacoes/{id}/pagamento`
 
 ```json
 {
@@ -575,11 +579,11 @@ checagem de perfil continua valendo. `escopo` fora da lista devolve `400`
 | Status diferente de `aprovado` | `409` | `não é possível mudar a solicitação de "<status atual>" para "pago"` |
 | Comprovante não PDF | `400` | `comprovante deve ser um arquivo PDF` |
 | Comprovante de outro usuário | `403` | `comprovante não pertence ao usuário` |
-| Comprovante já usado | `400` | `comprovante já vinculado a uma solicitação` |
+| Comprovante já usado em outra solicitação | `400` | `comprovante já vinculado a outra solicitação` |
 | Sem pagamento registrado | `404` | `registro não encontrado: pagamento não encontrado` (em `GET /{id}/pagamento`) |
 
-A resposta de `aprovar`, `rejeitar`, `cancelar` e `pagamentos` devolve o objeto da
-solicitação já com o status novo (no caso do pagamento, o objeto do pagamento).
+A resposta de `aprovar`, `rejeitar` e `cancelar` devolve o objeto da solicitação já com
+o status novo; a de `POST /{id}/pagamento` devolve o objeto do pagamento.
 
 ---
 
@@ -607,6 +611,11 @@ ver a solicitação dona do anexo (`403 perfil sem permissão para baixar este a
 
 Anexo já vinculado a solicitação não pode ser excluído (`409 arquivo vinculado a uma
 solicitação não pode ser removido`).
+
+O comprovante registrado em `POST /{id}/pagamento` **também vira vínculo** da solicitação:
+ele aparece em `GET /{id}/arquivos`, é baixável por quem enxerga a solicitação e não pode
+ser excluído (mesmo `409`). Um arquivo só pode estar vinculado a uma solicitação por vez
+(`UNIQUE (arquivo_id)` em `solicitacao_arquivo`).
 
 ---
 
