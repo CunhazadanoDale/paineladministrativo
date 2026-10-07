@@ -32,10 +32,17 @@ func autenticar(t *testing.T, servidor *httptest.Server, email, senha string) us
 func criarCargo(t *testing.T, servidor *httptest.Server, nome string, administrador bool) uuid.UUID {
 	t.Helper()
 
+	return criarCargoComPerfil(t, servidor, nome, administrador, false)
+}
+
+func criarCargoComPerfil(t *testing.T, servidor *httptest.Server, nome string, administrador, financeiro bool) uuid.UUID {
+	t.Helper()
+
 	resposta := envia(t, servidor, http.MethodPost, "/api/v1/cargos", map[string]any{
 		"nome":          nome,
 		"descricao":     "Cargo criado no teste",
 		"administrador": administrador,
+		"financeiro":    financeiro,
 	})
 	conferirStatus(t, resposta, http.StatusCreated)
 
