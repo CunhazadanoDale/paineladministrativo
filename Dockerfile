@@ -13,7 +13,9 @@ FROM alpine:3.24
 
 RUN apk add --no-cache ca-certificates \
     && addgroup -S app \
-    && adduser -S -G app app
+    && adduser -S -G app app \
+    && mkdir -p /storage_local \
+    && chown app:app /storage_local
 
 COPY --from=build /bin/api /api
 

@@ -53,6 +53,14 @@ services:
       - CORS_ORIGINS=${CORS_ORIGINS:-}
       - JWT_SECRET=${JWT_SECRET:-}
       - JWT_EXPIRA_MINUTOS=${JWT_EXPIRA_MINUTOS:-}
+      - STORAGE_DRIVER=${STORAGE_DRIVER:-}
+      - STORAGE_DIR=${STORAGE_DIR:-}
+      - R2_ACCOUNT_ID=${R2_ACCOUNT_ID:-}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID:-}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY:-}
+      - R2_BUCKET=${R2_BUCKET:-}
+    volumes:
+      - storage_data:/storage_local
     ports:
       - 8080:8080
     depends_on:
@@ -65,6 +73,7 @@ services:
 
 volumes:
   postgres_data:
+  storage_data:
 
 networks:
   mia_network:

@@ -11,23 +11,37 @@ import (
 
 const expiracaoTokenPadrao = 480 * time.Minute
 
+const storageDiscoPadrao = "disco"
+
 type Config struct {
-	AppPort      string
-	DatabaseUrl  string
-	CORSOrigins  []string
-	JWTSecret    string
-	JWTExpiracao time.Duration
+	AppPort           string
+	DatabaseUrl       string
+	CORSOrigins       []string
+	JWTSecret         string
+	JWTExpiracao      time.Duration
+	StorageDriver     string
+	StorageDir        string
+	R2AccountID       string
+	R2AccessKeyID     string
+	R2SecretAccessKey string
+	R2Bucket          string
 }
 
 func LoadConfig() *Config {
 	_ = godotenv.Load()
 
 	return &Config{
-		AppPort:      os.Getenv("PORT"),
-		DatabaseUrl:  os.Getenv("DATABASE_URL"),
-		CORSOrigins:  separarOrigens(os.Getenv("CORS_ORIGINS")),
-		JWTSecret:    strings.TrimSpace(os.Getenv("JWT_SECRET")),
-		JWTExpiracao: expiracaoToken(os.Getenv("JWT_EXPIRA_MINUTOS")),
+		AppPort:           os.Getenv("PORT"),
+		DatabaseUrl:       os.Getenv("DATABASE_URL"),
+		CORSOrigins:       separarOrigens(os.Getenv("CORS_ORIGINS")),
+		JWTSecret:         strings.TrimSpace(os.Getenv("JWT_SECRET")),
+		JWTExpiracao:      expiracaoToken(os.Getenv("JWT_EXPIRA_MINUTOS")),
+		StorageDriver:     storageDriver(os.Getenv("STORAGE_DRIVER")),
+		StorageDir:        valorOuPadrao(os.Getenv("STORAGE_DIR"), "storage_local"),
+		R2AccountID:       strings.TrimSpace(os.Getenv("R2_ACCOUNT_ID")),
+		R2AccessKeyID:     strings.TrimSpace(os.Getenv("R2_ACCESS_KEY_ID")),
+		R2SecretAccessKey: strings.TrimSpace(os.Getenv("R2_SECRET_ACCESS_KEY")),
+		R2Bucket:          strings.TrimSpace(os.Getenv("R2_BUCKET")),
 	}
 }
 
@@ -50,4 +64,22 @@ func separarOrigens(valor string) []string {
 	}
 
 	return origens
+}
+
+func storageDriver(valor string) string {
+	valor = strings.ToLower(strings.TrimSpace(valor))
+	if valor == "" {
+		return storageDiscoPadrao
+	}
+
+	return valor
+}
+
+func valorOuPadrao(valor, padrao string) string {
+	valor = strings.TrimSpace(valor)
+	if valor == "" {
+		return padrao
+	}
+
+	return valor
 }
