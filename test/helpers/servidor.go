@@ -9,6 +9,7 @@ import (
 	httpapi "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/postgres"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/leadpoint"
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/usuarios"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -22,6 +23,8 @@ import (
 func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 	t.Helper()
 
+	cargoRepository := postgres.NewCargoRepository(banco)
+
 	rotas := httpapi.NewRouter(
 		banco,
 		[]string{"*"},
@@ -29,6 +32,8 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 		leadpoint.NewFunilUsecase(postgres.NewFunilRepo(banco)),
 		leadpoint.NewEtapaUsecase(postgres.NewEtapaRepository(banco)),
 		leadpoint.NewLeadHistoryUsecase(postgres.NewLeadHistoryRepository(banco)),
+		usuarios.NewUsuarioUsecase(postgres.NewUsuarioRepository(banco), cargoRepository),
+		usuarios.NewCargoUsecase(cargoRepository),
 	)
 
 	servidor := httptest.NewServer(rotas)

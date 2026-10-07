@@ -14,6 +14,7 @@ import (
 	httpapi "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/postgres"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/leadpoint"
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/usuarios"
 )
 
 const tempoDeEncerramento = 10 * time.Second
@@ -27,6 +28,8 @@ func main() {
 	}
 	defer banco.Close()
 
+	cargoRepository := postgres.NewCargoRepository(banco)
+
 	rotas := httpapi.NewRouter(
 		banco,
 		cfg.CORSOrigins,
@@ -34,6 +37,8 @@ func main() {
 		leadpoint.NewFunilUsecase(postgres.NewFunilRepo(banco)),
 		leadpoint.NewEtapaUsecase(postgres.NewEtapaRepository(banco)),
 		leadpoint.NewLeadHistoryUsecase(postgres.NewLeadHistoryRepository(banco)),
+		usuarios.NewUsuarioUsecase(postgres.NewUsuarioRepository(banco), cargoRepository),
+		usuarios.NewCargoUsecase(cargoRepository),
 	)
 
 	servidor := &http.Server{
