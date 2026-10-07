@@ -76,7 +76,7 @@ func (l *LeadRepository) Create(ctx context.Context, lead *lead.Lead) (uuid.UUID
 // Delete implements [leads.LeadRepository].
 func (l *LeadRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	_, err := l.db.ExecContext(ctx, `DELETE FROM lead WHERE id = $1`, id)
-	return err
+	return tratarErro(err)
 }
 
 // GetByID implements [leads.LeadRepository].

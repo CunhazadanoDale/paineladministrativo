@@ -49,7 +49,7 @@ func (f *FunilRepo) Create(ctx context.Context, funil *lead.Funil) (uuid.UUID, e
 
 func (f *FunilRepo) Delete(ctx context.Context, funilID uuid.UUID) error {
 	_, err := f.db.ExecContext(ctx, `DELETE FROM funil WHERE funil_id = $1`, funilID)
-	return err
+	return tratarErro(err)
 }
 
 func (f *FunilRepo) ExistsByID(ctx context.Context, funilID uuid.UUID) (bool, error) {

@@ -49,7 +49,7 @@ func (e *EtapaRepository) Create(ctx context.Context, etapa *lead.Etapa) (uuid.U
 
 func (e *EtapaRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	_, err := e.db.ExecContext(ctx, `DELETE FROM etapa WHERE etapa_id = $1`, id)
-	return err
+	return tratarErro(err)
 }
 
 func (e *EtapaRepository) ExistsByFunil(ctx context.Context, funilID uuid.UUID) (bool, error) {
