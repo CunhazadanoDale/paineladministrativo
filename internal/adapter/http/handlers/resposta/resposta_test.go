@@ -1,4 +1,4 @@
-package lead
+package resposta
 
 import (
 	"encoding/json"
@@ -19,12 +19,19 @@ func TestMapearErro(t *testing.T) {
 		mensagem string
 	}{
 		{domain.ErroValidacao("nome do lead é obrigatório"), http.StatusBadRequest, "erro de validação: nome do lead é obrigatório"},
+		{domain.ErroValidacao("valor deve ser maior que zero"), http.StatusBadRequest, "erro de validação: valor deve ser maior que zero"},
+		{domain.ErroPermissao("perfil sem permissão para registrar pagamento"), http.StatusForbidden, "perfil sem permissão para registrar pagamento"},
+		{domain.ErrPermissao, http.StatusForbidden, "perfil sem permissão para esta operação"},
 		{domain.ErroNaoEncontrado("lead não encontrado"), http.StatusNotFound, "registro não encontrado: lead não encontrado"},
+		{domain.ErroNaoEncontrado("pagamento não encontrado"), http.StatusNotFound, "registro não encontrado: pagamento não encontrado"},
+		{domain.ErrNotFound, http.StatusNotFound, "registro não encontrado"},
+		{domain.ErroConflito("solicitação já paga"), http.StatusConflict, "solicitação já paga"},
+		{domain.ErrConflito, http.StatusConflict, "operação em conflito com o estado atual"},
 		{errors.New("banco indisponível"), http.StatusInternalServerError, "erro interno do servidor"},
 	}
 
 	for _, caso := range casos {
-		status, mensagem := mapearErro(caso.origem)
+		status, mensagem := MapearErro(caso.origem)
 		if status != caso.status {
 			t.Errorf("erro %q mapeado para %d, esperado %d", caso.origem, status, caso.status)
 		}
@@ -37,7 +44,7 @@ func TestMapearErro(t *testing.T) {
 func TestResponderErroUsaEnvelope(t *testing.T) {
 	registrador := httptest.NewRecorder()
 
-	responderErro(registrador, domain.ErroValidacao("nome do lead é obrigatório"))
+	ResponderErro(registrador, domain.ErroValidacao("nome do lead é obrigatório"))
 
 	if registrador.Code != http.StatusBadRequest {
 		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusBadRequest)
@@ -46,14 +53,14 @@ func TestResponderErroUsaEnvelope(t *testing.T) {
 		t.Errorf("content-type %q inesperado", conteudo)
 	}
 
-	var resposta dto.RespostaErro
-	if err := json.Unmarshal(registrador.Body.Bytes(), &resposta); err != nil {
+	var envelope dto.RespostaErro
+	if err := json.Unmarshal(registrador.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("corpo não é um envelope de erro válido: %v", err)
 	}
-	if resposta.Erro.Codigo != http.StatusBadRequest {
-		t.Errorf("código do envelope %d, esperado %d", resposta.Erro.Codigo, http.StatusBadRequest)
+	if envelope.Erro.Codigo != http.StatusBadRequest {
+		t.Errorf("código do envelope %d, esperado %d", envelope.Erro.Codigo, http.StatusBadRequest)
 	}
-	if resposta.Erro.Mensagem == "" {
+	if envelope.Erro.Mensagem == "" {
 		t.Error("mensagem do envelope vazia")
 	}
 }
@@ -66,7 +73,7 @@ func TestCorpoJSONRejeitaCampoDesconhecido(t *testing.T) {
 		Nome string `json:"nome"`
 	}
 
-	if corpoJSON(registrador, requisicao, &destino) {
+	if CorpoJSON(registrador, requisicao, &destino) {
 		t.Fatal("esperava rejeição de campo desconhecido")
 	}
 	if registrador.Code != http.StatusBadRequest {
@@ -82,7 +89,7 @@ func TestCorpoJSONRejeitaCorpoInvalido(t *testing.T) {
 		Nome string `json:"nome"`
 	}
 
-	if corpoJSON(registrador, requisicao, &destino) {
+	if CorpoJSON(registrador, requisicao, &destino) {
 		t.Fatal("esperava rejeição de corpo inválido")
 	}
 	if registrador.Code != http.StatusBadRequest {
@@ -95,7 +102,7 @@ func TestParametroUUIDInvalido(t *testing.T) {
 	requisicao.SetPathValue("id", "abc")
 	registrador := httptest.NewRecorder()
 
-	if _, ok := parametroUUID(registrador, requisicao, "id"); ok {
+	if _, ok := ParametroUUID(registrador, requisicao, "id"); ok {
 		t.Fatal("esperava rejeição de parâmetro não UUID")
 	}
 	if registrador.Code != http.StatusBadRequest {
@@ -108,11 +115,50 @@ func TestParametroUUIDValido(t *testing.T) {
 	requisicao.SetPathValue("id", "11111111-1111-1111-1111-111111111111")
 	registrador := httptest.NewRecorder()
 
-	id, ok := parametroUUID(registrador, requisicao, "id")
+	id, ok := ParametroUUID(registrador, requisicao, "id")
 	if !ok {
 		t.Fatal("esperava aceitação do parâmetro UUID")
 	}
 	if id.String() != "11111111-1111-1111-1111-111111111111" {
 		t.Errorf("id %q inesperado", id)
+	}
+}
+
+func TestUsuarioDoContextoSemUsuarioResponde401(t *testing.T) {
+	requisicao := httptest.NewRequest(http.MethodGet, "/api/v1/arquivos", nil)
+	registrador := httptest.NewRecorder()
+
+	if _, ok := UsuarioDoContexto(registrador, requisicao); ok {
+		t.Fatal("esperava rejeição sem usuário no contexto")
+	}
+	if registrador.Code != http.StatusUnauthorized {
+		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestConsultaPaginacaoNormaliza(t *testing.T) {
+	requisicao := httptest.NewRequest(http.MethodGet, "/api/v1/leads?pagina=0&tamanho=9999", nil)
+
+	filtro := ConsultaPaginacao(requisicao)
+	if filtro.Page != 1 || filtro.Size != 100 {
+		t.Errorf("filtro {pagina: %d, tamanho: %d}, esperado {pagina: 1, tamanho: 100}", filtro.Page, filtro.Size)
+	}
+}
+
+func TestConsultaBooleana(t *testing.T) {
+	casos := map[string]bool{
+		"":      false,
+		"true":  true,
+		"1":     true,
+		"false": false,
+		"0":     false,
+		"sim":   false,
+	}
+
+	for valor, esperado := range casos {
+		requisicao := httptest.NewRequest(http.MethodGet, "/api/v1/usuarios?ativos="+valor, nil)
+		if obtido := ConsultaBooleana(requisicao, "ativos"); obtido != esperado {
+			t.Errorf("ConsultaBooleana(%q) = %v, esperado %v", valor, obtido, esperado)
+		}
 	}
 }

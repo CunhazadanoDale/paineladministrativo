@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/apoioteste"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto"
 	usuariosdto "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto/usuarios"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
@@ -276,7 +277,7 @@ func TestUsuarioHandlerCriar(t *testing.T) {
 
 	cargoID := uuid.NewString()
 	corpo := `{"nome":"Ana Souza","email":"ana@exemplo.com","senha":"segredo123","cargo_id":"` + cargoID + `"}`
-	registrador := executarRequisicao(handler.Criar, http.MethodPost, "/api/v1/usuarios", "", corpo)
+	registrador := apoioteste.ExecutarHandler(handler.Criar, http.MethodPost, "/api/v1/usuarios", "", corpo)
 
 	if registrador.Code != http.StatusCreated {
 		t.Fatalf("status %d, esperado %d: %s", registrador.Code, http.StatusCreated, registrador.Body.String())
@@ -312,14 +313,14 @@ func TestUsuarioHandlerCriarRejeitaCorpoInvalido(t *testing.T) {
 	}
 
 	for _, caso := range casos {
-		registrador := executarRequisicao(handler.Criar, http.MethodPost, "/api/v1/usuarios", "", caso.corpo)
+		registrador := apoioteste.ExecutarHandler(handler.Criar, http.MethodPost, "/api/v1/usuarios", "", caso.corpo)
 
 		if registrador.Code != http.StatusBadRequest {
 			t.Errorf("%s: status %d, esperado %d", caso.nome, registrador.Code, http.StatusBadRequest)
 			continue
 		}
 
-		verificarEnvelopeDeErro(t, registrador, http.StatusBadRequest)
+		apoioteste.VerificarEnvelopeDeErro(t, registrador, http.StatusBadRequest)
 	}
 }
 
@@ -329,7 +330,7 @@ func TestUsuarioHandlerObter(t *testing.T) {
 
 	id := semearUsuario(t, fake, "Ana Souza", "ana@exemplo.com", "segredo123")
 
-	registrador := executarRequisicao(handler.Obter, http.MethodGet, "/api/v1/usuarios/"+id.String(), id.String(), "")
+	registrador := apoioteste.ExecutarHandler(handler.Obter, http.MethodGet, "/api/v1/usuarios/"+id.String(), id.String(), "")
 
 	if registrador.Code != http.StatusOK {
 		t.Fatalf("status %d, esperado %d: %s", registrador.Code, http.StatusOK, registrador.Body.String())
@@ -344,19 +345,19 @@ func TestUsuarioHandlerObter(t *testing.T) {
 	}
 
 	desconhecido := uuid.NewString()
-	registrador = executarRequisicao(handler.Obter, http.MethodGet, "/api/v1/usuarios/"+desconhecido, desconhecido, "")
+	registrador = apoioteste.ExecutarHandler(handler.Obter, http.MethodGet, "/api/v1/usuarios/"+desconhecido, desconhecido, "")
 
 	if registrador.Code != http.StatusNotFound {
 		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusNotFound)
 	}
-	verificarEnvelopeDeErro(t, registrador, http.StatusNotFound)
+	apoioteste.VerificarEnvelopeDeErro(t, registrador, http.StatusNotFound)
 
-	registrador = executarRequisicao(handler.Obter, http.MethodGet, "/api/v1/usuarios/abc", "abc", "")
+	registrador = apoioteste.ExecutarHandler(handler.Obter, http.MethodGet, "/api/v1/usuarios/abc", "abc", "")
 
 	if registrador.Code != http.StatusBadRequest {
 		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusBadRequest)
 	}
-	verificarEnvelopeDeErro(t, registrador, http.StatusBadRequest)
+	apoioteste.VerificarEnvelopeDeErro(t, registrador, http.StatusBadRequest)
 }
 
 func TestUsuarioHandlerListarComFiltros(t *testing.T) {
@@ -383,7 +384,7 @@ func TestUsuarioHandlerListarComFiltros(t *testing.T) {
 	}
 
 	for _, caso := range casos {
-		registrador := executarRequisicao(handler.Listar, http.MethodGet, caso.caminho, "", "")
+		registrador := apoioteste.ExecutarHandler(handler.Listar, http.MethodGet, caso.caminho, "", "")
 
 		if registrador.Code != http.StatusOK {
 			t.Errorf("%s: status %d, esperado %d", caso.nome, registrador.Code, http.StatusOK)
@@ -413,7 +414,7 @@ func TestUsuarioHandlerAtualizar(t *testing.T) {
 	id := semearUsuario(t, fake, "Ana Souza", "ana@exemplo.com", "segredo123")
 	cargoID := uuid.NewString()
 	corpo := `{"nome":"Ana Alterada","email":"ana@exemplo.com","cargo_id":"` + cargoID + `","ativo":true}`
-	registrador := executarRequisicao(handler.Atualizar, http.MethodPut, "/api/v1/usuarios/"+id.String(), id.String(), corpo)
+	registrador := apoioteste.ExecutarHandler(handler.Atualizar, http.MethodPut, "/api/v1/usuarios/"+id.String(), id.String(), corpo)
 
 	if registrador.Code != http.StatusOK {
 		t.Fatalf("status %d, esperado %d: %s", registrador.Code, http.StatusOK, registrador.Body.String())
@@ -437,19 +438,19 @@ func TestUsuarioHandlerRemover(t *testing.T) {
 
 	id := semearUsuario(t, fake, "Ana Souza", "ana@exemplo.com", "segredo123")
 
-	registrador := executarRequisicao(handler.Remover, http.MethodDelete, "/api/v1/usuarios/"+id.String(), id.String(), "")
+	registrador := apoioteste.ExecutarHandler(handler.Remover, http.MethodDelete, "/api/v1/usuarios/"+id.String(), id.String(), "")
 
 	if registrador.Code != http.StatusNoContent {
 		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusNoContent)
 	}
 
 	desconhecido := uuid.NewString()
-	registrador = executarRequisicao(handler.Remover, http.MethodDelete, "/api/v1/usuarios/"+desconhecido, desconhecido, "")
+	registrador = apoioteste.ExecutarHandler(handler.Remover, http.MethodDelete, "/api/v1/usuarios/"+desconhecido, desconhecido, "")
 
 	if registrador.Code != http.StatusNotFound {
 		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusNotFound)
 	}
-	verificarEnvelopeDeErro(t, registrador, http.StatusNotFound)
+	apoioteste.VerificarEnvelopeDeErro(t, registrador, http.StatusNotFound)
 }
 
 func TestUsuarioHandlerTrocarSenha(t *testing.T) {
@@ -458,7 +459,7 @@ func TestUsuarioHandlerTrocarSenha(t *testing.T) {
 
 	id := semearUsuario(t, fake, "Ana Souza", "ana@exemplo.com", "segredo123")
 
-	registrador := executarRequisicao(handler.TrocarSenha, http.MethodPost, "/api/v1/usuarios/"+id.String()+"/senha", id.String(), `{"nova_senha":"nova12345"}`)
+	registrador := apoioteste.ExecutarHandler(handler.TrocarSenha, http.MethodPost, "/api/v1/usuarios/"+id.String()+"/senha", id.String(), `{"nova_senha":"nova12345"}`)
 
 	if registrador.Code != http.StatusNoContent {
 		t.Fatalf("status %d, esperado %d: %s", registrador.Code, http.StatusNoContent, registrador.Body.String())
@@ -467,12 +468,12 @@ func TestUsuarioHandlerTrocarSenha(t *testing.T) {
 		t.Errorf("senha %q, esperada %q", fake.usuarios[id].Senha, "nova12345")
 	}
 
-	registrador = executarRequisicao(handler.TrocarSenha, http.MethodPost, "/api/v1/usuarios/"+id.String()+"/senha", id.String(), `{"nova_senha":""}`)
+	registrador = apoioteste.ExecutarHandler(handler.TrocarSenha, http.MethodPost, "/api/v1/usuarios/"+id.String()+"/senha", id.String(), `{"nova_senha":""}`)
 
 	if registrador.Code != http.StatusBadRequest {
 		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusBadRequest)
 	}
-	verificarEnvelopeDeErro(t, registrador, http.StatusBadRequest)
+	apoioteste.VerificarEnvelopeDeErro(t, registrador, http.StatusBadRequest)
 }
 
 func TestUsuarioHandlerAtivarEDesativar(t *testing.T) {
@@ -481,7 +482,7 @@ func TestUsuarioHandlerAtivarEDesativar(t *testing.T) {
 
 	id := semearUsuario(t, fake, "Ana Souza", "ana@exemplo.com", "segredo123")
 
-	registrador := executarRequisicao(handler.Ativar, http.MethodPatch, "/api/v1/usuarios/"+id.String()+"/ativar", id.String(), "")
+	registrador := apoioteste.ExecutarHandler(handler.Ativar, http.MethodPatch, "/api/v1/usuarios/"+id.String()+"/ativar", id.String(), "")
 
 	if registrador.Code != http.StatusOK {
 		t.Fatalf("status %d, esperado %d: %s", registrador.Code, http.StatusOK, registrador.Body.String())
@@ -490,7 +491,7 @@ func TestUsuarioHandlerAtivarEDesativar(t *testing.T) {
 		t.Error("usuário deveria estar ativo")
 	}
 
-	registrador = executarRequisicao(handler.Desativar, http.MethodPatch, "/api/v1/usuarios/"+id.String()+"/desativar", id.String(), "")
+	registrador = apoioteste.ExecutarHandler(handler.Desativar, http.MethodPatch, "/api/v1/usuarios/"+id.String()+"/desativar", id.String(), "")
 
 	if registrador.Code != http.StatusOK {
 		t.Fatalf("status %d, esperado %d: %s", registrador.Code, http.StatusOK, registrador.Body.String())
@@ -500,12 +501,12 @@ func TestUsuarioHandlerAtivarEDesativar(t *testing.T) {
 	}
 
 	desconhecido := uuid.NewString()
-	registrador = executarRequisicao(handler.Ativar, http.MethodPatch, "/api/v1/usuarios/"+desconhecido+"/ativar", desconhecido, "")
+	registrador = apoioteste.ExecutarHandler(handler.Ativar, http.MethodPatch, "/api/v1/usuarios/"+desconhecido+"/ativar", desconhecido, "")
 
 	if registrador.Code != http.StatusNotFound {
 		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusNotFound)
 	}
-	verificarEnvelopeDeErro(t, registrador, http.StatusNotFound)
+	apoioteste.VerificarEnvelopeDeErro(t, registrador, http.StatusNotFound)
 }
 
 func TestUsuarioHandlerAutenticar(t *testing.T) {
@@ -514,7 +515,7 @@ func TestUsuarioHandlerAutenticar(t *testing.T) {
 
 	id := semearUsuario(t, fake, "Ana Souza", "ana@exemplo.com", "segredo123")
 
-	registrador := executarRequisicao(handler.Autenticar, http.MethodPost, "/api/v1/usuarios/autenticar", "", `{"email":"ana@exemplo.com","senha":"segredo123"}`)
+	registrador := apoioteste.ExecutarHandler(handler.Autenticar, http.MethodPost, "/api/v1/usuarios/autenticar", "", `{"email":"ana@exemplo.com","senha":"segredo123"}`)
 
 	if registrador.Code != http.StatusOK {
 		t.Fatalf("status %d, esperado %d: %s", registrador.Code, http.StatusOK, registrador.Body.String())
@@ -549,10 +550,10 @@ func TestUsuarioHandlerAutenticar(t *testing.T) {
 		t.Error("resposta expôs a senha")
 	}
 
-	registrador = executarRequisicao(handler.Autenticar, http.MethodPost, "/api/v1/usuarios/autenticar", "", `{"email":"ana@exemplo.com","senha":"errada123"}`)
+	registrador = apoioteste.ExecutarHandler(handler.Autenticar, http.MethodPost, "/api/v1/usuarios/autenticar", "", `{"email":"ana@exemplo.com","senha":"errada123"}`)
 
 	if registrador.Code != http.StatusNotFound {
 		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusNotFound)
 	}
-	verificarEnvelopeDeErro(t, registrador, http.StatusNotFound)
+	apoioteste.VerificarEnvelopeDeErro(t, registrador, http.StatusNotFound)
 }

@@ -5,6 +5,7 @@ import (
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto"
 	leaddto "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto/lead"
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/resposta"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/leads"
 )
 
@@ -17,16 +18,16 @@ func NewLeadHistoryHandler(usecase portsin.LeadHistoryUseCase) *LeadHistoryHandl
 }
 
 func (h *LeadHistoryHandler) Listar(w http.ResponseWriter, r *http.Request) {
-	leadID, ok := parametroUUID(w, r, "lead_id")
+	leadID, ok := resposta.ParametroUUID(w, r, "lead_id")
 	if !ok {
 		return
 	}
 
-	paginacao := consultaPaginacao(r)
+	paginacao := resposta.ConsultaPaginacao(r)
 
 	itens, err := h.usecase.ListByLead(r.Context(), leadID, paginacao)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -38,13 +39,13 @@ func (h *LeadHistoryHandler) Listar(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *LeadHistoryHandler) RegistrarMovimentacao(w http.ResponseWriter, r *http.Request) {
-	leadID, ok := parametroUUID(w, r, "lead_id")
+	leadID, ok := resposta.ParametroUUID(w, r, "lead_id")
 	if !ok {
 		return
 	}
 
 	var requisicao leaddto.RegistrarMovimentacaoRequest
-	if !corpoJSON(w, r, &requisicao) {
+	if !resposta.CorpoJSON(w, r, &requisicao) {
 		return
 	}
 
@@ -55,7 +56,7 @@ func (h *LeadHistoryHandler) RegistrarMovimentacao(w http.ResponseWriter, r *htt
 		requisicao.EtapaAtualID,
 	)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 

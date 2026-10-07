@@ -7,6 +7,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/apoioteste"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto"
 	usuariosdto "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto/usuarios"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
@@ -141,7 +142,7 @@ func TestCargoHandlerCriar(t *testing.T) {
 	fake := novoFakeCargos()
 	handler := NewCargoHandler(fake)
 
-	registrador := executarRequisicao(handler.Criar, http.MethodPost, "/api/v1/cargos", "", `{"nome":"Gerente","descricao":"Gerente de obra"}`)
+	registrador := apoioteste.ExecutarHandler(handler.Criar, http.MethodPost, "/api/v1/cargos", "", `{"nome":"Gerente","descricao":"Gerente de obra"}`)
 
 	if registrador.Code != http.StatusCreated {
 		t.Fatalf("status %d, esperado %d: %s", registrador.Code, http.StatusCreated, registrador.Body.String())
@@ -158,19 +159,19 @@ func TestCargoHandlerCriar(t *testing.T) {
 		t.Error("cargo criado deveria estar ativo")
 	}
 
-	registrador = executarRequisicao(handler.Criar, http.MethodPost, "/api/v1/cargos", "", `{"nome":"Gerente"}`)
+	registrador = apoioteste.ExecutarHandler(handler.Criar, http.MethodPost, "/api/v1/cargos", "", `{"nome":"Gerente"}`)
 
 	if registrador.Code != http.StatusBadRequest {
 		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusBadRequest)
 	}
-	verificarEnvelopeDeErro(t, registrador, http.StatusBadRequest)
+	apoioteste.VerificarEnvelopeDeErro(t, registrador, http.StatusBadRequest)
 
-	registrador = executarRequisicao(handler.Criar, http.MethodPost, "/api/v1/cargos", "", `{}`)
+	registrador = apoioteste.ExecutarHandler(handler.Criar, http.MethodPost, "/api/v1/cargos", "", `{}`)
 
 	if registrador.Code != http.StatusBadRequest {
 		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusBadRequest)
 	}
-	verificarEnvelopeDeErro(t, registrador, http.StatusBadRequest)
+	apoioteste.VerificarEnvelopeDeErro(t, registrador, http.StatusBadRequest)
 }
 
 func TestCargoHandlerListarComFiltro(t *testing.T) {
@@ -193,7 +194,7 @@ func TestCargoHandlerListarComFiltro(t *testing.T) {
 	}
 
 	for _, caso := range casos {
-		registrador := executarRequisicao(handler.Listar, http.MethodGet, caso.caminho, "", "")
+		registrador := apoioteste.ExecutarHandler(handler.Listar, http.MethodGet, caso.caminho, "", "")
 
 		if registrador.Code != http.StatusOK {
 			t.Errorf("%s: status %d, esperado %d", caso.nome, registrador.Code, http.StatusOK)
@@ -219,7 +220,7 @@ func TestCargoHandlerObter(t *testing.T) {
 
 	id := semearCargo(t, fake, "Gerente", "Gerente de obra")
 
-	registrador := executarRequisicao(handler.Obter, http.MethodGet, "/api/v1/cargos/"+id.String(), id.String(), "")
+	registrador := apoioteste.ExecutarHandler(handler.Obter, http.MethodGet, "/api/v1/cargos/"+id.String(), id.String(), "")
 
 	if registrador.Code != http.StatusOK {
 		t.Fatalf("status %d, esperado %d: %s", registrador.Code, http.StatusOK, registrador.Body.String())
@@ -234,19 +235,19 @@ func TestCargoHandlerObter(t *testing.T) {
 	}
 
 	desconhecido := uuid.NewString()
-	registrador = executarRequisicao(handler.Obter, http.MethodGet, "/api/v1/cargos/"+desconhecido, desconhecido, "")
+	registrador = apoioteste.ExecutarHandler(handler.Obter, http.MethodGet, "/api/v1/cargos/"+desconhecido, desconhecido, "")
 
 	if registrador.Code != http.StatusNotFound {
 		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusNotFound)
 	}
-	verificarEnvelopeDeErro(t, registrador, http.StatusNotFound)
+	apoioteste.VerificarEnvelopeDeErro(t, registrador, http.StatusNotFound)
 
-	registrador = executarRequisicao(handler.Obter, http.MethodGet, "/api/v1/cargos/abc", "abc", "")
+	registrador = apoioteste.ExecutarHandler(handler.Obter, http.MethodGet, "/api/v1/cargos/abc", "abc", "")
 
 	if registrador.Code != http.StatusBadRequest {
 		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusBadRequest)
 	}
-	verificarEnvelopeDeErro(t, registrador, http.StatusBadRequest)
+	apoioteste.VerificarEnvelopeDeErro(t, registrador, http.StatusBadRequest)
 }
 
 func TestCargoHandlerObterPorNome(t *testing.T) {
@@ -255,25 +256,25 @@ func TestCargoHandlerObterPorNome(t *testing.T) {
 
 	semearCargo(t, fake, "Gerente", "Gerente de obra")
 
-	registrador := executarRequisicao(handler.ObterPorNome, http.MethodGet, "/api/v1/cargos/busca?nome=Gerente", "", "")
+	registrador := apoioteste.ExecutarHandler(handler.ObterPorNome, http.MethodGet, "/api/v1/cargos/busca?nome=Gerente", "", "")
 
 	if registrador.Code != http.StatusOK {
 		t.Fatalf("status %d, esperado %d: %s", registrador.Code, http.StatusOK, registrador.Body.String())
 	}
 
-	registrador = executarRequisicao(handler.ObterPorNome, http.MethodGet, "/api/v1/cargos/busca", "", "")
+	registrador = apoioteste.ExecutarHandler(handler.ObterPorNome, http.MethodGet, "/api/v1/cargos/busca", "", "")
 
 	if registrador.Code != http.StatusBadRequest {
 		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusBadRequest)
 	}
-	verificarEnvelopeDeErro(t, registrador, http.StatusBadRequest)
+	apoioteste.VerificarEnvelopeDeErro(t, registrador, http.StatusBadRequest)
 
-	registrador = executarRequisicao(handler.ObterPorNome, http.MethodGet, "/api/v1/cargos/busca?nome=Diretor", "", "")
+	registrador = apoioteste.ExecutarHandler(handler.ObterPorNome, http.MethodGet, "/api/v1/cargos/busca?nome=Diretor", "", "")
 
 	if registrador.Code != http.StatusNotFound {
 		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusNotFound)
 	}
-	verificarEnvelopeDeErro(t, registrador, http.StatusNotFound)
+	apoioteste.VerificarEnvelopeDeErro(t, registrador, http.StatusNotFound)
 }
 
 func TestCargoHandlerAtualizar(t *testing.T) {
@@ -281,7 +282,7 @@ func TestCargoHandlerAtualizar(t *testing.T) {
 	handler := NewCargoHandler(fake)
 
 	id := semearCargo(t, fake, "Gerente", "Gerente de obra")
-	registrador := executarRequisicao(handler.Atualizar, http.MethodPut, "/api/v1/cargos/"+id.String(), id.String(), `{"nome":"Diretor","descricao":"Diretor de obra","ativo":true}`)
+	registrador := apoioteste.ExecutarHandler(handler.Atualizar, http.MethodPut, "/api/v1/cargos/"+id.String(), id.String(), `{"nome":"Diretor","descricao":"Diretor de obra","ativo":true}`)
 
 	if registrador.Code != http.StatusOK {
 		t.Fatalf("status %d, esperado %d: %s", registrador.Code, http.StatusOK, registrador.Body.String())
@@ -302,7 +303,7 @@ func TestCargoHandlerRemover(t *testing.T) {
 
 	id := semearCargo(t, fake, "Gerente", "Gerente de obra")
 
-	registrador := executarRequisicao(handler.Remover, http.MethodDelete, "/api/v1/cargos/"+id.String(), id.String(), "")
+	registrador := apoioteste.ExecutarHandler(handler.Remover, http.MethodDelete, "/api/v1/cargos/"+id.String(), id.String(), "")
 
 	if registrador.Code != http.StatusNoContent {
 		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusNoContent)
@@ -312,10 +313,10 @@ func TestCargoHandlerRemover(t *testing.T) {
 	}
 
 	desconhecido := uuid.NewString()
-	registrador = executarRequisicao(handler.Remover, http.MethodDelete, "/api/v1/cargos/"+desconhecido, desconhecido, "")
+	registrador = apoioteste.ExecutarHandler(handler.Remover, http.MethodDelete, "/api/v1/cargos/"+desconhecido, desconhecido, "")
 
 	if registrador.Code != http.StatusNotFound {
 		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusNotFound)
 	}
-	verificarEnvelopeDeErro(t, registrador, http.StatusNotFound)
+	apoioteste.VerificarEnvelopeDeErro(t, registrador, http.StatusNotFound)
 }

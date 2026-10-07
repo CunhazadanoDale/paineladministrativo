@@ -5,6 +5,7 @@ import (
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto"
 	solicitacaodto "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto/solicitacao"
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/resposta"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/solicitacao"
 )
 
@@ -18,19 +19,19 @@ func NewAprovadorHandler(usecase portsin.AprovadorUseCase) *AprovadorHandler {
 
 func (h *AprovadorHandler) Designar(w http.ResponseWriter, r *http.Request) {
 	var requisicao solicitacaodto.DesignarAprovadorRequest
-	if !corpoJSON(w, r, &requisicao) {
+	if !resposta.CorpoJSON(w, r, &requisicao) {
 		return
 	}
 
 	id, err := h.usecase.Designar(r.Context(), requisicao.UsuarioID)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
 	item, err := h.usecase.Obter(r.Context(), id)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -40,11 +41,11 @@ func (h *AprovadorHandler) Designar(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AprovadorHandler) Listar(w http.ResponseWriter, r *http.Request) {
-	paginacao := consultaPaginacao(r)
+	paginacao := resposta.ConsultaPaginacao(r)
 
 	itens, err := h.usecase.Listar(r.Context(), paginacao)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -56,13 +57,13 @@ func (h *AprovadorHandler) Listar(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AprovadorHandler) Remover(w http.ResponseWriter, r *http.Request) {
-	id, ok := parametroUUID(w, r, "id")
+	id, ok := resposta.ParametroUUID(w, r, "id")
 	if !ok {
 		return
 	}
 
 	if err := h.usecase.Remover(r.Context(), id); err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 

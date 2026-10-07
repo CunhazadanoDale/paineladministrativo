@@ -5,6 +5,7 @@ import (
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto"
 	leaddto "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto/lead"
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/resposta"
 	domainlead "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/lead"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/leads"
 )
@@ -19,19 +20,19 @@ func NewLeadHandler(usecase portsin.LeadUseCase) *LeadHandler {
 
 func (h *LeadHandler) Criar(w http.ResponseWriter, r *http.Request) {
 	var requisicao leaddto.CriarLeadRequest
-	if !corpoJSON(w, r, &requisicao) {
+	if !resposta.CorpoJSON(w, r, &requisicao) {
 		return
 	}
 
 	id, err := h.usecase.Create(r.Context(), requisicao.ParaLead())
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
 	item, err := h.usecase.GetByID(r.Context(), id)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -41,8 +42,8 @@ func (h *LeadHandler) Criar(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *LeadHandler) Listar(w http.ResponseWriter, r *http.Request) {
-	paginacao := consultaPaginacao(r)
-	busca := consultaTexto(r, "q")
+	paginacao := resposta.ConsultaPaginacao(r)
+	busca := resposta.ConsultaTexto(r, "q")
 
 	var (
 		itens []*domainlead.Lead
@@ -56,7 +57,7 @@ func (h *LeadHandler) Listar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -68,14 +69,14 @@ func (h *LeadHandler) Listar(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *LeadHandler) Obter(w http.ResponseWriter, r *http.Request) {
-	id, ok := parametroUUID(w, r, "id")
+	id, ok := resposta.ParametroUUID(w, r, "id")
 	if !ok {
 		return
 	}
 
 	item, err := h.usecase.GetByID(r.Context(), id)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -85,24 +86,24 @@ func (h *LeadHandler) Obter(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *LeadHandler) Atualizar(w http.ResponseWriter, r *http.Request) {
-	id, ok := parametroUUID(w, r, "id")
+	id, ok := resposta.ParametroUUID(w, r, "id")
 	if !ok {
 		return
 	}
 
 	var requisicao leaddto.AtualizarLeadRequest
-	if !corpoJSON(w, r, &requisicao) {
+	if !resposta.CorpoJSON(w, r, &requisicao) {
 		return
 	}
 
 	if err := h.usecase.Update(r.Context(), requisicao.ParaLead(id)); err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
 	item, err := h.usecase.GetByID(r.Context(), id)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -112,13 +113,13 @@ func (h *LeadHandler) Atualizar(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *LeadHandler) Remover(w http.ResponseWriter, r *http.Request) {
-	id, ok := parametroUUID(w, r, "id")
+	id, ok := resposta.ParametroUUID(w, r, "id")
 	if !ok {
 		return
 	}
 
 	if err := h.usecase.Delete(r.Context(), id); err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -126,24 +127,24 @@ func (h *LeadHandler) Remover(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *LeadHandler) MoverEtapa(w http.ResponseWriter, r *http.Request) {
-	id, ok := parametroUUID(w, r, "id")
+	id, ok := resposta.ParametroUUID(w, r, "id")
 	if !ok {
 		return
 	}
 
 	var requisicao leaddto.MoverLeadRequest
-	if !corpoJSON(w, r, &requisicao) {
+	if !resposta.CorpoJSON(w, r, &requisicao) {
 		return
 	}
 
 	if err := h.usecase.UpdateEtapa(r.Context(), id, requisicao.EtapaID); err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
 	item, err := h.usecase.GetByID(r.Context(), id)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -153,14 +154,14 @@ func (h *LeadHandler) MoverEtapa(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *LeadHandler) ListarPorFunil(w http.ResponseWriter, r *http.Request) {
-	funilID, ok := parametroUUID(w, r, "funil_id")
+	funilID, ok := resposta.ParametroUUID(w, r, "funil_id")
 	if !ok {
 		return
 	}
 
 	itens, err := h.usecase.ListByFunil(r.Context(), funilID)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -170,14 +171,14 @@ func (h *LeadHandler) ListarPorFunil(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *LeadHandler) ListarPorEtapa(w http.ResponseWriter, r *http.Request) {
-	etapaID, ok := parametroUUID(w, r, "etapa_id")
+	etapaID, ok := resposta.ParametroUUID(w, r, "etapa_id")
 	if !ok {
 		return
 	}
 
 	itens, err := h.usecase.ListByEtapa(r.Context(), etapaID)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -187,14 +188,14 @@ func (h *LeadHandler) ListarPorEtapa(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *LeadHandler) ContarPorFunil(w http.ResponseWriter, r *http.Request) {
-	funilID, ok := parametroUUID(w, r, "funil_id")
+	funilID, ok := resposta.ParametroUUID(w, r, "funil_id")
 	if !ok {
 		return
 	}
 
 	total, err := h.usecase.CountByFunil(r.Context(), funilID)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -204,14 +205,14 @@ func (h *LeadHandler) ContarPorFunil(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *LeadHandler) ContarPorEtapa(w http.ResponseWriter, r *http.Request) {
-	etapaID, ok := parametroUUID(w, r, "etapa_id")
+	etapaID, ok := resposta.ParametroUUID(w, r, "etapa_id")
 	if !ok {
 		return
 	}
 
 	total, err := h.usecase.CountByEtapa(r.Context(), etapaID)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 

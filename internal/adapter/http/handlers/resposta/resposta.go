@@ -1,4 +1,4 @@
-package solicitacao
+package resposta
 
 import (
 	"encoding/json"
@@ -13,20 +13,14 @@ import (
 	"github.com/google/uuid"
 )
 
-func responderErro(w http.ResponseWriter, err error) {
-	status, mensagem := mapearErro(err)
-
-	dto.EscreverErro(w, status, mensagem)
-}
-
-func mapearErro(err error) (int, string) {
+func MapearErro(err error) (int, string) {
 	switch {
 	case errors.Is(err, domain.ErrValidacao):
-		return http.StatusBadRequest, detalhe(err, domain.ErrValidacao)
+		return http.StatusBadRequest, err.Error()
 	case errors.Is(err, domain.ErrPermissao):
 		return http.StatusForbidden, detalhe(err, domain.ErrPermissao)
 	case errors.Is(err, domain.ErrNotFound):
-		return http.StatusNotFound, detalhe(err, domain.ErrNotFound)
+		return http.StatusNotFound, err.Error()
 	case errors.Is(err, domain.ErrConflito):
 		return http.StatusConflict, detalhe(err, domain.ErrConflito)
 	default:
@@ -38,21 +32,37 @@ func detalhe(err error, sentinela error) string {
 	return strings.TrimPrefix(err.Error(), sentinela.Error()+": ")
 }
 
-func corpoJSON(w http.ResponseWriter, r *http.Request, destino any) bool {
+func ResponderErro(w http.ResponseWriter, err error) {
+	status, mensagem := MapearErro(err)
+
+	dto.EscreverErro(w, status, mensagem)
+}
+
+func CorpoJSON(w http.ResponseWriter, r *http.Request, destino any) bool {
 	defer r.Body.Close()
 
 	decodificador := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
 	decodificador.DisallowUnknownFields()
 
 	if err := decodificador.Decode(destino); err != nil {
-		responderErro(w, domain.ErroValidacao("corpo da requisição inválido: "+err.Error()))
+		ResponderErro(w, domain.ErroValidacao("corpo da requisição inválido: "+err.Error()))
 		return false
 	}
 
 	return true
 }
 
-func usuarioDoContexto(w http.ResponseWriter, r *http.Request) (*domainusuarios.Usuario, bool) {
+func ParametroUUID(w http.ResponseWriter, r *http.Request, nome string) (uuid.UUID, bool) {
+	id, err := uuid.Parse(r.PathValue(nome))
+	if err != nil {
+		ResponderErro(w, domain.ErroValidacao("parâmetro "+nome+" inválido"))
+		return uuid.Nil, false
+	}
+
+	return id, true
+}
+
+func UsuarioDoContexto(w http.ResponseWriter, r *http.Request) (*domainusuarios.Usuario, bool) {
 	usuario, ok := middleware.UsuarioDoContexto(r.Context())
 	if !ok {
 		dto.EscreverErro(w, http.StatusUnauthorized, "token ausente ou inválido")
@@ -62,23 +72,13 @@ func usuarioDoContexto(w http.ResponseWriter, r *http.Request) (*domainusuarios.
 	return usuario, true
 }
 
-func parametroUUID(w http.ResponseWriter, r *http.Request, nome string) (uuid.UUID, bool) {
-	id, err := uuid.Parse(r.PathValue(nome))
-	if err != nil {
-		responderErro(w, domain.ErroValidacao("parâmetro "+nome+" inválido"))
-		return uuid.Nil, false
-	}
-
-	return id, true
-}
-
-func usuarioEId(w http.ResponseWriter, r *http.Request) (*domainusuarios.Usuario, uuid.UUID, bool) {
-	usuario, ok := usuarioDoContexto(w, r)
+func UsuarioEId(w http.ResponseWriter, r *http.Request) (*domainusuarios.Usuario, uuid.UUID, bool) {
+	usuario, ok := UsuarioDoContexto(w, r)
 	if !ok {
 		return nil, uuid.Nil, false
 	}
 
-	id, ok := parametroUUID(w, r, "id")
+	id, ok := ParametroUUID(w, r, "id")
 	if !ok {
 		return nil, uuid.Nil, false
 	}
@@ -86,10 +86,16 @@ func usuarioEId(w http.ResponseWriter, r *http.Request) (*domainusuarios.Usuario
 	return usuario, id, true
 }
 
-func consultaPaginacao(r *http.Request) domain.PaginacaoFiltro {
+func ConsultaBooleana(r *http.Request, nome string) bool {
+	valor := strings.ToLower(strings.TrimSpace(r.URL.Query().Get(nome)))
+
+	return valor == "true" || valor == "1"
+}
+
+func ConsultaPaginacao(r *http.Request) domain.PaginacaoFiltro {
 	return dto.NovaPaginacaoQuery(r.URL.Query()).ParaFiltro().Normalizada()
 }
 
-func consultaTexto(r *http.Request, nome string) string {
+func ConsultaTexto(r *http.Request, nome string) string {
 	return strings.TrimSpace(r.URL.Query().Get(nome))
 }

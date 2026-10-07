@@ -13,6 +13,7 @@ import (
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto"
 	solicitacaodto "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto/solicitacao"
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/resposta"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/solicitacao"
 )
@@ -33,7 +34,7 @@ func NewArquivoHandler(usecase portsin.ArquivoUseCase) *ArquivoHandler {
 }
 
 func (h *ArquivoHandler) Enviar(w http.ResponseWriter, r *http.Request) {
-	usuario, ok := usuarioDoContexto(w, r)
+	usuario, ok := resposta.UsuarioDoContexto(w, r)
 	if !ok {
 		return
 	}
@@ -46,13 +47,13 @@ func (h *ArquivoHandler) Enviar(w http.ResponseWriter, r *http.Request) {
 			dto.EscreverErro(w, http.StatusRequestEntityTooLarge, "arquivo excede o limite de 10MB")
 			return
 		}
-		responderErro(w, domain.ErroValidacao("requisição deve conter o campo arquivo em multipart/form-data"))
+		resposta.ResponderErro(w, domain.ErroValidacao("requisição deve conter o campo arquivo em multipart/form-data"))
 		return
 	}
 
 	conteudo, cabecalho, err := r.FormFile(campoArquivo)
 	if err != nil {
-		responderErro(w, domain.ErroValidacao("arquivo ausente no corpo da requisição"))
+		resposta.ResponderErro(w, domain.ErroValidacao("arquivo ausente no corpo da requisição"))
 		return
 	}
 	defer conteudo.Close()
@@ -66,7 +67,7 @@ func (h *ArquivoHandler) Enviar(w http.ResponseWriter, r *http.Request) {
 		conteudo,
 	)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -76,14 +77,14 @@ func (h *ArquivoHandler) Enviar(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ArquivoHandler) Baixar(w http.ResponseWriter, r *http.Request) {
-	usuario, id, ok := usuarioEId(w, r)
+	usuario, id, ok := resposta.UsuarioEId(w, r)
 	if !ok {
 		return
 	}
 
 	arquivo, conteudo, err := h.usecase.Baixar(r.Context(), id, usuario.ID)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 	defer conteudo.Close()
@@ -98,16 +99,16 @@ func (h *ArquivoHandler) Baixar(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ArquivoHandler) Listar(w http.ResponseWriter, r *http.Request) {
-	usuario, ok := usuarioDoContexto(w, r)
+	usuario, ok := resposta.UsuarioDoContexto(w, r)
 	if !ok {
 		return
 	}
 
-	paginacao := consultaPaginacao(r)
+	paginacao := resposta.ConsultaPaginacao(r)
 
 	itens, err := h.usecase.ListarPorProprietario(r.Context(), usuario.ID, paginacao)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -119,13 +120,13 @@ func (h *ArquivoHandler) Listar(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ArquivoHandler) Remover(w http.ResponseWriter, r *http.Request) {
-	usuario, id, ok := usuarioEId(w, r)
+	usuario, id, ok := resposta.UsuarioEId(w, r)
 	if !ok {
 		return
 	}
 
 	if err := h.usecase.Remover(r.Context(), id, usuario.ID); err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 

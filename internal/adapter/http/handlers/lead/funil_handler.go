@@ -5,6 +5,7 @@ import (
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto"
 	leaddto "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto/lead"
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/resposta"
 	domainlead "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/lead"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/leads"
 )
@@ -19,19 +20,19 @@ func NewFunilHandler(usecase portsin.FunilUseCase) *FunilHandler {
 
 func (h *FunilHandler) Criar(w http.ResponseWriter, r *http.Request) {
 	var requisicao leaddto.CriarFunilRequest
-	if !corpoJSON(w, r, &requisicao) {
+	if !resposta.CorpoJSON(w, r, &requisicao) {
 		return
 	}
 
 	id, err := h.usecase.Create(r.Context(), requisicao.ParaFunil())
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
 	item, err := h.usecase.GetByID(r.Context(), id)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -41,21 +42,21 @@ func (h *FunilHandler) Criar(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *FunilHandler) Listar(w http.ResponseWriter, r *http.Request) {
-	paginacao := consultaPaginacao(r)
+	paginacao := resposta.ConsultaPaginacao(r)
 
 	var (
 		itens []domainlead.Funil
 		err   error
 	)
 
-	if consultaBooleana(r, "ativos") {
+	if resposta.ConsultaBooleana(r, "ativos") {
 		itens, err = h.usecase.ListAtivos(r.Context(), paginacao)
 	} else {
 		itens, err = h.usecase.List(r.Context(), paginacao)
 	}
 
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -67,14 +68,14 @@ func (h *FunilHandler) Listar(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *FunilHandler) Obter(w http.ResponseWriter, r *http.Request) {
-	funilID, ok := parametroUUID(w, r, "funil_id")
+	funilID, ok := resposta.ParametroUUID(w, r, "funil_id")
 	if !ok {
 		return
 	}
 
 	item, err := h.usecase.GetByID(r.Context(), funilID)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -84,24 +85,24 @@ func (h *FunilHandler) Obter(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *FunilHandler) Atualizar(w http.ResponseWriter, r *http.Request) {
-	funilID, ok := parametroUUID(w, r, "funil_id")
+	funilID, ok := resposta.ParametroUUID(w, r, "funil_id")
 	if !ok {
 		return
 	}
 
 	var requisicao leaddto.AtualizarFunilRequest
-	if !corpoJSON(w, r, &requisicao) {
+	if !resposta.CorpoJSON(w, r, &requisicao) {
 		return
 	}
 
 	if err := h.usecase.Update(r.Context(), requisicao.ParaFunil(funilID)); err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
 	item, err := h.usecase.GetByID(r.Context(), funilID)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -111,13 +112,13 @@ func (h *FunilHandler) Atualizar(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *FunilHandler) Remover(w http.ResponseWriter, r *http.Request) {
-	funilID, ok := parametroUUID(w, r, "funil_id")
+	funilID, ok := resposta.ParametroUUID(w, r, "funil_id")
 	if !ok {
 		return
 	}
 
 	if err := h.usecase.Delete(r.Context(), funilID); err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 

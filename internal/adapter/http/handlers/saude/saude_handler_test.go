@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/apoioteste"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto"
 )
 
@@ -59,7 +60,7 @@ func TestResponderComBancoIndisponivel(t *testing.T) {
 		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusServiceUnavailable)
 	}
 
-	verificarEnvelopeDeErro(t, registrador, http.StatusServiceUnavailable)
+	apoioteste.VerificarEnvelopeDeErro(t, registrador, http.StatusServiceUnavailable)
 }
 
 func TestNaoEncontrado(t *testing.T) {
@@ -72,24 +73,5 @@ func TestNaoEncontrado(t *testing.T) {
 		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusNotFound)
 	}
 
-	verificarEnvelopeDeErro(t, registrador, http.StatusNotFound)
-}
-
-func verificarEnvelopeDeErro(t *testing.T, registrador *httptest.ResponseRecorder, codigo int) {
-	t.Helper()
-
-	if conteudo := registrador.Header().Get("Content-Type"); conteudo != "application/json; charset=utf-8" {
-		t.Errorf("content-type %q inesperado", conteudo)
-	}
-
-	var resposta dto.RespostaErro
-	if err := json.Unmarshal(registrador.Body.Bytes(), &resposta); err != nil {
-		t.Fatalf("corpo não é um envelope de erro válido: %v", err)
-	}
-	if resposta.Erro.Codigo != codigo {
-		t.Errorf("código do envelope %d, esperado %d", resposta.Erro.Codigo, codigo)
-	}
-	if resposta.Erro.Mensagem == "" {
-		t.Error("mensagem do envelope vazia")
-	}
+	apoioteste.VerificarEnvelopeDeErro(t, registrador, http.StatusNotFound)
 }

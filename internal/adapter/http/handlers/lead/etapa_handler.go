@@ -5,6 +5,7 @@ import (
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto"
 	leaddto "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto/lead"
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/resposta"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	domainlead "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/lead"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/leads"
@@ -21,19 +22,19 @@ func NewEtapaHandler(usecase portsin.EtapaUseCase) *EtapaHandler {
 
 func (h *EtapaHandler) Criar(w http.ResponseWriter, r *http.Request) {
 	var requisicao leaddto.CriarEtapaRequest
-	if !corpoJSON(w, r, &requisicao) {
+	if !resposta.CorpoJSON(w, r, &requisicao) {
 		return
 	}
 
 	id, err := h.usecase.Create(r.Context(), requisicao.ParaEtapa())
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
 	item, err := h.usecase.GetByID(r.Context(), id)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -43,14 +44,14 @@ func (h *EtapaHandler) Criar(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *EtapaHandler) ListarPorFunil(w http.ResponseWriter, r *http.Request) {
-	funilID, ok := parametroUUID(w, r, "funil_id")
+	funilID, ok := resposta.ParametroUUID(w, r, "funil_id")
 	if !ok {
 		return
 	}
 
 	itens, err := h.usecase.ListByFunilOrdenado(r.Context(), funilID)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -60,14 +61,14 @@ func (h *EtapaHandler) ListarPorFunil(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *EtapaHandler) Obter(w http.ResponseWriter, r *http.Request) {
-	etapaID, ok := parametroUUID(w, r, "etapa_id")
+	etapaID, ok := resposta.ParametroUUID(w, r, "etapa_id")
 	if !ok {
 		return
 	}
 
 	item, err := h.usecase.GetByID(r.Context(), etapaID)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -77,24 +78,24 @@ func (h *EtapaHandler) Obter(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *EtapaHandler) Atualizar(w http.ResponseWriter, r *http.Request) {
-	etapaID, ok := parametroUUID(w, r, "etapa_id")
+	etapaID, ok := resposta.ParametroUUID(w, r, "etapa_id")
 	if !ok {
 		return
 	}
 
 	var requisicao leaddto.AtualizarEtapaRequest
-	if !corpoJSON(w, r, &requisicao) {
+	if !resposta.CorpoJSON(w, r, &requisicao) {
 		return
 	}
 
 	if err := h.usecase.Update(r.Context(), requisicao.ParaEtapa(etapaID)); err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
 	item, err := h.usecase.GetByID(r.Context(), etapaID)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -104,13 +105,13 @@ func (h *EtapaHandler) Atualizar(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *EtapaHandler) Remover(w http.ResponseWriter, r *http.Request) {
-	etapaID, ok := parametroUUID(w, r, "etapa_id")
+	etapaID, ok := resposta.ParametroUUID(w, r, "etapa_id")
 	if !ok {
 		return
 	}
 
 	if err := h.usecase.Delete(r.Context(), etapaID); err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -118,18 +119,18 @@ func (h *EtapaHandler) Remover(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *EtapaHandler) Reordenar(w http.ResponseWriter, r *http.Request) {
-	funilID, ok := parametroUUID(w, r, "funil_id")
+	funilID, ok := resposta.ParametroUUID(w, r, "funil_id")
 	if !ok {
 		return
 	}
 
 	var requisicao leaddto.ReordenarEtapasRequest
-	if !corpoJSON(w, r, &requisicao) {
+	if !resposta.CorpoJSON(w, r, &requisicao) {
 		return
 	}
 
 	if len(requisicao.Etapas) == 0 {
-		responderErro(w, domain.ErroValidacao("nenhuma etapa informada para reordenar"))
+		resposta.ResponderErro(w, domain.ErroValidacao("nenhuma etapa informada para reordenar"))
 		return
 	}
 
@@ -138,18 +139,18 @@ func (h *EtapaHandler) Reordenar(w http.ResponseWriter, r *http.Request) {
 
 	for _, etapaID := range requisicao.Etapas {
 		if etapaID == uuid.Nil {
-			responderErro(w, domain.ErroValidacao("etapa inválida na reordenação"))
+			resposta.ResponderErro(w, domain.ErroValidacao("etapa inválida na reordenação"))
 			return
 		}
 		if consultadas[etapaID] {
-			responderErro(w, domain.ErroValidacao("etapa repetida na reordenação"))
+			resposta.ResponderErro(w, domain.ErroValidacao("etapa repetida na reordenação"))
 			return
 		}
 		consultadas[etapaID] = true
 
 		etapa, err := h.usecase.GetByID(r.Context(), etapaID)
 		if err != nil {
-			responderErro(w, err)
+			resposta.ResponderErro(w, err)
 			return
 		}
 
@@ -157,13 +158,13 @@ func (h *EtapaHandler) Reordenar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.usecase.Reordenar(r.Context(), funilID, etapas); err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
 	ordenadas, err := h.usecase.ListByFunilOrdenado(r.Context(), funilID)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -181,7 +182,7 @@ func (h *EtapaHandler) Anterior(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *EtapaHandler) seguinte(w http.ResponseWriter, r *http.Request, proxima bool) {
-	etapaID, ok := parametroUUID(w, r, "etapa_id")
+	etapaID, ok := resposta.ParametroUUID(w, r, "etapa_id")
 	if !ok {
 		return
 	}
@@ -198,14 +199,14 @@ func (h *EtapaHandler) seguinte(w http.ResponseWriter, r *http.Request, proxima 
 	}
 
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 	if item == nil {
 		if proxima {
-			responderErro(w, domain.ErroNaoEncontrado("não há etapa seguinte"))
+			resposta.ResponderErro(w, domain.ErroNaoEncontrado("não há etapa seguinte"))
 		} else {
-			responderErro(w, domain.ErroNaoEncontrado("não há etapa anterior"))
+			resposta.ResponderErro(w, domain.ErroNaoEncontrado("não há etapa anterior"))
 		}
 		return
 	}

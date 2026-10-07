@@ -5,6 +5,7 @@ import (
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto"
 	solicitacaodto "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto/solicitacao"
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/resposta"
 	domainsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/solicitacao"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/solicitacao"
 	"github.com/google/uuid"
@@ -19,31 +20,31 @@ func NewSolicitacaoHandler(usecase portsin.SolicitacaoUseCase) *SolicitacaoHandl
 }
 
 func (h *SolicitacaoHandler) Criar(w http.ResponseWriter, r *http.Request) {
-	usuario, ok := usuarioDoContexto(w, r)
+	usuario, ok := resposta.UsuarioDoContexto(w, r)
 	if !ok {
 		return
 	}
 
 	var requisicao solicitacaodto.CriarSolicitacaoRequest
-	if !corpoJSON(w, r, &requisicao) {
+	if !resposta.CorpoJSON(w, r, &requisicao) {
 		return
 	}
 
 	input, err := requisicao.ParaInput(usuario.ID)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
 	id, err := h.usecase.Criar(r.Context(), input)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
 	item, err := h.usecase.Obter(r.Context(), id, usuario.ID)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -51,21 +52,21 @@ func (h *SolicitacaoHandler) Criar(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *SolicitacaoHandler) Listar(w http.ResponseWriter, r *http.Request) {
-	usuario, ok := usuarioDoContexto(w, r)
+	usuario, ok := resposta.UsuarioDoContexto(w, r)
 	if !ok {
 		return
 	}
 
-	paginacao := consultaPaginacao(r)
+	paginacao := resposta.ConsultaPaginacao(r)
 
 	itens, err := h.usecase.Listar(r.Context(), portsin.ListarSolicitacoesInput{
 		UsuarioID: usuario.ID,
-		Escopo:    consultaTexto(r, "escopo"),
-		Status:    consultaTexto(r, "status"),
+		Escopo:    resposta.ConsultaTexto(r, "escopo"),
+		Status:    resposta.ConsultaTexto(r, "status"),
 		Filtro:    paginacao,
 	})
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -77,14 +78,14 @@ func (h *SolicitacaoHandler) Listar(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *SolicitacaoHandler) Obter(w http.ResponseWriter, r *http.Request) {
-	usuario, id, ok := usuarioEId(w, r)
+	usuario, id, ok := resposta.UsuarioEId(w, r)
 	if !ok {
 		return
 	}
 
 	item, err := h.usecase.Obter(r.Context(), id, usuario.ID)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -92,13 +93,13 @@ func (h *SolicitacaoHandler) Obter(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *SolicitacaoHandler) Aprovar(w http.ResponseWriter, r *http.Request) {
-	usuario, id, ok := usuarioEId(w, r)
+	usuario, id, ok := resposta.UsuarioEId(w, r)
 	if !ok {
 		return
 	}
 
 	if err := h.usecase.Aprovar(r.Context(), id, usuario.ID); err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -106,18 +107,18 @@ func (h *SolicitacaoHandler) Aprovar(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *SolicitacaoHandler) Rejeitar(w http.ResponseWriter, r *http.Request) {
-	usuario, id, ok := usuarioEId(w, r)
+	usuario, id, ok := resposta.UsuarioEId(w, r)
 	if !ok {
 		return
 	}
 
 	var requisicao solicitacaodto.RejeitarRequest
-	if !corpoJSON(w, r, &requisicao) {
+	if !resposta.CorpoJSON(w, r, &requisicao) {
 		return
 	}
 
 	if err := h.usecase.Rejeitar(r.Context(), id, usuario.ID, requisicao.Motivo); err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -125,13 +126,13 @@ func (h *SolicitacaoHandler) Rejeitar(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *SolicitacaoHandler) Cancelar(w http.ResponseWriter, r *http.Request) {
-	usuario, id, ok := usuarioEId(w, r)
+	usuario, id, ok := resposta.UsuarioEId(w, r)
 	if !ok {
 		return
 	}
 
 	if err := h.usecase.Cancelar(r.Context(), id, usuario.ID); err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -139,30 +140,30 @@ func (h *SolicitacaoHandler) Cancelar(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *SolicitacaoHandler) RegistrarPagamento(w http.ResponseWriter, r *http.Request) {
-	usuario, id, ok := usuarioEId(w, r)
+	usuario, id, ok := resposta.UsuarioEId(w, r)
 	if !ok {
 		return
 	}
 
 	var requisicao solicitacaodto.RegistrarPagamentoRequest
-	if !corpoJSON(w, r, &requisicao) {
+	if !resposta.CorpoJSON(w, r, &requisicao) {
 		return
 	}
 
 	input, err := requisicao.ParaInput(id, usuario.ID)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
 	if err := h.usecase.RegistrarPagamento(r.Context(), input); err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
 	pagamento, err := h.usecase.ObterPagamento(r.Context(), id, usuario.ID)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -172,14 +173,14 @@ func (h *SolicitacaoHandler) RegistrarPagamento(w http.ResponseWriter, r *http.R
 }
 
 func (h *SolicitacaoHandler) ObterPagamento(w http.ResponseWriter, r *http.Request) {
-	usuario, id, ok := usuarioEId(w, r)
+	usuario, id, ok := resposta.UsuarioEId(w, r)
 	if !ok {
 		return
 	}
 
 	pagamento, err := h.usecase.ObterPagamento(r.Context(), id, usuario.ID)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -189,14 +190,14 @@ func (h *SolicitacaoHandler) ObterPagamento(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *SolicitacaoHandler) ListarHistorico(w http.ResponseWriter, r *http.Request) {
-	usuario, id, ok := usuarioEId(w, r)
+	usuario, id, ok := resposta.UsuarioEId(w, r)
 	if !ok {
 		return
 	}
 
 	itens, err := h.usecase.ListarHistorico(r.Context(), id, usuario.ID)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -206,14 +207,14 @@ func (h *SolicitacaoHandler) ListarHistorico(w http.ResponseWriter, r *http.Requ
 }
 
 func (h *SolicitacaoHandler) ListarArquivos(w http.ResponseWriter, r *http.Request) {
-	usuario, id, ok := usuarioEId(w, r)
+	usuario, id, ok := resposta.UsuarioEId(w, r)
 	if !ok {
 		return
 	}
 
 	itens, err := h.usecase.ListarArquivos(r.Context(), id, usuario.ID)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
@@ -225,7 +226,7 @@ func (h *SolicitacaoHandler) ListarArquivos(w http.ResponseWriter, r *http.Reque
 func (h *SolicitacaoHandler) responderAtualizada(w http.ResponseWriter, r *http.Request, solicitacaoID, usuarioID uuid.UUID) {
 	item, err := h.usecase.Obter(r.Context(), solicitacaoID, usuarioID)
 	if err != nil {
-		responderErro(w, err)
+		resposta.ResponderErro(w, err)
 		return
 	}
 
