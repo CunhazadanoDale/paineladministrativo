@@ -10,13 +10,6 @@ type PaginacaoFiltro struct {
 	Size int `json:"tamanho"`
 }
 
-type PaginacaoResponse[T any] struct {
-	Dados []T `json:"dados"`
-	Page  int `json:"pagina"`
-	Size  int `json:"tamanho"`
-	Total int `json:"total"`
-}
-
 func (p PaginacaoFiltro) Normalizada() PaginacaoFiltro {
 	page := p.Page
 	if page < 1 {

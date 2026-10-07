@@ -40,14 +40,6 @@ func (s Status) String() string {
 	return string(s)
 }
 
-func (s Status) Validado() error {
-	if _, ok := transicoesPermitidas[s]; !ok {
-		return domain.ErroValidacao("status de solicitação inválido")
-	}
-
-	return nil
-}
-
 func (s Status) PodeTransicionarPara(proximo Status) bool {
 	for _, permitido := range transicoesPermitidas[s] {
 		if permitido == proximo {
