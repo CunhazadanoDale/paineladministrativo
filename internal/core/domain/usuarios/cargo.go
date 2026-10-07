@@ -8,4 +8,5 @@ type Cargo struct {
 	Descricao     string    `db:"descricao"`
 	Ativo         bool      `db:"ativo"`
 	Administrador bool      `db:"administrador"`
+	Financeiro    bool      `db:"financeiro"`
 }

@@ -9,6 +9,7 @@ type CriarCargoRequest struct {
 	Nome          string `json:"nome"`
 	Descricao     string `json:"descricao"`
 	Administrador bool   `json:"administrador"`
+	Financeiro    bool   `json:"financeiro"`
 }
 
 type AtualizarCargoRequest struct {
@@ -16,6 +17,7 @@ type AtualizarCargoRequest struct {
 	Descricao     string `json:"descricao"`
 	Ativo         bool   `json:"ativo"`
 	Administrador bool   `json:"administrador"`
+	Financeiro    bool   `json:"financeiro"`
 }
 
 type CargoResponse struct {
@@ -24,6 +26,7 @@ type CargoResponse struct {
 	Descricao     string    `json:"descricao"`
 	Ativo         bool      `json:"ativo"`
 	Administrador bool      `json:"administrador"`
+	Financeiro    bool      `json:"financeiro"`
 }
 
 func (r AtualizarCargoRequest) ParaCargo(id uuid.UUID) *domainusuarios.Cargo {
@@ -33,6 +36,7 @@ func (r AtualizarCargoRequest) ParaCargo(id uuid.UUID) *domainusuarios.Cargo {
 		Descricao:     r.Descricao,
 		Ativo:         r.Ativo,
 		Administrador: r.Administrador,
+		Financeiro:    r.Financeiro,
 	}
 }
 
@@ -43,6 +47,7 @@ func NovaCargoResponse(item *domainusuarios.Cargo) CargoResponse {
 		Descricao:     item.Descricao,
 		Ativo:         item.Ativo,
 		Administrador: item.Administrador,
+		Financeiro:    item.Financeiro,
 	}
 }
 

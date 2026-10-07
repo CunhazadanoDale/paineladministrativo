@@ -21,7 +21,7 @@ func NewCargoUsecase(repo portsout.CargoRepository) *CargoUsecaseImpl {
 	return &CargoUsecaseImpl{repo: repo}
 }
 
-func (c *CargoUsecaseImpl) Create(ctx context.Context, nome string, descricao string, administrador bool) (uuid.UUID, error) {
+func (c *CargoUsecaseImpl) Create(ctx context.Context, nome string, descricao string, administrador bool, financeiro bool) (uuid.UUID, error) {
 	nome = strings.TrimSpace(nome)
 
 	if nome == "" {
@@ -42,6 +42,7 @@ func (c *CargoUsecaseImpl) Create(ctx context.Context, nome string, descricao st
 		Descricao:     strings.TrimSpace(descricao),
 		Ativo:         true,
 		Administrador: administrador,
+		Financeiro:    financeiro,
 	}
 
 	return c.repo.Create(ctx, cargo)
