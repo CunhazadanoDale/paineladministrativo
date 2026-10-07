@@ -202,7 +202,7 @@ func (u *SolicitacaoUsecaseImpl) RegistrarPagamento(ctx context.Context, input p
 		return err
 	}
 
-	if err := u.validarComprovante(ctx, input.UsuarioID, input.ComprovanteArquivoID); err != nil {
+	if err := u.validarComprovante(ctx, solicitacao.ID, input.UsuarioID, input.ComprovanteArquivoID); err != nil {
 		return err
 	}
 
@@ -361,7 +361,7 @@ func (u *SolicitacaoUsecaseImpl) validarArquivos(ctx context.Context, proprietar
 	return nil
 }
 
-func (u *SolicitacaoUsecaseImpl) validarComprovante(ctx context.Context, usuarioID uuid.UUID, comprovanteID *uuid.UUID) error {
+func (u *SolicitacaoUsecaseImpl) validarComprovante(ctx context.Context, solicitacaoID, usuarioID uuid.UUID, comprovanteID *uuid.UUID) error {
 	if comprovanteID == nil {
 		return nil
 	}
@@ -379,10 +379,12 @@ func (u *SolicitacaoUsecaseImpl) validarComprovante(ctx context.Context, usuario
 	if arquivo.ContentType != "application/pdf" {
 		return domain.ErroValidacao("comprovante deve ser um arquivo PDF")
 	}
-	if vinculado, err := u.arquivos.VinculadoASolicitacao(ctx, *comprovanteID); err != nil {
+	vinculado, err := u.arquivos.SolicitacaoDoArquivo(ctx, *comprovanteID)
+	if err != nil {
 		return err
-	} else if vinculado {
-		return domain.ErroValidacao("comprovante já vinculado a uma solicitação")
+	}
+	if vinculado != nil && *vinculado != solicitacaoID {
+		return domain.ErroValidacao("comprovante já vinculado a outra solicitação")
 	}
 
 	return nil

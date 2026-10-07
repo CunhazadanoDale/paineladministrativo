@@ -205,6 +205,15 @@ func (s *SolicitacaoRepository) CriarPagamento(ctx context.Context, solicitacao 
 		return err
 	}
 
+	if pagamento.ComprovanteArquivoID != nil {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO solicitacao_arquivo (solicitacao_id, arquivo_id) VALUES ($1, $2)
+			ON CONFLICT DO NOTHING
+		`, pagamento.SolicitacaoID, *pagamento.ComprovanteArquivoID); err != nil {
+			return err
+		}
+	}
+
 	if err := inserirHistorico(ctx, tx, historico); err != nil {
 		return err
 	}

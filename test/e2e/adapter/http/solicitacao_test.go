@@ -183,8 +183,11 @@ func TestFluxoCompletoDeSolicitacaoDePagamento(t *testing.T) {
 	respostaArquivos := enviaComToken(t, servidor, http.MethodGet, caminho+"/arquivos", nil, tokenSolicitante)
 	conferirStatus(t, respostaArquivos, http.StatusOK)
 	arquivosSolicitacao := decodificarEnvelope[[]solicitacaodto.ArquivoResponse](t, respostaArquivos).Dados
-	if len(arquivosSolicitacao) != 1 || arquivosSolicitacao[0].ID != arquivo.ID {
-		t.Errorf("arquivos da solicitação = %+v, esperado apenas o anexo enviado", arquivosSolicitacao)
+	if len(arquivosSolicitacao) != 2 {
+		t.Fatalf("arquivos da solicitação = %d, esperado 2 (anexo + comprovante)", len(arquivosSolicitacao))
+	}
+	if arquivosSolicitacao[0].ID != arquivo.ID || arquivosSolicitacao[1].ID != comprovante.ID {
+		t.Errorf("arquivos da solicitação = %+v, esperado o anexo e depois o comprovante", arquivosSolicitacao)
 	}
 
 	respostaDownload := enviaComToken(t, servidor, http.MethodGet, "/api/v1/arquivos/"+arquivo.ID.String(), nil, tokenAprovador)
@@ -202,6 +205,12 @@ func TestFluxoCompletoDeSolicitacaoDePagamento(t *testing.T) {
 
 	respostaRemocaoVinculada := enviaComToken(t, servidor, http.MethodDelete, "/api/v1/arquivos/"+arquivo.ID.String(), nil, tokenSolicitante)
 	conferirStatus(t, respostaRemocaoVinculada, http.StatusConflict)
+
+	respostaRemocaoComprovante := enviaComToken(t, servidor, http.MethodDelete, "/api/v1/arquivos/"+comprovante.ID.String(), nil, tokenFinanceiro)
+	conferirStatus(t, respostaRemocaoComprovante, http.StatusConflict)
+	if erro := decodificarErro(t, respostaRemocaoComprovante); !strings.Contains(erro.Erro.Mensagem, "vinculado a uma solicitação") {
+		t.Errorf("mensagem %q sem a regra de vínculo", erro.Erro.Mensagem)
+	}
 
 	respostaCancelamento := enviaComToken(t, servidor, http.MethodPost, caminho+"/cancelar", nil, tokenSolicitante)
 	conferirStatus(t, respostaCancelamento, http.StatusConflict)
