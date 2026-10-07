@@ -218,3 +218,159 @@ func TestFluxoCompletoDeSolicitacaoDePagamento(t *testing.T) {
 	respostaTodas := enviaComToken(t, servidor, http.MethodGet, "/api/v1/solicitacoes?escopo=todas", nil, tokenFinanceiro)
 	conferirStatus(t, respostaTodas, http.StatusForbidden)
 }
+
+func criarSolicitacaoBase(t *testing.T, servidor *httptest.Server, token string) uuid.UUID {
+	t.Helper()
+
+	resposta := enviaComToken(t, servidor, http.MethodPost, "/api/v1/solicitacoes", map[string]any{
+		"valor_centavos":  99000,
+		"prazo_pagamento": time.Now().UTC().AddDate(0, 0, 5).Format("2006-01-02"),
+		"observacao":      "Compra de areia para a alvenaria",
+		"forma_pagamento": "boleto",
+	}, token)
+	conferirStatus(t, resposta, http.StatusCreated)
+
+	return decodificarEnvelope[solicitacaodto.SolicitacaoResponse](t, resposta).Dados.ID
+}
+
+func usuariosParaSolicitacao(t *testing.T, servidor *httptest.Server, apelido string) (solicitante, aprovador string) {
+	t.Helper()
+
+	cargo := criarCargo(t, servidor, "Operador "+apelido, false)
+	criarUsuario(t, servidor, "Solicitante "+apelido, "solicitante."+apelido+"@exemplo.com", "senhaForte123", cargo)
+	idAprovador := criarUsuario(t, servidor, "Aprovador "+apelido, "aprovador."+apelido+"@exemplo.com", "senhaForte123", cargo)
+
+	tokenSolicitante := autenticar(t, servidor, "solicitante."+apelido+"@exemplo.com", "senhaForte123").Token
+	tokenAprovador := autenticar(t, servidor, "aprovador."+apelido+"@exemplo.com", "senhaForte123").Token
+
+	respostaDesignacao := envia(t, servidor, http.MethodPost, "/api/v1/aprovadores", map[string]any{
+		"usuario_id": idAprovador,
+	})
+	conferirStatus(t, respostaDesignacao, http.StatusCreated)
+
+	return tokenSolicitante, tokenAprovador
+}
+
+func TestCriarSolicitacaoInvalidaERetornoInexistente(t *testing.T) {
+	servidor, _ := servidorDoTeste(t)
+
+	cargo := criarCargo(t, servidor, "Operador de validação", false)
+	criarUsuario(t, servidor, "Fábio Neves", "fabio.neves@exemplo.com", "senhaForte123", cargo)
+	token := autenticar(t, servidor, "fabio.neves@exemplo.com", "senhaForte123").Token
+
+	respostaPrazo := enviaComToken(t, servidor, http.MethodPost, "/api/v1/solicitacoes", map[string]any{
+		"valor_centavos":  1000,
+		"prazo_pagamento": "2001-01-01",
+		"forma_pagamento": "pix",
+	}, token)
+	conferirStatus(t, respostaPrazo, http.StatusBadRequest)
+	if erro := decodificarErro(t, respostaPrazo); erro.Erro.Codigo != http.StatusBadRequest {
+		t.Errorf("código do envelope %d, esperado %d", erro.Erro.Codigo, http.StatusBadRequest)
+	}
+
+	respostaForma := enviaComToken(t, servidor, http.MethodPost, "/api/v1/solicitacoes", map[string]any{
+		"valor_centavos":  1000,
+		"prazo_pagamento": time.Now().UTC().AddDate(0, 0, 5).Format("2006-01-02"),
+		"forma_pagamento": "dinheiro",
+	}, token)
+	conferirStatus(t, respostaForma, http.StatusBadRequest)
+
+	respostaInexistente := enviaComToken(t, servidor, http.MethodGet, "/api/v1/solicitacoes/"+uuid.NewString(), nil, token)
+	conferirStatus(t, respostaInexistente, http.StatusNotFound)
+	if erro := decodificarErro(t, respostaInexistente); !strings.HasPrefix(erro.Erro.Mensagem, "registro não encontrado") {
+		t.Errorf("mensagem %q sem o marcador registro não encontrado", erro.Erro.Mensagem)
+	}
+}
+
+func TestListarSolicitacoesDevolvePaginacao(t *testing.T) {
+	servidor, _ := servidorDoTeste(t)
+	tokenSolicitante, _ := usuariosParaSolicitacao(t, servidor, "paginacao")
+
+	criarSolicitacaoBase(t, servidor, tokenSolicitante)
+	criarSolicitacaoBase(t, servidor, tokenSolicitante)
+
+	resposta := enviaComToken(t, servidor, http.MethodGet,
+		"/api/v1/solicitacoes?escopo=minhas&pagina=1&tamanho=1", nil, tokenSolicitante)
+	conferirStatus(t, resposta, http.StatusOK)
+
+	pagina := decodificarPagina[solicitacaodto.SolicitacaoResponse](t, resposta)
+	if len(pagina.Dados) != 1 {
+		t.Errorf("%d solicitações na página, esperado 1", len(pagina.Dados))
+	}
+	if pagina.Pagina != 1 || pagina.Tamanho != 1 {
+		t.Errorf("página = {%d, %d}, esperada {1, 1}", pagina.Pagina, pagina.Tamanho)
+	}
+}
+
+func TestFiltroDeStatusNaoUltrapassaEscopo(t *testing.T) {
+	servidor, _ := servidorDoTeste(t)
+	tokenSolicitante, tokenAprovador := usuariosParaSolicitacao(t, servidor, "escopo")
+
+	cargoFinanceiro := criarCargoComPerfil(t, servidor, "Financeiro do escopo", false, true)
+	criarUsuario(t, servidor, "Iara Lopes", "iara.lopes@exemplo.com", "senhaForte123", cargoFinanceiro)
+	tokenFinanceiro := autenticar(t, servidor, "iara.lopes@exemplo.com", "senhaForte123").Token
+
+	criarSolicitacaoBase(t, servidor, tokenSolicitante)
+
+	respostaForaDoEscopo := enviaComToken(t, servidor, http.MethodGet,
+		"/api/v1/solicitacoes?escopo=aprovacao&status=pago", nil, tokenAprovador)
+	conferirStatus(t, respostaForaDoEscopo, http.StatusBadRequest)
+	if erro := decodificarErro(t, respostaForaDoEscopo); !strings.Contains(erro.Erro.Mensagem, "status não permitido") {
+		t.Errorf("mensagem %q sem a regra de escopo", erro.Erro.Mensagem)
+	}
+
+	respostaFila := enviaComToken(t, servidor, http.MethodGet,
+		"/api/v1/solicitacoes?escopo=aprovacao&status=pendente_aprovacao", nil, tokenAprovador)
+	conferirStatus(t, respostaFila, http.StatusOK)
+
+	respostaFinanceiroPendente := enviaComToken(t, servidor, http.MethodGet,
+		"/api/v1/solicitacoes?escopo=financeiro&status=pendente_aprovacao", nil, tokenFinanceiro)
+	conferirStatus(t, respostaFinanceiroPendente, http.StatusBadRequest)
+
+	respostaFinanceiroAprovado := enviaComToken(t, servidor, http.MethodGet,
+		"/api/v1/solicitacoes?escopo=financeiro&status=aprovado", nil, tokenFinanceiro)
+	conferirStatus(t, respostaFinanceiroAprovado, http.StatusOK)
+}
+
+func TestRejeitarSolicitacaoERemoverAprovador(t *testing.T) {
+	servidor, _ := servidorDoTeste(t)
+	tokenSolicitante, tokenAprovador := usuariosParaSolicitacao(t, servidor, "rejeicao")
+
+	solicitacaoID := criarSolicitacaoBase(t, servidor, tokenSolicitante)
+	caminho := "/api/v1/solicitacoes/" + solicitacaoID.String()
+
+	respostaSemMotivo := enviaComToken(t, servidor, http.MethodPost, caminho+"/rejeitar", map[string]any{}, tokenAprovador)
+	conferirStatus(t, respostaSemMotivo, http.StatusBadRequest)
+
+	respostaRejeitar := enviaComToken(t, servidor, http.MethodPost, caminho+"/rejeitar",
+		map[string]any{"motivo": "fora do orçamento do trimestre"}, tokenAprovador)
+	conferirStatus(t, respostaRejeitar, http.StatusOK)
+
+	rejeitada := decodificarEnvelope[solicitacaodto.SolicitacaoResponse](t, respostaRejeitar).Dados
+	if rejeitada.Status != "rejeitado" {
+		t.Errorf("status = %q, esperado rejeitado", rejeitada.Status)
+	}
+	if rejeitada.MotivoRejeicao == nil || *rejeitada.MotivoRejeicao != "fora do orçamento do trimestre" {
+		t.Errorf("motivo = %v, esperado o enviado no corpo", rejeitada.MotivoRejeicao)
+	}
+
+	respostaFilaVazia := enviaComToken(t, servidor, http.MethodGet,
+		"/api/v1/solicitacoes?escopo=aprovacao", nil, tokenAprovador)
+	conferirStatus(t, respostaFilaVazia, http.StatusOK)
+	if fila := decodificarPagina[solicitacaodto.SolicitacaoResponse](t, respostaFilaVazia); len(fila.Dados) != 0 {
+		t.Errorf("fila da aprovação = %d, esperado vazia após a rejeição", len(fila.Dados))
+	}
+
+	aprovadores := decodificarPagina[solicitacaodto.AprovadorResponse](
+		t, envia(t, servidor, http.MethodGet, "/api/v1/aprovadores", nil),
+	)
+	if len(aprovadores.Dados) == 0 {
+		t.Fatal("nenhum aprovador designado para remover")
+	}
+	aprovadorID := aprovadores.Dados[0].ID
+
+	conferirStatus(t, envia(t, servidor, http.MethodDelete, "/api/v1/aprovadores/"+aprovadorID.String(), nil),
+		http.StatusNoContent)
+	conferirStatus(t, envia(t, servidor, http.MethodDelete, "/api/v1/aprovadores/"+aprovadorID.String(), nil),
+		http.StatusNotFound)
+}
