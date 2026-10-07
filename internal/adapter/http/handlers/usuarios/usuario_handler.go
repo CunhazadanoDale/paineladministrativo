@@ -2,22 +2,26 @@ package usuarios
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto"
 	usuariosdto "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto/usuarios"
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	domainusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/usuarios"
+	portsinautenticacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/autenticacao"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/usuarios"
 	"github.com/google/uuid"
 )
 
 type UsuarioHandler struct {
 	usecase portsin.UsuarioUseCase
+	tokens  portsinautenticacao.TokenService
 }
 
-func NewUsuarioHandler(usecase portsin.UsuarioUseCase) *UsuarioHandler {
-	return &UsuarioHandler{usecase: usecase}
+func NewUsuarioHandler(usecase portsin.UsuarioUseCase, tokens portsinautenticacao.TokenService) *UsuarioHandler {
+	return &UsuarioHandler{usecase: usecase, tokens: tokens}
 }
 
 func (h *UsuarioHandler) Criar(w http.ResponseWriter, r *http.Request) {
@@ -139,6 +143,11 @@ func (h *UsuarioHandler) Autenticar(w http.ResponseWriter, r *http.Request) {
 
 	usuario, err := h.usecase.Authenticate(r.Context(), requisicao.Email, requisicao.Senha)
 	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			dto.EscreverErro(w, http.StatusNotFound, "email ou senha inválidos")
+			return
+		}
+
 		responderErro(w, err)
 		return
 	}
@@ -150,8 +159,25 @@ func (h *UsuarioHandler) Autenticar(w http.ResponseWriter, r *http.Request) {
 	}
 	usuario.UltimoLogin = login
 
-	dto.EscreverJSON(w, http.StatusOK, dto.Resposta[usuariosdto.UsuarioResponse]{
-		Dados: usuariosdto.NovaUsuarioResponse(usuario),
+	token, expiraEm, err := h.tokens.Gerar(usuario.ID)
+	if err != nil {
+		responderErro(w, err)
+		return
+	}
+
+	administrador, err := h.usecase.EhAdministrador(r.Context(), usuario)
+	if err != nil {
+		responderErro(w, err)
+		return
+	}
+
+	dto.EscreverJSON(w, http.StatusOK, dto.Resposta[usuariosdto.SessaoResponse]{
+		Dados: usuariosdto.SessaoResponse{
+			Token:         token,
+			ExpiraEm:      expiraEm,
+			Administrador: administrador,
+			Usuario:       usuariosdto.NovaUsuarioResponse(usuario),
+		},
 	})
 }
 

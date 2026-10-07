@@ -18,6 +18,8 @@ import (
 
 type dtoRespostaUsuario = dto.Resposta[usuariosdto.UsuarioResponse]
 
+type dtoRespostaSessao = dto.Resposta[usuariosdto.SessaoResponse]
+
 type dtoRespostaUsuarios = dto.Paginado[usuariosdto.UsuarioResponse]
 
 func paginar[T any](itens []T, filtro domain.PaginacaoFiltro) []T {
@@ -38,8 +40,23 @@ func paginar[T any](itens []T, filtro domain.PaginacaoFiltro) []T {
 
 type fakeUsuarioUseCase struct {
 	usuarios      map[uuid.UUID]*domainusuarios.Usuario
+	administrador bool
 	ultimoLoginID uuid.UUID
 	ultimoLogin   time.Time
+}
+
+type tokensDeTeste struct{}
+
+func (tokensDeTeste) Gerar(usuarioID uuid.UUID) (string, time.Time, error) {
+	if usuarioID == uuid.Nil {
+		return "", time.Time{}, domain.ErroValidacao("usuário inválido para o token")
+	}
+
+	return "token-" + usuarioID.String(), time.Now().UTC().Add(time.Hour), nil
+}
+
+func (tokensDeTeste) Validar(token string) (uuid.UUID, error) {
+	return uuid.Nil, domain.ErroValidacao("token inválido")
 }
 
 func novoFakeUsuarios() *fakeUsuarioUseCase {
@@ -179,6 +196,14 @@ func (f *fakeUsuarioUseCase) Authenticate(_ context.Context, email, senha string
 	return nil, domain.ErroNaoEncontrado("email ou senha inválidos")
 }
 
+func (f *fakeUsuarioUseCase) EhAdministrador(_ context.Context, usuario *domainusuarios.Usuario) (bool, error) {
+	if usuario == nil {
+		return false, nil
+	}
+
+	return f.administrador, nil
+}
+
 func (f *fakeUsuarioUseCase) UpdateSenha(_ context.Context, id uuid.UUID, novaSenha string) error {
 	if novaSenha == "" {
 		return domain.ErroValidacao("senha do usuário é obrigatória")
@@ -247,7 +272,7 @@ func semearUsuario(t *testing.T, fake *fakeUsuarioUseCase, nome, email, senha st
 
 func TestUsuarioHandlerCriar(t *testing.T) {
 	fake := novoFakeUsuarios()
-	handler := NewUsuarioHandler(fake)
+	handler := NewUsuarioHandler(fake, tokensDeTeste{})
 
 	cargoID := uuid.NewString()
 	corpo := `{"nome":"Ana Souza","email":"ana@exemplo.com","senha":"segredo123","cargo_id":"` + cargoID + `"}`
@@ -276,7 +301,7 @@ func TestUsuarioHandlerCriar(t *testing.T) {
 }
 
 func TestUsuarioHandlerCriarRejeitaCorpoInvalido(t *testing.T) {
-	handler := NewUsuarioHandler(novoFakeUsuarios())
+	handler := NewUsuarioHandler(novoFakeUsuarios(), tokensDeTeste{})
 
 	casos := []struct {
 		nome  string
@@ -300,7 +325,7 @@ func TestUsuarioHandlerCriarRejeitaCorpoInvalido(t *testing.T) {
 
 func TestUsuarioHandlerObter(t *testing.T) {
 	fake := novoFakeUsuarios()
-	handler := NewUsuarioHandler(fake)
+	handler := NewUsuarioHandler(fake, tokensDeTeste{})
 
 	id := semearUsuario(t, fake, "Ana Souza", "ana@exemplo.com", "segredo123")
 
@@ -336,7 +361,7 @@ func TestUsuarioHandlerObter(t *testing.T) {
 
 func TestUsuarioHandlerListarComFiltros(t *testing.T) {
 	fake := novoFakeUsuarios()
-	handler := NewUsuarioHandler(fake)
+	handler := NewUsuarioHandler(fake, tokensDeTeste{})
 
 	semearUsuario(t, fake, "Ana Souza", "ana@exemplo.com", "segredo123")
 	semearUsuario(t, fake, "Bruno Lima", "bruno@exemplo.com", "segredo123")
@@ -383,7 +408,7 @@ func TestUsuarioHandlerListarComFiltros(t *testing.T) {
 
 func TestUsuarioHandlerAtualizar(t *testing.T) {
 	fake := novoFakeUsuarios()
-	handler := NewUsuarioHandler(fake)
+	handler := NewUsuarioHandler(fake, tokensDeTeste{})
 
 	id := semearUsuario(t, fake, "Ana Souza", "ana@exemplo.com", "segredo123")
 	cargoID := uuid.NewString()
@@ -408,7 +433,7 @@ func TestUsuarioHandlerAtualizar(t *testing.T) {
 
 func TestUsuarioHandlerRemover(t *testing.T) {
 	fake := novoFakeUsuarios()
-	handler := NewUsuarioHandler(fake)
+	handler := NewUsuarioHandler(fake, tokensDeTeste{})
 
 	id := semearUsuario(t, fake, "Ana Souza", "ana@exemplo.com", "segredo123")
 
@@ -429,7 +454,7 @@ func TestUsuarioHandlerRemover(t *testing.T) {
 
 func TestUsuarioHandlerTrocarSenha(t *testing.T) {
 	fake := novoFakeUsuarios()
-	handler := NewUsuarioHandler(fake)
+	handler := NewUsuarioHandler(fake, tokensDeTeste{})
 
 	id := semearUsuario(t, fake, "Ana Souza", "ana@exemplo.com", "segredo123")
 
@@ -452,7 +477,7 @@ func TestUsuarioHandlerTrocarSenha(t *testing.T) {
 
 func TestUsuarioHandlerAtivarEDesativar(t *testing.T) {
 	fake := novoFakeUsuarios()
-	handler := NewUsuarioHandler(fake)
+	handler := NewUsuarioHandler(fake, tokensDeTeste{})
 
 	id := semearUsuario(t, fake, "Ana Souza", "ana@exemplo.com", "segredo123")
 
@@ -485,7 +510,7 @@ func TestUsuarioHandlerAtivarEDesativar(t *testing.T) {
 
 func TestUsuarioHandlerAutenticar(t *testing.T) {
 	fake := novoFakeUsuarios()
-	handler := NewUsuarioHandler(fake)
+	handler := NewUsuarioHandler(fake, tokensDeTeste{})
 
 	id := semearUsuario(t, fake, "Ana Souza", "ana@exemplo.com", "segredo123")
 
@@ -501,11 +526,23 @@ func TestUsuarioHandlerAutenticar(t *testing.T) {
 		t.Error("último login não foi registrado")
 	}
 
-	var resposta dtoRespostaUsuario
+	var resposta dtoRespostaSessao
 	if err := json.Unmarshal(registrador.Body.Bytes(), &resposta); err != nil {
 		t.Fatalf("corpo não é um envelope válido: %v", err)
 	}
-	if resposta.Dados.UltimoLogin.IsZero() {
+	if resposta.Dados.Token != "token-"+id.String() {
+		t.Errorf("token %q, esperado %q", resposta.Dados.Token, "token-"+id.String())
+	}
+	if resposta.Dados.ExpiraEm.IsZero() {
+		t.Error("resposta não retornou a expiração do token")
+	}
+	if resposta.Dados.Administrador {
+		t.Error("usuário sem cargo administrador saiu como administrador")
+	}
+	if resposta.Dados.Usuario.ID != id {
+		t.Errorf("usuário devolvido %q, esperado %q", resposta.Dados.Usuario.ID, id)
+	}
+	if resposta.Dados.Usuario.UltimoLogin.IsZero() {
 		t.Error("resposta não retornou o último login")
 	}
 	if strings.Contains(registrador.Body.String(), "senha") {

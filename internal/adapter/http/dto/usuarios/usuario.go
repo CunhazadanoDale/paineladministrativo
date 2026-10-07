@@ -41,6 +41,13 @@ type UsuarioResponse struct {
 	AtualizadoEm time.Time `json:"atualizado_em"`
 }
 
+type SessaoResponse struct {
+	Token         string          `json:"token"`
+	ExpiraEm      time.Time       `json:"expira_em"`
+	Administrador bool            `json:"administrador"`
+	Usuario       UsuarioResponse `json:"usuario"`
+}
+
 func (r AtualizarUsuarioRequest) ParaUsuario(id uuid.UUID) *domainusuarios.Usuario {
 	return &domainusuarios.Usuario{
 		ID:      id,

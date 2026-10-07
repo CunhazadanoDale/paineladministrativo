@@ -64,6 +64,19 @@ func (u *UsuarioUsecaseImpl) Authenticate(ctx context.Context, email string, sen
 	return usuario, nil
 }
 
+func (u *UsuarioUsecaseImpl) EhAdministrador(ctx context.Context, usuario *domainusuarios.Usuario) (bool, error) {
+	if usuario == nil || usuario.CargoID == uuid.Nil {
+		return false, nil
+	}
+
+	cargo, err := u.cargos.GetByID(ctx, usuario.CargoID)
+	if err != nil {
+		return false, err
+	}
+
+	return cargo != nil && cargo.Administrador, nil
+}
+
 func (u *UsuarioUsecaseImpl) Create(ctx context.Context, nome string, email string, senha string, cargoID uuid.UUID) (uuid.UUID, error) {
 	nome = strings.TrimSpace(nome)
 	email = normalizarEmail(email)

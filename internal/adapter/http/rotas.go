@@ -7,6 +7,7 @@ import (
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/saude"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/usuarios"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/middleware"
+	portsinautenticacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/autenticacao"
 	portsinlead "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/leads"
 	portsinusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/usuarios"
 	"github.com/jmoiron/sqlx"
@@ -21,8 +22,9 @@ func NewRouter(
 	historicoUseCase portsinlead.LeadHistoryUseCase,
 	usuarioUseCase portsinusuarios.UsuarioUseCase,
 	cargoUseCase portsinusuarios.CargoUseCase,
+	tokens portsinautenticacao.TokenService,
 ) http.Handler {
-	return middleware.CORS(origensCORS, novasRotas(banco, leadUseCase, funilUseCase, etapaUseCase, historicoUseCase, usuarioUseCase, cargoUseCase))
+	return middleware.CORS(origensCORS, novasRotas(banco, leadUseCase, funilUseCase, etapaUseCase, historicoUseCase, usuarioUseCase, cargoUseCase, tokens))
 }
 
 func novasRotas(
@@ -33,63 +35,72 @@ func novasRotas(
 	historicoUseCase portsinlead.LeadHistoryUseCase,
 	usuarioUseCase portsinusuarios.UsuarioUseCase,
 	cargoUseCase portsinusuarios.CargoUseCase,
+	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
+
+	protegido := func(padrao string, proximo http.HandlerFunc) {
+		mux.Handle(padrao, middleware.Autenticar(tokens, usuarioUseCase, proximo))
+	}
+
+	administrador := func(padrao string, proximo http.HandlerFunc) {
+		protegido(padrao, middleware.ExigirAdministrador(usuarioUseCase, proximo))
+	}
 
 	mux.HandleFunc("GET /health", saude.Responder)
 	mux.HandleFunc("GET /health/db", saude.ResponderComBanco(banco))
 
 	leadHandler := lead.NewLeadHandler(leadUseCase)
-	mux.HandleFunc("POST /api/v1/leads", leadHandler.Criar)
-	mux.HandleFunc("GET /api/v1/leads", leadHandler.Listar)
-	mux.HandleFunc("GET /api/v1/leads/{id}", leadHandler.Obter)
-	mux.HandleFunc("PUT /api/v1/leads/{id}", leadHandler.Atualizar)
-	mux.HandleFunc("DELETE /api/v1/leads/{id}", leadHandler.Remover)
-	mux.HandleFunc("PATCH /api/v1/leads/{id}/etapa", leadHandler.MoverEtapa)
-	mux.HandleFunc("GET /api/v1/funils/{funil_id}/leads", leadHandler.ListarPorFunil)
-	mux.HandleFunc("GET /api/v1/etapas/{etapa_id}/leads", leadHandler.ListarPorEtapa)
-	mux.HandleFunc("GET /api/v1/funils/{funil_id}/leads/contagem", leadHandler.ContarPorFunil)
-	mux.HandleFunc("GET /api/v1/etapas/{etapa_id}/leads/contagem", leadHandler.ContarPorEtapa)
+	protegido("POST /api/v1/leads", leadHandler.Criar)
+	protegido("GET /api/v1/leads", leadHandler.Listar)
+	protegido("GET /api/v1/leads/{id}", leadHandler.Obter)
+	protegido("PUT /api/v1/leads/{id}", leadHandler.Atualizar)
+	protegido("DELETE /api/v1/leads/{id}", leadHandler.Remover)
+	protegido("PATCH /api/v1/leads/{id}/etapa", leadHandler.MoverEtapa)
+	protegido("GET /api/v1/funils/{funil_id}/leads", leadHandler.ListarPorFunil)
+	protegido("GET /api/v1/etapas/{etapa_id}/leads", leadHandler.ListarPorEtapa)
+	protegido("GET /api/v1/funils/{funil_id}/leads/contagem", leadHandler.ContarPorFunil)
+	protegido("GET /api/v1/etapas/{etapa_id}/leads/contagem", leadHandler.ContarPorEtapa)
 
 	funilHandler := lead.NewFunilHandler(funilUseCase)
-	mux.HandleFunc("POST /api/v1/funils", funilHandler.Criar)
-	mux.HandleFunc("GET /api/v1/funils", funilHandler.Listar)
-	mux.HandleFunc("GET /api/v1/funils/{funil_id}", funilHandler.Obter)
-	mux.HandleFunc("PUT /api/v1/funils/{funil_id}", funilHandler.Atualizar)
-	mux.HandleFunc("DELETE /api/v1/funils/{funil_id}", funilHandler.Remover)
+	protegido("POST /api/v1/funils", funilHandler.Criar)
+	protegido("GET /api/v1/funils", funilHandler.Listar)
+	protegido("GET /api/v1/funils/{funil_id}", funilHandler.Obter)
+	protegido("PUT /api/v1/funils/{funil_id}", funilHandler.Atualizar)
+	protegido("DELETE /api/v1/funils/{funil_id}", funilHandler.Remover)
 
 	etapaHandler := lead.NewEtapaHandler(etapaUseCase)
-	mux.HandleFunc("POST /api/v1/etapas", etapaHandler.Criar)
-	mux.HandleFunc("GET /api/v1/funils/{funil_id}/etapas", etapaHandler.ListarPorFunil)
-	mux.HandleFunc("PUT /api/v1/funils/{funil_id}/etapas/ordem", etapaHandler.Reordenar)
-	mux.HandleFunc("GET /api/v1/etapas/{etapa_id}", etapaHandler.Obter)
-	mux.HandleFunc("PUT /api/v1/etapas/{etapa_id}", etapaHandler.Atualizar)
-	mux.HandleFunc("DELETE /api/v1/etapas/{etapa_id}", etapaHandler.Remover)
-	mux.HandleFunc("GET /api/v1/etapas/{etapa_id}/proxima", etapaHandler.Proxima)
-	mux.HandleFunc("GET /api/v1/etapas/{etapa_id}/anterior", etapaHandler.Anterior)
+	protegido("POST /api/v1/etapas", etapaHandler.Criar)
+	protegido("GET /api/v1/funils/{funil_id}/etapas", etapaHandler.ListarPorFunil)
+	protegido("PUT /api/v1/funils/{funil_id}/etapas/ordem", etapaHandler.Reordenar)
+	protegido("GET /api/v1/etapas/{etapa_id}", etapaHandler.Obter)
+	protegido("PUT /api/v1/etapas/{etapa_id}", etapaHandler.Atualizar)
+	protegido("DELETE /api/v1/etapas/{etapa_id}", etapaHandler.Remover)
+	protegido("GET /api/v1/etapas/{etapa_id}/proxima", etapaHandler.Proxima)
+	protegido("GET /api/v1/etapas/{etapa_id}/anterior", etapaHandler.Anterior)
 
 	historicoHandler := lead.NewLeadHistoryHandler(historicoUseCase)
-	mux.HandleFunc("GET /api/v1/leads/{lead_id}/historico", historicoHandler.Listar)
-	mux.HandleFunc("POST /api/v1/leads/{lead_id}/historico", historicoHandler.RegistrarMovimentacao)
+	protegido("GET /api/v1/leads/{lead_id}/historico", historicoHandler.Listar)
+	protegido("POST /api/v1/leads/{lead_id}/historico", historicoHandler.RegistrarMovimentacao)
 
 	cargoHandler := usuarios.NewCargoHandler(cargoUseCase)
-	mux.HandleFunc("POST /api/v1/cargos", cargoHandler.Criar)
-	mux.HandleFunc("GET /api/v1/cargos", cargoHandler.Listar)
-	mux.HandleFunc("GET /api/v1/cargos/busca", cargoHandler.ObterPorNome)
-	mux.HandleFunc("GET /api/v1/cargos/{id}", cargoHandler.Obter)
-	mux.HandleFunc("PUT /api/v1/cargos/{id}", cargoHandler.Atualizar)
-	mux.HandleFunc("DELETE /api/v1/cargos/{id}", cargoHandler.Remover)
+	administrador("POST /api/v1/cargos", cargoHandler.Criar)
+	protegido("GET /api/v1/cargos", cargoHandler.Listar)
+	protegido("GET /api/v1/cargos/busca", cargoHandler.ObterPorNome)
+	protegido("GET /api/v1/cargos/{id}", cargoHandler.Obter)
+	administrador("PUT /api/v1/cargos/{id}", cargoHandler.Atualizar)
+	administrador("DELETE /api/v1/cargos/{id}", cargoHandler.Remover)
 
-	usuarioHandler := usuarios.NewUsuarioHandler(usuarioUseCase)
-	mux.HandleFunc("POST /api/v1/usuarios", usuarioHandler.Criar)
-	mux.HandleFunc("GET /api/v1/usuarios", usuarioHandler.Listar)
+	usuarioHandler := usuarios.NewUsuarioHandler(usuarioUseCase, tokens)
+	administrador("POST /api/v1/usuarios", usuarioHandler.Criar)
+	administrador("GET /api/v1/usuarios", usuarioHandler.Listar)
 	mux.HandleFunc("POST /api/v1/usuarios/autenticar", usuarioHandler.Autenticar)
-	mux.HandleFunc("GET /api/v1/usuarios/{id}", usuarioHandler.Obter)
-	mux.HandleFunc("PUT /api/v1/usuarios/{id}", usuarioHandler.Atualizar)
-	mux.HandleFunc("DELETE /api/v1/usuarios/{id}", usuarioHandler.Remover)
-	mux.HandleFunc("POST /api/v1/usuarios/{id}/senha", usuarioHandler.TrocarSenha)
-	mux.HandleFunc("PATCH /api/v1/usuarios/{id}/ativar", usuarioHandler.Ativar)
-	mux.HandleFunc("PATCH /api/v1/usuarios/{id}/desativar", usuarioHandler.Desativar)
+	administrador("GET /api/v1/usuarios/{id}", usuarioHandler.Obter)
+	administrador("PUT /api/v1/usuarios/{id}", usuarioHandler.Atualizar)
+	administrador("DELETE /api/v1/usuarios/{id}", usuarioHandler.Remover)
+	administrador("POST /api/v1/usuarios/{id}/senha", usuarioHandler.TrocarSenha)
+	administrador("PATCH /api/v1/usuarios/{id}/ativar", usuarioHandler.Ativar)
+	administrador("PATCH /api/v1/usuarios/{id}/desativar", usuarioHandler.Desativar)
 
 	mux.HandleFunc("GET /", saude.NaoEncontrado)
 

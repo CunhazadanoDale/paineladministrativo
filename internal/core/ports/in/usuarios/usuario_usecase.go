@@ -18,6 +18,7 @@ type UsuarioUseCase interface {
 	ListAtivos(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*usuarios.Usuario, error)
 	Search(ctx context.Context, termo string, filtro domain.PaginacaoFiltro) ([]*usuarios.Usuario, error)
 	Authenticate(ctx context.Context, email string, senha string) (*usuarios.Usuario, error)
+	EhAdministrador(ctx context.Context, usuario *usuarios.Usuario) (bool, error)
 	UpdateSenha(ctx context.Context, id uuid.UUID, novaSenha string) error
 	UpdateUltimoLogin(ctx context.Context, id uuid.UUID, ultimoLogin time.Time) error
 	Ativar(ctx context.Context, id uuid.UUID) error

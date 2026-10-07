@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/config"
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/autenticacao"
 	httpapi "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/postgres"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/leadpoint"
@@ -21,6 +22,10 @@ const tempoDeEncerramento = 10 * time.Second
 
 func main() {
 	cfg := config.LoadConfig()
+
+	if cfg.JWTSecret == "" {
+		log.Fatal("JWT_SECRET não configurada: defina o segredo usado nos tokens de acesso")
+	}
 
 	banco, err := postgres.ConnectionDB(cfg.DatabaseUrl)
 	if err != nil {
@@ -39,6 +44,7 @@ func main() {
 		leadpoint.NewLeadHistoryUsecase(postgres.NewLeadHistoryRepository(banco)),
 		usuarios.NewUsuarioUsecase(postgres.NewUsuarioRepository(banco), cargoRepository),
 		usuarios.NewCargoUsecase(cargoRepository),
+		autenticacao.NovoTokenService(cfg.JWTSecret, cfg.JWTExpiracao),
 	)
 
 	servidor := &http.Server{
