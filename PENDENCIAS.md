@@ -1,8 +1,8 @@
 # Pendências
 
-O que ficou em aberto depois da rodada de paginação, autenticação, seed e documentação
-(outubro/2026). Itens em ordem sugerida de ataque — atualize a coluna **Status** conforme
-forem resolvidos.
+O que ficou em aberto depois da rodada de paginação, autenticação, seed, documentação e do
+módulo de solicitações de pagamento (outubro/2026). Itens em ordem sugerida de ataque —
+atualize a coluna **Status** conforme forem resolvidos.
 
 ---
 
@@ -15,6 +15,10 @@ forem resolvidos.
 | 3 | **Senha temporária no 1º login** | A decisão tomada no seed foi "senha inicial fixa, trocar no primeiro login", mas não existe flag de senha temporária nem exigência de troca. Alternativa: aceitar o fluxo manual e apenas manter a orientação na `API.md` | Médio | pendente |
 | 4 | **Rate limit no login** | `POST /usuarios/autenticar` não limita tentativas: é possível testar senhas em loop. A mensagem genérica `email ou senha inválidos` esconde o que existe, mas não limita a frequência. Limite simples por IP/e-mail, em memória | Médio | pendente |
 | 5 | **Total de páginas na paginação** | Hoje a resposta ecoa só `pagina`/`tamanho` (decisão registrada). Se o front for fazer navegação "página X de Y", precisa de contagem — muda o contrato das listas | Baixo | pendente |
+| 6 | **Notificação de fila nova** | O módulo de solicitações só empurra trabalho para a pessoa se ela abrir a fila (`escopo=aprovacao` / `escopo=financeiro`). Sem e-mail, webhook ou ao menos badge de pendências, aprovação depende de alguém lembrar de olhar | Médio | pendente |
+| 7 | **Editar e estornar solicitação** | Não existe `PUT /api/v1/solicitacoes/{id}` (para corrigir um dado é cancelar e recriar, e o histórico fica) e a tabela `pagamento` é única por solicitação, então um pagamento errado não tem estorno pela API — só correção direta no banco | Médio | pendente |
+| 8 | **Expurgo de anexo órfão** | Anexo enviado e nunca vinculado a solicitação fica no storage para sempre (o `DELETE /api/v1/arquivos/{id}` existe, mas ninguém é obrigado a usá-lo). Falta rotina de varredura ou regra de retenção | Baixo | pendente |
+| 9 | **Telas do módulo de solicitações** | As 17 rotas do módulo estão prontas e cobertas por e2e, mas não há tela no front: fila do aprovador, fila do financeiro, upload com progresso e histórico | Alto | pendente |
 
 ---
 
@@ -49,6 +53,11 @@ nginx/Caddy da frente (sobrevive a restarts, mas exige mudar o deploy).
   propósito se não houver `.env` com o segredo (fail-closed). Garantir que o ambiente
   tenha um valor gerado (`openssl rand -hex 32`), nunca o de desenvolvimento.
 - [ ] **`CORS_ORIGINS` explícito em produção** — vazio ou `*` libera qualquer origem.
+- [ ] **Storage dos anexos** — com `STORAGE_DRIVER=r2` (padrão de produção sugerido) as
+  quatro variáveis `R2_*` são obrigatórias: a API **não sobe** sem elas. Com o driver
+  `disco`, o volume `storage_data` do `docker-compose.yml` monta `/storage_local` e é o
+  que mantém os arquivos entre restarts — não removê-lo nem trocar o diretório sem migrar
+  o conteúdo.
 
 ---
 

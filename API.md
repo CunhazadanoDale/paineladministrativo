@@ -17,9 +17,18 @@ Documentação das rotas HTTP do painel administrativo.
 | `CORS_ORIGINS` | não | libera todas | Origens separadas por vírgula. Ex.: `http://localhost:5173`. Vazio ou `*` libera qualquer origem |
 | `JWT_SECRET` | **sim** | — | Segredo usado para assinar os tokens (HS256). A API **não sobe** se estiver vazio |
 | `JWT_EXPIRA_MINUTOS` | não | `480` (8 h) | Validade do token emitido no login. Valores vazios ou inválidos caem no padrão |
+| `STORAGE_DRIVER` | não | `disco` | Onde os anexos são gravados: `disco`, `r2` (Cloudflare R2) |
+| `STORAGE_DIR` | não | `storage_local` | Diretório do driver `disco` (relativo à raiz da aplicação) |
+| `R2_ACCOUNT_ID` | com `r2` | — | Conta do Cloudflare R2 |
+| `R2_ACCESS_KEY_ID` | com `r2` | — | Chave de acesso do R2 |
+| `R2_SECRET_ACCESS_KEY` | com `r2` | — | Segredo da chave do R2 |
+| `R2_BUCKET` | com `r2` | — | Nome do bucket |
 
 Use `.env.example` como ponto de partida: copie para `.env` e preencha o `JWT_SECRET`
 (gerar um: `openssl rand -hex 32`).
+
+`STORAGE_DRIVER=r2` **sem** as quatro variáveis `R2_*` preenchidas derruba a subida da API
+(fail-closed), do mesmo jeito que um `JWT_SECRET` vazio.
 
 ---
 
@@ -39,8 +48,13 @@ cliente deve autenticar de novo.
 | Perfil | Como é definido | O que pode |
 | --- | --- | --- |
 | Público | — | `/health`, `/health/db`, `POST /api/v1/usuarios/autenticar` |
-| Autenticado | Token válido de usuário ativo | Leads, funis, etapas, histórico e **leitura** de cargos |
-| Administrador | Token de um usuário cujo cargo tem `"administrador": true` | Tudo o que o perfil autenticado pode, **mais** a gestão de usuários e a escrita de cargos |
+| Autenticado | Token válido de usuário ativo | Leads, funis, etapas, histórico, **leitura** de cargos e o próprio bolso de solicitações (`escopo=minhas`) |
+| Administrador | Token de um usuário cujo cargo tem `"administrador": true` | Tudo o que o perfil autenticado pode, **mais** a gestão de usuários, a escrita de cargos, a designação de aprovadores e `escopo=todas` |
+| Aprovador | Usuário **designado** na tabela `aprovador` pelo administrador | `escopo=aprovacao`, aprovar e rejeitar as solicitações pendentes |
+| Financeiro | Token de um usuário cujo cargo tem `"financeiro": true` | `escopo=financeiro` e o registro de pagamento das solicitações aprovadas |
+
+Os três papéis novos do módulo de solicitações são **cumulativos**: um administrador também
+é tratado como aprovador e como financeiro.
 
 Um token de usuário desativado ou de um usuário já excluído também é tratado como `401`.
 
@@ -87,7 +101,8 @@ Troque essa senha no primeiro acesso (`POST /api/v1/usuarios/{id}/senha`).
 
 ## Paginação
 
-Aceitam paginação: usuários, cargos, leads, funis e histórico de movimentação.
+Aceitam paginação: usuários, cargos, leads, funis, histórico de movimentação e
+solicitações de pagamento.
 
 | Parâmetro | Padrão | Limite |
 | --- | --- | --- |
@@ -108,9 +123,10 @@ A resposta ecoa os valores efetivamente usados. Não há campo de total de regis
 | `204` | Exclusão ou alteração sem conteúdo de resposta |
 | `400` | Erro de validação: corpo inválido, campo ausente, regra de negócio violada, registro em uso |
 | `401` | Token ausente, inválido, expirado, ou de usuário inexistente/inativo. Sempre com `WWW-Authenticate: Bearer` |
-| `403` | Usuário autenticado sem o perfil administrador |
+| `403` | Usuário autenticado sem o perfil necessário: sem `administrador`, ou tentando um `escopo` que não é seu (ex.: `aprovacao` de quem não foi designado) |
 | `404` | Recurso não encontrado ou credenciais de login inválidas |
 | `405` | Método não permitido na rota (resposta em texto puro do roteador, com cabeçalho `Allow`) |
+| `409` | Conflito: transição de status inválida, registro já preenchido (ex.: segundo pagamento na mesma solicitação, aprovador já designado) ou exclusão de anexo vinculado |
 | `500` | Erro interno — mensagem fixa `erro interno do servidor` |
 | `503` | `/health/db` sem conexão com o banco |
 
@@ -405,6 +421,218 @@ Corpos:
   "movido_em": "2026-10-07T14:26:19.854486Z"
 }
 ```
+
+---
+
+## Solicitações de pagamento — autenticado
+
+Fluxo: **solicitante → aprovador designado → financeiro**.
+
+1. O solicitante sobe os anexos (`POST /api/v1/arquivos`) e cria a solicitação.
+2. O administrador designa quem pode aprovar (`POST /api/v1/aprovadores`).
+3. O aprovador aprova ou rejeita.
+4. O financeiro registra o pagamento — o **valor pago pode ser diferente** do estimado.
+
+### Estados
+
+| De | Para | Rota |
+| --- | --- | --- |
+| `pendente_aprovacao` | `aprovado` | `POST /{id}/aprovar` |
+| `pendente_aprovacao` | `rejeitado` | `POST /{id}/rejeitar` |
+| `pendente_aprovacao`, `aprovado` | `cancelado` | `POST /{id}/cancelar` |
+| `aprovado` | `pago` | `POST /{id}/pagamentos` |
+
+`pago`, `rejeitado` e `cancelado` são estados terminais. Toda transição grava um registro
+no histórico **na mesma transação**, e o `UPDATE` só acontece se o status anterior bater:
+se outra pessoa mudar primeiro, a segunda recebe `409`
+(`solicitação alterada por outra operação, recarregue e tente novamente`).
+
+### Rotas
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/solicitacoes` | autenticado | `201` |
+| `GET` | `/api/v1/solicitacoes` | autenticado | `200` lista paginada |
+| `GET` | `/api/v1/solicitacoes/{id}` | quem pode ver | `200` objeto único |
+| `POST` | `/api/v1/solicitacoes/{id}/aprovar` | aprovador ou administrador | `200` |
+| `POST` | `/api/v1/solicitacoes/{id}/rejeitar` | aprovador ou administrador | `200` |
+| `POST` | `/api/v1/solicitacoes/{id}/cancelar` | solicitante ou administrador | `200` |
+| `POST` | `/api/v1/solicitacoes/{id}/pagamentos` | financeiro ou administrador | `201` |
+| `GET` | `/api/v1/solicitacoes/{id}/pagamento` | quem pode ver | `200` objeto único |
+| `GET` | `/api/v1/solicitacoes/{id}/historico` | quem pode ver | `200` lista |
+| `GET` | `/api/v1/solicitacoes/{id}/arquivos` | quem pode ver | `200` lista |
+
+**Quem pode ver** uma solicitação (roteiros `Obter`, `pagamento`, `historico`, `arquivos`):
+o próprio solicitante, um administrador, o aprovador designado e o financeiro (que só enxerga
+solicitações fora de `pendente_aprovacao`). Quem não pode ver recebe `403`
+(`perfil sem permissão para consultar esta solicitação`).
+
+### Escopos de listagem
+
+`GET /api/v1/solicitacoes` aceita `pagina`, `tamanho`, `escopo` e `status`:
+
+| `escopo` | Quem pode | O que lista |
+| --- | --- | --- |
+| vazio ou `minhas` | autenticado | as que ele mesmo criou |
+| `aprovacao` | aprovador designado ou administrador | as `pendente_aprovacao` |
+| `financeiro` | cargo com `"financeiro": true` ou administrador | as `aprovado` |
+| `todas` | administrador | todas |
+
+`status=` (ex.: `?escopo=todas&status=pago`) sobrescreve o status implícito do escopo — a
+checagem de perfil continua valendo. `escopo` fora da lista devolve `400`
+(`escopo de listagem inválido`); escopo de outro perfil devolve `403`.
+
+### `POST /api/v1/solicitacoes`
+
+```json
+{
+  "valor_centavos": 150000,
+  "prazo_pagamento": "2026-10-20",
+  "observacao": "Compra de cimento para a fase 2",
+  "forma_pagamento": "pix",
+  "arquivo_ids": ["3f1c2a4e-0000-4000-8000-000000000001"]
+}
+```
+
+| Campo | Regra |
+| --- | --- |
+| `valor_centavos` | inteiro em centavos, maior que zero (`150000` = R$ 1.500,00) |
+| `prazo_pagamento` | `AAAA-MM-DD` (ou RFC3339). Obrigatório e não pode ser anterior a hoje |
+| `observacao` | obrigatória, no máximo 1000 caracteres |
+| `forma_pagamento` | `pix`, `cartão` ou `boleto` |
+| `arquivo_ids` | opcional. Cada anexo tem que existir, pertencer ao solicitante e não estar em outra solicitação |
+
+**Objeto de solicitação:**
+
+```json
+{
+  "id": "00000000-0000-4000-8000-000000000001",
+  "solicitante_id": "00000000-0000-4000-8000-000000000002",
+  "aprovador_id": null,
+  "valor_centavos": 150000,
+  "prazo_pagamento": "2026-10-20T00:00:00Z",
+  "observacao": "Compra de cimento para a fase 2",
+  "forma_pagamento": "pix",
+  "status": "pendente_aprovacao",
+  "motivo_rejeicao": null,
+  "aprovado_em": null,
+  "rejeitado_em": null,
+  "cancelado_em": null,
+  "criado_em": "2026-10-07T14:26:19.854486Z",
+  "atualizado_em": "2026-10-07T14:26:19.854486Z",
+  "arquivo_ids": ["00000000-0000-4000-8000-000000000003"]
+}
+```
+
+| Erro | Status | Mensagem |
+| --- | --- | --- |
+| Valor zero ou negativo | `400` | `erro de validação: valor deve ser maior que zero` |
+| Prazo vazio ou anterior a hoje | `400` | `erro de validação: prazo de pagamento é obrigatório` / `...não pode ser anterior a hoje` |
+| Forma diferente das três | `400` | `erro de validação: forma de pagamento deve ser pix, cartão ou boleto` |
+| Anexo de outra pessoa | `400` | `erro de validação: arquivo não pertence ao solicitante` |
+| Anexo já em uso | `400` | `erro de validação: arquivo já vinculado a outra solicitação` |
+
+### `POST /api/v1/solicitacoes/{id}/rejeitar`
+
+```json
+{ "motivo": "orçamento acima do previsto para esta fase" }
+```
+
+`motivo` é obrigatório e aceita no máximo 500 caracteres (`400` quando vazio).
+
+### `POST /api/v1/solicitacoes/{id}/pagamentos`
+
+```json
+{
+  "valor_centavos": 148500,
+  "comprovante_arquivo_id": "00000000-0000-4000-8000-000000000004",
+  "pago_em": "2026-10-15T14:00:00Z"
+}
+```
+
+| Campo | Regra |
+| --- | --- |
+| `valor_centavos` | valor **efetivo** pago, maior que zero — pode diferir do estimado |
+| `comprovante_arquivo_id` | opcional. Quando presente tem que ser um PDF **de quem está registrando** e ainda não vinculado a outra solicitação |
+| `pago_em` | opcional, RFC3339. Padrão: agora (UTC) |
+
+**Objeto de pagamento:**
+
+```json
+{
+  "id": "00000000-0000-4000-8000-000000000005",
+  "solicitacao_id": "00000000-0000-4000-8000-000000000001",
+  "comprovante_arquivo_id": "00000000-0000-4000-8000-000000000004",
+  "valor_centavos": 148500,
+  "pago_em": "2026-10-15T14:00:00Z",
+  "criado_em": "2026-10-15T14:02:10Z"
+}
+```
+
+| Erro | Status | Mensagem |
+| --- | --- | --- |
+| Sem perfil de financeiro | `403` | `perfil sem permissão para registrar pagamento` |
+| Status diferente de `aprovado` | `409` | `não é possível mudar a solicitação de "<status atual>" para "pago"` |
+| Comprovante não PDF | `400` | `comprovante deve ser um arquivo PDF` |
+| Comprovante de outro usuário | `403` | `comprovante não pertence ao usuário` |
+| Comprovante já usado | `400` | `comprovante já vinculado a uma solicitação` |
+| Sem pagamento registrado | `404` | `registro não encontrado: pagamento não encontrado` (em `GET /{id}/pagamento`) |
+
+A resposta de `aprovar`, `rejeitar`, `cancelar` e `pagamentos` devolve o objeto da
+solicitação já com o status novo (no caso do pagamento, o objeto do pagamento).
+
+---
+
+## Anexos (arquivos) — autenticado
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/arquivos` | autenticado | `201` (multipart) |
+| `GET` | `/api/v1/arquivos` | autenticado | `200` lista paginada dos **próprios** arquivos |
+| `GET` | `/api/v1/arquivos/{id}` | dono ou quem pode ver a solicitação | `200` binário |
+| `DELETE` | `/api/v1/arquivos/{id}` | dono ou administrador | `204` |
+
+O upload é `multipart/form-data` com **um campo só**: `arquivo`.
+
+| Regra | Valor |
+| --- | --- |
+| Tamanho máximo | 10MB por arquivo (`413 arquivo excede o limite de 10MB`) |
+| Tipos aceitos | `application/pdf`, `image/png`, `image/jpeg`, `image/webp` |
+| Nome | obrigatório, no máximo 255 caracteres |
+| Chave no storage | `{proprietario_id}/{uuid}/{nome}` |
+
+`GET /api/v1/arquivos/{id}` devolve o binário com o `content-type` original e
+`Content-Disposition: attachment; filename="nome.pdf"`. Quem não é dono só baixa se puder
+ver a solicitação dona do anexo (`403 perfil sem permissão para baixar este arquivo`).
+
+Anexo já vinculado a solicitação não pode ser excluído (`409 arquivo vinculado a uma
+solicitação não pode ser removido`).
+
+---
+
+## Aprovadores — administrador
+
+| Método | Rota | Sucesso |
+| --- | --- | --- |
+| `POST` | `/api/v1/aprovadores` | `201` |
+| `GET` | `/api/v1/aprovadores` | `200` lista paginada |
+| `DELETE` | `/api/v1/aprovadores/{id}` | `204` |
+
+```json
+{ "usuario_id": "00000000-0000-4000-8000-000000000002" }
+```
+
+```json
+{
+  "id": "00000000-0000-4000-8000-000000000006",
+  "usuario_id": "00000000-0000-4000-8000-000000000002",
+  "criado_em": "2026-10-07T14:26:19.854486Z"
+}
+```
+
+A designação é única por usuário: repetir devolve `409 usuário já está designado como
+aprovador`, e usuário inativo devolve `400 usuário inativo não pode ser designado como
+aprovador`. Remover a designação não apaga as aprovações já registradas no histórico.
 
 ---
 
