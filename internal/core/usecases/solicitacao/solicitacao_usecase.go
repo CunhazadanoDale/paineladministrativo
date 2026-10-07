@@ -124,10 +124,24 @@ func (u *SolicitacaoUsecaseImpl) Listar(ctx context.Context, input portsin.Lista
 		if err != nil {
 			return nil, err
 		}
+		if !statusPermitidoNoEscopo(input.Escopo, status) {
+			return nil, domain.ErroValidacao("status não permitido para o escopo de listagem informado")
+		}
 		filtro.Status = status
 	}
 
 	return u.repo.Listar(ctx, filtro)
+}
+
+func statusPermitidoNoEscopo(escopo string, status domainsolicitacao.Status) bool {
+	switch escopo {
+	case portsin.EscopoAprovacao:
+		return status == domainsolicitacao.StatusPendenteAprovacao
+	case portsin.EscopoFinanceiro:
+		return status != domainsolicitacao.StatusPendenteAprovacao
+	default:
+		return true
+	}
 }
 
 func (u *SolicitacaoUsecaseImpl) Aprovar(ctx context.Context, solicitacaoID, aprovadorID uuid.UUID) error {
