@@ -2,10 +2,12 @@ package middleware
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto"
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	domainusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/usuarios"
 	portsinautenticacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/autenticacao"
 	portsinusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/usuarios"
@@ -30,7 +32,7 @@ func Autenticar(tokens portsinautenticacao.TokenService, usuarios portsinusuario
 		}
 
 		usuario, err := usuarios.GetByID(r.Context(), usuarioID)
-		if err != nil {
+		if err != nil && !errors.Is(err, domain.ErrNotFound) && !errors.Is(err, domain.ErrValidacao) {
 			dto.EscreverErro(w, http.StatusInternalServerError, "erro interno do servidor")
 			return
 		}

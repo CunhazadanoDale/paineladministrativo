@@ -204,6 +204,9 @@ func TestCRUDDeUsuarioComListagemPaginada(t *testing.T) {
 
 	resposta = envia(t, servidor, http.MethodGet, "/api/v1/usuarios/"+usuarioID.String(), nil)
 	conferirStatus(t, resposta, http.StatusNotFound)
+
+	resposta = enviaComToken(t, servidor, http.MethodGet, "/api/v1/leads", nil, novaSessao.Token)
+	conferirStatus(t, resposta, http.StatusUnauthorized)
 }
 
 func TestExcluirCargoEmUsoDevolveErroDeValidacao(t *testing.T) {

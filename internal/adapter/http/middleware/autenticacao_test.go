@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	domainusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/usuarios"
 	portsinautenticacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/autenticacao"
 	portsinusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/usuarios"
@@ -154,6 +155,17 @@ func TestAutenticarComUsuarioDesativadoDevolveNaoAutenticado(t *testing.T) {
 
 	tokens := &tokensDeTeste{usuarioID: usuario.ID}
 	usuarios := &usuariosDeTeste{usuario: usuario}
+
+	registrador := executar(func(rota http.HandlerFunc) http.HandlerFunc {
+		return Autenticar(tokens, usuarios, rota)
+	}, rotaDeTeste, "Bearer qualquer")
+
+	verificarNaoAutenticado(t, registrador)
+}
+
+func TestAutenticarComUsuarioJaExcluidoDevolveNaoAutenticado(t *testing.T) {
+	tokens := &tokensDeTeste{usuarioID: uuid.New()}
+	usuarios := &usuariosDeTeste{erro: domain.ErrNotFound}
 
 	registrador := executar(func(rota http.HandlerFunc) http.HandlerFunc {
 		return Autenticar(tokens, usuarios, rota)
