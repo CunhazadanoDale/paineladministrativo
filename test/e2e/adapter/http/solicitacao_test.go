@@ -140,7 +140,7 @@ func TestFluxoCompletoDeSolicitacaoDePagamento(t *testing.T) {
 	conferirStatus(t, respostaComprovante, http.StatusCreated)
 	comprovante := decodificarEnvelope[solicitacaodto.ArquivoResponse](t, respostaComprovante).Dados
 
-	respostaPagamento := enviaComToken(t, servidor, http.MethodPost, caminho+"/pagamentos", map[string]any{
+	respostaPagamento := enviaComToken(t, servidor, http.MethodPost, caminho+"/pagamento", map[string]any{
 		"valor_centavos":         148500,
 		"comprovante_arquivo_id": comprovante.ID,
 	}, tokenFinanceiro)

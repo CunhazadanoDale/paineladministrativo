@@ -123,7 +123,7 @@ func novasRotas(
 	protegido("POST /api/v1/solicitacoes/{id}/aprovar", solicitacaoHandler.Aprovar)
 	protegido("POST /api/v1/solicitacoes/{id}/rejeitar", solicitacaoHandler.Rejeitar)
 	protegido("POST /api/v1/solicitacoes/{id}/cancelar", solicitacaoHandler.Cancelar)
-	protegido("POST /api/v1/solicitacoes/{id}/pagamentos", solicitacaoHandler.RegistrarPagamento)
+	protegido("POST /api/v1/solicitacoes/{id}/pagamento", solicitacaoHandler.RegistrarPagamento)
 	protegido("GET /api/v1/solicitacoes/{id}/pagamento", solicitacaoHandler.ObterPagamento)
 	protegido("GET /api/v1/solicitacoes/{id}/historico", solicitacaoHandler.ListarHistorico)
 	protegido("GET /api/v1/solicitacoes/{id}/arquivos", solicitacaoHandler.ListarArquivos)
