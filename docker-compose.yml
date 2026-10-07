@@ -51,6 +51,8 @@ services:
       - PORT=8080
       - DATABASE_URL=postgres://mia:mia@postgres:5432/mia?sslmode=disable
       - CORS_ORIGINS=${CORS_ORIGINS:-}
+      - JWT_SECRET=${JWT_SECRET:-}
+      - JWT_EXPIRA_MINUTOS=${JWT_EXPIRA_MINUTOS:-}
     ports:
       - 8080:8080
     depends_on:
