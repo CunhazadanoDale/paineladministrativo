@@ -22,7 +22,7 @@ func NewArquivoRepository(db *sqlx.DB) *ArquivoRepository {
 	return &ArquivoRepository{db: db}
 }
 
-func (a *ArquivoRepository) Create(ctx context.Context, arquivo *domainsolicitacao.Arquivo) (uuid.UUID, error) {
+func (a *ArquivoRepository) Criar(ctx context.Context, arquivo *domainsolicitacao.Arquivo) (uuid.UUID, error) {
 	query := `
 		INSERT INTO arquivo (id, proprietario_id, nome, chave, content_type, tamanho, criado_em)
 		VALUES (:id, :proprietario_id, :nome, :chave, :content_type, :tamanho, :criado_em)
@@ -47,7 +47,7 @@ func (a *ArquivoRepository) Create(ctx context.Context, arquivo *domainsolicitac
 	return id, nil
 }
 
-func (a *ArquivoRepository) GetByID(ctx context.Context, id uuid.UUID) (*domainsolicitacao.Arquivo, error) {
+func (a *ArquivoRepository) Obter(ctx context.Context, id uuid.UUID) (*domainsolicitacao.Arquivo, error) {
 	query := `
 		SELECT id, proprietario_id, nome, chave, content_type, tamanho, criado_em
 		FROM arquivo
@@ -64,7 +64,7 @@ func (a *ArquivoRepository) GetByID(ctx context.Context, id uuid.UUID) (*domains
 	return &item, nil
 }
 
-func (a *ArquivoRepository) ListByProprietario(ctx context.Context, proprietarioID uuid.UUID, filtro domain.PaginacaoFiltro) ([]*domainsolicitacao.Arquivo, error) {
+func (a *ArquivoRepository) ListarPorProprietario(ctx context.Context, proprietarioID uuid.UUID, filtro domain.PaginacaoFiltro) ([]*domainsolicitacao.Arquivo, error) {
 	offset := (filtro.Page - 1) * filtro.Size
 	query := `
 		SELECT id, proprietario_id, nome, chave, content_type, tamanho, criado_em
@@ -109,7 +109,7 @@ func (a *ArquivoRepository) SolicitacaoDoArquivo(ctx context.Context, arquivoID 
 	return &id, nil
 }
 
-func (a *ArquivoRepository) Delete(ctx context.Context, id uuid.UUID) error {
+func (a *ArquivoRepository) Remover(ctx context.Context, id uuid.UUID) error {
 	_, err := a.db.ExecContext(ctx, `DELETE FROM arquivo WHERE id = $1`, id)
 	return tratarErro(err)
 }

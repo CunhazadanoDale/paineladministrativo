@@ -16,12 +16,12 @@ type SolicitacaoFiltro struct {
 }
 
 type SolicitacaoRepository interface {
-	Create(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, arquivoIDs []uuid.UUID, historico *domainsolicitacao.Historico) (uuid.UUID, error)
-	GetByID(ctx context.Context, id uuid.UUID) (*domainsolicitacao.Solicitacao, error)
-	List(ctx context.Context, filtro SolicitacaoFiltro) ([]*domainsolicitacao.Solicitacao, error)
+	Criar(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, arquivoIDs []uuid.UUID, historico *domainsolicitacao.Historico) (uuid.UUID, error)
+	Obter(ctx context.Context, id uuid.UUID) (*domainsolicitacao.Solicitacao, error)
+	Listar(ctx context.Context, filtro SolicitacaoFiltro) ([]*domainsolicitacao.Solicitacao, error)
 	AtualizarStatus(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, historico *domainsolicitacao.Historico) (bool, error)
-	CreatePagamento(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, pagamento *domainsolicitacao.Pagamento, historico *domainsolicitacao.Historico) error
+	CriarPagamento(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, pagamento *domainsolicitacao.Pagamento, historico *domainsolicitacao.Historico) error
 	ListarArquivos(ctx context.Context, solicitacaoID uuid.UUID) ([]*domainsolicitacao.Arquivo, error)
 	ListarHistorico(ctx context.Context, solicitacaoID uuid.UUID) ([]*domainsolicitacao.Historico, error)
-	GetPagamentoBySolicitacaoID(ctx context.Context, solicitacaoID uuid.UUID) (*domainsolicitacao.Pagamento, error)
+	ObterPagamento(ctx context.Context, solicitacaoID uuid.UUID) (*domainsolicitacao.Pagamento, error)
 }

@@ -80,7 +80,7 @@ func (c *cenario) designar(t *testing.T, usuarioID uuid.UUID) uuid.UUID {
 		t.Fatalf("designação de aprovador falhou: %v", err)
 	}
 
-	aprovador, err := c.aprovadoresRepo.GetByUsuarioID(c.ctx, usuarioID)
+	aprovador, err := c.aprovadoresRepo.ObterPorUsuarioID(c.ctx, usuarioID)
 	if err != nil || aprovador == nil {
 		t.Fatalf("aprovador designado não encontrado: %v", err)
 	}

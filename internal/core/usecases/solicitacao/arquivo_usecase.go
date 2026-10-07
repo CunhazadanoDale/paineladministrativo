@@ -94,7 +94,7 @@ func (u *ArquivoUsecaseImpl) Enviar(
 		CriadoEm:       time.Now().UTC(),
 	}
 
-	criadoID, err := u.repo.Create(ctx, arquivo)
+	criadoID, err := u.repo.Criar(ctx, arquivo)
 	if err != nil {
 		u.descartarArquivo(context.WithoutCancel(ctx), chave)
 		return nil, err
@@ -133,7 +133,7 @@ func (u *ArquivoUsecaseImpl) ListarPorProprietario(ctx context.Context, propriet
 		return nil, domain.ErroValidacao("proprietário dos arquivos não informado")
 	}
 
-	return u.repo.ListByProprietario(ctx, proprietarioID, filtro.Normalizada())
+	return u.repo.ListarPorProprietario(ctx, proprietarioID, filtro.Normalizada())
 }
 
 func (u *ArquivoUsecaseImpl) Remover(ctx context.Context, id, usuarioID uuid.UUID) error {
@@ -160,7 +160,7 @@ func (u *ArquivoUsecaseImpl) Remover(ctx context.Context, id, usuarioID uuid.UUI
 		return domain.ErroConflito("arquivo vinculado a uma solicitação não pode ser removido")
 	}
 
-	if err := u.repo.Delete(ctx, id); err != nil {
+	if err := u.repo.Remover(ctx, id); err != nil {
 		return err
 	}
 
@@ -172,7 +172,7 @@ func (u *ArquivoUsecaseImpl) buscar(ctx context.Context, id uuid.UUID) (*domains
 		return nil, domain.ErroValidacao("id do arquivo não informado")
 	}
 
-	arquivo, err := u.repo.GetByID(ctx, id)
+	arquivo, err := u.repo.Obter(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +200,7 @@ func (u *ArquivoUsecaseImpl) podeVisualizar(ctx context.Context, arquivo *domain
 		return false, nil
 	}
 
-	solicitacao, err := u.solicitacoes.GetByID(ctx, *solicitacaoID)
+	solicitacao, err := u.solicitacoes.Obter(ctx, *solicitacaoID)
 	if err != nil {
 		return false, err
 	}

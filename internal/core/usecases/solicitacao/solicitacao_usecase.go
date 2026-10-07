@@ -74,7 +74,7 @@ func (u *SolicitacaoUsecaseImpl) Criar(ctx context.Context, input portsin.CriarS
 		solicitacao.ID, input.SolicitanteID, nil, solicitacao.Status, "solicitação criada",
 	)
 
-	return u.repo.Create(ctx, solicitacao, input.ArquivoIDs, historico)
+	return u.repo.Criar(ctx, solicitacao, input.ArquivoIDs, historico)
 }
 
 func (u *SolicitacaoUsecaseImpl) Obter(ctx context.Context, id, usuarioID uuid.UUID) (*domainsolicitacao.Solicitacao, error) {
@@ -127,7 +127,7 @@ func (u *SolicitacaoUsecaseImpl) Listar(ctx context.Context, input portsin.Lista
 		filtro.Status = status
 	}
 
-	return u.repo.List(ctx, filtro)
+	return u.repo.Listar(ctx, filtro)
 }
 
 func (u *SolicitacaoUsecaseImpl) Aprovar(ctx context.Context, solicitacaoID, aprovadorID uuid.UUID) error {
@@ -226,7 +226,7 @@ func (u *SolicitacaoUsecaseImpl) RegistrarPagamento(ctx context.Context, input p
 		solicitacao.ID, input.UsuarioID, &statusAnterior, solicitacao.Status, "pagamento registrado",
 	)
 
-	return u.repo.CreatePagamento(ctx, solicitacao, pagamento, historico)
+	return u.repo.CriarPagamento(ctx, solicitacao, pagamento, historico)
 }
 
 func (u *SolicitacaoUsecaseImpl) ListarHistorico(ctx context.Context, solicitacaoID, usuarioID uuid.UUID) ([]*domainsolicitacao.Historico, error) {
@@ -250,7 +250,7 @@ func (u *SolicitacaoUsecaseImpl) ObterPagamento(ctx context.Context, solicitacao
 		return nil, err
 	}
 
-	pagamento, err := u.repo.GetPagamentoBySolicitacaoID(ctx, solicitacaoID)
+	pagamento, err := u.repo.ObterPagamento(ctx, solicitacaoID)
 	if err != nil {
 		return nil, err
 	}
@@ -304,7 +304,7 @@ func (u *SolicitacaoUsecaseImpl) buscar(ctx context.Context, id uuid.UUID) (*dom
 		return nil, domain.ErroValidacao("id da solicitação não informado")
 	}
 
-	solicitacao, err := u.repo.GetByID(ctx, id)
+	solicitacao, err := u.repo.Obter(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -338,7 +338,7 @@ func (u *SolicitacaoUsecaseImpl) validarArquivos(ctx context.Context, proprietar
 			return domain.ErroValidacao("arquivo inválido vinculado à solicitação")
 		}
 
-		arquivo, err := u.arquivos.GetByID(ctx, arquivoID)
+		arquivo, err := u.arquivos.Obter(ctx, arquivoID)
 		if err != nil {
 			return err
 		}
@@ -366,7 +366,7 @@ func (u *SolicitacaoUsecaseImpl) validarComprovante(ctx context.Context, usuario
 		return nil
 	}
 
-	arquivo, err := u.arquivos.GetByID(ctx, *comprovanteID)
+	arquivo, err := u.arquivos.Obter(ctx, *comprovanteID)
 	if err != nil {
 		return err
 	}

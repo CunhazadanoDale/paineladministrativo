@@ -56,7 +56,7 @@ const colunasSolicitacao = `
 	cancelado_em, criado_em, atualizado_em
 `
 
-func (s *SolicitacaoRepository) Create(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, arquivoIDs []uuid.UUID, historico *domainsolicitacao.Historico) (uuid.UUID, error) {
+func (s *SolicitacaoRepository) Criar(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, arquivoIDs []uuid.UUID, historico *domainsolicitacao.Historico) (uuid.UUID, error) {
 	tx, err := s.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return uuid.Nil, err
@@ -99,7 +99,7 @@ func (s *SolicitacaoRepository) Create(ctx context.Context, solicitacao *domains
 	return solicitacao.ID, nil
 }
 
-func (s *SolicitacaoRepository) GetByID(ctx context.Context, id uuid.UUID) (*domainsolicitacao.Solicitacao, error) {
+func (s *SolicitacaoRepository) Obter(ctx context.Context, id uuid.UUID) (*domainsolicitacao.Solicitacao, error) {
 	query := `SELECT ` + colunasSolicitacao + ` FROM solicitacao WHERE id = $1`
 
 	var linha solicitacaoLinha
@@ -113,7 +113,7 @@ func (s *SolicitacaoRepository) GetByID(ctx context.Context, id uuid.UUID) (*dom
 	return paraDominio(&linha), nil
 }
 
-func (s *SolicitacaoRepository) List(ctx context.Context, filtro portsout.SolicitacaoFiltro) ([]*domainsolicitacao.Solicitacao, error) {
+func (s *SolicitacaoRepository) Listar(ctx context.Context, filtro portsout.SolicitacaoFiltro) ([]*domainsolicitacao.Solicitacao, error) {
 	offset := (filtro.Page - 1) * filtro.Size
 
 	query := `SELECT ` + colunasSolicitacao + ` FROM solicitacao`
@@ -174,7 +174,7 @@ func (s *SolicitacaoRepository) AtualizarStatus(ctx context.Context, solicitacao
 	return true, nil
 }
 
-func (s *SolicitacaoRepository) CreatePagamento(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, pagamento *domainsolicitacao.Pagamento, historico *domainsolicitacao.Historico) error {
+func (s *SolicitacaoRepository) CriarPagamento(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, pagamento *domainsolicitacao.Pagamento, historico *domainsolicitacao.Historico) error {
 	tx, err := s.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return err
@@ -243,7 +243,7 @@ func (s *SolicitacaoRepository) ListarHistorico(ctx context.Context, solicitacao
 	return itens, nil
 }
 
-func (s *SolicitacaoRepository) GetPagamentoBySolicitacaoID(ctx context.Context, solicitacaoID uuid.UUID) (*domainsolicitacao.Pagamento, error) {
+func (s *SolicitacaoRepository) ObterPagamento(ctx context.Context, solicitacaoID uuid.UUID) (*domainsolicitacao.Pagamento, error) {
 	query := `
 		SELECT id, solicitacao_id, comprovante_arquivo_id, valor, pago_em, criado_em
 		FROM pagamento

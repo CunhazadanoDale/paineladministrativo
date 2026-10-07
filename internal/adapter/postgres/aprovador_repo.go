@@ -22,7 +22,7 @@ func NewAprovadorRepository(db *sqlx.DB) *AprovadorRepository {
 	return &AprovadorRepository{db: db}
 }
 
-func (a *AprovadorRepository) Create(ctx context.Context, aprovador *domainsolicitacao.Aprovador) (uuid.UUID, error) {
+func (a *AprovadorRepository) Criar(ctx context.Context, aprovador *domainsolicitacao.Aprovador) (uuid.UUID, error) {
 	query := `
 		INSERT INTO aprovador (id, usuario_id, criado_em)
 		VALUES (:id, :usuario_id, :criado_em)
@@ -47,7 +47,7 @@ func (a *AprovadorRepository) Create(ctx context.Context, aprovador *domainsolic
 	return id, nil
 }
 
-func (a *AprovadorRepository) GetByID(ctx context.Context, id uuid.UUID) (*domainsolicitacao.Aprovador, error) {
+func (a *AprovadorRepository) Obter(ctx context.Context, id uuid.UUID) (*domainsolicitacao.Aprovador, error) {
 	query := `
 		SELECT id, usuario_id, criado_em
 		FROM aprovador
@@ -64,7 +64,7 @@ func (a *AprovadorRepository) GetByID(ctx context.Context, id uuid.UUID) (*domai
 	return &item, nil
 }
 
-func (a *AprovadorRepository) GetByUsuarioID(ctx context.Context, usuarioID uuid.UUID) (*domainsolicitacao.Aprovador, error) {
+func (a *AprovadorRepository) ObterPorUsuarioID(ctx context.Context, usuarioID uuid.UUID) (*domainsolicitacao.Aprovador, error) {
 	query := `
 		SELECT id, usuario_id, criado_em
 		FROM aprovador
@@ -81,7 +81,7 @@ func (a *AprovadorRepository) GetByUsuarioID(ctx context.Context, usuarioID uuid
 	return &item, nil
 }
 
-func (a *AprovadorRepository) List(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainsolicitacao.Aprovador, error) {
+func (a *AprovadorRepository) Listar(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainsolicitacao.Aprovador, error) {
 	offset := (filtro.Page - 1) * filtro.Size
 	query := `
 		SELECT id, usuario_id, criado_em
@@ -97,7 +97,7 @@ func (a *AprovadorRepository) List(ctx context.Context, filtro domain.PaginacaoF
 	return itens, nil
 }
 
-func (a *AprovadorRepository) Delete(ctx context.Context, id uuid.UUID) error {
+func (a *AprovadorRepository) Remover(ctx context.Context, id uuid.UUID) error {
 	_, err := a.db.ExecContext(ctx, `DELETE FROM aprovador WHERE id = $1`, id)
 	return tratarErro(err)
 }

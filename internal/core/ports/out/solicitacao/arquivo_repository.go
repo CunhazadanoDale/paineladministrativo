@@ -9,10 +9,10 @@ import (
 )
 
 type ArquivoRepository interface {
-	Create(ctx context.Context, arquivo *domainsolicitacao.Arquivo) (uuid.UUID, error)
-	GetByID(ctx context.Context, id uuid.UUID) (*domainsolicitacao.Arquivo, error)
-	ListByProprietario(ctx context.Context, proprietarioID uuid.UUID, filtro domain.PaginacaoFiltro) ([]*domainsolicitacao.Arquivo, error)
+	Criar(ctx context.Context, arquivo *domainsolicitacao.Arquivo) (uuid.UUID, error)
+	Obter(ctx context.Context, id uuid.UUID) (*domainsolicitacao.Arquivo, error)
+	ListarPorProprietario(ctx context.Context, proprietarioID uuid.UUID, filtro domain.PaginacaoFiltro) ([]*domainsolicitacao.Arquivo, error)
 	VinculadoASolicitacao(ctx context.Context, arquivoID uuid.UUID) (bool, error)
 	SolicitacaoDoArquivo(ctx context.Context, arquivoID uuid.UUID) (*uuid.UUID, error)
-	Delete(ctx context.Context, id uuid.UUID) error
+	Remover(ctx context.Context, id uuid.UUID) error
 }

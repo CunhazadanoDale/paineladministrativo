@@ -42,7 +42,7 @@ func novoRepositorioSolicitacoes(origem *repositorioArquivos) *repositorioSolici
 	}
 }
 
-func (r *repositorioSolicitacoes) Create(_ context.Context, solicitacao *domainsolicitacao.Solicitacao, arquivoIDs []uuid.UUID, historico *domainsolicitacao.Historico) (uuid.UUID, error) {
+func (r *repositorioSolicitacoes) Criar(_ context.Context, solicitacao *domainsolicitacao.Solicitacao, arquivoIDs []uuid.UUID, historico *domainsolicitacao.Historico) (uuid.UUID, error) {
 	copia := *solicitacao
 	r.itens[solicitacao.ID] = &copia
 	r.registrarHistorico(solicitacao.ID, historico)
@@ -57,7 +57,7 @@ func (r *repositorioSolicitacoes) Create(_ context.Context, solicitacao *domains
 	return solicitacao.ID, nil
 }
 
-func (r *repositorioSolicitacoes) GetByID(_ context.Context, id uuid.UUID) (*domainsolicitacao.Solicitacao, error) {
+func (r *repositorioSolicitacoes) Obter(_ context.Context, id uuid.UUID) (*domainsolicitacao.Solicitacao, error) {
 	solicitacao, ok := r.itens[id]
 	if !ok {
 		return nil, nil
@@ -67,7 +67,7 @@ func (r *repositorioSolicitacoes) GetByID(_ context.Context, id uuid.UUID) (*dom
 	return &copia, nil
 }
 
-func (r *repositorioSolicitacoes) List(_ context.Context, filtro portsout.SolicitacaoFiltro) ([]*domainsolicitacao.Solicitacao, error) {
+func (r *repositorioSolicitacoes) Listar(_ context.Context, filtro portsout.SolicitacaoFiltro) ([]*domainsolicitacao.Solicitacao, error) {
 	coincidindo := make([]*domainsolicitacao.Solicitacao, 0)
 
 	for _, solicitacao := range r.itens {
@@ -101,7 +101,7 @@ func (r *repositorioSolicitacoes) AtualizarStatus(_ context.Context, solicitacao
 	return true, nil
 }
 
-func (r *repositorioSolicitacoes) CreatePagamento(_ context.Context, solicitacao *domainsolicitacao.Solicitacao, pagamento *domainsolicitacao.Pagamento, historico *domainsolicitacao.Historico) error {
+func (r *repositorioSolicitacoes) CriarPagamento(_ context.Context, solicitacao *domainsolicitacao.Solicitacao, pagamento *domainsolicitacao.Pagamento, historico *domainsolicitacao.Historico) error {
 	atualizado, err := r.AtualizarStatus(context.Background(), solicitacao, historico)
 	if err != nil {
 		return err
@@ -134,7 +134,7 @@ func (r *repositorioSolicitacoes) registrarHistorico(solicitacaoID uuid.UUID, hi
 	r.historicos[solicitacaoID] = append(r.historicos[solicitacaoID], historico)
 }
 
-func (r *repositorioSolicitacoes) GetPagamentoBySolicitacaoID(_ context.Context, solicitacaoID uuid.UUID) (*domainsolicitacao.Pagamento, error) {
+func (r *repositorioSolicitacoes) ObterPagamento(_ context.Context, solicitacaoID uuid.UUID) (*domainsolicitacao.Pagamento, error) {
 	return r.pagamentos[solicitacaoID], nil
 }
 
@@ -151,7 +151,7 @@ func novoRepositorioArquivos() *repositorioArquivos {
 	}
 }
 
-func (r *repositorioArquivos) Create(_ context.Context, arquivo *domainsolicitacao.Arquivo) (uuid.UUID, error) {
+func (r *repositorioArquivos) Criar(_ context.Context, arquivo *domainsolicitacao.Arquivo) (uuid.UUID, error) {
 	if r.falharCriacao {
 		return uuid.Nil, domain.ErroValidacao("falha simulada no repositório de arquivos")
 	}
@@ -162,7 +162,7 @@ func (r *repositorioArquivos) Create(_ context.Context, arquivo *domainsolicitac
 	return arquivo.ID, nil
 }
 
-func (r *repositorioArquivos) GetByID(_ context.Context, id uuid.UUID) (*domainsolicitacao.Arquivo, error) {
+func (r *repositorioArquivos) Obter(_ context.Context, id uuid.UUID) (*domainsolicitacao.Arquivo, error) {
 	arquivo, ok := r.itens[id]
 	if !ok {
 		return nil, nil
@@ -172,7 +172,7 @@ func (r *repositorioArquivos) GetByID(_ context.Context, id uuid.UUID) (*domains
 	return &copia, nil
 }
 
-func (r *repositorioArquivos) ListByProprietario(_ context.Context, proprietarioID uuid.UUID, filtro domain.PaginacaoFiltro) ([]*domainsolicitacao.Arquivo, error) {
+func (r *repositorioArquivos) ListarPorProprietario(_ context.Context, proprietarioID uuid.UUID, filtro domain.PaginacaoFiltro) ([]*domainsolicitacao.Arquivo, error) {
 	coincidindo := make([]*domainsolicitacao.Arquivo, 0)
 
 	for _, arquivo := range r.itens {
@@ -205,7 +205,7 @@ func (r *repositorioArquivos) SolicitacaoDoArquivo(_ context.Context, arquivoID 
 	return &solicitacaoID, nil
 }
 
-func (r *repositorioArquivos) Delete(_ context.Context, id uuid.UUID) error {
+func (r *repositorioArquivos) Remover(_ context.Context, id uuid.UUID) error {
 	delete(r.itens, id)
 	delete(r.vinculos, id)
 
@@ -220,14 +220,14 @@ func novoRepositorioAprovadores() *repositorioAprovadores {
 	return &repositorioAprovadores{itens: map[uuid.UUID]*domainsolicitacao.Aprovador{}}
 }
 
-func (r *repositorioAprovadores) Create(_ context.Context, aprovador *domainsolicitacao.Aprovador) (uuid.UUID, error) {
+func (r *repositorioAprovadores) Criar(_ context.Context, aprovador *domainsolicitacao.Aprovador) (uuid.UUID, error) {
 	copia := *aprovador
 	r.itens[aprovador.ID] = &copia
 
 	return aprovador.ID, nil
 }
 
-func (r *repositorioAprovadores) GetByID(_ context.Context, id uuid.UUID) (*domainsolicitacao.Aprovador, error) {
+func (r *repositorioAprovadores) Obter(_ context.Context, id uuid.UUID) (*domainsolicitacao.Aprovador, error) {
 	aprovador, ok := r.itens[id]
 	if !ok {
 		return nil, nil
@@ -237,7 +237,7 @@ func (r *repositorioAprovadores) GetByID(_ context.Context, id uuid.UUID) (*doma
 	return &copia, nil
 }
 
-func (r *repositorioAprovadores) GetByUsuarioID(_ context.Context, usuarioID uuid.UUID) (*domainsolicitacao.Aprovador, error) {
+func (r *repositorioAprovadores) ObterPorUsuarioID(_ context.Context, usuarioID uuid.UUID) (*domainsolicitacao.Aprovador, error) {
 	for _, aprovador := range r.itens {
 		if aprovador.UsuarioID == usuarioID {
 			copia := *aprovador
@@ -248,7 +248,7 @@ func (r *repositorioAprovadores) GetByUsuarioID(_ context.Context, usuarioID uui
 	return nil, nil
 }
 
-func (r *repositorioAprovadores) List(_ context.Context, filtro domain.PaginacaoFiltro) ([]*domainsolicitacao.Aprovador, error) {
+func (r *repositorioAprovadores) Listar(_ context.Context, filtro domain.PaginacaoFiltro) ([]*domainsolicitacao.Aprovador, error) {
 	itens := make([]*domainsolicitacao.Aprovador, 0, len(r.itens))
 	for _, aprovador := range r.itens {
 		copia := *aprovador
@@ -262,7 +262,7 @@ func (r *repositorioAprovadores) List(_ context.Context, filtro domain.Paginacao
 	return paginar(itens, filtro), nil
 }
 
-func (r *repositorioAprovadores) Delete(_ context.Context, id uuid.UUID) error {
+func (r *repositorioAprovadores) Remover(_ context.Context, id uuid.UUID) error {
 	delete(r.itens, id)
 
 	return nil

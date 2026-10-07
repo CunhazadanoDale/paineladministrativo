@@ -9,9 +9,9 @@ import (
 )
 
 type AprovadorRepository interface {
-	Create(ctx context.Context, aprovador *domainsolicitacao.Aprovador) (uuid.UUID, error)
-	GetByID(ctx context.Context, id uuid.UUID) (*domainsolicitacao.Aprovador, error)
-	GetByUsuarioID(ctx context.Context, usuarioID uuid.UUID) (*domainsolicitacao.Aprovador, error)
-	List(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainsolicitacao.Aprovador, error)
-	Delete(ctx context.Context, id uuid.UUID) error
+	Criar(ctx context.Context, aprovador *domainsolicitacao.Aprovador) (uuid.UUID, error)
+	Obter(ctx context.Context, id uuid.UUID) (*domainsolicitacao.Aprovador, error)
+	ObterPorUsuarioID(ctx context.Context, usuarioID uuid.UUID) (*domainsolicitacao.Aprovador, error)
+	Listar(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainsolicitacao.Aprovador, error)
+	Remover(ctx context.Context, id uuid.UUID) error
 }

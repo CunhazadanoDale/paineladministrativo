@@ -42,7 +42,7 @@ func (u *AprovadorUsecaseImpl) Designar(ctx context.Context, usuarioID uuid.UUID
 		return uuid.Nil, domain.ErroValidacao("usuário inativo não pode ser designado como aprovador")
 	}
 
-	existente, err := u.repo.GetByUsuarioID(ctx, usuarioID)
+	existente, err := u.repo.ObterPorUsuarioID(ctx, usuarioID)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -56,7 +56,7 @@ func (u *AprovadorUsecaseImpl) Designar(ctx context.Context, usuarioID uuid.UUID
 		CriadoEm:  time.Now().UTC(),
 	}
 
-	return u.repo.Create(ctx, aprovador)
+	return u.repo.Criar(ctx, aprovador)
 }
 
 func (u *AprovadorUsecaseImpl) Obter(ctx context.Context, id uuid.UUID) (*domainsolicitacao.Aprovador, error) {
@@ -64,7 +64,7 @@ func (u *AprovadorUsecaseImpl) Obter(ctx context.Context, id uuid.UUID) (*domain
 		return nil, domain.ErroValidacao("id do aprovador não informado")
 	}
 
-	aprovador, err := u.repo.GetByID(ctx, id)
+	aprovador, err := u.repo.Obter(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func (u *AprovadorUsecaseImpl) Remover(ctx context.Context, id uuid.UUID) error 
 		return domain.ErroValidacao("id do aprovador não informado")
 	}
 
-	aprovador, err := u.repo.GetByID(ctx, id)
+	aprovador, err := u.repo.Obter(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -88,11 +88,11 @@ func (u *AprovadorUsecaseImpl) Remover(ctx context.Context, id uuid.UUID) error 
 		return domain.ErrNotFound
 	}
 
-	return u.repo.Delete(ctx, id)
+	return u.repo.Remover(ctx, id)
 }
 
 func (u *AprovadorUsecaseImpl) Listar(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainsolicitacao.Aprovador, error) {
-	return u.repo.List(ctx, filtro.Normalizada())
+	return u.repo.Listar(ctx, filtro.Normalizada())
 }
 
 func (u *AprovadorUsecaseImpl) EhDesignado(ctx context.Context, usuarioID uuid.UUID) (bool, error) {
@@ -100,7 +100,7 @@ func (u *AprovadorUsecaseImpl) EhDesignado(ctx context.Context, usuarioID uuid.U
 		return false, domain.ErroValidacao("usuário do aprovador não informado")
 	}
 
-	aprovador, err := u.repo.GetByUsuarioID(ctx, usuarioID)
+	aprovador, err := u.repo.ObterPorUsuarioID(ctx, usuarioID)
 	if err != nil {
 		return false, err
 	}

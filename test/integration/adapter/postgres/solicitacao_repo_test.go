@@ -102,7 +102,7 @@ func (c *cenarioBancoSolicitacoes) criarArquivo(t *testing.T, nome, contentType 
 		CriadoEm:       time.Now().UTC(),
 	}
 
-	if _, err := c.arquivos.Create(context.Background(), arquivo); err != nil {
+	if _, err := c.arquivos.Criar(context.Background(), arquivo); err != nil {
 		t.Fatalf("não criei o arquivo de teste: %v", err)
 	}
 
@@ -119,7 +119,7 @@ func TestSolicitacaoCriadaPersisteComArquivosEHistorico(t *testing.T) {
 		solicitacao.ID, c.solicitanteID, nil, solicitacao.Status, "solicitação criada",
 	)
 
-	id, err := c.solicitacoes.Create(ctx, solicitacao, []uuid.UUID{arquivo.ID}, historico)
+	id, err := c.solicitacoes.Criar(ctx, solicitacao, []uuid.UUID{arquivo.ID}, historico)
 	if err != nil {
 		t.Fatalf("criação falhou: %v", err)
 	}
@@ -127,7 +127,7 @@ func TestSolicitacaoCriadaPersisteComArquivosEHistorico(t *testing.T) {
 		t.Errorf("id = %s, esperado %s", id, solicitacao.ID)
 	}
 
-	salva, err := c.solicitacoes.GetByID(ctx, id)
+	salva, err := c.solicitacoes.Obter(ctx, id)
 	if err != nil {
 		t.Fatalf("busca falhou: %v", err)
 	}
@@ -175,7 +175,7 @@ func TestAtualizarStatusSoMudaSeOLStatusAnteriorBater(t *testing.T) {
 	historico := domainsolicitacao.NovoHistorico(
 		solicitacao.ID, c.solicitanteID, nil, solicitacao.Status, "solicitação criada",
 	)
-	if _, err := c.solicitacoes.Create(ctx, solicitacao, nil, historico); err != nil {
+	if _, err := c.solicitacoes.Criar(ctx, solicitacao, nil, historico); err != nil {
 		t.Fatalf("criação falhou: %v", err)
 	}
 
@@ -205,7 +205,7 @@ func TestAtualizarStatusSoMudaSeOLStatusAnteriorBater(t *testing.T) {
 		t.Error("guarda de status deixou atualizar duas vezes com o mesmo status anterior")
 	}
 
-	salva, err := c.solicitacoes.GetByID(ctx, solicitacao.ID)
+	salva, err := c.solicitacoes.Obter(ctx, solicitacao.ID)
 	if err != nil {
 		t.Fatalf("busca falhou: %v", err)
 	}
@@ -225,7 +225,7 @@ func TestCreatePagamentoGravaValorEFicaUnicoPorSolicitacao(t *testing.T) {
 	historico := domainsolicitacao.NovoHistorico(
 		solicitacao.ID, c.solicitanteID, nil, solicitacao.Status, "solicitação criada",
 	)
-	if _, err := c.solicitacoes.Create(ctx, solicitacao, nil, historico); err != nil {
+	if _, err := c.solicitacoes.Criar(ctx, solicitacao, nil, historico); err != nil {
 		t.Fatalf("criação falhou: %v", err)
 	}
 
@@ -255,11 +255,11 @@ func TestCreatePagamentoGravaValorEFicaUnicoPorSolicitacao(t *testing.T) {
 		solicitacao.ID, c.terceiroID, &statusAnterior, solicitacao.Status, "pagamento registrado",
 	)
 
-	if err := c.solicitacoes.CreatePagamento(ctx, solicitacao, pagamento, pagamentoHistorico); err != nil {
+	if err := c.solicitacoes.CriarPagamento(ctx, solicitacao, pagamento, pagamentoHistorico); err != nil {
 		t.Fatalf("pagamento falhou: %v", err)
 	}
 
-	salvo, err := c.solicitacoes.GetPagamentoBySolicitacaoID(ctx, solicitacao.ID)
+	salvo, err := c.solicitacoes.ObterPagamento(ctx, solicitacao.ID)
 	if err != nil {
 		t.Fatalf("busca do pagamento falhou: %v", err)
 	}
@@ -273,7 +273,7 @@ func TestCreatePagamentoGravaValorEFicaUnicoPorSolicitacao(t *testing.T) {
 		t.Errorf("comprovante = %v, esperado %s", salvo.ComprovanteArquivoID, arquivo.ID)
 	}
 
-	solicitacaoPaga, err := c.solicitacoes.GetByID(ctx, solicitacao.ID)
+	solicitacaoPaga, err := c.solicitacoes.Obter(ctx, solicitacao.ID)
 	if err != nil {
 		t.Fatalf("busca falhou: %v", err)
 	}
@@ -285,7 +285,7 @@ func TestCreatePagamentoGravaValorEFicaUnicoPorSolicitacao(t *testing.T) {
 	historicoDuplicado := domainsolicitacao.NovoHistorico(
 		solicitacao.ID, c.terceiroID, &statusAnterior, solicitacao.Status, "pagamento registrado",
 	)
-	if err := c.solicitacoes.CreatePagamento(ctx, solicitacaoPaga, segundaVez, historicoDuplicado); !errors.Is(err, domain.ErrConflito) {
+	if err := c.solicitacoes.CriarPagamento(ctx, solicitacaoPaga, segundaVez, historicoDuplicado); !errors.Is(err, domain.ErrConflito) {
 		t.Errorf("segundo pagamento = %v, esperado erro de conflito", err)
 	}
 }
@@ -302,12 +302,12 @@ func TestListarSolicitacoesAplicaFiltros(t *testing.T) {
 		historico := domainsolicitacao.NovoHistorico(
 			solicitacao.ID, solicitacao.SolicitanteID, nil, solicitacao.Status, "solicitação criada",
 		)
-		if _, err := c.solicitacoes.Create(ctx, solicitacao, nil, historico); err != nil {
+		if _, err := c.solicitacoes.Criar(ctx, solicitacao, nil, historico); err != nil {
 			t.Fatalf("criação falhou: %v", err)
 		}
 	}
 
-	porSolicitante, err := c.solicitacoes.List(ctx, portsout.SolicitacaoFiltro{
+	porSolicitante, err := c.solicitacoes.Listar(ctx, portsout.SolicitacaoFiltro{
 		PaginacaoFiltro: todasAsPaginas,
 		Solicitante:     &c.solicitanteID,
 	})
@@ -319,7 +319,7 @@ func TestListarSolicitacoesAplicaFiltros(t *testing.T) {
 	}
 
 	statusAprovado := domainsolicitacao.StatusAprovado
-	porStatus, err := c.solicitacoes.List(ctx, portsout.SolicitacaoFiltro{
+	porStatus, err := c.solicitacoes.Listar(ctx, portsout.SolicitacaoFiltro{
 		PaginacaoFiltro: todasAsPaginas,
 		Status:          statusAprovado,
 	})
@@ -330,7 +330,7 @@ func TestListarSolicitacoesAplicaFiltros(t *testing.T) {
 		t.Errorf("filtro por status aprovado devolveu %d, esperado 0", len(porStatus))
 	}
 
-	todas, err := c.solicitacoes.List(ctx, portsout.SolicitacaoFiltro{PaginacaoFiltro: todasAsPaginas})
+	todas, err := c.solicitacoes.Listar(ctx, portsout.SolicitacaoFiltro{PaginacaoFiltro: todasAsPaginas})
 	if err != nil {
 		t.Fatalf("listagem falhou: %v", err)
 	}
@@ -357,7 +357,7 @@ func TestArquivoGuardaVinculoESolicitacaoDono(t *testing.T) {
 	historico := domainsolicitacao.NovoHistorico(
 		solicitacao.ID, c.solicitanteID, nil, solicitacao.Status, "solicitação criada",
 	)
-	if _, err := c.solicitacoes.Create(ctx, solicitacao, []uuid.UUID{arquivo.ID}, historico); err != nil {
+	if _, err := c.solicitacoes.Criar(ctx, solicitacao, []uuid.UUID{arquivo.ID}, historico); err != nil {
 		t.Fatalf("criação falhou: %v", err)
 	}
 
@@ -377,7 +377,7 @@ func TestArquivoGuardaVinculoESolicitacaoDono(t *testing.T) {
 		t.Errorf("solicitação do arquivo = %v, esperada %s", solicitacaoID, solicitacao.ID)
 	}
 
-	porProprietario, err := c.arquivos.ListByProprietario(ctx, c.solicitanteID, todasAsPaginas)
+	porProprietario, err := c.arquivos.ListarPorProprietario(ctx, c.solicitanteID, todasAsPaginas)
 	if err != nil {
 		t.Fatalf("listagem falhou: %v", err)
 	}
@@ -385,7 +385,7 @@ func TestArquivoGuardaVinculoESolicitacaoDono(t *testing.T) {
 		t.Errorf("%d arquivos, esperado 1", len(porProprietario))
 	}
 
-	if err := c.arquivos.Delete(ctx, arquivo.ID); err == nil {
+	if err := c.arquivos.Remover(ctx, arquivo.ID); err == nil {
 		t.Error("remoção de arquivo vinculado devia falhar pela restrição")
 	}
 }
@@ -400,12 +400,12 @@ func TestAprovadorUnicoPorUsuarioEConsultavelPorId(t *testing.T) {
 		CriadoEm:  time.Now().UTC(),
 	}
 
-	id, err := c.aprovadores.Create(ctx, aprovador)
+	id, err := c.aprovadores.Criar(ctx, aprovador)
 	if err != nil {
 		t.Fatalf("designação falhou: %v", err)
 	}
 
-	if _, err := c.aprovadores.Create(ctx, &domainsolicitacao.Aprovador{
+	if _, err := c.aprovadores.Criar(ctx, &domainsolicitacao.Aprovador{
 		ID:        uuid.New(),
 		UsuarioID: c.solicitanteID,
 		CriadoEm:  time.Now().UTC(),
@@ -413,7 +413,7 @@ func TestAprovadorUnicoPorUsuarioEConsultavelPorId(t *testing.T) {
 		t.Error("segunda designação do mesmo usuário devia violar a unicidade")
 	}
 
-	porId, err := c.aprovadores.GetByID(ctx, id)
+	porId, err := c.aprovadores.Obter(ctx, id)
 	if err != nil {
 		t.Fatalf("busca por id falhou: %v", err)
 	}
@@ -421,7 +421,7 @@ func TestAprovadorUnicoPorUsuarioEConsultavelPorId(t *testing.T) {
 		t.Errorf("aprovador = %+v, esperado o usuário do cenário", porId)
 	}
 
-	porUsuario, err := c.aprovadores.GetByUsuarioID(ctx, c.solicitanteID)
+	porUsuario, err := c.aprovadores.ObterPorUsuarioID(ctx, c.solicitanteID)
 	if err != nil {
 		t.Fatalf("busca por usuário falhou: %v", err)
 	}
@@ -429,7 +429,7 @@ func TestAprovadorUnicoPorUsuarioEConsultavelPorId(t *testing.T) {
 		t.Errorf("aprovador = %+v, esperado o registro criado", porUsuario)
 	}
 
-	inexistente, err := c.aprovadores.GetByUsuarioID(ctx, c.terceiroID)
+	inexistente, err := c.aprovadores.ObterPorUsuarioID(ctx, c.terceiroID)
 	if err != nil {
 		t.Fatalf("busca por usuário falhou: %v", err)
 	}
@@ -437,7 +437,7 @@ func TestAprovadorUnicoPorUsuarioEConsultavelPorId(t *testing.T) {
 		t.Errorf("usuário sem designação devolveu %+v", inexistente)
 	}
 
-	listagem, err := c.aprovadores.List(ctx, todasAsPaginas)
+	listagem, err := c.aprovadores.Listar(ctx, todasAsPaginas)
 	if err != nil {
 		t.Fatalf("listagem falhou: %v", err)
 	}
@@ -445,11 +445,11 @@ func TestAprovadorUnicoPorUsuarioEConsultavelPorId(t *testing.T) {
 		t.Errorf("%d aprovadores, esperado 1", len(listagem))
 	}
 
-	if err := c.aprovadores.Delete(ctx, id); err != nil {
+	if err := c.aprovadores.Remover(ctx, id); err != nil {
 		t.Fatalf("remoção falhou: %v", err)
 	}
 
-	aposRemover, err := c.aprovadores.GetByID(ctx, id)
+	aposRemover, err := c.aprovadores.Obter(ctx, id)
 	if err != nil {
 		t.Fatalf("busca por id falhou: %v", err)
 	}

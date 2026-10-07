@@ -39,7 +39,7 @@ func (p *permissoes) ehFinanceiro(ctx context.Context, usuarioID uuid.UUID) (boo
 }
 
 func (p *permissoes) ehAprovador(ctx context.Context, usuarioID uuid.UUID) (bool, error) {
-	aprovador, err := p.aprovadores.GetByUsuarioID(ctx, usuarioID)
+	aprovador, err := p.aprovadores.ObterPorUsuarioID(ctx, usuarioID)
 	if err != nil {
 		return false, err
 	}
