@@ -35,12 +35,31 @@ func servidorDoTeste(t *testing.T) (*httptest.Server, *sqlx.DB) {
 	t.Helper()
 
 	banco := helpers.BancoDoTeste(t)
+	servidor := helpers.NovoServidor(t, banco)
+	tokenDoTeste = autenticar(t, servidor, emailAdministrador, senhaAdministrador).Token
 
-	return helpers.NovoServidor(t, banco), banco
+	return servidor, banco
 }
+
+// tokenDoTeste é o token do administrador logado pelo servidorDoTeste.
+var tokenDoTeste string
 
 // envia faz uma requisição ao servidor de teste e devolve a resposta.
 func envia(t *testing.T, servidor *httptest.Server, metodo, caminho string, corpo any) *http.Response {
+	return enviar(t, servidor, metodo, caminho, corpo, tokenDoTeste)
+}
+
+// enviaSemToken faz a mesma requisição de envia, sem cabeçalho de autorização.
+func enviaSemToken(t *testing.T, servidor *httptest.Server, metodo, caminho string, corpo any) *http.Response {
+	return enviar(t, servidor, metodo, caminho, corpo, "")
+}
+
+// enviaComToken faz a requisição com o token informado.
+func enviaComToken(t *testing.T, servidor *httptest.Server, metodo, caminho string, corpo any, token string) *http.Response {
+	return enviar(t, servidor, metodo, caminho, corpo, token)
+}
+
+func enviar(t *testing.T, servidor *httptest.Server, metodo, caminho string, corpo any, token string) *http.Response {
 	t.Helper()
 
 	var leitor io.Reader
@@ -58,6 +77,9 @@ func envia(t *testing.T, servidor *httptest.Server, metodo, caminho string, corp
 	}
 	if corpo != nil {
 		requisicao.Header.Set("Content-Type", "application/json")
+	}
+	if token != "" {
+		requisicao.Header.Set("Authorization", "Bearer "+token)
 	}
 
 	resposta, err := servidor.Client().Do(requisicao)

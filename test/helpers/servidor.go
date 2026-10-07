@@ -5,13 +5,17 @@ package helpers
 import (
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/autenticacao"
 	httpapi "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/postgres"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/leadpoint"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/usuarios"
 	"github.com/jmoiron/sqlx"
 )
+
+const segredoDoTeste = "segredo-de-teste-do-e2e"
 
 // NovoServidor monta a aplicação inteira — repositórios, usecases e rotas —
 // e devolve um servidor HTTP de teste.
@@ -34,6 +38,7 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 		leadpoint.NewLeadHistoryUsecase(postgres.NewLeadHistoryRepository(banco)),
 		usuarios.NewUsuarioUsecase(postgres.NewUsuarioRepository(banco), cargoRepository),
 		usuarios.NewCargoUsecase(cargoRepository),
+		autenticacao.NovoTokenService(segredoDoTeste, time.Hour),
 	)
 
 	servidor := httptest.NewServer(rotas)
