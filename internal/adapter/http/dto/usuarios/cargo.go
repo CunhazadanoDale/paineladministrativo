@@ -6,38 +6,43 @@ import (
 )
 
 type CriarCargoRequest struct {
-	Nome      string `json:"nome"`
-	Descricao string `json:"descricao"`
+	Nome          string `json:"nome"`
+	Descricao     string `json:"descricao"`
+	Administrador bool   `json:"administrador"`
 }
 
 type AtualizarCargoRequest struct {
-	Nome      string `json:"nome"`
-	Descricao string `json:"descricao"`
-	Ativo     bool   `json:"ativo"`
+	Nome          string `json:"nome"`
+	Descricao     string `json:"descricao"`
+	Ativo         bool   `json:"ativo"`
+	Administrador bool   `json:"administrador"`
 }
 
 type CargoResponse struct {
-	ID        uuid.UUID `json:"id"`
-	Nome      string    `json:"nome"`
-	Descricao string    `json:"descricao"`
-	Ativo     bool      `json:"ativo"`
+	ID            uuid.UUID `json:"id"`
+	Nome          string    `json:"nome"`
+	Descricao     string    `json:"descricao"`
+	Ativo         bool      `json:"ativo"`
+	Administrador bool      `json:"administrador"`
 }
 
 func (r AtualizarCargoRequest) ParaCargo(id uuid.UUID) *domainusuarios.Cargo {
 	return &domainusuarios.Cargo{
-		ID:        id,
-		Nome:      r.Nome,
-		Descricao: r.Descricao,
-		Ativo:     r.Ativo,
+		ID:            id,
+		Nome:          r.Nome,
+		Descricao:     r.Descricao,
+		Ativo:         r.Ativo,
+		Administrador: r.Administrador,
 	}
 }
 
 func NovaCargoResponse(item *domainusuarios.Cargo) CargoResponse {
 	return CargoResponse{
-		ID:        item.ID,
-		Nome:      item.Nome,
-		Descricao: item.Descricao,
-		Ativo:     item.Ativo,
+		ID:            item.ID,
+		Nome:          item.Nome,
+		Descricao:     item.Descricao,
+		Ativo:         item.Ativo,
+		Administrador: item.Administrador,
 	}
 }
 

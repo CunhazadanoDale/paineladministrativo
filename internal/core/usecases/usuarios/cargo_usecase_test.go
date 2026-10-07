@@ -108,7 +108,7 @@ func TestCargoCreate(t *testing.T) {
 	c := novoCenario(t)
 	ctx := context.Background()
 
-	id, err := c.cargo.Create(ctx, "  Engenheiro  ", "  Responsável técnico  ")
+	id, err := c.cargo.Create(ctx, "  Engenheiro  ", "  Responsável técnico  ", true)
 	if err != nil {
 		t.Fatalf("criação falhou: %v", err)
 	}
@@ -129,12 +129,15 @@ func TestCargoCreate(t *testing.T) {
 	if !salvo.Ativo {
 		t.Error("cargo deveria ter sido criado ativo")
 	}
+	if !salvo.Administrador {
+		t.Error("cargo deveria ter sido criado como administrador")
+	}
 
-	if _, err := c.cargo.Create(ctx, "   ", "sem nome"); !errors.Is(err, domain.ErrValidacao) {
+	if _, err := c.cargo.Create(ctx, "   ", "sem nome", false); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("erro %v, esperado erro de validação", err)
 	}
 
-	if _, err := c.cargo.Create(ctx, "Engenheiro", "outro"); !errors.Is(err, domain.ErrValidacao) {
+	if _, err := c.cargo.Create(ctx, "Engenheiro", "outro", false); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("erro %v, esperado erro de validação", err)
 	}
 }
@@ -169,11 +172,11 @@ func TestCargoUpdate(t *testing.T) {
 	c := novoCenario(t)
 	ctx := context.Background()
 
-	engenheiroID, err := c.cargo.Create(ctx, "Engenheiro", "")
+	engenheiroID, err := c.cargo.Create(ctx, "Engenheiro", "", false)
 	if err != nil {
 		t.Fatalf("criação do cargo falhou: %v", err)
 	}
-	if _, err := c.cargo.Create(ctx, "Arquiteto", ""); err != nil {
+	if _, err := c.cargo.Create(ctx, "Arquiteto", "", false); err != nil {
 		t.Fatalf("criação do segundo cargo falhou: %v", err)
 	}
 
@@ -260,10 +263,10 @@ func TestCargoListas(t *testing.T) {
 	c := novoCenario(t)
 	ctx := context.Background()
 
-	if _, err := c.cargo.Create(ctx, "Engenheiro", ""); err != nil {
+	if _, err := c.cargo.Create(ctx, "Engenheiro", "", false); err != nil {
 		t.Fatalf("criação do cargo falhou: %v", err)
 	}
-	arquitetoID, err := c.cargo.Create(ctx, "Arquiteto", "")
+	arquitetoID, err := c.cargo.Create(ctx, "Arquiteto", "", false)
 	if err != nil {
 		t.Fatalf("criação do segundo cargo falhou: %v", err)
 	}

@@ -182,7 +182,7 @@ func novoCenario(t *testing.T) *cenario {
 	repoUsuarios := novoRepositorioUsuarios()
 	cargos := usuarios.NewCargoUsecase(repoCargos)
 
-	cargoID, err := cargos.Create(context.Background(), "Gerente de obra", "Responsável pela obra")
+	cargoID, err := cargos.Create(context.Background(), "Gerente de obra", "Responsável pela obra", false)
 	if err != nil {
 		t.Fatalf("não criei o cargo do cenário: %v", err)
 	}

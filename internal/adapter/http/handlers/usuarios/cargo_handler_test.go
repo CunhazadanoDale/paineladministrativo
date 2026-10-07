@@ -26,7 +26,7 @@ func novoFakeCargos() *fakeCargoUseCase {
 	return &fakeCargoUseCase{cargos: map[uuid.UUID]*domainusuarios.Cargo{}}
 }
 
-func (f *fakeCargoUseCase) Create(_ context.Context, nome, descricao string) (uuid.UUID, error) {
+func (f *fakeCargoUseCase) Create(_ context.Context, nome, descricao string, administrador bool) (uuid.UUID, error) {
 	if nome == "" {
 		return uuid.Nil, domain.ErroValidacao("nome do cargo é obrigatório")
 	}
@@ -39,10 +39,11 @@ func (f *fakeCargoUseCase) Create(_ context.Context, nome, descricao string) (uu
 
 	id := uuid.New()
 	f.cargos[id] = &domainusuarios.Cargo{
-		ID:        id,
-		Nome:      nome,
-		Descricao: descricao,
-		Ativo:     true,
+		ID:            id,
+		Nome:          nome,
+		Descricao:     descricao,
+		Ativo:         true,
+		Administrador: administrador,
 	}
 
 	return id, nil
@@ -127,7 +128,7 @@ func (f *fakeCargoUseCase) Delete(_ context.Context, id uuid.UUID) error {
 func semearCargo(t *testing.T, fake *fakeCargoUseCase, nome, descricao string) uuid.UUID {
 	t.Helper()
 
-	id, err := fake.Create(context.Background(), nome, descricao)
+	id, err := fake.Create(context.Background(), nome, descricao, false)
 	if err != nil {
 		t.Fatalf("falha ao semear cargo: %v", err)
 	}

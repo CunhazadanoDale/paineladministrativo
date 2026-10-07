@@ -24,8 +24,8 @@ func NewCargoRepository(db *sqlx.DB) *CargoRepository {
 
 func (c *CargoRepository) Create(ctx context.Context, cargo *domainusuarios.Cargo) (uuid.UUID, error) {
 	query := `
-		INSERT INTO cargo (id, nome, descricao, ativo)
-		VALUES (:id, :nome, :descricao, :ativo)
+		INSERT INTO cargo (id, nome, descricao, ativo, administrador)
+		VALUES (:id, :nome, :descricao, :ativo, :administrador)
 		RETURNING id
 	`
 
@@ -53,7 +53,7 @@ func (c *CargoRepository) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 func (c *CargoRepository) GetByID(ctx context.Context, id uuid.UUID) (*domainusuarios.Cargo, error) {
-	query := `SELECT id, nome, descricao, ativo FROM cargo WHERE id = $1`
+	query := `SELECT id, nome, descricao, ativo, administrador FROM cargo WHERE id = $1`
 
 	var item domainusuarios.Cargo
 	if err := c.db.GetContext(ctx, &item, query, id); err != nil {
@@ -66,7 +66,7 @@ func (c *CargoRepository) GetByID(ctx context.Context, id uuid.UUID) (*domainusu
 }
 
 func (c *CargoRepository) GetByNome(ctx context.Context, nome string) (*domainusuarios.Cargo, error) {
-	query := `SELECT id, nome, descricao, ativo FROM cargo WHERE nome = $1`
+	query := `SELECT id, nome, descricao, ativo, administrador FROM cargo WHERE nome = $1`
 
 	var item domainusuarios.Cargo
 	if err := c.db.GetContext(ctx, &item, query, nome); err != nil {
@@ -81,7 +81,7 @@ func (c *CargoRepository) GetByNome(ctx context.Context, nome string) (*domainus
 func (c *CargoRepository) List(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
 	offset := (filtro.Page - 1) * filtro.Size
 	query := `
-		SELECT id, nome, descricao, ativo
+		SELECT id, nome, descricao, ativo, administrador
 		FROM cargo
 		ORDER BY nome ASC
 		LIMIT $1 OFFSET $2
@@ -97,7 +97,7 @@ func (c *CargoRepository) List(ctx context.Context, filtro domain.PaginacaoFiltr
 func (c *CargoRepository) ListAtivos(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
 	offset := (filtro.Page - 1) * filtro.Size
 	query := `
-		SELECT id, nome, descricao, ativo
+		SELECT id, nome, descricao, ativo, administrador
 		FROM cargo
 		WHERE ativo = TRUE
 		ORDER BY nome ASC
@@ -116,7 +116,8 @@ func (c *CargoRepository) Update(ctx context.Context, cargo *domainusuarios.Carg
 		UPDATE cargo
 		SET nome = :nome,
 		    descricao = :descricao,
-		    ativo = :ativo
+		    ativo = :ativo,
+		    administrador = :administrador
 		WHERE id = :id
 	`
 

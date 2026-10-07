@@ -24,7 +24,7 @@ func (h *CargoHandler) Criar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := h.usecase.Create(r.Context(), requisicao.Nome, requisicao.Descricao)
+	id, err := h.usecase.Create(r.Context(), requisicao.Nome, requisicao.Descricao, requisicao.Administrador)
 	if err != nil {
 		responderErro(w, err)
 		return
