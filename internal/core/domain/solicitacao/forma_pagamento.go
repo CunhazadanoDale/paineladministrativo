@@ -21,7 +21,7 @@ func NovaFormaPagamento(valor string) (FormaPagamento, error) {
 	case FormaPagamentoPix, FormaPagamentoCartao, FormaPagamentoBoleto:
 		return forma, nil
 	default:
-		return "", domain.ErroValidacao("forma de pagamento deve ser pix, cartão ou boleto")
+		return "", domain.ErroValidacao("forma de pagamento deve ser pix, cartao ou boleto")
 	}
 }
 
@@ -34,6 +34,6 @@ func (f FormaPagamento) Validado() error {
 	case FormaPagamentoPix, FormaPagamentoCartao, FormaPagamentoBoleto:
 		return nil
 	default:
-		return domain.ErroValidacao("forma de pagamento deve ser pix, cartão ou boleto")
+		return domain.ErroValidacao("forma de pagamento deve ser pix, cartao ou boleto")
 	}
 }
