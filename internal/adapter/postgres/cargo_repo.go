@@ -48,7 +48,7 @@ func (c *CargoRepository) Create(ctx context.Context, cargo *domainusuarios.Carg
 
 func (c *CargoRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	_, err := c.db.ExecContext(ctx, `DELETE FROM cargo WHERE id = $1`, id)
-	return err
+	return tratarErro(err)
 }
 
 func (c *CargoRepository) GetByID(ctx context.Context, id uuid.UUID) (*domainusuarios.Cargo, error) {

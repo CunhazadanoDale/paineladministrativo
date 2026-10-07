@@ -61,7 +61,7 @@ func (u *UsuarioRepository) Create(ctx context.Context, usuario *domainusuarios.
 
 func (u *UsuarioRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	_, err := u.db.ExecContext(ctx, `DELETE FROM usuario WHERE id = $1`, id)
-	return err
+	return tratarErro(err)
 }
 
 func (u *UsuarioRepository) Desativar(ctx context.Context, id uuid.UUID) error {

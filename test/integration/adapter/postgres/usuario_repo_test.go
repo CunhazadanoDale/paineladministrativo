@@ -2,10 +2,12 @@ package postgres_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/postgres"
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	domainusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/usuarios"
 	"github.com/CunhazadanoDale/paineladministrativo.git/test/helpers"
 	"github.com/google/uuid"
@@ -155,8 +157,12 @@ func TestCargoComUsuarioNaoPodeSerExcluido(t *testing.T) {
 		t.Fatalf("criação do usuário falhou: %v", err)
 	}
 
-	if err := cargos.Delete(ctx, cargoID); err == nil {
+	err = cargos.Delete(ctx, cargoID)
+	if err == nil {
 		t.Fatal("exclusão do cargo em uso deveria ter falhado")
+	}
+	if !errors.Is(err, domain.ErrValidacao) {
+		t.Errorf("erro %q, esperado erro de validação", err)
 	}
 }
 
