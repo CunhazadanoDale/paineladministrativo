@@ -353,10 +353,6 @@ func atualizarStatusComGuarda(ctx context.Context, tx transacional, solicitacao 
 	argumentos := map[string]any{
 		"id":                linha.ID,
 		"aprovador_id":      linha.AprovadorID,
-		"valor_estimado":    linha.ValorCentavos,
-		"prazo_pagamento":   linha.PrazoPagamento,
-		"observacao":        linha.Observacao,
-		"forma_pagamento":   linha.FormaPagamento,
 		"status":            linha.Status,
 		"rejeitacao_motivo": linha.RejeitacaoMotivo,
 		"aprovado_em":       linha.AprovadoEm,
@@ -369,10 +365,6 @@ func atualizarStatusComGuarda(ctx context.Context, tx transacional, solicitacao 
 	query := `
 		UPDATE solicitacao
 		SET aprovador_id = :aprovador_id,
-		    valor_estimado = :valor_estimado,
-		    prazo_pagamento = :prazo_pagamento,
-		    observacao = :observacao,
-		    forma_pagamento = :forma_pagamento,
 		    status = :status,
 		    rejeitacao_motivo = :rejeitacao_motivo,
 		    aprovado_em = :aprovado_em,
