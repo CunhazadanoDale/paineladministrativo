@@ -5,28 +5,34 @@ import (
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/lead"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/saude"
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/usuarios"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/middleware"
-	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/leads"
+	portsinlead "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/leads"
+	portsinusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/usuarios"
 	"github.com/jmoiron/sqlx"
 )
 
 func NewRouter(
 	banco *sqlx.DB,
 	origensCORS []string,
-	leadUseCase portsin.LeadUseCase,
-	funilUseCase portsin.FunilUseCase,
-	etapaUseCase portsin.EtapaUseCase,
-	historicoUseCase portsin.LeadHistoryUseCase,
+	leadUseCase portsinlead.LeadUseCase,
+	funilUseCase portsinlead.FunilUseCase,
+	etapaUseCase portsinlead.EtapaUseCase,
+	historicoUseCase portsinlead.LeadHistoryUseCase,
+	usuarioUseCase portsinusuarios.UsuarioUseCase,
+	cargoUseCase portsinusuarios.CargoUseCase,
 ) http.Handler {
-	return middleware.CORS(origensCORS, novasRotas(banco, leadUseCase, funilUseCase, etapaUseCase, historicoUseCase))
+	return middleware.CORS(origensCORS, novasRotas(banco, leadUseCase, funilUseCase, etapaUseCase, historicoUseCase, usuarioUseCase, cargoUseCase))
 }
 
 func novasRotas(
 	banco *sqlx.DB,
-	leadUseCase portsin.LeadUseCase,
-	funilUseCase portsin.FunilUseCase,
-	etapaUseCase portsin.EtapaUseCase,
-	historicoUseCase portsin.LeadHistoryUseCase,
+	leadUseCase portsinlead.LeadUseCase,
+	funilUseCase portsinlead.FunilUseCase,
+	etapaUseCase portsinlead.EtapaUseCase,
+	historicoUseCase portsinlead.LeadHistoryUseCase,
+	usuarioUseCase portsinusuarios.UsuarioUseCase,
+	cargoUseCase portsinusuarios.CargoUseCase,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
 
@@ -65,6 +71,25 @@ func novasRotas(
 	historicoHandler := lead.NewLeadHistoryHandler(historicoUseCase)
 	mux.HandleFunc("GET /api/v1/leads/{lead_id}/historico", historicoHandler.Listar)
 	mux.HandleFunc("POST /api/v1/leads/{lead_id}/historico", historicoHandler.RegistrarMovimentacao)
+
+	cargoHandler := usuarios.NewCargoHandler(cargoUseCase)
+	mux.HandleFunc("POST /api/v1/cargos", cargoHandler.Criar)
+	mux.HandleFunc("GET /api/v1/cargos", cargoHandler.Listar)
+	mux.HandleFunc("GET /api/v1/cargos/busca", cargoHandler.ObterPorNome)
+	mux.HandleFunc("GET /api/v1/cargos/{id}", cargoHandler.Obter)
+	mux.HandleFunc("PUT /api/v1/cargos/{id}", cargoHandler.Atualizar)
+	mux.HandleFunc("DELETE /api/v1/cargos/{id}", cargoHandler.Remover)
+
+	usuarioHandler := usuarios.NewUsuarioHandler(usuarioUseCase)
+	mux.HandleFunc("POST /api/v1/usuarios", usuarioHandler.Criar)
+	mux.HandleFunc("GET /api/v1/usuarios", usuarioHandler.Listar)
+	mux.HandleFunc("POST /api/v1/usuarios/autenticar", usuarioHandler.Autenticar)
+	mux.HandleFunc("GET /api/v1/usuarios/{id}", usuarioHandler.Obter)
+	mux.HandleFunc("PUT /api/v1/usuarios/{id}", usuarioHandler.Atualizar)
+	mux.HandleFunc("DELETE /api/v1/usuarios/{id}", usuarioHandler.Remover)
+	mux.HandleFunc("POST /api/v1/usuarios/{id}/senha", usuarioHandler.TrocarSenha)
+	mux.HandleFunc("PATCH /api/v1/usuarios/{id}/ativar", usuarioHandler.Ativar)
+	mux.HandleFunc("PATCH /api/v1/usuarios/{id}/desativar", usuarioHandler.Desativar)
 
 	mux.HandleFunc("GET /", saude.NaoEncontrado)
 

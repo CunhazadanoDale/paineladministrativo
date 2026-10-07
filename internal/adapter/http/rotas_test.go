@@ -10,7 +10,7 @@ import (
 func muxDoTeste(t *testing.T) *http.ServeMux {
 	t.Helper()
 
-	return novasRotas(nil, nil, nil, nil, nil)
+	return novasRotas(nil, nil, nil, nil, nil, nil, nil)
 }
 
 func TestNewRouterAplicaCORS(t *testing.T) {
@@ -19,7 +19,7 @@ func TestNewRouterAplicaCORS(t *testing.T) {
 	requisicao.Header.Set("Access-Control-Request-Method", "POST")
 	registrador := httptest.NewRecorder()
 
-	NewRouter(nil, []string{"http://localhost:5173"}, nil, nil, nil, nil).ServeHTTP(registrador, requisicao)
+	NewRouter(nil, []string{"http://localhost:5173"}, nil, nil, nil, nil, nil, nil).ServeHTTP(registrador, requisicao)
 
 	if registrador.Code != http.StatusNoContent {
 		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusNoContent)
@@ -63,6 +63,21 @@ func TestRotasRegistradasSemConflito(t *testing.T) {
 		{"DELETE /api/v1/etapas/33333333-3333-3333-3333-333333333333", "DELETE /api/v1/etapas/{etapa_id}"},
 		{"GET /api/v1/etapas/33333333-3333-3333-3333-333333333333/proxima", "GET /api/v1/etapas/{etapa_id}/proxima"},
 		{"GET /api/v1/etapas/33333333-3333-3333-3333-333333333333/anterior", "GET /api/v1/etapas/{etapa_id}/anterior"},
+		{"POST /api/v1/cargos", "POST /api/v1/cargos"},
+		{"GET /api/v1/cargos", "GET /api/v1/cargos"},
+		{"GET /api/v1/cargos/busca?nome=Gerente", "GET /api/v1/cargos/busca"},
+		{"GET /api/v1/cargos/44444444-4444-4444-4444-444444444444", "GET /api/v1/cargos/{id}"},
+		{"PUT /api/v1/cargos/44444444-4444-4444-4444-444444444444", "PUT /api/v1/cargos/{id}"},
+		{"DELETE /api/v1/cargos/44444444-4444-4444-4444-444444444444", "DELETE /api/v1/cargos/{id}"},
+		{"POST /api/v1/usuarios", "POST /api/v1/usuarios"},
+		{"GET /api/v1/usuarios", "GET /api/v1/usuarios"},
+		{"POST /api/v1/usuarios/autenticar", "POST /api/v1/usuarios/autenticar"},
+		{"GET /api/v1/usuarios/55555555-5555-5555-5555-555555555555", "GET /api/v1/usuarios/{id}"},
+		{"PUT /api/v1/usuarios/55555555-5555-5555-5555-555555555555", "PUT /api/v1/usuarios/{id}"},
+		{"DELETE /api/v1/usuarios/55555555-5555-5555-5555-555555555555", "DELETE /api/v1/usuarios/{id}"},
+		{"POST /api/v1/usuarios/55555555-5555-5555-5555-555555555555/senha", "POST /api/v1/usuarios/{id}/senha"},
+		{"PATCH /api/v1/usuarios/55555555-5555-5555-5555-555555555555/ativar", "PATCH /api/v1/usuarios/{id}/ativar"},
+		{"PATCH /api/v1/usuarios/55555555-5555-5555-5555-555555555555/desativar", "PATCH /api/v1/usuarios/{id}/desativar"},
 	}
 
 	for _, caso := range casos {
