@@ -92,6 +92,37 @@ func ConsultaBooleana(r *http.Request, nome string) bool {
 	return valor == "true" || valor == "1"
 }
 
+func ConsultaBooleanaOpcional(r *http.Request, nome string) (*bool, error) {
+	valor := strings.ToLower(strings.TrimSpace(r.URL.Query().Get(nome)))
+
+	switch valor {
+	case "":
+		return nil, nil
+	case "true", "1":
+		verdadeiro := true
+		return &verdadeiro, nil
+	case "false", "0":
+		falso := false
+		return &falso, nil
+	default:
+		return nil, domain.ErroValidacao("consulta " + nome + " deve ser true ou false")
+	}
+}
+
+func ConsultaUUID(r *http.Request, nome string) (*uuid.UUID, error) {
+	valor := strings.TrimSpace(r.URL.Query().Get(nome))
+	if valor == "" {
+		return nil, nil
+	}
+
+	id, err := uuid.Parse(valor)
+	if err != nil {
+		return nil, domain.ErroValidacao("consulta " + nome + " inválida")
+	}
+
+	return &id, nil
+}
+
 func ConsultaPaginacao(r *http.Request) domain.PaginacaoFiltro {
 	return dto.NovaPaginacaoQuery(r.URL.Query()).ParaFiltro().Normalizada()
 }

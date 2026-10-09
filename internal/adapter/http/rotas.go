@@ -3,12 +3,14 @@ package http
 import (
 	"net/http"
 
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/estoque"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/lead"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/saude"
 	solicitacaohandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/solicitacao"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/usuarios"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/middleware"
 	portsinautenticacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/autenticacao"
+	portsinestoque "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/estoque"
 	portsinlead "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/leads"
 	portsinsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/solicitacao"
 	portsinusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/usuarios"
@@ -27,6 +29,9 @@ func NewRouter(
 	solicitacaoUseCase portsinsolicitacao.SolicitacaoUseCase,
 	arquivoUseCase portsinsolicitacao.ArquivoUseCase,
 	aprovadorUseCase portsinsolicitacao.AprovadorUseCase,
+	categoriaUseCase portsinestoque.CategoriaUseCase,
+	produtoUseCase portsinestoque.ProdutoUseCase,
+	movimentoUseCase portsinestoque.MovimentoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, novasRotas(
@@ -34,6 +39,7 @@ func NewRouter(
 		leadUseCase, funilUseCase, etapaUseCase, historicoUseCase,
 		usuarioUseCase, cargoUseCase,
 		solicitacaoUseCase, arquivoUseCase, aprovadorUseCase,
+		categoriaUseCase, produtoUseCase, movimentoUseCase,
 		tokens,
 	))
 }
@@ -49,6 +55,9 @@ func novasRotas(
 	solicitacaoUseCase portsinsolicitacao.SolicitacaoUseCase,
 	arquivoUseCase portsinsolicitacao.ArquivoUseCase,
 	aprovadorUseCase portsinsolicitacao.AprovadorUseCase,
+	categoriaUseCase portsinestoque.CategoriaUseCase,
+	produtoUseCase portsinestoque.ProdutoUseCase,
+	movimentoUseCase portsinestoque.MovimentoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -138,6 +147,28 @@ func novasRotas(
 	administrador("POST /api/v1/aprovadores", aprovadorHandler.Designar)
 	administrador("GET /api/v1/aprovadores", aprovadorHandler.Listar)
 	administrador("DELETE /api/v1/aprovadores/{id}", aprovadorHandler.Remover)
+
+	categoriaHandler := estoque.NewCategoriaHandler(categoriaUseCase)
+	administrador("POST /api/v1/categorias", categoriaHandler.Criar)
+	protegido("GET /api/v1/categorias", categoriaHandler.Listar)
+	protegido("GET /api/v1/categorias/{id}", categoriaHandler.Obter)
+	administrador("PUT /api/v1/categorias/{id}", categoriaHandler.Alterar)
+	administrador("PATCH /api/v1/categorias/{id}/ativar", categoriaHandler.Ativar)
+	administrador("PATCH /api/v1/categorias/{id}/desativar", categoriaHandler.Desativar)
+
+	produtoHandler := estoque.NewProdutoHandler(produtoUseCase)
+	administrador("POST /api/v1/produtos", produtoHandler.Criar)
+	protegido("GET /api/v1/produtos", produtoHandler.Listar)
+	protegido("GET /api/v1/produtos/{id}", produtoHandler.Obter)
+	protegido("GET /api/v1/produtos/{id}/saldo", produtoHandler.Saldo)
+	administrador("PUT /api/v1/produtos/{id}", produtoHandler.Alterar)
+	administrador("PATCH /api/v1/produtos/{id}/ativar", produtoHandler.Ativar)
+	administrador("PATCH /api/v1/produtos/{id}/desativar", produtoHandler.Desativar)
+	administrador("PATCH /api/v1/produtos/{id}/destaque", produtoHandler.AlternarDestaque)
+
+	movimentoHandler := estoque.NewMovimentoHandler(movimentoUseCase)
+	administrador("POST /api/v1/produtos/{id}/movimentos", movimentoHandler.Movimentar)
+	protegido("GET /api/v1/produtos/{id}/movimentos", movimentoHandler.Listar)
 
 	mux.HandleFunc("GET /", saude.NaoEncontrado)
 

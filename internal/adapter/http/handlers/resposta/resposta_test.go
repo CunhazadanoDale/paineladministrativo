@@ -10,6 +10,7 @@ import (
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
+	"github.com/google/uuid"
 )
 
 func TestMapearErro(t *testing.T) {
@@ -160,5 +161,79 @@ func TestConsultaBooleana(t *testing.T) {
 		if obtido := ConsultaBooleana(requisicao, "ativos"); obtido != esperado {
 			t.Errorf("ConsultaBooleana(%q) = %v, esperado %v", valor, obtido, esperado)
 		}
+	}
+}
+
+func TestConsultaBooleanaOpcionalDistingueAusenteDeFalso(t *testing.T) {
+	verdadeiro := true
+	falso := false
+
+	casos := []struct {
+		valor    string
+		esperado *bool
+		erro     bool
+	}{
+		{valor: "", esperado: nil},
+		{valor: "true", esperado: &verdadeiro},
+		{valor: "false", esperado: &falso},
+		{valor: "0", esperado: &falso},
+		{valor: "sim", erro: true},
+	}
+
+	for _, caso := range casos {
+		requisicao := httptest.NewRequest(http.MethodGet, "/api/v1/produtos?ativo="+caso.valor, nil)
+
+		obtido, err := ConsultaBooleanaOpcional(requisicao, "ativo")
+		if caso.erro {
+			if err == nil {
+				t.Errorf("valor %q deveria ser rejeitado", caso.valor)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("valor %q devolveu erro: %v", caso.valor, err)
+			continue
+		}
+		if (obtido == nil) != (caso.esperado == nil) {
+			t.Errorf("valor %q = %v, esperado %v", caso.valor, obtido, caso.esperado)
+			continue
+		}
+		if obtido != nil && *obtido != *caso.esperado {
+			t.Errorf("valor %q = %v, esperado %v", caso.valor, *obtido, *caso.esperado)
+		}
+	}
+}
+
+func TestConsultaUUID(t *testing.T) {
+	id := uuid.New()
+
+	casos := map[string]*uuid.UUID{
+		"":          nil,
+		id.String(): &id,
+	}
+
+	for valor, esperado := range casos {
+		requisicao := httptest.NewRequest(http.MethodGet, "/api/v1/produtos?categoria_id="+valor, nil)
+
+		obtido, err := ConsultaUUID(requisicao, "categoria_id")
+		if err != nil {
+			t.Errorf("valor %q devolveu erro: %v", valor, err)
+			continue
+		}
+		if (obtido == nil) != (esperado == nil) {
+			t.Errorf("valor %q = %v, esperado %v", valor, obtido, esperado)
+			continue
+		}
+		if obtido != nil && *obtido != *esperado {
+			t.Errorf("valor %q = %s, esperado %s", valor, *obtido, *esperado)
+		}
+	}
+}
+
+func TestConsultaUUIDInvalidaRespondeErroDeValidacao(t *testing.T) {
+	requisicao := httptest.NewRequest(http.MethodGet, "/api/v1/produtos?categoria_id=nao-e-uuid", nil)
+
+	if _, err := ConsultaUUID(requisicao, "categoria_id"); !errors.Is(err, domain.ErrValidacao) {
+		t.Errorf("erro %v, esperado domain.ErrValidacao", err)
 	}
 }

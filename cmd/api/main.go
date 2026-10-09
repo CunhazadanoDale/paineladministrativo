@@ -18,6 +18,7 @@ import (
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/storage/disco"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/storage/r2"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/solicitacao"
+	estoqueusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/estoque"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/leadpoint"
 	solicitacaousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/solicitacao"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/usuarios"
@@ -53,6 +54,9 @@ func main() {
 	solicitacaoRepository := postgres.NewSolicitacaoRepository(banco)
 	arquivoRepository := postgres.NewArquivoRepository(banco)
 	aprovadorRepository := postgres.NewAprovadorRepository(banco)
+	categoriaRepository := postgres.NewCategoriaRepository(banco)
+	produtoRepository := postgres.NewProdutoRepository(banco)
+	movimentoRepository := postgres.NewMovimentoRepository(banco)
 
 	rotas := httpapi.NewRouter(
 		banco,
@@ -79,6 +83,9 @@ func main() {
 			aprovadorRepository,
 		),
 		solicitacaousecases.NewAprovadorUsecase(aprovadorRepository, usuarioRepository),
+		estoqueusecases.NewCategoriaUsecase(categoriaRepository, usuarioRepository, cargoRepository),
+		estoqueusecases.NewProdutoUsecase(produtoRepository, categoriaRepository, usuarioRepository, cargoRepository),
+		estoqueusecases.NewMovimentoUsecase(produtoRepository, movimentoRepository, usuarioRepository, cargoRepository),
 		autenticacao.NovoTokenService(cfg.JWTSecret, cfg.JWTExpiracao),
 	)
 

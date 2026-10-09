@@ -10,7 +10,7 @@ import (
 func muxDoTeste(t *testing.T) *http.ServeMux {
 	t.Helper()
 
-	return novasRotas(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	return novasRotas(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 }
 
 func TestNewRouterAplicaCORS(t *testing.T) {
@@ -19,7 +19,7 @@ func TestNewRouterAplicaCORS(t *testing.T) {
 	requisicao.Header.Set("Access-Control-Request-Method", "POST")
 	registrador := httptest.NewRecorder()
 
-	NewRouter(nil, []string{"http://localhost:5173"}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).ServeHTTP(registrador, requisicao)
+	NewRouter(nil, []string{"http://localhost:5173"}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).ServeHTTP(registrador, requisicao)
 
 	if registrador.Code != http.StatusNoContent {
 		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusNoContent)
@@ -95,6 +95,22 @@ func TestRotasRegistradasSemConflito(t *testing.T) {
 		{"POST /api/v1/aprovadores", "POST /api/v1/aprovadores"},
 		{"GET /api/v1/aprovadores", "GET /api/v1/aprovadores"},
 		{"DELETE /api/v1/aprovadores/88888888-8888-8888-8888-888888888888", "DELETE /api/v1/aprovadores/{id}"},
+		{"POST /api/v1/categorias", "POST /api/v1/categorias"},
+		{"GET /api/v1/categorias", "GET /api/v1/categorias"},
+		{"GET /api/v1/categorias/99999999-9999-9999-9999-999999999999", "GET /api/v1/categorias/{id}"},
+		{"PUT /api/v1/categorias/99999999-9999-9999-9999-999999999999", "PUT /api/v1/categorias/{id}"},
+		{"PATCH /api/v1/categorias/99999999-9999-9999-9999-999999999999/ativar", "PATCH /api/v1/categorias/{id}/ativar"},
+		{"PATCH /api/v1/categorias/99999999-9999-9999-9999-999999999999/desativar", "PATCH /api/v1/categorias/{id}/desativar"},
+		{"POST /api/v1/produtos", "POST /api/v1/produtos"},
+		{"GET /api/v1/produtos", "GET /api/v1/produtos"},
+		{"GET /api/v1/produtos/99999999-9999-9999-9999-999999999999", "GET /api/v1/produtos/{id}"},
+		{"GET /api/v1/produtos/99999999-9999-9999-9999-999999999999/saldo", "GET /api/v1/produtos/{id}/saldo"},
+		{"PUT /api/v1/produtos/99999999-9999-9999-9999-999999999999", "PUT /api/v1/produtos/{id}"},
+		{"PATCH /api/v1/produtos/99999999-9999-9999-9999-999999999999/ativar", "PATCH /api/v1/produtos/{id}/ativar"},
+		{"PATCH /api/v1/produtos/99999999-9999-9999-9999-999999999999/desativar", "PATCH /api/v1/produtos/{id}/desativar"},
+		{"PATCH /api/v1/produtos/99999999-9999-9999-9999-999999999999/destaque", "PATCH /api/v1/produtos/{id}/destaque"},
+		{"POST /api/v1/produtos/99999999-9999-9999-9999-999999999999/movimentos", "POST /api/v1/produtos/{id}/movimentos"},
+		{"GET /api/v1/produtos/99999999-9999-9999-9999-999999999999/movimentos", "GET /api/v1/produtos/{id}/movimentos"},
 	}
 
 	for _, caso := range casos {
