@@ -1,0 +1,152 @@
+package estoque_test
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	domainestoque "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/estoque"
+	domainusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/usuarios"
+	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/estoque"
+	estoqueusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/estoque"
+	"github.com/google/uuid"
+)
+
+type cenario struct {
+	ctx            context.Context
+	categoria      portsin.CategoriaUseCase
+	produto        portsin.ProdutoUseCase
+	movimento      portsin.MovimentoUseCase
+	categoriasRepo *repositorioCategorias
+	produtosRepo   *repositorioProdutos
+	usuarioID      uuid.UUID
+	visitanteID    uuid.UUID
+}
+
+func novoCenario(t *testing.T) *cenario {
+	t.Helper()
+
+	usuarios := novoRepositorioUsuarios()
+	cargos := novoRepositorioCargos()
+	categorias := novoRepositorioCategorias()
+	produtos := novoRepositorioProdutos(categorias)
+	movimentos := novoRepositorioMovimentos(produtos)
+
+	adminID := criarUsuario(t, usuarios, cargos, "Ana Souza", "ana.souza@exemplo.com", true)
+	visitanteID := criarUsuario(t, usuarios, cargos, "Bruno Lima", "bruno.lima@exemplo.com", false)
+
+	return &cenario{
+		ctx:            context.Background(),
+		categoria:      estoqueusecases.NewCategoriaUsecase(categorias, usuarios, cargos),
+		produto:        estoqueusecases.NewProdutoUsecase(produtos, categorias, usuarios, cargos),
+		movimento:      estoqueusecases.NewMovimentoUsecase(produtos, movimentos, usuarios, cargos),
+		categoriasRepo: categorias,
+		produtosRepo:   produtos,
+		usuarioID:      adminID,
+		visitanteID:    visitanteID,
+	}
+}
+
+func criarUsuario(t *testing.T, usuarios *repositorioUsuarios, cargos *repositorioCargos, nome, email string, administrador bool) uuid.UUID {
+	t.Helper()
+
+	cargoID, err := cargos.Create(context.Background(), &domainusuarios.Cargo{
+		ID:            uuid.New(),
+		Nome:          "Cargo " + nome,
+		Ativo:         true,
+		Administrador: administrador,
+	})
+	if err != nil {
+		t.Fatalf("não criei o cargo do cenário: %v", err)
+	}
+
+	usuarioID, err := usuarios.Create(context.Background(), &domainusuarios.Usuario{
+		ID:           uuid.New(),
+		Nome:         nome,
+		Email:        email,
+		Senha:        "hash-segredo",
+		CargoID:      cargoID,
+		Ativo:        true,
+		CriadoEm:     time.Now().UTC(),
+		AtualizadoEm: time.Now().UTC(),
+	})
+	if err != nil {
+		t.Fatalf("não criei o usuário do cenário: %v", err)
+	}
+
+	return usuarioID
+}
+
+func (c *cenario) novaCategoriaRaiz(t *testing.T, nome string) *domainestoque.Categoria {
+	t.Helper()
+
+	id, err := c.categoria.Criar(c.ctx, portsin.CriarCategoriaInput{
+		UsuarioID: c.usuarioID,
+		Nome:      nome,
+	})
+	if err != nil {
+		t.Fatalf("criação da categoria falhou: %v", err)
+	}
+
+	categoria, err := c.categoria.Obter(c.ctx, id)
+	if err != nil {
+		t.Fatalf("busca da categoria falhou: %v", err)
+	}
+
+	return categoria
+}
+
+func (c *cenario) novaSubcategoria(t *testing.T, nome string, raiz *domainestoque.Categoria) *domainestoque.Categoria {
+	t.Helper()
+
+	paiID := raiz.ID
+	id, err := c.categoria.Criar(c.ctx, portsin.CriarCategoriaInput{
+		UsuarioID:      c.usuarioID,
+		Nome:           nome,
+		CategoriaPaiID: &paiID,
+	})
+	if err != nil {
+		t.Fatalf("criação da subcategoria falhou: %v", err)
+	}
+
+	subcategoria, err := c.categoria.Obter(c.ctx, id)
+	if err != nil {
+		t.Fatalf("busca da subcategoria falhou: %v", err)
+	}
+
+	return subcategoria
+}
+
+func (c *cenario) novoProduto(t *testing.T, categoria *domainestoque.Categoria, nome string) *domainestoque.Produto {
+	t.Helper()
+
+	id, err := c.produto.Criar(c.ctx, portsin.CriarProdutoInput{
+		UsuarioID:     c.usuarioID,
+		CategoriaID:   categoria.ID,
+		Nome:          nome,
+		UnidadeMedida: "sc",
+	})
+	if err != nil {
+		t.Fatalf("criação do produto falhou: %v", err)
+	}
+
+	produto, err := c.produto.Obter(c.ctx, id)
+	if err != nil {
+		t.Fatalf("busca do produto falhou: %v", err)
+	}
+
+	return produto
+}
+
+func (c *cenario) movimentar(t *testing.T, produto *domainestoque.Produto, tipo string, quantidade int) {
+	t.Helper()
+
+	if _, err := c.movimento.Movimentar(c.ctx, portsin.MovimentarEstoqueInput{
+		UsuarioID:  c.usuarioID,
+		ProdutoID:  produto.ID,
+		Tipo:       tipo,
+		Quantidade: quantidade,
+	}); err != nil {
+		t.Fatalf("movimentação falhou: %v", err)
+	}
+}
