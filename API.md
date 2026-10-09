@@ -645,6 +645,224 @@ aprovador`. Remover a designação não apaga as aprovações já registradas no
 
 ---
 
+## Estoque — categorias
+
+Escrita exige perfil **administrador**; leitura é liberada para qualquer perfil
+autenticado.
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/categorias` | **administrador** | `201` |
+| `GET` | `/api/v1/categorias` | autenticado | `200` lista paginada |
+| `GET` | `/api/v1/categorias/{id}` | autenticado | `200` objeto único |
+| `PUT` | `/api/v1/categorias/{id}` | **administrador** | `200` |
+| `PATCH` | `/api/v1/categorias/{id}/ativar` | **administrador** | `200` |
+| `PATCH` | `/api/v1/categorias/{id}/desativar` | **administrador** | `200` |
+
+`GET /api/v1/categorias` aceita `ativo=true|false`, `pagina` e `tamanho`. A árvore
+tem dois níveis: `categoria_pai_id` preenchido marca a subcategoria, e a categoria
+raiz só agrupa — produto nunca aponta para ela.
+
+```json
+{ "nome": "Cimento", "categoria_pai_id": "00000000-0000-4000-8000-000000000010", "ordem": 1, "icone": "package" }
+```
+
+`PUT` usa o mesmo corpo sem `categoria_pai_id`. O slug é gerado do nome e **não muda**
+na edição (preserva as URLs públicas).
+
+| Erro | Status | Mensagem |
+| --- | --- | --- |
+| Nome repetido | `409` | `já existe uma categoria com este nome` |
+| Desativar com subcategorias | `409` | `categoria possui subcategorias e não pode ser inativada` |
+
+---
+
+## Estoque — produtos
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/produtos` | **administrador** | `201` |
+| `GET` | `/api/v1/produtos` | autenticado | `200` lista paginada |
+| `GET` | `/api/v1/produtos/{id}` | autenticado | `200` objeto único |
+| `GET` | `/api/v1/produtos/{id}/saldo` | autenticado | `200` `{"produto_id":"…","saldo":4}` |
+| `PUT` | `/api/v1/produtos/{id}` | **administrador** | `200` |
+| `PATCH` | `/api/v1/produtos/{id}/ativar` | **administrador** | `200` |
+| `PATCH` | `/api/v1/produtos/{id}/desativar` | **administrador** | `200` |
+| `PATCH` | `/api/v1/produtos/{id}/destaque` | **administrador** | `200` `{"destaque":true}` |
+
+`GET /api/v1/produtos` aceita `categoria_id`, `busca` (nome ou código), `ativo`,
+`destaque`, `estoque_baixo=true`, `pagina` e `tamanho`. `categoria_id` aceita também a
+categoria **raiz**: o filtro inclui os produtos das subcategorias dela.
+
+```json
+{
+  "categoria_id": "00000000-0000-4000-8000-000000000011",
+  "nome": "Cimento CP II 50",
+  "descricao": "Saco de 50 kg",
+  "codigo": "SKU-001",
+  "unidade_medida": "un",
+  "preco_centavos": 2590,
+  "preco_promocional_centavos": 2390,
+  "estoque_minimo": 5,
+  "peso_kg": 50,
+  "destaque": false
+}
+```
+
+| Campo | Regra |
+| --- | --- |
+| `categoria_id` | obrigatório e precisa ser **subcategoria** ativa (`400`) |
+| `unidade_medida` | `un`, `m`, `m2`, `m3`, `kg`, `t`, `cx`, `sc`, `pct`, `lt` |
+| `preco_centavos` | opcional — `null` exibe **"sob consulta"** no site |
+| `preco_promocional_centavos` | exige preço cheio e deve ser menor (`400`) |
+| `saldo` | nunca vem no corpo: `quantidade_atual` só muda via movimentação |
+
+O objeto devolvido traz `saldo`, `estoque_baixo` (saldo ≤ `estoque_minimo`), `slug` e
+`ativo`. Nome repetido devolve `409 já existe um produto com este nome`.
+
+---
+
+## Estoque — movimentações
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/produtos/{id}/movimentos` | **administrador** | `201` |
+| `GET` | `/api/v1/produtos/{id}/movimentos` | autenticado | `200` lista paginada (`?tipo=`) |
+
+```json
+{ "tipo": "entrada", "quantidade": 10, "documento_ref": "NF-100", "observacao": "reposição do mês" }
+```
+
+| Tipo | Efeito no saldo |
+| --- | --- |
+| `entrada` / `devolucao` | `+` |
+| `saida` / `perda` | `−` |
+| `ajuste` | `+`/`−` (`quantidade` é o delta, aceita negativo) |
+
+`quantidade` não pode ser `0`. Movimento é append-only: não edita, não apaga, e o
+`saldo_apos` fica congelado no registro. Estoque que ficaria negativo devolve
+`400 erro de validação: saldo insuficiente para a movimentação`.
+
+Para desfazer uma movimentação registra-se a inversa (`entrada` ↔ `saida`,
+`devolucao` ↔ `perda`); o histórico permanece completo.
+
+---
+
+## Estoque — resumo
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/estoque/resumo` | autenticado | `200` |
+
+```json
+{
+  "dados": {
+    "total_produtos": 120,
+    "produtos_ativos": 110,
+    "valor_estoque_centavos": 1543200,
+    "produtos_estoque_baixo": 7,
+    "ultimos_movimentos": [
+      {
+        "id": "00000000-0000-4000-8000-000000000021",
+        "produto_id": "00000000-0000-4000-8000-000000000011",
+        "produto_nome": "Cimento CP II 50",
+        "tipo": "saida",
+        "quantidade": 6,
+        "saldo_apos": 4,
+        "criado_em": "2026-10-09T12:00:00Z"
+      }
+    ]
+  }
+}
+```
+
+| Campo | Regra |
+| --- | --- |
+| `total_produtos` | todos os produtos, ativos ou não |
+| `produtos_ativos` | só os com `ativo = true` |
+| `valor_estoque_centavos` | `SUM(preco_cheio × saldo)` dos **ativos** com preço; promoção não conta e "sob consulta" fica de fora |
+| `produtos_estoque_baixo` | ativos com `estoque_minimo > 0` e saldo ≤ mínimo |
+| `ultimos_movimentos` | os 5 mais recentes, com o nome do produto (não expõe `usuario_id` nem observações) |
+
+---
+
+## Estoque — imagens de produto
+
+Escrita restrita ao **administrador**. O arquivo chega primeiro pelo upload comum
+(`POST /api/v1/arquivos`) e depois é anexado ao produto.
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/produtos/{id}/imagens` | **administrador** | `201` |
+| `DELETE` | `/api/v1/produtos/{id}/imagens/{imagemId}` | **administrador** | `204` |
+
+```json
+{ "arquivo_id": "00000000-0000-4000-8000-000000000031", "ordem": 0, "alt": "Saco de cimento" }
+```
+
+| Campo | Regra |
+| --- | --- |
+| `arquivo_id` | obrigatório, precisa existir e ser **imagem** (`400 arquivo deve ser uma imagem`) |
+| `ordem` | inteiro ≥ `0`, define a ordem de exibição no site (`400`) |
+| `alt` | texto alternativo, no máximo 160 caracteres (`400`) |
+
+| Erro | Status | Mensagem |
+| --- | --- | --- |
+| Produto inexistente | `404` | `produto não encontrado` |
+| Arquivo inexistente | `404` | `arquivo não encontrado` |
+| Mesmo arquivo de novo no produto | `409` | `arquivo já anexado a este produto` |
+| Imagem de outro produto na remoção | `404` | `imagem não encontrada` |
+
+As imagens aparecem preenchidas no **detalhe** do produto do painel e nas respostas
+públicas, ordenadas por `ordem`; a **lista** do painel devolve `imagens: []` (a tela de
+edição busca o detalhe). O produto não tem exclusão — só desativação — e o arquivo
+original continua no storage, podendo ser reaproveitado por outro produto.
+
+---
+
+## Vitrine pública (site) — público
+
+Rotas abertas, **sem token**, pensadas para o site: só mostram o que o visitante pode
+comprar. Visibilidade é uniforme — `ativo = true` **e** `quantidade_atual > 0`; produto
+oculto em detalhe devolve `404`.
+
+| Método | Rota | Sucesso |
+| --- | --- | --- |
+| `GET` | `/api/v1/publico/categorias` | `200` árvore de categorias ativas |
+| `GET` | `/api/v1/publico/produtos` | `200` lista paginada |
+| `GET` | `/api/v1/publico/produtos/{slug}` | `200` objeto único |
+| `GET` | `/api/v1/publico/destaques` | `200` lista paginada |
+| `GET` | `/api/v1/publico/imagens/{id}` | `200` binário da imagem |
+
+```json
+{
+  "id": "00000000-0000-4000-8000-000000000011",
+  "categoria_id": "00000000-0000-4000-8000-000000000011",
+  "nome": "Cimento CP II 50",
+  "slug": "cimento-cp-ii-50",
+  "descricao": "Saco de 50 kg",
+  "unidade_medida": "un",
+  "preco_centavos": 2590,
+  "preco_promocional_centavos": null,
+  "destaque": false,
+  "imagens": [{ "id": "00000000-0000-4000-8000-000000000031", "ordem": 0, "alt": "Saco de cimento" }]
+}
+```
+
+| Rota | Observações |
+| --- | --- |
+| `/publico/categorias` | só ativas, montadas em árvore (`filhas[]`), casamento por `categoria_id` |
+| `/publico/produtos` | `?categoria=<slug>` aceita raiz (inclui as subcategorias), `?pagina` e `?tamanho` |
+| `/publico/produtos/{slug}` | slug desconhecido ou produto oculto → `404` |
+| `/publico/destaques` | ativos com destaque **e** estoque |
+| `/publico/imagens/{id}` | `Content-Type` original da imagem; id de imagem de produto inativo → `404` |
+
+O objeto público **não expõe** `saldo`, `codigo`, `ativo`, `estoque_minimo`, `criado_em`
+nem `atualizado_em`. Sem estoque o produto some da vitrine inteira (lista, destaques e
+detalhe) — não há selo "esgotado". Categoria desconhecida em `?categoria=` devolve `404`.
+
+---
+
 ## Exemplos
 
 ### PowerShell
