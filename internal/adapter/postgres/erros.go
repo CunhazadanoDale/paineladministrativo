@@ -7,7 +7,10 @@ import (
 	"github.com/lib/pq"
 )
 
-const codigoViolacaoChaveEstrangeira = "23503"
+const (
+	codigoViolacaoChaveEstrangeira = "23503"
+	codigoViolacaoChaveUnica       = "23505"
+)
 
 func tratarErro(err error) error {
 	if err == nil {
@@ -15,8 +18,13 @@ func tratarErro(err error) error {
 	}
 
 	var erroPostgres *pq.Error
-	if errors.As(err, &erroPostgres) && erroPostgres.Code == codigoViolacaoChaveEstrangeira {
-		return domain.ErroValidacao("registro em uso por outros dados e não pode ser excluído")
+	if errors.As(err, &erroPostgres) {
+		switch erroPostgres.Code {
+		case codigoViolacaoChaveEstrangeira:
+			return domain.ErroValidacao("registro em uso por outros dados e não pode ser excluído")
+		case codigoViolacaoChaveUnica:
+			return domain.ErroConflito("já existe um registro com estes dados")
+		}
 	}
 
 	return err
