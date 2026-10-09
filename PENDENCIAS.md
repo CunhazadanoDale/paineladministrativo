@@ -18,7 +18,7 @@ atualize a coluna **Status** conforme forem resolvidos.
 | 6 | **Notificação de fila nova** | O módulo de solicitações só empurra trabalho para a pessoa se ela abrir a fila (`escopo=aprovacao` / `escopo=financeiro`). Sem e-mail, webhook ou ao menos badge de pendências, aprovação depende de alguém lembrar de olhar | Médio | pendente |
 | 7 | **Editar e estornar solicitação** | Não existe `PUT /api/v1/solicitacoes/{id}` (para corrigir um dado é cancelar e recriar, e o histórico fica) e a tabela `pagamento` é única por solicitação, então um pagamento errado não tem estorno pela API — só correção direta no banco | Médio | pendente |
 | 8 | **Expurgo de anexo órfão** | Anexo enviado e nunca vinculado a solicitação fica no storage para sempre (o `DELETE /api/v1/arquivos/{id}` existe, mas ninguém é obrigado a usá-lo). Falta rotina de varredura ou regra de retenção | Baixo | pendente |
-| 9 | **Telas do módulo de solicitações** | As 17 rotas do módulo estão prontas e cobertas por e2e, mas não há tela no front: fila do aprovador, fila do financeiro, upload com progresso e histórico | Alto | pendente |
+| 9 | **Telas do módulo de solicitações** | As 17 rotas do módulo estão prontas e cobertas por e2e, mas não há tela no front: fila do aprovador, fila do financeiro, upload com progresso e histórico | Alto | concluído (front em `painelMiaConstrutora`: fila com escopos, upload com progresso, detalhe com anexos e histórico) |
 
 ---
 
@@ -44,9 +44,9 @@ nginx/Caddy da frente (sobrevive a restarts, mas exige mudar o deploy).
 
 ## Fora do repositório
 
-- [ ] **Frontend precisa enviar `Bearer`** — todas as rotas de negócio passaram a exigir
-  token. Sem isso o painel inteiro começa a devolver `401`. O fluxo e os exemplos estão
-  na `API.md`.
+- [x] **Frontend precisa enviar `Bearer`** — resolvido: o cliente HTTP do front
+  (`src/lib/api.js`) injeta `Authorization` em toda requisição, guarda o token em
+  `localStorage` e encerra a sessão no `401`. O fluxo e os exemplos estão na `API.md`.
 - [ ] **Snippet de client** — gerar um exemplo pronto (fetch/axios) de login + chamada
   autenticada para colar no front.
 - [ ] **`JWT_SECRET` no ambiente de produção** — o `docker compose up api` falha de
