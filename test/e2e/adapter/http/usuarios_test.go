@@ -230,3 +230,57 @@ func TestExcluirCargoEmUsoDevolveErroDeValidacao(t *testing.T) {
 		t.Errorf("erro %+v, esperado código 400 com mensagem", erro.Erro)
 	}
 }
+
+func TestSessaoDevolvePerfilDoUsuarioLogado(t *testing.T) {
+	servidor, _ := servidorDoTeste(t)
+
+	cargoID := criarCargo(t, servidor, "Financeiro da obra", false)
+	criarUsuario(t, servidor, "Duda Prado", "duda@exemplo.com", "senhaForte123", cargoID)
+	sessao := autenticar(t, servidor, "duda@exemplo.com", "senhaForte123")
+
+	resposta := enviaComToken(t, servidor, http.MethodGet, "/api/v1/sessao", nil, sessao.Token)
+	conferirStatus(t, resposta, http.StatusOK)
+
+	perfil := decodificarEnvelope[usuariosdto.UsuarioResponse](t, resposta).Dados
+	if perfil.Email != "duda@exemplo.com" {
+		t.Errorf("e-mail %q, esperado %q", perfil.Email, "duda@exemplo.com")
+	}
+	if perfil.CargoID != cargoID {
+		t.Errorf("cargo %s, esperado %s", perfil.CargoID, cargoID)
+	}
+	if !perfil.Ativo {
+		t.Error("perfil do sessão saiu inativo")
+	}
+}
+
+func TestSessaoSemTokenDevolveNaoAutenticado(t *testing.T) {
+	servidor, _ := servidorDoTeste(t)
+
+	resposta := enviaSemToken(t, servidor, http.MethodGet, "/api/v1/sessao", nil)
+	conferirStatus(t, resposta, http.StatusUnauthorized)
+
+	resposta = enviaSemToken(t, servidor, http.MethodPost, "/api/v1/sessao/senha", map[string]string{
+		"nova_senha": "senhaNova123",
+	})
+	conferirStatus(t, resposta, http.StatusUnauthorized)
+}
+
+func TestTrocarSenhaDaPropriaSessao(t *testing.T) {
+	servidor, _ := servidorDoTeste(t)
+
+	cargoID := criarCargo(t, servidor, "Almoxarife", false)
+	criarUsuario(t, servidor, "Tiago Melo", "tiago@exemplo.com", "senhaForte123", cargoID)
+	sessao := autenticar(t, servidor, "tiago@exemplo.com", "senhaForte123")
+
+	resposta := enviaComToken(t, servidor, http.MethodPost, "/api/v1/sessao/senha", map[string]string{
+		"nova_senha": "senhaNova123",
+	}, sessao.Token)
+	conferirStatus(t, resposta, http.StatusNoContent)
+
+	autenticar(t, servidor, "tiago@exemplo.com", "senhaNova123")
+
+	resposta = enviaComToken(t, servidor, http.MethodPost, "/api/v1/sessao/senha", map[string]string{
+		"nova_senha": "curta",
+	}, sessao.Token)
+	conferirStatus(t, resposta, http.StatusBadRequest)
+}

@@ -132,6 +132,10 @@ func novasRotas(
 	administrador("PATCH /api/v1/usuarios/{id}/ativar", usuarioHandler.Ativar)
 	administrador("PATCH /api/v1/usuarios/{id}/desativar", usuarioHandler.Desativar)
 
+	sessaoHandler := usuarios.NewSessaoHandler(usuarioUseCase)
+	protegido("GET /api/v1/sessao", sessaoHandler.Obter)
+	protegido("POST /api/v1/sessao/senha", sessaoHandler.TrocarSenha)
+
 	solicitacaoHandler := solicitacaohandlers.NewSolicitacaoHandler(solicitacaoUseCase)
 	protegido("POST /api/v1/solicitacoes", solicitacaoHandler.Criar)
 	protegido("GET /api/v1/solicitacoes", solicitacaoHandler.Listar)

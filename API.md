@@ -48,7 +48,7 @@ cliente deve autenticar de novo.
 | Perfil | Como é definido | O que pode |
 | --- | --- | --- |
 | Público | — | `/health`, `/health/db`, `POST /api/v1/usuarios/autenticar` |
-| Autenticado | Token válido de usuário ativo | Leads, funis, etapas, histórico, **leitura** de cargos e o próprio bolso de solicitações (`escopo=minhas`) |
+| Autenticado | Token válido de usuário ativo | Leads, funis, etapas, histórico, **leitura** de cargos, a própria sessão (`/api/v1/sessao`) e o próprio bolso de solicitações (`escopo=minhas`) |
 | Administrador | Token de um usuário cujo cargo tem `"administrador": true` | Tudo o que o perfil autenticado pode, **mais** a gestão de usuários, a escrita de cargos, a designação de aprovadores e `escopo=todas` |
 | Aprovador | Usuário **designado** na tabela `aprovador` pelo administrador | `escopo=aprovacao`, aprovar e rejeitar as solicitações pendentes |
 | Financeiro | Token de um usuário cujo cargo tem `"financeiro": true` | `escopo=financeiro` e o registro de pagamento das solicitações aprovadas |
@@ -67,7 +67,8 @@ A migration `000008` cria a conta administradora inicial:
 | E-mail | `admin@exemplo.com` |
 | Senha | `Mia@2026Admin` |
 
-Troque essa senha no primeiro acesso (`POST /api/v1/usuarios/{id}/senha`).
+Troque essa senha no primeiro acesso (`POST /api/v1/usuarios/{id}/senha` ou
+`POST /api/v1/sessao/senha`).
 
 ---
 
@@ -261,6 +262,36 @@ responde `404`.
   "atualizado_em": "2026-10-07T14:26:19.854486Z"
 }
 ```
+
+---
+
+## Sessão — autenticado
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/sessao` | autenticado | `200` objeto único |
+| `POST` | `/api/v1/sessao/senha` | autenticado | `204` vazio |
+
+### `GET /api/v1/sessao`
+
+Devolve o perfil do próprio usuário dono do token (mesmo objeto de usuário documentado
+em `PUT /api/v1/usuarios/{id}`). Qualquer usuário ativo pode consultar a própria sessão
+sem depender do perfil administrador.
+
+### `POST /api/v1/sessao/senha`
+
+```json
+{ "nova_senha": "senhaNova123" }
+```
+
+Troca a senha do próprio usuário dono do token, com as mesmas regras de validação de
+`POST /api/v1/usuarios/{id}/senha` (8 a 72 caracteres). Depois do `204`, o login com a
+senha anterior responde `404`.
+
+| Erro | Status | Mensagem |
+| --- | --- | --- |
+| Senha fora da faixa | `400` | `erro de validação: senha do usuário deve ter no mínimo 8 caracteres` |
+| Sem token | `401` | `token ausente ou inválido` |
 
 ---
 
