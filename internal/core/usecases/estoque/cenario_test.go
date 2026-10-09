@@ -17,6 +17,7 @@ type cenario struct {
 	categoria      portsin.CategoriaUseCase
 	produto        portsin.ProdutoUseCase
 	movimento      portsin.MovimentoUseCase
+	resumo         portsin.ResumoUseCase
 	categoriasRepo *repositorioCategorias
 	produtosRepo   *repositorioProdutos
 	usuarioID      uuid.UUID
@@ -40,6 +41,7 @@ func novoCenario(t *testing.T) *cenario {
 		categoria:      estoqueusecases.NewCategoriaUsecase(categorias, usuarios, cargos),
 		produto:        estoqueusecases.NewProdutoUsecase(produtos, categorias, usuarios, cargos),
 		movimento:      estoqueusecases.NewMovimentoUsecase(produtos, movimentos, usuarios, cargos),
+		resumo:         estoqueusecases.NewResumoUsecase(produtos, movimentos),
 		categoriasRepo: categorias,
 		produtosRepo:   produtos,
 		usuarioID:      adminID,

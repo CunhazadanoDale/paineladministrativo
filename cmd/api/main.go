@@ -86,6 +86,7 @@ func main() {
 		estoqueusecases.NewCategoriaUsecase(categoriaRepository, usuarioRepository, cargoRepository),
 		estoqueusecases.NewProdutoUsecase(produtoRepository, categoriaRepository, usuarioRepository, cargoRepository),
 		estoqueusecases.NewMovimentoUsecase(produtoRepository, movimentoRepository, usuarioRepository, cargoRepository),
+		estoqueusecases.NewResumoUsecase(produtoRepository, movimentoRepository),
 		autenticacao.NovoTokenService(cfg.JWTSecret, cfg.JWTExpiracao),
 	)
 

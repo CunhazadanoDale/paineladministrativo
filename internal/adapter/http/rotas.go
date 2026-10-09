@@ -32,6 +32,7 @@ func NewRouter(
 	categoriaUseCase portsinestoque.CategoriaUseCase,
 	produtoUseCase portsinestoque.ProdutoUseCase,
 	movimentoUseCase portsinestoque.MovimentoUseCase,
+	resumoUseCase portsinestoque.ResumoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, novasRotas(
@@ -39,7 +40,7 @@ func NewRouter(
 		leadUseCase, funilUseCase, etapaUseCase, historicoUseCase,
 		usuarioUseCase, cargoUseCase,
 		solicitacaoUseCase, arquivoUseCase, aprovadorUseCase,
-		categoriaUseCase, produtoUseCase, movimentoUseCase,
+		categoriaUseCase, produtoUseCase, movimentoUseCase, resumoUseCase,
 		tokens,
 	))
 }
@@ -58,6 +59,7 @@ func novasRotas(
 	categoriaUseCase portsinestoque.CategoriaUseCase,
 	produtoUseCase portsinestoque.ProdutoUseCase,
 	movimentoUseCase portsinestoque.MovimentoUseCase,
+	resumoUseCase portsinestoque.ResumoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -169,6 +171,9 @@ func novasRotas(
 	movimentoHandler := estoque.NewMovimentoHandler(movimentoUseCase)
 	administrador("POST /api/v1/produtos/{id}/movimentos", movimentoHandler.Movimentar)
 	protegido("GET /api/v1/produtos/{id}/movimentos", movimentoHandler.Listar)
+
+	resumoHandler := estoque.NewResumoHandler(resumoUseCase)
+	protegido("GET /api/v1/estoque/resumo", resumoHandler.Consultar)
 
 	mux.HandleFunc("GET /", saude.NaoEncontrado)
 

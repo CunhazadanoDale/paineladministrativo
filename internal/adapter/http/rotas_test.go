@@ -10,7 +10,7 @@ import (
 func muxDoTeste(t *testing.T) *http.ServeMux {
 	t.Helper()
 
-	return novasRotas(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	return novasRotas(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 }
 
 func TestNewRouterAplicaCORS(t *testing.T) {
@@ -19,7 +19,7 @@ func TestNewRouterAplicaCORS(t *testing.T) {
 	requisicao.Header.Set("Access-Control-Request-Method", "POST")
 	registrador := httptest.NewRecorder()
 
-	NewRouter(nil, []string{"http://localhost:5173"}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).ServeHTTP(registrador, requisicao)
+	NewRouter(nil, []string{"http://localhost:5173"}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).ServeHTTP(registrador, requisicao)
 
 	if registrador.Code != http.StatusNoContent {
 		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusNoContent)
@@ -111,6 +111,7 @@ func TestRotasRegistradasSemConflito(t *testing.T) {
 		{"PATCH /api/v1/produtos/99999999-9999-9999-9999-999999999999/destaque", "PATCH /api/v1/produtos/{id}/destaque"},
 		{"POST /api/v1/produtos/99999999-9999-9999-9999-999999999999/movimentos", "POST /api/v1/produtos/{id}/movimentos"},
 		{"GET /api/v1/produtos/99999999-9999-9999-9999-999999999999/movimentos", "GET /api/v1/produtos/{id}/movimentos"},
+		{"GET /api/v1/estoque/resumo", "GET /api/v1/estoque/resumo"},
 	}
 
 	for _, caso := range casos {
