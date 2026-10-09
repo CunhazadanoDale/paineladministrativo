@@ -63,6 +63,17 @@ func (f *arquivoUseCaseFalso) Baixar(_ context.Context, _, usuarioID uuid.UUID) 
 	return f.baixado, io.NopCloser(bytes.NewReader(f.conteudo)), nil
 }
 
+func (f *arquivoUseCaseFalso) BaixarPublico(_ context.Context, _ uuid.UUID) (*domainsolicitacao.Arquivo, io.ReadCloser, error) {
+	if f.erroBaixar != nil {
+		return nil, nil, f.erroBaixar
+	}
+	if f.baixado == nil {
+		return nil, nil, domain.ErroValidacao("arquivo não encontrado")
+	}
+
+	return f.baixado, io.NopCloser(bytes.NewReader(f.conteudo)), nil
+}
+
 func (f *arquivoUseCaseFalso) ListarPorProprietario(_ context.Context, _ uuid.UUID, _ domain.PaginacaoFiltro) ([]*domainsolicitacao.Arquivo, error) {
 	return nil, nil
 }

@@ -59,6 +59,7 @@ type SolicitacaoUseCase interface {
 type ArquivoUseCase interface {
 	Enviar(ctx context.Context, proprietarioID uuid.UUID, nome, contentType string, tamanho int64, conteudo io.Reader) (*domainsolicitacao.Arquivo, error)
 	Baixar(ctx context.Context, id, usuarioID uuid.UUID) (*domainsolicitacao.Arquivo, io.ReadCloser, error)
+	BaixarPublico(ctx context.Context, id uuid.UUID) (*domainsolicitacao.Arquivo, io.ReadCloser, error)
 	ListarPorProprietario(ctx context.Context, proprietarioID uuid.UUID, filtro domain.PaginacaoFiltro) ([]*domainsolicitacao.Arquivo, error)
 	Remover(ctx context.Context, id, usuarioID uuid.UUID) error
 }

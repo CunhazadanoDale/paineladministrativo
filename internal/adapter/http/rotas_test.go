@@ -10,7 +10,7 @@ import (
 func muxDoTeste(t *testing.T) *http.ServeMux {
 	t.Helper()
 
-	return novasRotas(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	return novasRotas(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 }
 
 func TestNewRouterAplicaCORS(t *testing.T) {
@@ -19,7 +19,7 @@ func TestNewRouterAplicaCORS(t *testing.T) {
 	requisicao.Header.Set("Access-Control-Request-Method", "POST")
 	registrador := httptest.NewRecorder()
 
-	NewRouter(nil, []string{"http://localhost:5173"}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).ServeHTTP(registrador, requisicao)
+	NewRouter(nil, []string{"http://localhost:5173"}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).ServeHTTP(registrador, requisicao)
 
 	if registrador.Code != http.StatusNoContent {
 		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusNoContent)
@@ -114,6 +114,11 @@ func TestRotasRegistradasSemConflito(t *testing.T) {
 		{"GET /api/v1/estoque/resumo", "GET /api/v1/estoque/resumo"},
 		{"POST /api/v1/produtos/99999999-9999-9999-9999-999999999999/imagens", "POST /api/v1/produtos/{id}/imagens"},
 		{"DELETE /api/v1/produtos/99999999-9999-9999-9999-999999999999/imagens/88888888-8888-8888-8888-888888888888", "DELETE /api/v1/produtos/{id}/imagens/{imagemId}"},
+		{"GET /api/v1/publico/categorias", "GET /api/v1/publico/categorias"},
+		{"GET /api/v1/publico/produtos", "GET /api/v1/publico/produtos"},
+		{"GET /api/v1/publico/produtos/cimento-cp-ii-50", "GET /api/v1/publico/produtos/{slug}"},
+		{"GET /api/v1/publico/destaques", "GET /api/v1/publico/destaques"},
+		{"GET /api/v1/publico/imagens/88888888-8888-8888-8888-888888888888", "GET /api/v1/publico/imagens/{id}"},
 	}
 
 	for _, caso := range casos {

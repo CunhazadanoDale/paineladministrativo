@@ -34,6 +34,7 @@ func NewRouter(
 	movimentoUseCase portsinestoque.MovimentoUseCase,
 	resumoUseCase portsinestoque.ResumoUseCase,
 	imagemUseCase portsinestoque.ImagemUseCase,
+	publicoUseCase portsinestoque.PublicoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, novasRotas(
@@ -42,7 +43,7 @@ func NewRouter(
 		usuarioUseCase, cargoUseCase,
 		solicitacaoUseCase, arquivoUseCase, aprovadorUseCase,
 		categoriaUseCase, produtoUseCase, movimentoUseCase, resumoUseCase,
-		imagemUseCase,
+		imagemUseCase, publicoUseCase,
 		tokens,
 	))
 }
@@ -63,6 +64,7 @@ func novasRotas(
 	movimentoUseCase portsinestoque.MovimentoUseCase,
 	resumoUseCase portsinestoque.ResumoUseCase,
 	imagemUseCase portsinestoque.ImagemUseCase,
+	publicoUseCase portsinestoque.PublicoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -181,6 +183,15 @@ func novasRotas(
 	imagemHandler := estoque.NewImagemHandler(imagemUseCase)
 	administrador("POST /api/v1/produtos/{id}/imagens", imagemHandler.Anexar)
 	administrador("DELETE /api/v1/produtos/{id}/imagens/{imagemId}", imagemHandler.Remover)
+
+	publicoHandler := estoque.NewPublicoHandler(publicoUseCase)
+	mux.HandleFunc("GET /api/v1/publico/categorias", publicoHandler.ListarCategorias)
+	mux.HandleFunc("GET /api/v1/publico/produtos", publicoHandler.ListarProdutos)
+	mux.HandleFunc("GET /api/v1/publico/produtos/{slug}", publicoHandler.ObterProduto)
+	mux.HandleFunc("GET /api/v1/publico/destaques", publicoHandler.ListarDestaques)
+
+	imagemPublicaHandler := estoque.NewImagemPublicaHandler(imagemUseCase, arquivoUseCase)
+	mux.HandleFunc("GET /api/v1/publico/imagens/{id}", imagemPublicaHandler.Servir)
 
 	mux.HandleFunc("GET /", saude.NaoEncontrado)
 

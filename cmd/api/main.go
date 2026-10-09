@@ -89,6 +89,7 @@ func main() {
 		estoqueusecases.NewMovimentoUsecase(produtoRepository, movimentoRepository, usuarioRepository, cargoRepository),
 		estoqueusecases.NewResumoUsecase(produtoRepository, movimentoRepository),
 		estoqueusecases.NewImagemUsecase(imagemRepository, produtoRepository, arquivoRepository, usuarioRepository, cargoRepository),
+		estoqueusecases.NewPublicoUsecase(categoriaRepository, produtoRepository, imagemRepository),
 		autenticacao.NovoTokenService(cfg.JWTSecret, cfg.JWTExpiracao),
 	)
 

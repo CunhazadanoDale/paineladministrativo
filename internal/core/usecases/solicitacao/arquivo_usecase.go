@@ -128,6 +128,20 @@ func (u *ArquivoUsecaseImpl) Baixar(ctx context.Context, id, usuarioID uuid.UUID
 	return arquivo, conteudo, nil
 }
 
+func (u *ArquivoUsecaseImpl) BaixarPublico(ctx context.Context, id uuid.UUID) (*domainsolicitacao.Arquivo, io.ReadCloser, error) {
+	arquivo, err := u.buscar(ctx, id)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	conteudo, err := u.storage.Baixar(ctx, arquivo.Chave)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return arquivo, conteudo, nil
+}
+
 func (u *ArquivoUsecaseImpl) ListarPorProprietario(ctx context.Context, proprietarioID uuid.UUID, filtro domain.PaginacaoFiltro) ([]*domainsolicitacao.Arquivo, error) {
 	if proprietarioID == uuid.Nil {
 		return nil, domain.ErroValidacao("proprietário dos arquivos não informado")

@@ -20,6 +20,7 @@ type cenario struct {
 	movimento      portsin.MovimentoUseCase
 	resumo         portsin.ResumoUseCase
 	imagem         portsin.ImagemUseCase
+	publico        portsin.PublicoUseCase
 	categoriasRepo *repositorioCategorias
 	produtosRepo   *repositorioProdutos
 	imagensRepo    *repositorioImagens
@@ -49,6 +50,7 @@ func novoCenario(t *testing.T) *cenario {
 		movimento:      estoqueusecases.NewMovimentoUsecase(produtos, movimentos, usuarios, cargos),
 		resumo:         estoqueusecases.NewResumoUsecase(produtos, movimentos),
 		imagem:         estoqueusecases.NewImagemUsecase(imagens, produtos, arquivos, usuarios, cargos),
+		publico:        estoqueusecases.NewPublicoUsecase(categorias, produtos, imagens),
 		categoriasRepo: categorias,
 		produtosRepo:   produtos,
 		imagensRepo:    imagens,
