@@ -57,6 +57,7 @@ func main() {
 	categoriaRepository := postgres.NewCategoriaRepository(banco)
 	produtoRepository := postgres.NewProdutoRepository(banco)
 	movimentoRepository := postgres.NewMovimentoRepository(banco)
+	imagemRepository := postgres.NewImagemRepository(banco)
 
 	rotas := httpapi.NewRouter(
 		banco,
@@ -84,9 +85,10 @@ func main() {
 		),
 		solicitacaousecases.NewAprovadorUsecase(aprovadorRepository, usuarioRepository),
 		estoqueusecases.NewCategoriaUsecase(categoriaRepository, usuarioRepository, cargoRepository),
-		estoqueusecases.NewProdutoUsecase(produtoRepository, categoriaRepository, usuarioRepository, cargoRepository),
+		estoqueusecases.NewProdutoUsecase(produtoRepository, categoriaRepository, imagemRepository, usuarioRepository, cargoRepository),
 		estoqueusecases.NewMovimentoUsecase(produtoRepository, movimentoRepository, usuarioRepository, cargoRepository),
 		estoqueusecases.NewResumoUsecase(produtoRepository, movimentoRepository),
+		estoqueusecases.NewImagemUsecase(imagemRepository, produtoRepository, arquivoRepository, usuarioRepository, cargoRepository),
 		autenticacao.NovoTokenService(cfg.JWTSecret, cfg.JWTExpiracao),
 	)
 

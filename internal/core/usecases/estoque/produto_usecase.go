@@ -17,18 +17,21 @@ var _ portsin.ProdutoUseCase = (*ProdutoUsecaseImpl)(nil)
 type ProdutoUsecaseImpl struct {
 	produtos   portsout.ProdutoRepository
 	categorias portsout.CategoriaRepository
+	imagens    portsout.ImagemRepository
 	permissoes
 }
 
 func NewProdutoUsecase(
 	produtos portsout.ProdutoRepository,
 	categorias portsout.CategoriaRepository,
+	imagens portsout.ImagemRepository,
 	usuarios portsoutusuarios.UsuarioRepository,
 	cargos portsoutusuarios.CargoRepository,
 ) *ProdutoUsecaseImpl {
 	return &ProdutoUsecaseImpl{
 		produtos:   produtos,
 		categorias: categorias,
+		imagens:    imagens,
 		permissoes: permissoes{
 			usuarios: usuarios,
 			cargos:   cargos,
@@ -93,6 +96,12 @@ func (u *ProdutoUsecaseImpl) Obter(ctx context.Context, id uuid.UUID) (*domaines
 	if produto == nil {
 		return nil, domain.ErroNaoEncontrado("produto não encontrado")
 	}
+
+	imagens, err := u.imagens.ListarPorProduto(ctx, produto.ID)
+	if err != nil {
+		return nil, err
+	}
+	produto.Imagens = imagens
 
 	return produto, nil
 }

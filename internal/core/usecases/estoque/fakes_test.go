@@ -8,18 +8,22 @@ import (
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	domainestoque "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/estoque"
+	domainsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/solicitacao"
 	domainusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/usuarios"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/estoque"
+	portsoutsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/solicitacao"
 	portsoutusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/usuarios"
 	"github.com/google/uuid"
 )
 
 var (
-	_ portsout.CategoriaRepository       = (*repositorioCategorias)(nil)
-	_ portsout.ProdutoRepository         = (*repositorioProdutos)(nil)
-	_ portsout.MovimentoRepository       = (*repositorioMovimentos)(nil)
-	_ portsoutusuarios.UsuarioRepository = (*repositorioUsuarios)(nil)
-	_ portsoutusuarios.CargoRepository   = (*repositorioCargos)(nil)
+	_ portsout.CategoriaRepository          = (*repositorioCategorias)(nil)
+	_ portsout.ProdutoRepository            = (*repositorioProdutos)(nil)
+	_ portsout.MovimentoRepository          = (*repositorioMovimentos)(nil)
+	_ portsout.ImagemRepository             = (*repositorioImagens)(nil)
+	_ portsoutsolicitacao.ArquivoRepository = (*repositorioArquivos)(nil)
+	_ portsoutusuarios.UsuarioRepository    = (*repositorioUsuarios)(nil)
+	_ portsoutusuarios.CargoRepository      = (*repositorioCargos)(nil)
 )
 
 type repositorioCategorias struct {
@@ -454,6 +458,126 @@ func (r *repositorioCargos) ListAtivos(_ context.Context, _ domain.PaginacaoFilt
 }
 
 func (r *repositorioCargos) Delete(_ context.Context, id uuid.UUID) error {
+	delete(r.itens, id)
+
+	return nil
+}
+
+type repositorioImagens struct {
+	itens map[uuid.UUID]*domainestoque.Imagem
+}
+
+func novoRepositorioImagens() *repositorioImagens {
+	return &repositorioImagens{itens: map[uuid.UUID]*domainestoque.Imagem{}}
+}
+
+func (r *repositorioImagens) Criar(_ context.Context, imagem *domainestoque.Imagem) (uuid.UUID, error) {
+	copia := *imagem
+	r.itens[imagem.ID] = &copia
+
+	return imagem.ID, nil
+}
+
+func (r *repositorioImagens) Obter(_ context.Context, id uuid.UUID) (*domainestoque.Imagem, error) {
+	imagem, ok := r.itens[id]
+	if !ok {
+		return nil, nil
+	}
+
+	copia := *imagem
+	return &copia, nil
+}
+
+func (r *repositorioImagens) ListarPorProduto(_ context.Context, produtoID uuid.UUID) ([]*domainestoque.Imagem, error) {
+	return r.listar(func(imagem *domainestoque.Imagem) bool {
+		return imagem.ProdutoID == produtoID
+	}), nil
+}
+
+func (r *repositorioImagens) ListarPorProdutos(_ context.Context, produtoIDs []uuid.UUID) ([]*domainestoque.Imagem, error) {
+	permitidos := make(map[uuid.UUID]bool, len(produtoIDs))
+	for _, id := range produtoIDs {
+		permitidos[id] = true
+	}
+
+	return r.listar(func(imagem *domainestoque.Imagem) bool {
+		return permitidos[imagem.ProdutoID]
+	}), nil
+}
+
+func (r *repositorioImagens) Remover(_ context.Context, id uuid.UUID) (bool, error) {
+	if _, ok := r.itens[id]; !ok {
+		return false, nil
+	}
+
+	delete(r.itens, id)
+
+	return true, nil
+}
+
+func (r *repositorioImagens) listar(pertence func(*domainestoque.Imagem) bool) []*domainestoque.Imagem {
+	itens := make([]*domainestoque.Imagem, 0, len(r.itens))
+	for _, imagem := range r.itens {
+		if !pertence(imagem) {
+			continue
+		}
+
+		copia := *imagem
+		itens = append(itens, &copia)
+	}
+
+	sort.Slice(itens, func(i, j int) bool {
+		if itens[i].Ordem != itens[j].Ordem {
+			return itens[i].Ordem < itens[j].Ordem
+		}
+		if !itens[i].CriadoEm.Equal(itens[j].CriadoEm) {
+			return itens[i].CriadoEm.Before(itens[j].CriadoEm)
+		}
+
+		return itens[i].ID.String() < itens[j].ID.String()
+	})
+
+	return itens
+}
+
+type repositorioArquivos struct {
+	itens map[uuid.UUID]*domainsolicitacao.Arquivo
+}
+
+func novoRepositorioArquivos() *repositorioArquivos {
+	return &repositorioArquivos{itens: map[uuid.UUID]*domainsolicitacao.Arquivo{}}
+}
+
+func (r *repositorioArquivos) Criar(_ context.Context, arquivo *domainsolicitacao.Arquivo) (uuid.UUID, error) {
+	copia := *arquivo
+	r.itens[arquivo.ID] = &copia
+
+	return arquivo.ID, nil
+}
+
+func (r *repositorioArquivos) Obter(_ context.Context, id uuid.UUID) (*domainsolicitacao.Arquivo, error) {
+	arquivo, ok := r.itens[id]
+	if !ok {
+		return nil, nil
+	}
+
+	copia := *arquivo
+	return &copia, nil
+}
+
+func (r *repositorioArquivos) ListarPorProprietario(_ context.Context, _ uuid.UUID, _ domain.PaginacaoFiltro) ([]*domainsolicitacao.Arquivo, error) {
+	return nil, nil
+}
+
+func (r *repositorioArquivos) VinculadoASolicitacao(_ context.Context, _ uuid.UUID) (bool, error) {
+	return false, nil
+}
+
+func (r *repositorioArquivos) SolicitacaoDoArquivo(_ context.Context, _ uuid.UUID) (*uuid.UUID, error) {
+	return nil, nil
+}
+
+func (r *repositorioArquivos) Remover(_ context.Context, id uuid.UUID) error {
 	delete(r.itens, id)
 
 	return nil

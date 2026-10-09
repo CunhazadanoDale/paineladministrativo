@@ -72,23 +72,24 @@ type AlternarDestaqueRequest struct {
 }
 
 type ProdutoResponse struct {
-	ID                       uuid.UUID `json:"id"`
-	CategoriaID              uuid.UUID `json:"categoria_id"`
-	Nome                     string    `json:"nome"`
-	Slug                     string    `json:"slug"`
-	Descricao                string    `json:"descricao"`
-	Codigo                   *string   `json:"codigo"`
-	UnidadeMedida            string    `json:"unidade_medida"`
-	PrecoCentavos            *int64    `json:"preco_centavos"`
-	PrecoPromocionalCentavos *int64    `json:"preco_promocional_centavos"`
-	Saldo                    int       `json:"saldo"`
-	EstoqueMinimo            *int      `json:"estoque_minimo"`
-	EstoqueBaixo             bool      `json:"estoque_baixo"`
-	PesoKg                   *float64  `json:"peso_kg"`
-	Destaque                 bool      `json:"destaque"`
-	Ativo                    bool      `json:"ativo"`
-	CriadoEm                 time.Time `json:"criado_em"`
-	AtualizadoEm             time.Time `json:"atualizado_em"`
+	ID                       uuid.UUID        `json:"id"`
+	CategoriaID              uuid.UUID        `json:"categoria_id"`
+	Nome                     string           `json:"nome"`
+	Slug                     string           `json:"slug"`
+	Descricao                string           `json:"descricao"`
+	Codigo                   *string          `json:"codigo"`
+	UnidadeMedida            string           `json:"unidade_medida"`
+	PrecoCentavos            *int64           `json:"preco_centavos"`
+	PrecoPromocionalCentavos *int64           `json:"preco_promocional_centavos"`
+	Saldo                    int              `json:"saldo"`
+	EstoqueMinimo            *int             `json:"estoque_minimo"`
+	EstoqueBaixo             bool             `json:"estoque_baixo"`
+	PesoKg                   *float64         `json:"peso_kg"`
+	Destaque                 bool             `json:"destaque"`
+	Ativo                    bool             `json:"ativo"`
+	CriadoEm                 time.Time        `json:"criado_em"`
+	AtualizadoEm             time.Time        `json:"atualizado_em"`
+	Imagens                  []ImagemResponse `json:"imagens"`
 }
 
 func NovaProdutoResponse(item *domainestoque.Produto) ProdutoResponse {
@@ -106,6 +107,7 @@ func NovaProdutoResponse(item *domainestoque.Produto) ProdutoResponse {
 		Ativo:         item.Ativo,
 		CriadoEm:      item.CriadoEm,
 		AtualizadoEm:  item.AtualizadoEm,
+		Imagens:       NovaImagemResponses(item.Imagens),
 	}
 
 	if item.Preco != nil {
