@@ -256,11 +256,14 @@ Usar wrappers existentes do `rotas.go`:
 | **2** | Repos Postgres (sqlx) + testes de integração (`test/helpers/banco.go`) | concluída |
 | **3** | Usecases + permissões + testes unitários com fakes | concluída |
 | **4** | Handlers/DTOs + registro em `rotas.go` e `main.go` + e2e (`test/e2e`) | concluída |
-| **5** | Frontend: telas de categoria, produto e movimentação | pendente |
+| **5** | Frontend: telas de categoria, produto e movimentação | concluída |
 | **6** | Endpoint de resumo p/ dashboard | concluída |
 | **7** | Imagens de produto + endpoints `publico/*` para exibir no site | concluída |
 
-Backend fechado após a fase 7; o frontend (fase 5) é o próximo passo.
+Backend fechado após a fase 7; o frontend (fase 5) foi entregue no repositório irmão
+`painelMiaConstrutora` (React): `src/services/produtos.js`, `src/services/categorias.js` e
+as telas em `src/modules/produtos/` (`Produtos`, `ProdutoDetalhe`, `ProdutoFormModal`,
+`MovimentoModal`, `Categorias`, `CategoriaFormModal`).
 
 ---
 
