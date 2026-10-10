@@ -120,3 +120,20 @@ func TestRegistrarRepassaAbortHandler(t *testing.T) {
 		panic(http.ErrAbortHandler)
 	})
 }
+
+func TestRegistrarAvisaErroAnotadoDepoisDaResposta(t *testing.T) {
+	registrador, saida := registradorEmMemoria()
+
+	atender(registrador, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("parte do arquivo"))
+		AnotarErro(w, errors.New("cliente desconectou"))
+	})
+
+	registro := lerRegistro(t, saida)
+	if registro["level"] != "WARN" || registro["status"] != float64(http.StatusOK) {
+		t.Errorf("registro %v, esperado WARN com status 200", registro)
+	}
+	if registro["erro"] != "cliente desconectou" {
+		t.Errorf("erro registrado %v, esperado a causa anotada", registro["erro"])
+	}
+}

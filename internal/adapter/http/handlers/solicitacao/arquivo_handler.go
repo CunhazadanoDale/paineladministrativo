@@ -14,6 +14,7 @@ import (
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto"
 	solicitacaodto "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto/solicitacao"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/resposta"
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/middleware"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/solicitacao"
 )
@@ -94,7 +95,7 @@ func (h *ArquivoHandler) Baixar(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Length", strconv.FormatInt(arquivo.Tamanho, 10))
 
 	if _, err := io.Copy(w, conteudo); err != nil {
-		return
+		middleware.AnotarErro(w, fmt.Errorf("envio do arquivo interrompido: %w", err))
 	}
 }
 

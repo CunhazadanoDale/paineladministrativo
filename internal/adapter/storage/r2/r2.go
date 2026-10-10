@@ -2,14 +2,17 @@ package r2
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	portssolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/solicitacao"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
 var _ portssolicitacao.Storage = (*Storage)(nil)
@@ -63,6 +66,10 @@ func (s *Storage) Baixar(ctx context.Context, chave string) (io.ReadCloser, erro
 		Key:    aws.String(chave),
 	})
 	if err != nil {
+		var semChave *types.NoSuchKey
+		if errors.As(err, &semChave) {
+			return nil, domain.ErroNaoEncontrado("arquivo não encontrado no armazenamento")
+		}
 		return nil, err
 	}
 

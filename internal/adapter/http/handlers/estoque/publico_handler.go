@@ -1,6 +1,7 @@
 package estoque
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -8,6 +9,7 @@ import (
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto"
 	estoquedto "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto/estoque"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/resposta"
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/middleware"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/estoque"
 	portsinsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/solicitacao"
@@ -122,5 +124,7 @@ func (h *ImagemPublicaHandler) Servir(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", arquivo.ContentType)
 
-	_, _ = io.Copy(w, conteudo)
+	if _, err := io.Copy(w, conteudo); err != nil {
+		middleware.AnotarErro(w, fmt.Errorf("envio da imagem interrompido: %w", err))
+	}
 }

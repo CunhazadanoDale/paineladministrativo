@@ -2,11 +2,13 @@ package disco
 
 import (
 	"context"
+	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	portssolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/solicitacao"
 )
 
@@ -30,15 +32,22 @@ func (s *Storage) Enviar(_ context.Context, chave string, conteudo io.Reader, _ 
 		return err
 	}
 
-	destino, err := os.Create(caminho)
+	temporario, err := os.CreateTemp(filepath.Dir(caminho), ".envio-*")
 	if err != nil {
 		return err
 	}
-	defer destino.Close()
 
-	_, err = io.Copy(destino, conteudo)
+	if err := gravar(temporario, conteudo); err != nil {
+		_ = os.Remove(temporario.Name())
+		return err
+	}
 
-	return err
+	if err := os.Rename(temporario.Name(), caminho); err != nil {
+		_ = os.Remove(temporario.Name())
+		return err
+	}
+
+	return nil
 }
 
 func (s *Storage) Baixar(_ context.Context, chave string) (io.ReadCloser, error) {
@@ -47,7 +56,12 @@ func (s *Storage) Baixar(_ context.Context, chave string) (io.ReadCloser, error)
 		return nil, err
 	}
 
-	return os.Open(caminho)
+	arquivo, err := os.Open(caminho)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, domain.ErroNaoEncontrado("arquivo não encontrado no armazenamento")
+	}
+
+	return arquivo, err
 }
 
 func (s *Storage) Remover(_ context.Context, chave string) error {
@@ -56,7 +70,7 @@ func (s *Storage) Remover(_ context.Context, chave string) error {
 		return err
 	}
 
-	if err := os.Remove(caminho); err != nil && !os.IsNotExist(err) {
+	if err := os.Remove(caminho); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
 
@@ -64,10 +78,19 @@ func (s *Storage) Remover(_ context.Context, chave string) error {
 }
 
 func (s *Storage) caminho(chave string) (string, error) {
-	limpa := filepath.Clean("/" + chave)
-	if strings.Contains(limpa, "..") {
-		return "", os.ErrInvalid
+	relativo := filepath.FromSlash(chave)
+	if !filepath.IsLocal(relativo) {
+		return "", domain.ErroValidacao("chave de arquivo inválida para o armazenamento")
 	}
 
-	return filepath.Join(s.dir, filepath.FromSlash(limpa)), nil
+	return filepath.Join(s.dir, relativo), nil
+}
+
+func gravar(destino *os.File, conteudo io.Reader) error {
+	if _, err := io.Copy(destino, conteudo); err != nil {
+		_ = destino.Close()
+		return err
+	}
+
+	return destino.Close()
 }

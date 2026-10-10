@@ -104,13 +104,18 @@ func registrarRequisicao(registrador *slog.Logger, r *http.Request, resposta *re
 		slog.Int64("duracao_ms", duracao.Milliseconds()),
 	}
 
+	causa := resposta.erro
 	nivel := slog.LevelInfo
-	if status >= http.StatusInternalServerError {
+	switch {
+	case status >= http.StatusInternalServerError:
 		nivel = slog.LevelError
-		causa := resposta.erro
 		if causa == nil {
 			causa = errors.New("causa não informada")
 		}
+	case causa != nil:
+		nivel = slog.LevelWarn
+	}
+	if causa != nil {
 		atributos = append(atributos, slog.String("erro", causa.Error()))
 	}
 
