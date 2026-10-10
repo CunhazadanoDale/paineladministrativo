@@ -26,7 +26,7 @@ func NewRouter(
 	leadUseCase portsinlead.LeadUseCase,
 	funilUseCase portsinlead.FunilUseCase,
 	etapaUseCase portsinlead.EtapaUseCase,
-	historicoUseCase portsinlead.LeadHistoryUseCase,
+	historicoUseCase portsinlead.LeadHistoricoUseCase,
 	usuarioUseCase portsinusuarios.UsuarioUseCase,
 	cargoUseCase portsinusuarios.CargoUseCase,
 	solicitacaoUseCase portsinsolicitacao.SolicitacaoUseCase,
@@ -56,7 +56,7 @@ func novasRotas(
 	leadUseCase portsinlead.LeadUseCase,
 	funilUseCase portsinlead.FunilUseCase,
 	etapaUseCase portsinlead.EtapaUseCase,
-	historicoUseCase portsinlead.LeadHistoryUseCase,
+	historicoUseCase portsinlead.LeadHistoricoUseCase,
 	usuarioUseCase portsinusuarios.UsuarioUseCase,
 	cargoUseCase portsinusuarios.CargoUseCase,
 	solicitacaoUseCase portsinsolicitacao.SolicitacaoUseCase,
@@ -116,7 +116,7 @@ func novasRotas(
 	comercial("GET /api/v1/etapas/{etapa_id}/proxima", etapaHandler.Proxima)
 	comercial("GET /api/v1/etapas/{etapa_id}/anterior", etapaHandler.Anterior)
 
-	historicoHandler := lead.NewLeadHistoryHandler(historicoUseCase)
+	historicoHandler := lead.NewLeadHistoricoHandler(historicoUseCase)
 	comercial("GET /api/v1/leads/{lead_id}/historico", historicoHandler.Listar)
 
 	cargoHandler := usuarios.NewCargoHandler(cargoUseCase)

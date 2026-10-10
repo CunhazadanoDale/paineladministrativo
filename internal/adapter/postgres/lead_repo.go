@@ -22,7 +22,7 @@ func NewLeadRepository(db *sqlx.DB) *LeadRepository {
 	return &LeadRepository{db: db}
 }
 
-func (l *LeadRepository) CountByEtapa(ctx context.Context, etapaID uuid.UUID) (int, error) {
+func (l *LeadRepository) ContarPorEtapa(ctx context.Context, etapaID uuid.UUID) (int, error) {
 	var count int
 	query := `SELECT COUNT(*) FROM lead WHERE etapa_id = $1`
 	if err := l.db.GetContext(ctx, &count, query, etapaID); err != nil {
@@ -31,7 +31,7 @@ func (l *LeadRepository) CountByEtapa(ctx context.Context, etapaID uuid.UUID) (i
 	return count, nil
 }
 
-func (l *LeadRepository) CountByFunil(ctx context.Context, funilID uuid.UUID) (int, error) {
+func (l *LeadRepository) ContarPorFunil(ctx context.Context, funilID uuid.UUID) (int, error) {
 	var count int
 	query := `
 		SELECT COUNT(*)
@@ -45,7 +45,7 @@ func (l *LeadRepository) CountByFunil(ctx context.Context, funilID uuid.UUID) (i
 	return count, nil
 }
 
-func (l *LeadRepository) Create(ctx context.Context, lead *lead.Lead) (uuid.UUID, error) {
+func (l *LeadRepository) Criar(ctx context.Context, lead *lead.Lead) (uuid.UUID, error) {
 	query := `
 		INSERT INTO lead (id, nome, email, telefone, ativo, origem, criado_em, atualizado_em, etapa_id)
 		VALUES (:id, :nome, :email, :telefone, :ativo, :origem, :criado_em, :atualizado_em, :etapa_id)
@@ -70,12 +70,12 @@ func (l *LeadRepository) Create(ctx context.Context, lead *lead.Lead) (uuid.UUID
 	return id, nil
 }
 
-func (l *LeadRepository) Delete(ctx context.Context, id uuid.UUID) error {
+func (l *LeadRepository) Remover(ctx context.Context, id uuid.UUID) error {
 	_, err := l.db.ExecContext(ctx, `DELETE FROM lead WHERE id = $1`, id)
 	return tratarErro(err)
 }
 
-func (l *LeadRepository) GetByID(ctx context.Context, id uuid.UUID) (*lead.Lead, error) {
+func (l *LeadRepository) Obter(ctx context.Context, id uuid.UUID) (*lead.Lead, error) {
 	query := `
 		SELECT id, nome, email, telefone, ativo, origem, criado_em, atualizado_em, etapa_id
 		FROM lead
@@ -92,7 +92,7 @@ func (l *LeadRepository) GetByID(ctx context.Context, id uuid.UUID) (*lead.Lead,
 	return &item, nil
 }
 
-func (l *LeadRepository) ListAtivos(ctx context.Context, paginacao domain.PaginacaoFiltro) ([]*lead.Lead, error) {
+func (l *LeadRepository) ListarAtivos(ctx context.Context, paginacao domain.PaginacaoFiltro) ([]*lead.Lead, error) {
 	query := `
 		SELECT id, nome, email, telefone, ativo, origem, criado_em, atualizado_em, etapa_id
 		FROM lead
@@ -108,7 +108,7 @@ func (l *LeadRepository) ListAtivos(ctx context.Context, paginacao domain.Pagina
 	return itens, nil
 }
 
-func (l *LeadRepository) ListByEtapa(ctx context.Context, etapaID uuid.UUID) ([]*lead.Lead, error) {
+func (l *LeadRepository) ListarPorEtapa(ctx context.Context, etapaID uuid.UUID) ([]*lead.Lead, error) {
 	query := `
 		SELECT id, nome, email, telefone, ativo, origem, criado_em, atualizado_em, etapa_id
 		FROM lead
@@ -123,7 +123,7 @@ func (l *LeadRepository) ListByEtapa(ctx context.Context, etapaID uuid.UUID) ([]
 	return itens, nil
 }
 
-func (l *LeadRepository) ListByFunil(ctx context.Context, funilID uuid.UUID) ([]*lead.Lead, error) {
+func (l *LeadRepository) ListarPorFunil(ctx context.Context, funilID uuid.UUID) ([]*lead.Lead, error) {
 	query := `
 		SELECT l.id, l.nome, l.email, l.telefone, l.ativo, l.origem, l.criado_em, l.atualizado_em, l.etapa_id
 		FROM lead l
@@ -139,7 +139,7 @@ func (l *LeadRepository) ListByFunil(ctx context.Context, funilID uuid.UUID) ([]
 	return itens, nil
 }
 
-func (l *LeadRepository) Search(ctx context.Context, query string, paginacao domain.PaginacaoFiltro) ([]*lead.Lead, error) {
+func (l *LeadRepository) Buscar(ctx context.Context, query string, paginacao domain.PaginacaoFiltro) ([]*lead.Lead, error) {
 	searchQuery := `
 		SELECT id, nome, email, telefone, ativo, origem, criado_em, atualizado_em, etapa_id
 		FROM lead
@@ -160,7 +160,7 @@ func (l *LeadRepository) Search(ctx context.Context, query string, paginacao dom
 	return itens, nil
 }
 
-func (l *LeadRepository) Update(ctx context.Context, lead *lead.Lead) error {
+func (l *LeadRepository) Atualizar(ctx context.Context, lead *lead.Lead) error {
 	query := `
 		UPDATE lead
 		SET nome = :nome,

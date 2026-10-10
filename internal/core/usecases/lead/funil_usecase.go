@@ -1,11 +1,11 @@
-package leadpoint
+package lead
 
 import (
 	"context"
 	"strings"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
-	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/lead"
+	domainlead "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/lead"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/leads"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/leads"
 	"github.com/google/uuid"
@@ -21,7 +21,7 @@ func NewFunilUsecase(repo portsout.FunilRepository) *FunilUsecaseImpl {
 	return &FunilUsecaseImpl{repo: repo}
 }
 
-func (f *FunilUsecaseImpl) Create(ctx context.Context, funil *lead.Funil) (uuid.UUID, error) {
+func (f *FunilUsecaseImpl) Criar(ctx context.Context, funil *domainlead.Funil) (uuid.UUID, error) {
 	if funil == nil {
 		return uuid.Nil, domain.ErroValidacao("funil não informado")
 	}
@@ -37,10 +37,10 @@ func (f *FunilUsecaseImpl) Create(ctx context.Context, funil *lead.Funil) (uuid.
 
 	funil.Ativo = true
 
-	return f.repo.Create(ctx, funil)
+	return f.repo.Criar(ctx, funil)
 }
 
-func (f *FunilUsecaseImpl) Update(ctx context.Context, funil *lead.Funil) error {
+func (f *FunilUsecaseImpl) Atualizar(ctx context.Context, funil *domainlead.Funil) error {
 	if funil == nil || funil.FunilID == uuid.Nil {
 		return domain.ErroValidacao("funil inválido")
 	}
@@ -51,7 +51,7 @@ func (f *FunilUsecaseImpl) Update(ctx context.Context, funil *lead.Funil) error 
 		return domain.ErroValidacao("nome do funil é obrigatório")
 	}
 
-	atual, err := f.repo.GetByID(ctx, funil.FunilID)
+	atual, err := f.repo.Obter(ctx, funil.FunilID)
 	if err != nil {
 		return err
 	}
@@ -59,15 +59,15 @@ func (f *FunilUsecaseImpl) Update(ctx context.Context, funil *lead.Funil) error 
 		return domain.ErrNotFound
 	}
 
-	return f.repo.Update(ctx, funil)
+	return f.repo.Atualizar(ctx, funil)
 }
 
-func (f *FunilUsecaseImpl) GetByID(ctx context.Context, funilID uuid.UUID) (*lead.Funil, error) {
+func (f *FunilUsecaseImpl) Obter(ctx context.Context, funilID uuid.UUID) (*domainlead.Funil, error) {
 	if funilID == uuid.Nil {
 		return nil, domain.ErroValidacao("id do funil não informado")
 	}
 
-	item, err := f.repo.GetByID(ctx, funilID)
+	item, err := f.repo.Obter(ctx, funilID)
 	if err != nil {
 		return nil, err
 	}
@@ -78,20 +78,20 @@ func (f *FunilUsecaseImpl) GetByID(ctx context.Context, funilID uuid.UUID) (*lea
 	return item, nil
 }
 
-func (f *FunilUsecaseImpl) List(ctx context.Context, filtro domain.PaginacaoFiltro) ([]lead.Funil, error) {
-	return f.repo.List(ctx, filtro.Normalizada())
+func (f *FunilUsecaseImpl) Listar(ctx context.Context, filtro domain.PaginacaoFiltro) ([]domainlead.Funil, error) {
+	return f.repo.Listar(ctx, filtro.Normalizada())
 }
 
-func (f *FunilUsecaseImpl) ListAtivos(ctx context.Context, filtro domain.PaginacaoFiltro) ([]lead.Funil, error) {
-	return f.repo.ListAtivos(ctx, filtro.Normalizada())
+func (f *FunilUsecaseImpl) ListarAtivos(ctx context.Context, filtro domain.PaginacaoFiltro) ([]domainlead.Funil, error) {
+	return f.repo.ListarAtivos(ctx, filtro.Normalizada())
 }
 
-func (f *FunilUsecaseImpl) Delete(ctx context.Context, funilID uuid.UUID) error {
+func (f *FunilUsecaseImpl) Remover(ctx context.Context, funilID uuid.UUID) error {
 	if funilID == uuid.Nil {
 		return domain.ErroValidacao("id do funil não informado")
 	}
 
-	atual, err := f.repo.GetByID(ctx, funilID)
+	atual, err := f.repo.Obter(ctx, funilID)
 	if err != nil {
 		return err
 	}
@@ -99,13 +99,13 @@ func (f *FunilUsecaseImpl) Delete(ctx context.Context, funilID uuid.UUID) error 
 		return domain.ErrNotFound
 	}
 
-	return f.repo.Delete(ctx, funilID)
+	return f.repo.Remover(ctx, funilID)
 }
 
-func (f *FunilUsecaseImpl) ExistsByID(ctx context.Context, funilID uuid.UUID) (bool, error) {
+func (f *FunilUsecaseImpl) Existe(ctx context.Context, funilID uuid.UUID) (bool, error) {
 	if funilID == uuid.Nil {
 		return false, domain.ErroValidacao("id do funil não informado")
 	}
 
-	return f.repo.ExistsByID(ctx, funilID)
+	return f.repo.Existe(ctx, funilID)
 }

@@ -12,17 +12,17 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-var _ leads.FunilRepository = (*FunilRepo)(nil)
+var _ leads.FunilRepository = (*FunilRepository)(nil)
 
-type FunilRepo struct {
+type FunilRepository struct {
 	db *sqlx.DB
 }
 
-func NewFunilRepo(db *sqlx.DB) *FunilRepo {
-	return &FunilRepo{db: db}
+func NewFunilRepository(db *sqlx.DB) *FunilRepository {
+	return &FunilRepository{db: db}
 }
 
-func (f *FunilRepo) Create(ctx context.Context, funil *lead.Funil) (uuid.UUID, error) {
+func (f *FunilRepository) Criar(ctx context.Context, funil *lead.Funil) (uuid.UUID, error) {
 	query := `
 		INSERT INTO funil (funil_id, nome, ativo)
 		VALUES (:funil_id, :nome, :ativo)
@@ -47,12 +47,12 @@ func (f *FunilRepo) Create(ctx context.Context, funil *lead.Funil) (uuid.UUID, e
 	return id, nil
 }
 
-func (f *FunilRepo) Delete(ctx context.Context, funilID uuid.UUID) error {
+func (f *FunilRepository) Remover(ctx context.Context, funilID uuid.UUID) error {
 	_, err := f.db.ExecContext(ctx, `DELETE FROM funil WHERE funil_id = $1`, funilID)
 	return tratarErro(err)
 }
 
-func (f *FunilRepo) ExistsByID(ctx context.Context, funilID uuid.UUID) (bool, error) {
+func (f *FunilRepository) Existe(ctx context.Context, funilID uuid.UUID) (bool, error) {
 	var exists bool
 	query := `SELECT EXISTS(SELECT 1 FROM funil WHERE funil_id = $1)`
 	if err := f.db.GetContext(ctx, &exists, query, funilID); err != nil {
@@ -61,7 +61,7 @@ func (f *FunilRepo) ExistsByID(ctx context.Context, funilID uuid.UUID) (bool, er
 	return exists, nil
 }
 
-func (f *FunilRepo) GetByID(ctx context.Context, funilID uuid.UUID) (*lead.Funil, error) {
+func (f *FunilRepository) Obter(ctx context.Context, funilID uuid.UUID) (*lead.Funil, error) {
 	query := `SELECT funil_id, nome, ativo FROM funil WHERE funil_id = $1`
 	var funil lead.Funil
 	if err := f.db.GetContext(ctx, &funil, query, funilID); err != nil {
@@ -73,7 +73,7 @@ func (f *FunilRepo) GetByID(ctx context.Context, funilID uuid.UUID) (*lead.Funil
 	return &funil, nil
 }
 
-func (f *FunilRepo) List(ctx context.Context, filtro domain.PaginacaoFiltro) ([]lead.Funil, error) {
+func (f *FunilRepository) Listar(ctx context.Context, filtro domain.PaginacaoFiltro) ([]lead.Funil, error) {
 	offset := (filtro.Page - 1) * filtro.Size
 	query := `
 		SELECT funil_id, nome, ativo
@@ -89,7 +89,7 @@ func (f *FunilRepo) List(ctx context.Context, filtro domain.PaginacaoFiltro) ([]
 	return funis, nil
 }
 
-func (f *FunilRepo) ListAtivos(ctx context.Context, filtro domain.PaginacaoFiltro) ([]lead.Funil, error) {
+func (f *FunilRepository) ListarAtivos(ctx context.Context, filtro domain.PaginacaoFiltro) ([]lead.Funil, error) {
 	offset := (filtro.Page - 1) * filtro.Size
 	query := `
 		SELECT funil_id, nome, ativo
@@ -106,7 +106,7 @@ func (f *FunilRepo) ListAtivos(ctx context.Context, filtro domain.PaginacaoFiltr
 	return funis, nil
 }
 
-func (f *FunilRepo) Update(ctx context.Context, funil *lead.Funil) error {
+func (f *FunilRepository) Atualizar(ctx context.Context, funil *lead.Funil) error {
 	query := `
 		UPDATE funil
 		SET nome = :nome, ativo = :ativo

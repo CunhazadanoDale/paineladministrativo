@@ -9,11 +9,11 @@ import (
 )
 
 type FunilRepository interface {
-	Create(ctx context.Context, funil *lead.Funil) (uuid.UUID, error)
-	Update(ctx context.Context, funil *lead.Funil) error
-	GetByID(ctx context.Context, funilID uuid.UUID) (*lead.Funil, error)
-	List(ctx context.Context, filtro domain.PaginacaoFiltro) ([]lead.Funil, error)
-	ListAtivos(ctx context.Context, filtro domain.PaginacaoFiltro) ([]lead.Funil, error)
-	Delete(ctx context.Context, funilID uuid.UUID) error
-	ExistsByID(ctx context.Context, funilID uuid.UUID) (bool, error)
+	Criar(ctx context.Context, funil *lead.Funil) (uuid.UUID, error)
+	Atualizar(ctx context.Context, funil *lead.Funil) error
+	Obter(ctx context.Context, funilID uuid.UUID) (*lead.Funil, error)
+	Listar(ctx context.Context, filtro domain.PaginacaoFiltro) ([]lead.Funil, error)
+	ListarAtivos(ctx context.Context, filtro domain.PaginacaoFiltro) ([]lead.Funil, error)
+	Remover(ctx context.Context, funilID uuid.UUID) error
+	Existe(ctx context.Context, funilID uuid.UUID) (bool, error)
 }

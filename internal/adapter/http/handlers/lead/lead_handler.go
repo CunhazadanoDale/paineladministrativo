@@ -24,13 +24,13 @@ func (h *LeadHandler) Criar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := h.usecase.Create(r.Context(), requisicao.ParaLead())
+	id, err := h.usecase.Criar(r.Context(), requisicao.ParaLead())
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
 	}
 
-	item, err := h.usecase.GetByID(r.Context(), id)
+	item, err := h.usecase.Obter(r.Context(), id)
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
@@ -51,9 +51,9 @@ func (h *LeadHandler) Listar(w http.ResponseWriter, r *http.Request) {
 	)
 
 	if busca != "" {
-		itens, err = h.usecase.Search(r.Context(), busca, paginacao)
+		itens, err = h.usecase.Buscar(r.Context(), busca, paginacao)
 	} else {
-		itens, err = h.usecase.ListAtivos(r.Context(), paginacao)
+		itens, err = h.usecase.ListarAtivos(r.Context(), paginacao)
 	}
 
 	if err != nil {
@@ -74,7 +74,7 @@ func (h *LeadHandler) Obter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	item, err := h.usecase.GetByID(r.Context(), id)
+	item, err := h.usecase.Obter(r.Context(), id)
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
@@ -102,12 +102,12 @@ func (h *LeadHandler) Atualizar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.usecase.Update(r.Context(), lead); err != nil {
+	if err := h.usecase.Atualizar(r.Context(), lead); err != nil {
 		resposta.ResponderErro(w, err)
 		return
 	}
 
-	item, err := h.usecase.GetByID(r.Context(), id)
+	item, err := h.usecase.Obter(r.Context(), id)
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
@@ -124,7 +124,7 @@ func (h *LeadHandler) Remover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.usecase.Delete(r.Context(), id); err != nil {
+	if err := h.usecase.Remover(r.Context(), id); err != nil {
 		resposta.ResponderErro(w, err)
 		return
 	}
@@ -143,12 +143,12 @@ func (h *LeadHandler) MoverEtapa(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.usecase.UpdateEtapa(r.Context(), id, requisicao.EtapaID); err != nil {
+	if err := h.usecase.MoverEtapa(r.Context(), id, requisicao.EtapaID); err != nil {
 		resposta.ResponderErro(w, err)
 		return
 	}
 
-	item, err := h.usecase.GetByID(r.Context(), id)
+	item, err := h.usecase.Obter(r.Context(), id)
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
@@ -165,7 +165,7 @@ func (h *LeadHandler) ListarPorFunil(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	itens, err := h.usecase.ListByFunil(r.Context(), funilID)
+	itens, err := h.usecase.ListarPorFunil(r.Context(), funilID)
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
@@ -182,7 +182,7 @@ func (h *LeadHandler) ListarPorEtapa(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	itens, err := h.usecase.ListByEtapa(r.Context(), etapaID)
+	itens, err := h.usecase.ListarPorEtapa(r.Context(), etapaID)
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
@@ -199,7 +199,7 @@ func (h *LeadHandler) ContarPorFunil(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	total, err := h.usecase.CountByFunil(r.Context(), funilID)
+	total, err := h.usecase.ContarPorFunil(r.Context(), funilID)
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
@@ -216,7 +216,7 @@ func (h *LeadHandler) ContarPorEtapa(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	total, err := h.usecase.CountByEtapa(r.Context(), etapaID)
+	total, err := h.usecase.ContarPorEtapa(r.Context(), etapaID)
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return

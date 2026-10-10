@@ -9,15 +9,15 @@ import (
 )
 
 type LeadUseCase interface {
-	Create(ctx context.Context, lead *lead.Lead) (uuid.UUID, error)
-	Update(ctx context.Context, lead *lead.Lead) error
-	GetByID(ctx context.Context, id uuid.UUID) (*lead.Lead, error)
-	ListByFunil(ctx context.Context, funilID uuid.UUID) ([]*lead.Lead, error)
-	ListByEtapa(ctx context.Context, etapaID uuid.UUID) ([]*lead.Lead, error)
-	ListAtivos(ctx context.Context, paginacao domain.PaginacaoFiltro) ([]*lead.Lead, error)
-	Search(ctx context.Context, query string, paginacao domain.PaginacaoFiltro) ([]*lead.Lead, error)
-	Delete(ctx context.Context, id uuid.UUID) error
-	CountByEtapa(ctx context.Context, etapaID uuid.UUID) (int, error)
-	CountByFunil(ctx context.Context, funilID uuid.UUID) (int, error)
-	UpdateEtapa(ctx context.Context, leadID uuid.UUID, newEtapaID uuid.UUID) error
+	Criar(ctx context.Context, lead *lead.Lead) (uuid.UUID, error)
+	Atualizar(ctx context.Context, lead *lead.Lead) error
+	Obter(ctx context.Context, id uuid.UUID) (*lead.Lead, error)
+	ListarPorFunil(ctx context.Context, funilID uuid.UUID) ([]*lead.Lead, error)
+	ListarPorEtapa(ctx context.Context, etapaID uuid.UUID) ([]*lead.Lead, error)
+	ListarAtivos(ctx context.Context, paginacao domain.PaginacaoFiltro) ([]*lead.Lead, error)
+	Buscar(ctx context.Context, query string, paginacao domain.PaginacaoFiltro) ([]*lead.Lead, error)
+	Remover(ctx context.Context, id uuid.UUID) error
+	ContarPorEtapa(ctx context.Context, etapaID uuid.UUID) (int, error)
+	ContarPorFunil(ctx context.Context, funilID uuid.UUID) (int, error)
+	MoverEtapa(ctx context.Context, leadID uuid.UUID, newEtapaID uuid.UUID) error
 }

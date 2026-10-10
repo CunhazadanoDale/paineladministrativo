@@ -1,4 +1,4 @@
-package leadpoint
+package lead
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
-	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/lead"
+	domainlead "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/lead"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/leads"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/leads"
 	"github.com/google/uuid"
@@ -32,7 +32,7 @@ func NewLeadUsecase(repo portsout.LeadRepository, etapas portsout.EtapaRepositor
 	return &LeadUsecaseImpl{repo: repo, etapas: etapas}
 }
 
-func (l *LeadUsecaseImpl) Create(ctx context.Context, lead *lead.Lead) (uuid.UUID, error) {
+func (l *LeadUsecaseImpl) Criar(ctx context.Context, lead *domainlead.Lead) (uuid.UUID, error) {
 	if lead == nil {
 		return uuid.Nil, domain.ErroValidacao("lead não informado")
 	}
@@ -59,10 +59,10 @@ func (l *LeadUsecaseImpl) Create(ctx context.Context, lead *lead.Lead) (uuid.UUI
 	lead.AtualizadoEm = agora
 	lead.Ativo = true
 
-	return l.repo.Create(ctx, lead)
+	return l.repo.Criar(ctx, lead)
 }
 
-func (l *LeadUsecaseImpl) Update(ctx context.Context, lead *lead.Lead) error {
+func (l *LeadUsecaseImpl) Atualizar(ctx context.Context, lead *domainlead.Lead) error {
 	if lead == nil || lead.ID == uuid.Nil {
 		return domain.ErroValidacao("lead inválido")
 	}
@@ -85,62 +85,62 @@ func (l *LeadUsecaseImpl) Update(ctx context.Context, lead *lead.Lead) error {
 	lead.CriadoEm = atual.CriadoEm
 	lead.AtualizadoEm = time.Now().UTC()
 
-	return l.repo.Update(ctx, lead)
+	return l.repo.Atualizar(ctx, lead)
 }
 
-func (l *LeadUsecaseImpl) GetByID(ctx context.Context, id uuid.UUID) (*lead.Lead, error) {
+func (l *LeadUsecaseImpl) Obter(ctx context.Context, id uuid.UUID) (*domainlead.Lead, error) {
 	return l.buscar(ctx, id)
 }
 
-func (l *LeadUsecaseImpl) ListByFunil(ctx context.Context, funilID uuid.UUID) ([]*lead.Lead, error) {
+func (l *LeadUsecaseImpl) ListarPorFunil(ctx context.Context, funilID uuid.UUID) ([]*domainlead.Lead, error) {
 	if funilID == uuid.Nil {
 		return nil, domain.ErroValidacao("funil não informado")
 	}
 
-	return l.repo.ListByFunil(ctx, funilID)
+	return l.repo.ListarPorFunil(ctx, funilID)
 }
 
-func (l *LeadUsecaseImpl) ListByEtapa(ctx context.Context, etapaID uuid.UUID) ([]*lead.Lead, error) {
+func (l *LeadUsecaseImpl) ListarPorEtapa(ctx context.Context, etapaID uuid.UUID) ([]*domainlead.Lead, error) {
 	if etapaID == uuid.Nil {
 		return nil, domain.ErroValidacao("etapa não informada")
 	}
 
-	return l.repo.ListByEtapa(ctx, etapaID)
+	return l.repo.ListarPorEtapa(ctx, etapaID)
 }
 
-func (l *LeadUsecaseImpl) ListAtivos(ctx context.Context, paginacao domain.PaginacaoFiltro) ([]*lead.Lead, error) {
-	return l.repo.ListAtivos(ctx, paginacao.Normalizada())
+func (l *LeadUsecaseImpl) ListarAtivos(ctx context.Context, paginacao domain.PaginacaoFiltro) ([]*domainlead.Lead, error) {
+	return l.repo.ListarAtivos(ctx, paginacao.Normalizada())
 }
 
-func (l *LeadUsecaseImpl) Search(ctx context.Context, query string, paginacao domain.PaginacaoFiltro) ([]*lead.Lead, error) {
-	return l.repo.Search(ctx, strings.TrimSpace(query), paginacao.Normalizada())
+func (l *LeadUsecaseImpl) Buscar(ctx context.Context, query string, paginacao domain.PaginacaoFiltro) ([]*domainlead.Lead, error) {
+	return l.repo.Buscar(ctx, strings.TrimSpace(query), paginacao.Normalizada())
 }
 
-func (l *LeadUsecaseImpl) Delete(ctx context.Context, id uuid.UUID) error {
+func (l *LeadUsecaseImpl) Remover(ctx context.Context, id uuid.UUID) error {
 	if _, err := l.buscar(ctx, id); err != nil {
 		return err
 	}
 
-	return l.repo.Delete(ctx, id)
+	return l.repo.Remover(ctx, id)
 }
 
-func (l *LeadUsecaseImpl) CountByEtapa(ctx context.Context, etapaID uuid.UUID) (int, error) {
+func (l *LeadUsecaseImpl) ContarPorEtapa(ctx context.Context, etapaID uuid.UUID) (int, error) {
 	if etapaID == uuid.Nil {
 		return 0, domain.ErroValidacao("etapa não informada")
 	}
 
-	return l.repo.CountByEtapa(ctx, etapaID)
+	return l.repo.ContarPorEtapa(ctx, etapaID)
 }
 
-func (l *LeadUsecaseImpl) CountByFunil(ctx context.Context, funilID uuid.UUID) (int, error) {
+func (l *LeadUsecaseImpl) ContarPorFunil(ctx context.Context, funilID uuid.UUID) (int, error) {
 	if funilID == uuid.Nil {
 		return 0, domain.ErroValidacao("funil não informado")
 	}
 
-	return l.repo.CountByFunil(ctx, funilID)
+	return l.repo.ContarPorFunil(ctx, funilID)
 }
 
-func (l *LeadUsecaseImpl) UpdateEtapa(ctx context.Context, leadID uuid.UUID, newEtapaID uuid.UUID) error {
+func (l *LeadUsecaseImpl) MoverEtapa(ctx context.Context, leadID uuid.UUID, newEtapaID uuid.UUID) error {
 	if leadID == uuid.Nil {
 		return domain.ErroValidacao("lead não informado")
 	}
@@ -161,7 +161,7 @@ func (l *LeadUsecaseImpl) UpdateEtapa(ctx context.Context, leadID uuid.UUID, new
 		return err
 	}
 
-	origem, err := l.etapas.GetByID(ctx, atual.EtapaID)
+	origem, err := l.etapas.Obter(ctx, atual.EtapaID)
 	if err != nil {
 		return err
 	}
@@ -172,12 +172,12 @@ func (l *LeadUsecaseImpl) UpdateEtapa(ctx context.Context, leadID uuid.UUID, new
 	return l.repo.MoverParaEtapa(ctx, leadID, atual.EtapaID, newEtapaID)
 }
 
-func (l *LeadUsecaseImpl) buscar(ctx context.Context, id uuid.UUID) (*lead.Lead, error) {
+func (l *LeadUsecaseImpl) buscar(ctx context.Context, id uuid.UUID) (*domainlead.Lead, error) {
 	if id == uuid.Nil {
 		return nil, domain.ErroValidacao("id do lead não informado")
 	}
 
-	item, err := l.repo.GetByID(ctx, id)
+	item, err := l.repo.Obter(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -188,8 +188,8 @@ func (l *LeadUsecaseImpl) buscar(ctx context.Context, id uuid.UUID) (*lead.Lead,
 	return item, nil
 }
 
-func (l *LeadUsecaseImpl) etapaAtiva(ctx context.Context, etapaID uuid.UUID, descricao string) (*lead.Etapa, error) {
-	etapa, err := l.etapas.GetByID(ctx, etapaID)
+func (l *LeadUsecaseImpl) etapaAtiva(ctx context.Context, etapaID uuid.UUID, descricao string) (*domainlead.Etapa, error) {
+	etapa, err := l.etapas.Obter(ctx, etapaID)
 	if err != nil {
 		return nil, err
 	}
@@ -203,14 +203,14 @@ func (l *LeadUsecaseImpl) etapaAtiva(ctx context.Context, etapaID uuid.UUID, des
 	return etapa, nil
 }
 
-func normalizarLead(lead *lead.Lead) {
+func normalizarLead(lead *domainlead.Lead) {
 	lead.Nome = strings.TrimSpace(lead.Nome)
 	lead.Email = strings.ToLower(strings.TrimSpace(lead.Email))
 	lead.Telefone = strings.TrimSpace(lead.Telefone)
 	lead.Origem = strings.TrimSpace(lead.Origem)
 }
 
-func validarCadastro(lead *lead.Lead) error {
+func validarCadastro(lead *domainlead.Lead) error {
 	if lead.Nome == "" {
 		return domain.ErroValidacao("nome do lead é obrigatório")
 	}

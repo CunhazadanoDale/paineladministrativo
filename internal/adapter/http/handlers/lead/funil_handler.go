@@ -24,13 +24,13 @@ func (h *FunilHandler) Criar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := h.usecase.Create(r.Context(), requisicao.ParaFunil())
+	id, err := h.usecase.Criar(r.Context(), requisicao.ParaFunil())
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
 	}
 
-	item, err := h.usecase.GetByID(r.Context(), id)
+	item, err := h.usecase.Obter(r.Context(), id)
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
@@ -50,9 +50,9 @@ func (h *FunilHandler) Listar(w http.ResponseWriter, r *http.Request) {
 	)
 
 	if resposta.ConsultaBooleana(r, "ativos") {
-		itens, err = h.usecase.ListAtivos(r.Context(), paginacao)
+		itens, err = h.usecase.ListarAtivos(r.Context(), paginacao)
 	} else {
-		itens, err = h.usecase.List(r.Context(), paginacao)
+		itens, err = h.usecase.Listar(r.Context(), paginacao)
 	}
 
 	if err != nil {
@@ -73,7 +73,7 @@ func (h *FunilHandler) Obter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	item, err := h.usecase.GetByID(r.Context(), funilID)
+	item, err := h.usecase.Obter(r.Context(), funilID)
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
@@ -95,12 +95,12 @@ func (h *FunilHandler) Atualizar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.usecase.Update(r.Context(), requisicao.ParaFunil(funilID)); err != nil {
+	if err := h.usecase.Atualizar(r.Context(), requisicao.ParaFunil(funilID)); err != nil {
 		resposta.ResponderErro(w, err)
 		return
 	}
 
-	item, err := h.usecase.GetByID(r.Context(), funilID)
+	item, err := h.usecase.Obter(r.Context(), funilID)
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
@@ -117,7 +117,7 @@ func (h *FunilHandler) Remover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.usecase.Delete(r.Context(), funilID); err != nil {
+	if err := h.usecase.Remover(r.Context(), funilID); err != nil {
 		resposta.ResponderErro(w, err)
 		return
 	}

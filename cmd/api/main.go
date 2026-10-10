@@ -20,7 +20,7 @@ import (
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/storage/r2"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/solicitacao"
 	estoqueusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/estoque"
-	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/leadpoint"
+	leadusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/lead"
 	solicitacaousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/solicitacao"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/usuarios"
 )
@@ -72,10 +72,10 @@ func executar(registrador *slog.Logger) error {
 	rotas := httpapi.NewRouter(
 		banco,
 		cfg.CORSOrigins,
-		leadpoint.NewLeadUsecase(postgres.NewLeadRepository(banco), postgres.NewEtapaRepository(banco)),
-		leadpoint.NewFunilUsecase(postgres.NewFunilRepo(banco)),
-		leadpoint.NewEtapaUsecase(postgres.NewEtapaRepository(banco)),
-		leadpoint.NewLeadHistoryUsecase(postgres.NewLeadHistoryRepository(banco)),
+		leadusecases.NewLeadUsecase(postgres.NewLeadRepository(banco), postgres.NewEtapaRepository(banco)),
+		leadusecases.NewFunilUsecase(postgres.NewFunilRepository(banco)),
+		leadusecases.NewEtapaUsecase(postgres.NewEtapaRepository(banco)),
+		leadusecases.NewLeadHistoricoUsecase(postgres.NewLeadHistoricoRepository(banco)),
 		usuarios.NewUsuarioUsecase(usuarioRepository, cargoRepository),
 		usuarios.NewCargoUsecase(cargoRepository, usuarioRepository),
 		solicitacaousecases.NewSolicitacaoUsecase(

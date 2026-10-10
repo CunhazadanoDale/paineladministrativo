@@ -47,7 +47,7 @@ func TestLeadCriaEBuscaPorID(t *testing.T) {
 	ctx := context.Background()
 
 	criado := novoLead(etapas[0], "Ana Souza")
-	id, err := repo.Create(ctx, criado)
+	id, err := repo.Criar(ctx, criado)
 	if err != nil {
 		t.Fatalf("criação do lead falhou: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestLeadCriaEBuscaPorID(t *testing.T) {
 		t.Fatal("criação devolveu id zero")
 	}
 
-	salvo, err := repo.GetByID(ctx, id)
+	salvo, err := repo.Obter(ctx, id)
 	if err != nil {
 		t.Fatalf("busca por id falhou: %v", err)
 	}
@@ -76,7 +76,7 @@ func TestLeadCriaEBuscaPorID(t *testing.T) {
 func TestLeadInexistenteDevolveNil(t *testing.T) {
 	repo, _, _, _ := cenario(t)
 
-	salvo, err := repo.GetByID(context.Background(), uuid.New())
+	salvo, err := repo.Obter(context.Background(), uuid.New())
 	if err != nil {
 		t.Fatalf("busca por id inexistente falhou: %v", err)
 	}
@@ -97,7 +97,7 @@ func TestListarAtivosPaginaEExcluiInativos(t *testing.T) {
 	}
 	helpers.DesativarLead(t, banco, ids[3])
 
-	primeira, err := repo.ListAtivos(ctx, domain.PaginacaoFiltro{Page: 1, Size: 2})
+	primeira, err := repo.ListarAtivos(ctx, domain.PaginacaoFiltro{Page: 1, Size: 2})
 	if err != nil {
 		t.Fatalf("listagem da primeira página falhou: %v", err)
 	}
@@ -105,7 +105,7 @@ func TestListarAtivosPaginaEExcluiInativos(t *testing.T) {
 		t.Fatalf("primeira página com %d itens, esperado 2", len(primeira))
 	}
 
-	segunda, err := repo.ListAtivos(ctx, domain.PaginacaoFiltro{Page: 2, Size: 2})
+	segunda, err := repo.ListarAtivos(ctx, domain.PaginacaoFiltro{Page: 2, Size: 2})
 	if err != nil {
 		t.Fatalf("listagem da segunda página falhou: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestBuscarPorNomeIgnoraInativos(t *testing.T) {
 	inativo := helpers.CriarLead(t, banco, etapas[0], "Márcio Souza")
 	helpers.DesativarLead(t, banco, inativo)
 
-	encontrados, err := repo.Search(ctx, "SILVA", domain.PaginacaoFiltro{Page: 1, Size: 20})
+	encontrados, err := repo.Buscar(ctx, "SILVA", domain.PaginacaoFiltro{Page: 1, Size: 20})
 	if err != nil {
 		t.Fatalf("busca falhou: %v", err)
 	}
@@ -147,7 +147,7 @@ func TestBuscarPorNomeIgnoraInativos(t *testing.T) {
 		t.Fatalf("não consegui preencher o telefone do lead: %v", err)
 	}
 
-	telefones, err := repo.Search(ctx, "988887777", domain.PaginacaoFiltro{Page: 1, Size: 20})
+	telefones, err := repo.Buscar(ctx, "988887777", domain.PaginacaoFiltro{Page: 1, Size: 20})
 	if err != nil {
 		t.Fatalf("busca por telefone falhou: %v", err)
 	}
@@ -169,7 +169,7 @@ func TestMoverParaEtapaGravaHistorico(t *testing.T) {
 		t.Fatalf("movimentação falhou: %v", err)
 	}
 
-	salvo, err := repo.GetByID(ctx, leadID)
+	salvo, err := repo.Obter(ctx, leadID)
 	if err != nil {
 		t.Fatalf("busca após movimentação falhou: %v", err)
 	}
@@ -227,7 +227,7 @@ func TestMoverLeadComEtapaAnteriorDesatualizadaDevolveConflito(t *testing.T) {
 	repo, banco, _, etapas := cenario(t)
 	ctx := context.Background()
 
-	leadID, err := repo.Create(ctx, novoLead(etapas[0], "Ana Souza"))
+	leadID, err := repo.Criar(ctx, novoLead(etapas[0], "Ana Souza"))
 	if err != nil {
 		t.Fatalf("criação falhou: %v", err)
 	}
@@ -267,7 +267,7 @@ func TestGravacaoForaDasRegrasDoBancoViraErroDeValidacao(t *testing.T) {
 
 	for _, caso := range casos {
 		t.Run(caso.nome, func(t *testing.T) {
-			_, err := repo.Create(ctx, caso.lead)
+			_, err := repo.Criar(ctx, caso.lead)
 			if !errors.Is(err, domain.ErrValidacao) {
 				t.Fatalf("erro %v, esperado erro de validação", err)
 			}
@@ -289,7 +289,7 @@ func TestContarPorFunilETapa(t *testing.T) {
 	helpers.CriarLead(t, banco, etapas[1], "Bruno Lima")
 	helpers.CriarLead(t, banco, etapasOutro[0], "Carla Dias")
 
-	totalEtapa, err := repo.CountByEtapa(ctx, etapas[0])
+	totalEtapa, err := repo.ContarPorEtapa(ctx, etapas[0])
 	if err != nil {
 		t.Fatalf("contagem por etapa falhou: %v", err)
 	}
@@ -297,7 +297,7 @@ func TestContarPorFunilETapa(t *testing.T) {
 		t.Errorf("contagem por etapa %d, esperado 1", totalEtapa)
 	}
 
-	totalFunil, err := repo.CountByFunil(ctx, funil)
+	totalFunil, err := repo.ContarPorFunil(ctx, funil)
 	if err != nil {
 		t.Fatalf("contagem por funil falhou: %v", err)
 	}

@@ -10,17 +10,17 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-var _ leads.LeadHistoryRepository = (*LeadHistoryRepository)(nil)
+var _ leads.LeadHistoricoRepository = (*LeadHistoricoRepository)(nil)
 
-type LeadHistoryRepository struct {
+type LeadHistoricoRepository struct {
 	db *sqlx.DB
 }
 
-func NewLeadHistoryRepository(db *sqlx.DB) *LeadHistoryRepository {
-	return &LeadHistoryRepository{db: db}
+func NewLeadHistoricoRepository(db *sqlx.DB) *LeadHistoricoRepository {
+	return &LeadHistoricoRepository{db: db}
 }
 
-func (l *LeadHistoryRepository) ListByLead(ctx context.Context, leadID uuid.UUID, paginacao domain.PaginacaoFiltro) ([]lead.LeadHistorico, error) {
+func (l *LeadHistoricoRepository) ListarPorLead(ctx context.Context, leadID uuid.UUID, paginacao domain.PaginacaoFiltro) ([]lead.LeadHistorico, error) {
 	query := `
 		SELECT id, lead_id, etapa_anterior_id, etapa_atual_id, movido_em
 		FROM lead_historico

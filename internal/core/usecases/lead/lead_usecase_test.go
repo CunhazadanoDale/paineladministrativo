@@ -1,4 +1,4 @@
-package leadpoint_test
+package lead_test
 
 import (
 	"context"
@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
-	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/lead"
-	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/leadpoint"
+	domainlead "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/lead"
+	leadusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/lead"
 	"github.com/google/uuid"
 )
 
@@ -16,7 +16,7 @@ type cenario struct {
 	ctx     context.Context
 	leads   *repositorioLeads
 	etapas  *repositorioEtapas
-	usecase *leadpoint.LeadUsecaseImpl
+	usecase *leadusecases.LeadUsecaseImpl
 	funilID uuid.UUID
 }
 
@@ -28,14 +28,14 @@ func novoCenario() *cenario {
 		ctx:     context.Background(),
 		leads:   leads,
 		etapas:  etapas,
-		usecase: leadpoint.NewLeadUsecase(leads, etapas),
+		usecase: leadusecases.NewLeadUsecase(leads, etapas),
 		funilID: uuid.New(),
 	}
 }
 
 func (c *cenario) novaEtapa(funilID uuid.UUID, ativo bool) uuid.UUID {
 	id := uuid.New()
-	c.etapas.itens[id] = &lead.Etapa{EtapaID: id, Nome: "Etapa", Ordem: len(c.etapas.itens) + 1, FunilID: funilID, Ativo: ativo}
+	c.etapas.itens[id] = &domainlead.Etapa{EtapaID: id, Nome: "Etapa", Ordem: len(c.etapas.itens) + 1, FunilID: funilID, Ativo: ativo}
 
 	return id
 }
@@ -43,7 +43,7 @@ func (c *cenario) novaEtapa(funilID uuid.UUID, ativo bool) uuid.UUID {
 func (c *cenario) novoLead(t *testing.T, etapaID uuid.UUID) uuid.UUID {
 	t.Helper()
 
-	id, err := c.usecase.Create(c.ctx, &lead.Lead{Nome: "Ana Souza", Email: "ana@exemplo.com", EtapaID: etapaID})
+	id, err := c.usecase.Criar(c.ctx, &domainlead.Lead{Nome: "Ana Souza", Email: "ana@exemplo.com", EtapaID: etapaID})
 	if err != nil {
 		t.Fatalf("criação do lead falhou: %v", err)
 	}
@@ -57,22 +57,22 @@ func TestCriarLeadValidaCadastro(t *testing.T) {
 
 	casos := []struct {
 		nome string
-		lead lead.Lead
+		lead domainlead.Lead
 	}{
-		{"sem nome", lead.Lead{Nome: "  ", EtapaID: etapaID}},
-		{"nome longo", lead.Lead{Nome: strings.Repeat("a", 201), EtapaID: etapaID}},
-		{"email inválido", lead.Lead{Nome: "Ana", Email: "ana.exemplo.com", EtapaID: etapaID}},
-		{"telefone longo", lead.Lead{Nome: "Ana", Telefone: strings.Repeat("9", 41), EtapaID: etapaID}},
-		{"origem longa", lead.Lead{Nome: "Ana", Origem: strings.Repeat("x", 81), EtapaID: etapaID}},
-		{"sem etapa", lead.Lead{Nome: "Ana"}},
-		{"etapa inexistente", lead.Lead{Nome: "Ana", EtapaID: uuid.New()}},
-		{"etapa inativa", lead.Lead{Nome: "Ana", EtapaID: c.novaEtapa(c.funilID, false)}},
+		{"sem nome", domainlead.Lead{Nome: "  ", EtapaID: etapaID}},
+		{"nome longo", domainlead.Lead{Nome: strings.Repeat("a", 201), EtapaID: etapaID}},
+		{"email inválido", domainlead.Lead{Nome: "Ana", Email: "ana.exemplo.com", EtapaID: etapaID}},
+		{"telefone longo", domainlead.Lead{Nome: "Ana", Telefone: strings.Repeat("9", 41), EtapaID: etapaID}},
+		{"origem longa", domainlead.Lead{Nome: "Ana", Origem: strings.Repeat("x", 81), EtapaID: etapaID}},
+		{"sem etapa", domainlead.Lead{Nome: "Ana"}},
+		{"etapa inexistente", domainlead.Lead{Nome: "Ana", EtapaID: uuid.New()}},
+		{"etapa inativa", domainlead.Lead{Nome: "Ana", EtapaID: c.novaEtapa(c.funilID, false)}},
 	}
 
 	for _, caso := range casos {
 		t.Run(caso.nome, func(t *testing.T) {
 			item := caso.lead
-			if _, err := c.usecase.Create(c.ctx, &item); !errors.Is(err, domain.ErrValidacao) {
+			if _, err := c.usecase.Criar(c.ctx, &item); !errors.Is(err, domain.ErrValidacao) {
 				t.Errorf("erro %v, esperado erro de validação", err)
 			}
 		})
@@ -83,7 +83,7 @@ func TestCriarLeadNormalizaEAceitaNomeComAcentosNoLimite(t *testing.T) {
 	c := novoCenario()
 	etapaID := c.novaEtapa(c.funilID, true)
 
-	id, err := c.usecase.Create(c.ctx, &lead.Lead{
+	id, err := c.usecase.Criar(c.ctx, &domainlead.Lead{
 		Nome:    strings.Repeat("ç", 200),
 		Email:   "  Ana@Exemplo.com ",
 		EtapaID: etapaID,
@@ -104,7 +104,7 @@ func TestAtualizarLeadPreservaEtapaECriacao(t *testing.T) {
 	id := c.novoLead(t, etapaID)
 	criadoEm := c.leads.itens[id].CriadoEm
 
-	if err := c.usecase.Update(c.ctx, &lead.Lead{ID: id, Nome: "Ana Lima", Ativo: true}); err != nil {
+	if err := c.usecase.Atualizar(c.ctx, &domainlead.Lead{ID: id, Nome: "Ana Lima", Ativo: true}); err != nil {
 		t.Fatalf("atualização falhou: %v", err)
 	}
 
@@ -120,13 +120,13 @@ func TestAtualizarLeadRecusaTrocaDeEtapa(t *testing.T) {
 	outraID := c.novaEtapa(c.funilID, true)
 	id := c.novoLead(t, etapaID)
 
-	if err := c.usecase.Update(c.ctx, &lead.Lead{ID: id, Nome: "Ana", Ativo: true, EtapaID: outraID}); !errors.Is(err, domain.ErrValidacao) {
+	if err := c.usecase.Atualizar(c.ctx, &domainlead.Lead{ID: id, Nome: "Ana", Ativo: true, EtapaID: outraID}); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("erro %v, esperado erro de validação", err)
 	}
 	if c.leads.itens[id].EtapaID != etapaID {
 		t.Error("o PUT trocou a etapa do lead")
 	}
-	if err := c.usecase.Update(c.ctx, &lead.Lead{ID: id, Nome: "Ana", Ativo: true, EtapaID: etapaID}); err != nil {
+	if err := c.usecase.Atualizar(c.ctx, &domainlead.Lead{ID: id, Nome: "Ana", Ativo: true, EtapaID: etapaID}); err != nil {
 		t.Errorf("atualização com a mesma etapa falhou: %v", err)
 	}
 }
@@ -137,7 +137,7 @@ func TestMoverLeadGravaMovimentacao(t *testing.T) {
 	destino := c.novaEtapa(c.funilID, true)
 	id := c.novoLead(t, origem)
 
-	if err := c.usecase.UpdateEtapa(c.ctx, id, destino); err != nil {
+	if err := c.usecase.MoverEtapa(c.ctx, id, destino); err != nil {
 		t.Fatalf("movimentação falhou: %v", err)
 	}
 
@@ -154,7 +154,7 @@ func TestMoverLeadParaAMesmaEtapaNaoGravaHistorico(t *testing.T) {
 	etapaID := c.novaEtapa(c.funilID, true)
 	id := c.novoLead(t, etapaID)
 
-	if err := c.usecase.UpdateEtapa(c.ctx, id, etapaID); err != nil {
+	if err := c.usecase.MoverEtapa(c.ctx, id, etapaID); err != nil {
 		t.Fatalf("movimentação falhou: %v", err)
 	}
 	if len(c.leads.movimentacoes) != 0 {
@@ -178,7 +178,7 @@ func TestMoverLeadValidaEtapaDeDestino(t *testing.T) {
 
 	for _, caso := range casos {
 		t.Run(caso.nome, func(t *testing.T) {
-			if err := c.usecase.UpdateEtapa(c.ctx, id, caso.destino); !errors.Is(err, domain.ErrValidacao) {
+			if err := c.usecase.MoverEtapa(c.ctx, id, caso.destino); !errors.Is(err, domain.ErrValidacao) {
 				t.Errorf("erro %v, esperado erro de validação", err)
 			}
 		})
@@ -194,16 +194,16 @@ func TestOperacoesComLeadInexistente(t *testing.T) {
 	etapaID := c.novaEtapa(c.funilID, true)
 	id := uuid.New()
 
-	if _, err := c.usecase.GetByID(c.ctx, id); !errors.Is(err, domain.ErrNotFound) {
+	if _, err := c.usecase.Obter(c.ctx, id); !errors.Is(err, domain.ErrNotFound) {
 		t.Errorf("consulta = %v, esperado não encontrado", err)
 	}
-	if err := c.usecase.Update(c.ctx, &lead.Lead{ID: id, Nome: "Ana"}); !errors.Is(err, domain.ErrNotFound) {
+	if err := c.usecase.Atualizar(c.ctx, &domainlead.Lead{ID: id, Nome: "Ana"}); !errors.Is(err, domain.ErrNotFound) {
 		t.Errorf("atualização = %v, esperado não encontrado", err)
 	}
-	if err := c.usecase.UpdateEtapa(c.ctx, id, etapaID); !errors.Is(err, domain.ErrNotFound) {
+	if err := c.usecase.MoverEtapa(c.ctx, id, etapaID); !errors.Is(err, domain.ErrNotFound) {
 		t.Errorf("movimentação = %v, esperado não encontrado", err)
 	}
-	if err := c.usecase.Delete(c.ctx, id); !errors.Is(err, domain.ErrNotFound) {
+	if err := c.usecase.Remover(c.ctx, id); !errors.Is(err, domain.ErrNotFound) {
 		t.Errorf("remoção = %v, esperado não encontrado", err)
 	}
 }

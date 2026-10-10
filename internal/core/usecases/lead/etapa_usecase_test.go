@@ -1,29 +1,29 @@
-package leadpoint_test
+package lead_test
 
 import (
 	"errors"
 	"testing"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
-	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/lead"
-	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/leadpoint"
+	domainlead "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/lead"
+	leadusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/lead"
 	"github.com/google/uuid"
 )
 
 func TestReordenarEtapasExigeTodasAsEtapasSemRepeticao(t *testing.T) {
 	c := novoCenario()
-	usecase := leadpoint.NewEtapaUsecase(c.etapas)
+	usecase := leadusecases.NewEtapaUsecase(c.etapas)
 	primeira := c.etapas.itens[c.novaEtapa(c.funilID, true)]
 	segunda := c.etapas.itens[c.novaEtapa(c.funilID, true)]
 	terceira := c.etapas.itens[c.novaEtapa(c.funilID, true)]
 
 	casos := []struct {
 		nome   string
-		etapas []*lead.Etapa
+		etapas []*domainlead.Etapa
 	}{
-		{"lista parcial", []*lead.Etapa{segunda, primeira}},
-		{"etapa repetida", []*lead.Etapa{segunda, segunda, primeira}},
-		{"etapa desconhecida", []*lead.Etapa{segunda, primeira, {EtapaID: uuid.New(), FunilID: c.funilID}}},
+		{"lista parcial", []*domainlead.Etapa{segunda, primeira}},
+		{"etapa repetida", []*domainlead.Etapa{segunda, segunda, primeira}},
+		{"etapa desconhecida", []*domainlead.Etapa{segunda, primeira, {EtapaID: uuid.New(), FunilID: c.funilID}}},
 	}
 
 	for _, caso := range casos {
@@ -34,7 +34,7 @@ func TestReordenarEtapasExigeTodasAsEtapasSemRepeticao(t *testing.T) {
 		})
 	}
 
-	if err := usecase.Reordenar(c.ctx, c.funilID, []*lead.Etapa{terceira, primeira, segunda}); err != nil {
+	if err := usecase.Reordenar(c.ctx, c.funilID, []*domainlead.Etapa{terceira, primeira, segunda}); err != nil {
 		t.Fatalf("reordenação completa falhou: %v", err)
 	}
 	if c.etapas.itens[terceira.EtapaID].Ordem != 1 || c.etapas.itens[segunda.EtapaID].Ordem != 3 {

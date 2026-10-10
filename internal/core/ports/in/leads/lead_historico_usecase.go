@@ -8,6 +8,6 @@ import (
 	"github.com/google/uuid"
 )
 
-type LeadHistoryUseCase interface {
-	ListByLead(ctx context.Context, leadID uuid.UUID, paginacao domain.PaginacaoFiltro) ([]lead.LeadHistorico, error)
+type LeadHistoricoUseCase interface {
+	ListarPorLead(ctx context.Context, leadID uuid.UUID, paginacao domain.PaginacaoFiltro) ([]lead.LeadHistorico, error)
 }

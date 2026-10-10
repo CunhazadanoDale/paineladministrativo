@@ -9,15 +9,15 @@ import (
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/leads"
 )
 
-type LeadHistoryHandler struct {
-	usecase portsin.LeadHistoryUseCase
+type LeadHistoricoHandler struct {
+	usecase portsin.LeadHistoricoUseCase
 }
 
-func NewLeadHistoryHandler(usecase portsin.LeadHistoryUseCase) *LeadHistoryHandler {
-	return &LeadHistoryHandler{usecase: usecase}
+func NewLeadHistoricoHandler(usecase portsin.LeadHistoricoUseCase) *LeadHistoricoHandler {
+	return &LeadHistoricoHandler{usecase: usecase}
 }
 
-func (h *LeadHistoryHandler) Listar(w http.ResponseWriter, r *http.Request) {
+func (h *LeadHistoricoHandler) Listar(w http.ResponseWriter, r *http.Request) {
 	leadID, ok := resposta.ParametroUUID(w, r, "lead_id")
 	if !ok {
 		return
@@ -25,7 +25,7 @@ func (h *LeadHistoryHandler) Listar(w http.ResponseWriter, r *http.Request) {
 
 	paginacao := resposta.ConsultaPaginacao(r)
 
-	itens, err := h.usecase.ListByLead(r.Context(), leadID, paginacao)
+	itens, err := h.usecase.ListarPorLead(r.Context(), leadID, paginacao)
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return

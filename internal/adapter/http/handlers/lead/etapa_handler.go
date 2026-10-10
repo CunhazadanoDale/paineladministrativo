@@ -26,13 +26,13 @@ func (h *EtapaHandler) Criar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := h.usecase.Create(r.Context(), requisicao.ParaEtapa())
+	id, err := h.usecase.Criar(r.Context(), requisicao.ParaEtapa())
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
 	}
 
-	item, err := h.usecase.GetByID(r.Context(), id)
+	item, err := h.usecase.Obter(r.Context(), id)
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
@@ -49,7 +49,7 @@ func (h *EtapaHandler) ListarPorFunil(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	itens, err := h.usecase.ListByFunilOrdenado(r.Context(), funilID)
+	itens, err := h.usecase.ListarPorFunilOrdenado(r.Context(), funilID)
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
@@ -66,7 +66,7 @@ func (h *EtapaHandler) Obter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	item, err := h.usecase.GetByID(r.Context(), etapaID)
+	item, err := h.usecase.Obter(r.Context(), etapaID)
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
@@ -88,12 +88,12 @@ func (h *EtapaHandler) Atualizar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.usecase.Update(r.Context(), requisicao.ParaEtapa(etapaID)); err != nil {
+	if err := h.usecase.Atualizar(r.Context(), requisicao.ParaEtapa(etapaID)); err != nil {
 		resposta.ResponderErro(w, err)
 		return
 	}
 
-	item, err := h.usecase.GetByID(r.Context(), etapaID)
+	item, err := h.usecase.Obter(r.Context(), etapaID)
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
@@ -110,7 +110,7 @@ func (h *EtapaHandler) Remover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.usecase.Delete(r.Context(), etapaID); err != nil {
+	if err := h.usecase.Remover(r.Context(), etapaID); err != nil {
 		resposta.ResponderErro(w, err)
 		return
 	}
@@ -148,7 +148,7 @@ func (h *EtapaHandler) Reordenar(w http.ResponseWriter, r *http.Request) {
 		}
 		consultadas[etapaID] = true
 
-		etapa, err := h.usecase.GetByID(r.Context(), etapaID)
+		etapa, err := h.usecase.Obter(r.Context(), etapaID)
 		if err != nil {
 			resposta.ResponderErro(w, err)
 			return
@@ -162,7 +162,7 @@ func (h *EtapaHandler) Reordenar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ordenadas, err := h.usecase.ListByFunilOrdenado(r.Context(), funilID)
+	ordenadas, err := h.usecase.ListarPorFunilOrdenado(r.Context(), funilID)
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
@@ -193,9 +193,9 @@ func (h *EtapaHandler) seguinte(w http.ResponseWriter, r *http.Request, proxima 
 	)
 
 	if proxima {
-		item, err = h.usecase.GetNextEtapa(r.Context(), etapaID)
+		item, err = h.usecase.ObterProxima(r.Context(), etapaID)
 	} else {
-		item, err = h.usecase.GetPreviousEtapa(r.Context(), etapaID)
+		item, err = h.usecase.ObterAnterior(r.Context(), etapaID)
 	}
 
 	if err != nil {

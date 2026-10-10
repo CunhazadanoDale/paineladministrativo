@@ -8,14 +8,14 @@ import (
 )
 
 type EtapaUseCase interface {
-	Create(ctx context.Context, etapa *lead.Etapa) (uuid.UUID, error)
-	Update(ctx context.Context, etapa *lead.Etapa) error
-	GetByID(ctx context.Context, id uuid.UUID) (*lead.Etapa, error)
-	ListByFunilID(ctx context.Context, funilID uuid.UUID) ([]*lead.Etapa, error)
-	ListByFunilOrdenado(ctx context.Context, funilID uuid.UUID) ([]*lead.Etapa, error)
-	Delete(ctx context.Context, id uuid.UUID) error
+	Criar(ctx context.Context, etapa *lead.Etapa) (uuid.UUID, error)
+	Atualizar(ctx context.Context, etapa *lead.Etapa) error
+	Obter(ctx context.Context, id uuid.UUID) (*lead.Etapa, error)
+	ListarPorFunil(ctx context.Context, funilID uuid.UUID) ([]*lead.Etapa, error)
+	ListarPorFunilOrdenado(ctx context.Context, funilID uuid.UUID) ([]*lead.Etapa, error)
+	Remover(ctx context.Context, id uuid.UUID) error
 	Reordenar(ctx context.Context, funilID uuid.UUID, etapas []*lead.Etapa) error
-	GetNextEtapa(ctx context.Context, currentEtapaID uuid.UUID) (*lead.Etapa, error)
-	GetPreviousEtapa(ctx context.Context, currentEtapaID uuid.UUID) (*lead.Etapa, error)
-	ExistsByFunil(ctx context.Context, funilID uuid.UUID) (bool, error)
+	ObterProxima(ctx context.Context, currentEtapaID uuid.UUID) (*lead.Etapa, error)
+	ObterAnterior(ctx context.Context, currentEtapaID uuid.UUID) (*lead.Etapa, error)
+	ExistePorFunil(ctx context.Context, funilID uuid.UUID) (bool, error)
 }

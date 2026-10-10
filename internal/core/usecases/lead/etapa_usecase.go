@@ -1,4 +1,4 @@
-package leadpoint
+package lead
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
-	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/lead"
+	domainlead "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/lead"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/leads"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/leads"
 	"github.com/google/uuid"
@@ -22,7 +22,7 @@ func NewEtapaUsecase(repo portsout.EtapaRepository) *EtapaUsecaseImpl {
 	return &EtapaUsecaseImpl{repo: repo}
 }
 
-func (e *EtapaUsecaseImpl) Create(ctx context.Context, etapa *lead.Etapa) (uuid.UUID, error) {
+func (e *EtapaUsecaseImpl) Criar(ctx context.Context, etapa *domainlead.Etapa) (uuid.UUID, error) {
 	if etapa == nil {
 		return uuid.Nil, domain.ErroValidacao("etapa não informada")
 	}
@@ -40,7 +40,7 @@ func (e *EtapaUsecaseImpl) Create(ctx context.Context, etapa *lead.Etapa) (uuid.
 	}
 
 	if etapa.Ordem <= 0 {
-		etapas, err := e.repo.ListByFunilOrdenado(ctx, etapa.FunilID)
+		etapas, err := e.repo.ListarPorFunilOrdenado(ctx, etapa.FunilID)
 		if err != nil {
 			return uuid.Nil, err
 		}
@@ -49,10 +49,10 @@ func (e *EtapaUsecaseImpl) Create(ctx context.Context, etapa *lead.Etapa) (uuid.
 
 	etapa.Ativo = true
 
-	return e.repo.Create(ctx, etapa)
+	return e.repo.Criar(ctx, etapa)
 }
 
-func (e *EtapaUsecaseImpl) Update(ctx context.Context, etapa *lead.Etapa) error {
+func (e *EtapaUsecaseImpl) Atualizar(ctx context.Context, etapa *domainlead.Etapa) error {
 	if etapa == nil || etapa.EtapaID == uuid.Nil {
 		return domain.ErroValidacao("etapa inválida")
 	}
@@ -69,7 +69,7 @@ func (e *EtapaUsecaseImpl) Update(ctx context.Context, etapa *lead.Etapa) error 
 		return domain.ErroValidacao("ordem da etapa é obrigatória")
 	}
 
-	atual, err := e.repo.GetByID(ctx, etapa.EtapaID)
+	atual, err := e.repo.Obter(ctx, etapa.EtapaID)
 	if err != nil {
 		return err
 	}
@@ -77,15 +77,15 @@ func (e *EtapaUsecaseImpl) Update(ctx context.Context, etapa *lead.Etapa) error 
 		return domain.ErrNotFound
 	}
 
-	return e.repo.Update(ctx, etapa)
+	return e.repo.Atualizar(ctx, etapa)
 }
 
-func (e *EtapaUsecaseImpl) GetByID(ctx context.Context, id uuid.UUID) (*lead.Etapa, error) {
+func (e *EtapaUsecaseImpl) Obter(ctx context.Context, id uuid.UUID) (*domainlead.Etapa, error) {
 	if id == uuid.Nil {
 		return nil, domain.ErroValidacao("id da etapa não informado")
 	}
 
-	item, err := e.repo.GetByID(ctx, id)
+	item, err := e.repo.Obter(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -96,28 +96,28 @@ func (e *EtapaUsecaseImpl) GetByID(ctx context.Context, id uuid.UUID) (*lead.Eta
 	return item, nil
 }
 
-func (e *EtapaUsecaseImpl) ListByFunilID(ctx context.Context, funilID uuid.UUID) ([]*lead.Etapa, error) {
+func (e *EtapaUsecaseImpl) ListarPorFunil(ctx context.Context, funilID uuid.UUID) ([]*domainlead.Etapa, error) {
 	if funilID == uuid.Nil {
 		return nil, domain.ErroValidacao("funil não informado")
 	}
 
-	return e.repo.ListByFunilID(ctx, funilID)
+	return e.repo.ListarPorFunil(ctx, funilID)
 }
 
-func (e *EtapaUsecaseImpl) ListByFunilOrdenado(ctx context.Context, funilID uuid.UUID) ([]*lead.Etapa, error) {
+func (e *EtapaUsecaseImpl) ListarPorFunilOrdenado(ctx context.Context, funilID uuid.UUID) ([]*domainlead.Etapa, error) {
 	if funilID == uuid.Nil {
 		return nil, domain.ErroValidacao("funil não informado")
 	}
 
-	return e.repo.ListByFunilOrdenado(ctx, funilID)
+	return e.repo.ListarPorFunilOrdenado(ctx, funilID)
 }
 
-func (e *EtapaUsecaseImpl) Delete(ctx context.Context, id uuid.UUID) error {
+func (e *EtapaUsecaseImpl) Remover(ctx context.Context, id uuid.UUID) error {
 	if id == uuid.Nil {
 		return domain.ErroValidacao("id da etapa não informado")
 	}
 
-	atual, err := e.repo.GetByID(ctx, id)
+	atual, err := e.repo.Obter(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -125,10 +125,10 @@ func (e *EtapaUsecaseImpl) Delete(ctx context.Context, id uuid.UUID) error {
 		return domain.ErrNotFound
 	}
 
-	return e.repo.Delete(ctx, id)
+	return e.repo.Remover(ctx, id)
 }
 
-func (e *EtapaUsecaseImpl) Reordenar(ctx context.Context, funilID uuid.UUID, etapas []*lead.Etapa) error {
+func (e *EtapaUsecaseImpl) Reordenar(ctx context.Context, funilID uuid.UUID, etapas []*domainlead.Etapa) error {
 	if funilID == uuid.Nil {
 		return domain.ErroValidacao("funil não informado")
 	}
@@ -144,7 +144,7 @@ func (e *EtapaUsecaseImpl) Reordenar(ctx context.Context, funilID uuid.UUID, eta
 		}
 	}
 
-	atuais, err := e.repo.ListByFunilID(ctx, funilID)
+	atuais, err := e.repo.ListarPorFunil(ctx, funilID)
 	if err != nil {
 		return err
 	}
@@ -155,31 +155,31 @@ func (e *EtapaUsecaseImpl) Reordenar(ctx context.Context, funilID uuid.UUID, eta
 	return e.repo.Reordenar(ctx, funilID, etapas)
 }
 
-func (e *EtapaUsecaseImpl) GetNextEtapa(ctx context.Context, currentEtapaID uuid.UUID) (*lead.Etapa, error) {
+func (e *EtapaUsecaseImpl) ObterProxima(ctx context.Context, currentEtapaID uuid.UUID) (*domainlead.Etapa, error) {
 	if currentEtapaID == uuid.Nil {
 		return nil, domain.ErroValidacao("etapa atual não informada")
 	}
 
-	return e.repo.GetNextEtapa(ctx, currentEtapaID)
+	return e.repo.ObterProxima(ctx, currentEtapaID)
 }
 
-func (e *EtapaUsecaseImpl) GetPreviousEtapa(ctx context.Context, currentEtapaID uuid.UUID) (*lead.Etapa, error) {
+func (e *EtapaUsecaseImpl) ObterAnterior(ctx context.Context, currentEtapaID uuid.UUID) (*domainlead.Etapa, error) {
 	if currentEtapaID == uuid.Nil {
 		return nil, domain.ErroValidacao("etapa atual não informada")
 	}
 
-	return e.repo.GetPreviousEtapa(ctx, currentEtapaID)
+	return e.repo.ObterAnterior(ctx, currentEtapaID)
 }
 
-func (e *EtapaUsecaseImpl) ExistsByFunil(ctx context.Context, funilID uuid.UUID) (bool, error) {
+func (e *EtapaUsecaseImpl) ExistePorFunil(ctx context.Context, funilID uuid.UUID) (bool, error) {
 	if funilID == uuid.Nil {
 		return false, domain.ErroValidacao("funil não informado")
 	}
 
-	return e.repo.ExistsByFunil(ctx, funilID)
+	return e.repo.ExistePorFunil(ctx, funilID)
 }
 
-func mesmasEtapas(atuais, informadas []*lead.Etapa) bool {
+func mesmasEtapas(atuais, informadas []*domainlead.Etapa) bool {
 	if len(atuais) != len(informadas) {
 		return false
 	}

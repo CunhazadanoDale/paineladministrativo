@@ -22,7 +22,7 @@ func NewEtapaRepository(db *sqlx.DB) *EtapaRepository {
 	return &EtapaRepository{db: db}
 }
 
-func (e *EtapaRepository) Create(ctx context.Context, etapa *lead.Etapa) (uuid.UUID, error) {
+func (e *EtapaRepository) Criar(ctx context.Context, etapa *lead.Etapa) (uuid.UUID, error) {
 	query := `
 		INSERT INTO etapa (etapa_id, nome, ordem, funil_id, ativo)
 		VALUES (:etapa_id, :nome, :ordem, :funil_id, :ativo)
@@ -47,12 +47,12 @@ func (e *EtapaRepository) Create(ctx context.Context, etapa *lead.Etapa) (uuid.U
 	return id, nil
 }
 
-func (e *EtapaRepository) Delete(ctx context.Context, id uuid.UUID) error {
+func (e *EtapaRepository) Remover(ctx context.Context, id uuid.UUID) error {
 	_, err := e.db.ExecContext(ctx, `DELETE FROM etapa WHERE etapa_id = $1`, id)
 	return tratarErro(err)
 }
 
-func (e *EtapaRepository) ExistsByFunil(ctx context.Context, funilID uuid.UUID) (bool, error) {
+func (e *EtapaRepository) ExistePorFunil(ctx context.Context, funilID uuid.UUID) (bool, error) {
 	var exists bool
 	query := `SELECT EXISTS(SELECT 1 FROM etapa WHERE funil_id = $1)`
 	if err := e.db.GetContext(ctx, &exists, query, funilID); err != nil {
@@ -61,7 +61,7 @@ func (e *EtapaRepository) ExistsByFunil(ctx context.Context, funilID uuid.UUID) 
 	return exists, nil
 }
 
-func (e *EtapaRepository) GetByID(ctx context.Context, id uuid.UUID) (*lead.Etapa, error) {
+func (e *EtapaRepository) Obter(ctx context.Context, id uuid.UUID) (*lead.Etapa, error) {
 	query := `SELECT etapa_id, nome, ordem, funil_id, ativo FROM etapa WHERE etapa_id = $1`
 	var etapa lead.Etapa
 	if err := e.db.GetContext(ctx, &etapa, query, id); err != nil {
@@ -73,7 +73,7 @@ func (e *EtapaRepository) GetByID(ctx context.Context, id uuid.UUID) (*lead.Etap
 	return &etapa, nil
 }
 
-func (e *EtapaRepository) GetNextEtapa(ctx context.Context, currentEtapaID uuid.UUID) (*lead.Etapa, error) {
+func (e *EtapaRepository) ObterProxima(ctx context.Context, currentEtapaID uuid.UUID) (*lead.Etapa, error) {
 	query := `
 		SELECT e.etapa_id, e.nome, e.ordem, e.funil_id, e.ativo
 		FROM etapa e
@@ -94,7 +94,7 @@ func (e *EtapaRepository) GetNextEtapa(ctx context.Context, currentEtapaID uuid.
 	return &etapa, nil
 }
 
-func (e *EtapaRepository) GetPreviousEtapa(ctx context.Context, currentEtapaID uuid.UUID) (*lead.Etapa, error) {
+func (e *EtapaRepository) ObterAnterior(ctx context.Context, currentEtapaID uuid.UUID) (*lead.Etapa, error) {
 	query := `
 		SELECT e.etapa_id, e.nome, e.ordem, e.funil_id, e.ativo
 		FROM etapa e
@@ -115,7 +115,7 @@ func (e *EtapaRepository) GetPreviousEtapa(ctx context.Context, currentEtapaID u
 	return &etapa, nil
 }
 
-func (e *EtapaRepository) ListByFunilID(ctx context.Context, funilID uuid.UUID) ([]*lead.Etapa, error) {
+func (e *EtapaRepository) ListarPorFunil(ctx context.Context, funilID uuid.UUID) ([]*lead.Etapa, error) {
 	query := `
 		SELECT etapa_id, nome, ordem, funil_id, ativo
 		FROM etapa
@@ -130,8 +130,8 @@ func (e *EtapaRepository) ListByFunilID(ctx context.Context, funilID uuid.UUID) 
 	return etapas, nil
 }
 
-func (e *EtapaRepository) ListByFunilOrdenado(ctx context.Context, funilID uuid.UUID) ([]*lead.Etapa, error) {
-	return e.ListByFunilID(ctx, funilID)
+func (e *EtapaRepository) ListarPorFunilOrdenado(ctx context.Context, funilID uuid.UUID) ([]*lead.Etapa, error) {
+	return e.ListarPorFunil(ctx, funilID)
 }
 
 func (e *EtapaRepository) Reordenar(ctx context.Context, funilID uuid.UUID, etapas []*lead.Etapa) error {
@@ -159,7 +159,7 @@ func (e *EtapaRepository) Reordenar(ctx context.Context, funilID uuid.UUID, etap
 	return tratarErroDeGravacao(tx.Commit())
 }
 
-func (e *EtapaRepository) Update(ctx context.Context, etapa *lead.Etapa) error {
+func (e *EtapaRepository) Atualizar(ctx context.Context, etapa *lead.Etapa) error {
 	query := `
 		UPDATE etapa
 		SET nome = :nome, ordem = :ordem, funil_id = :funil_id, ativo = :ativo
