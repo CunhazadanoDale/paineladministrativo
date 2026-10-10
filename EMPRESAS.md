@@ -148,13 +148,13 @@ migrations/000025_create_tabela_empresa.up.sql|.down.sql
 migrations/000026_create_tabela_usuario_empresa.up.sql|.down.sql   (+ usuario.acesso_todas_empresas)
 migrations/000027_add_empresa_solicitacao.up.sql|.down.sql         (apaga solicitações; coluna NOT NULL)
 
-internal/core/domain/empresa/            cnpj.go, uf.go, regime_tributario.go, empresa.go, acesso.go
+internal/core/domain/empresa/            cnpj.go, uf.go, regime_tributario.go, empresa.go, acesso.go, vinculos.go
 internal/core/ports/out/empresa/         empresa_repository.go, usuario_repository.go, cargo_repository.go
 internal/core/ports/in/empresa/          empresa_usecase.go
 internal/core/usecases/empresa/          empresa_usecase.go, permissoes.go (+ testes/fakes)
 internal/adapter/postgres/               empresa_repo.go
-internal/adapter/http/dto/empresa/       empresa.go, acesso.go
-internal/adapter/http/handlers/empresa/  empresa_handler.go, acesso_handler.go
+internal/adapter/http/dto/empresa/       empresa.go, vinculos.go
+internal/adapter/http/handlers/empresa/  empresa_handler.go
 internal/core/ports/out/solicitacao/     acesso_empresa.go, empresa_repository.go (portas mínimas)
 cmd/api/main.go + internal/adapter/http/rotas.go   (registro)
 ```
@@ -195,7 +195,7 @@ nova (sem empresa ativa no acesso, `POST /solicitacoes` responde `400`/`403`).
 | **1** | Migrations 000025–000026 + domínio (`CNPJ`, `UF`, `RegimeTributario`, `Empresa`, `Acesso`) + testes | concluída |
 | **2** | Repositório de empresas e acesso + testes de integração | concluída |
 | **3** | Usecases de empresa e de acesso do usuário + permissões + testes com fakes | concluída |
-| **4** | Handlers/DTOs + rotas + e2e + `API.md` | pendente |
+| **4** | Handlers/DTOs + rotas + e2e + `API.md` | concluída |
 | **5** | Adoção em `solicitacao`: migration 000027, domínio, usecase, filtro, testes de isolamento, e2e, `API.md` | pendente |
 | **6** | Frontend: cadastro de empresas, acesso por usuário, seletor de empresa na solicitação (depois da F0) | pendente |
 

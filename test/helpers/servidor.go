@@ -11,6 +11,7 @@ import (
 	httpapi "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/postgres"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/storage/disco"
+	empresausecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/empresa"
 	estoqueusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/estoque"
 	leadusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/lead"
 	solicitacaousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/solicitacao"
@@ -65,6 +66,7 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 		estoqueusecases.NewResumoUsecase(produtoRepository, movimentoRepository),
 		estoqueusecases.NewImagemUsecase(imagemRepository, produtoRepository, categoriaRepository, arquivoRepository, armazenamento, usuarioRepository, cargoRepository),
 		estoqueusecases.NewPublicoUsecase(categoriaRepository, produtoRepository, imagemRepository),
+		empresausecases.NewEmpresaUsecase(postgres.NewEmpresaRepository(banco), usuarioRepository, cargoRepository),
 		autenticacao.NovoTokenService(segredoDoTeste, time.Hour),
 	)
 

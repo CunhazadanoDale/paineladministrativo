@@ -19,6 +19,7 @@ import (
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/storage/disco"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/storage/r2"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/solicitacao"
+	empresausecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/empresa"
 	estoqueusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/estoque"
 	leadusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/lead"
 	solicitacaousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/solicitacao"
@@ -100,6 +101,7 @@ func executar(registrador *slog.Logger) error {
 		estoqueusecases.NewResumoUsecase(produtoRepository, movimentoRepository),
 		estoqueusecases.NewImagemUsecase(imagemRepository, produtoRepository, categoriaRepository, arquivoRepository, storageArquivos, usuarioRepository, cargoRepository),
 		estoqueusecases.NewPublicoUsecase(categoriaRepository, produtoRepository, imagemRepository),
+		empresausecases.NewEmpresaUsecase(postgres.NewEmpresaRepository(banco), usuarioRepository, cargoRepository),
 		autenticacao.NovoTokenService(cfg.JWTSecret, cfg.JWTExpiracao),
 	)
 

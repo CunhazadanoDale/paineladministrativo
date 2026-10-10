@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	empresahandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/empresa"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/estoque"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/lead"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/saude"
@@ -11,6 +12,7 @@ import (
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/usuarios"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/middleware"
 	portsinautenticacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/autenticacao"
+	portsinempresa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/empresa"
 	portsinestoque "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/estoque"
 	portsinlead "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/leads"
 	portsinsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/solicitacao"
@@ -38,6 +40,7 @@ func NewRouter(
 	resumoUseCase portsinestoque.ResumoUseCase,
 	imagemUseCase portsinestoque.ImagemUseCase,
 	publicoUseCase portsinestoque.PublicoUseCase,
+	empresaUseCase portsinempresa.EmpresaUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, middleware.ErrosDeRoteamento(novasRotas(
@@ -47,6 +50,7 @@ func NewRouter(
 		solicitacaoUseCase, arquivoUseCase, aprovadorUseCase,
 		categoriaUseCase, produtoUseCase, movimentoUseCase, resumoUseCase,
 		imagemUseCase, publicoUseCase,
+		empresaUseCase,
 		tokens,
 	)))
 }
@@ -68,6 +72,7 @@ func novasRotas(
 	resumoUseCase portsinestoque.ResumoUseCase,
 	imagemUseCase portsinestoque.ImagemUseCase,
 	publicoUseCase portsinestoque.PublicoUseCase,
+	empresaUseCase portsinempresa.EmpresaUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -203,6 +208,17 @@ func novasRotas(
 
 	imagemPublicaHandler := estoque.NewImagemPublicaHandler(imagemUseCase, arquivoUseCase)
 	mux.HandleFunc("GET /api/v1/publico/imagens/{id}", middleware.EstenderPrazo(prazoDeArquivo, imagemPublicaHandler.Servir))
+
+	empresaHandler := empresahandlers.NewEmpresaHandler(empresaUseCase)
+	administrador("POST /api/v1/empresas", empresaHandler.Criar)
+	protegido("GET /api/v1/empresas", empresaHandler.Listar)
+	protegido("GET /api/v1/empresas/{id}", empresaHandler.Obter)
+	administrador("PUT /api/v1/empresas/{id}", empresaHandler.Alterar)
+	administrador("PATCH /api/v1/empresas/{id}/ativar", empresaHandler.Ativar)
+	administrador("PATCH /api/v1/empresas/{id}/desativar", empresaHandler.Desativar)
+	administrador("DELETE /api/v1/empresas/{id}", empresaHandler.Remover)
+	administrador("GET /api/v1/usuarios/{id}/empresas", empresaHandler.ObterVinculos)
+	administrador("PUT /api/v1/usuarios/{id}/empresas", empresaHandler.DefinirVinculos)
 
 	return mux
 }
