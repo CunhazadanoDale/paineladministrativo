@@ -2,6 +2,7 @@ package estoque_test
 
 import (
 	"errors"
+	"math"
 	"testing"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
@@ -59,5 +60,32 @@ func TestEstoqueMinimoAtingido(t *testing.T) {
 	}
 	if minimo.Atingido(domainestoque.SaldoDe(4)) {
 		t.Error("saldo acima do mínimo não deveria estar atingido")
+	}
+}
+
+func TestQuantidadesRespeitamOLimiteDoBanco(t *testing.T) {
+	const limite = math.MaxInt32
+
+	if _, err := domainestoque.NovaQuantidade(limite); err != nil {
+		t.Errorf("NovaQuantidade(limite) = %v, esperado sucesso", err)
+	}
+	for _, valor := range []int{limite + 1, -limite - 1} {
+		if _, err := domainestoque.NovaQuantidade(valor); !errors.Is(err, domain.ErrValidacao) {
+			t.Errorf("NovaQuantidade(%d) = %v, esperado erro de validação", valor, err)
+		}
+	}
+	if _, err := domainestoque.NovoSaldo(limite + 1); !errors.Is(err, domain.ErrValidacao) {
+		t.Errorf("NovoSaldo acima do limite = %v, esperado erro de validação", err)
+	}
+	if _, err := domainestoque.NovoEstoqueMinimo(limite + 1); !errors.Is(err, domain.ErrValidacao) {
+		t.Errorf("NovoEstoqueMinimo acima do limite = %v, esperado erro de validação", err)
+	}
+
+	saldo, err := domainestoque.NovoSaldo(limite)
+	if err != nil {
+		t.Fatalf("NovoSaldo(limite) falhou: %v", err)
+	}
+	if _, err := saldo.Aplicar(1); !errors.Is(err, domain.ErrValidacao) {
+		t.Errorf("entrada além do limite = %v, esperado erro de validação", err)
 	}
 }

@@ -12,6 +12,9 @@ func NovoSaldo(quantidade int) (Saldo, error) {
 	if quantidade < 0 {
 		return Saldo{}, domain.ErroValidacao("saldo não pode ser negativo")
 	}
+	if quantidade > quantidadeMaxima {
+		return Saldo{}, domain.ErroValidacao("saldo acima do limite permitido")
+	}
 
 	return Saldo{quantidade: quantidade}, nil
 }
@@ -33,6 +36,9 @@ func (s Saldo) Aplicar(delta int) (Saldo, error) {
 	if proximo < 0 {
 		return Saldo{}, domain.ErroValidacao("saldo insuficiente para a movimentação")
 	}
+	if proximo > quantidadeMaxima {
+		return Saldo{}, domain.ErroValidacao("saldo acima do limite permitido")
+	}
 
 	return Saldo{quantidade: proximo}, nil
 }
@@ -44,6 +50,9 @@ type EstoqueMinimo struct {
 func NovoEstoqueMinimo(quantidade int) (EstoqueMinimo, error) {
 	if quantidade < 0 {
 		return EstoqueMinimo{}, domain.ErroValidacao("estoque mínimo não pode ser negativo")
+	}
+	if quantidade > quantidadeMaxima {
+		return EstoqueMinimo{}, domain.ErroValidacao("estoque mínimo acima do limite permitido")
 	}
 
 	return EstoqueMinimo{quantidade: quantidade}, nil
