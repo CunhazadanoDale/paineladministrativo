@@ -12,6 +12,7 @@ import (
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/apoioteste"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto"
 	usuariosdto "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto/usuarios"
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/middleware"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	domainusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/usuarios"
 	"github.com/google/uuid"
@@ -296,7 +297,7 @@ func semearUsuario(t *testing.T, fake *fakeUsuarioUseCase, nome, email, senha st
 
 func TestUsuarioHandlerCriar(t *testing.T) {
 	fake := novoFakeUsuarios()
-	handler := NewUsuarioHandler(fake, tokensDeTeste{})
+	handler := NewUsuarioHandler(fake, tokensDeTeste{}, middleware.NovoLimitadorDeTentativas())
 
 	cargoID := uuid.NewString()
 	corpo := `{"nome":"Ana Souza","email":"ana@exemplo.com","senha":"segredo123","cargo_id":"` + cargoID + `"}`
@@ -325,7 +326,7 @@ func TestUsuarioHandlerCriar(t *testing.T) {
 }
 
 func TestUsuarioHandlerCriarRejeitaCorpoInvalido(t *testing.T) {
-	handler := NewUsuarioHandler(novoFakeUsuarios(), tokensDeTeste{})
+	handler := NewUsuarioHandler(novoFakeUsuarios(), tokensDeTeste{}, middleware.NovoLimitadorDeTentativas())
 
 	casos := []struct {
 		nome  string
@@ -349,7 +350,7 @@ func TestUsuarioHandlerCriarRejeitaCorpoInvalido(t *testing.T) {
 
 func TestUsuarioHandlerObter(t *testing.T) {
 	fake := novoFakeUsuarios()
-	handler := NewUsuarioHandler(fake, tokensDeTeste{})
+	handler := NewUsuarioHandler(fake, tokensDeTeste{}, middleware.NovoLimitadorDeTentativas())
 
 	id := semearUsuario(t, fake, "Ana Souza", "ana@exemplo.com", "segredo123")
 
@@ -385,7 +386,7 @@ func TestUsuarioHandlerObter(t *testing.T) {
 
 func TestUsuarioHandlerListarComFiltros(t *testing.T) {
 	fake := novoFakeUsuarios()
-	handler := NewUsuarioHandler(fake, tokensDeTeste{})
+	handler := NewUsuarioHandler(fake, tokensDeTeste{}, middleware.NovoLimitadorDeTentativas())
 
 	semearUsuario(t, fake, "Ana Souza", "ana@exemplo.com", "segredo123")
 	semearUsuario(t, fake, "Bruno Lima", "bruno@exemplo.com", "segredo123")
@@ -432,7 +433,7 @@ func TestUsuarioHandlerListarComFiltros(t *testing.T) {
 
 func TestUsuarioHandlerAtualizar(t *testing.T) {
 	fake := novoFakeUsuarios()
-	handler := NewUsuarioHandler(fake, tokensDeTeste{})
+	handler := NewUsuarioHandler(fake, tokensDeTeste{}, middleware.NovoLimitadorDeTentativas())
 
 	id := semearUsuario(t, fake, "Ana Souza", "ana@exemplo.com", "segredo123")
 	cargoID := uuid.NewString()
@@ -457,7 +458,7 @@ func TestUsuarioHandlerAtualizar(t *testing.T) {
 
 func TestUsuarioHandlerRemover(t *testing.T) {
 	fake := novoFakeUsuarios()
-	handler := NewUsuarioHandler(fake, tokensDeTeste{})
+	handler := NewUsuarioHandler(fake, tokensDeTeste{}, middleware.NovoLimitadorDeTentativas())
 
 	id := semearUsuario(t, fake, "Ana Souza", "ana@exemplo.com", "segredo123")
 
@@ -478,7 +479,7 @@ func TestUsuarioHandlerRemover(t *testing.T) {
 
 func TestUsuarioHandlerTrocarSenha(t *testing.T) {
 	fake := novoFakeUsuarios()
-	handler := NewUsuarioHandler(fake, tokensDeTeste{})
+	handler := NewUsuarioHandler(fake, tokensDeTeste{}, middleware.NovoLimitadorDeTentativas())
 
 	id := semearUsuario(t, fake, "Ana Souza", "ana@exemplo.com", "segredo123")
 
@@ -501,7 +502,7 @@ func TestUsuarioHandlerTrocarSenha(t *testing.T) {
 
 func TestUsuarioHandlerAtivarEDesativar(t *testing.T) {
 	fake := novoFakeUsuarios()
-	handler := NewUsuarioHandler(fake, tokensDeTeste{})
+	handler := NewUsuarioHandler(fake, tokensDeTeste{}, middleware.NovoLimitadorDeTentativas())
 
 	id := semearUsuario(t, fake, "Ana Souza", "ana@exemplo.com", "segredo123")
 
@@ -534,7 +535,7 @@ func TestUsuarioHandlerAtivarEDesativar(t *testing.T) {
 
 func TestUsuarioHandlerAutenticar(t *testing.T) {
 	fake := novoFakeUsuarios()
-	handler := NewUsuarioHandler(fake, tokensDeTeste{})
+	handler := NewUsuarioHandler(fake, tokensDeTeste{}, middleware.NovoLimitadorDeTentativas())
 
 	id := semearUsuario(t, fake, "Ana Souza", "ana@exemplo.com", "segredo123")
 
@@ -579,4 +580,27 @@ func TestUsuarioHandlerAutenticar(t *testing.T) {
 		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusNotFound)
 	}
 	apoioteste.VerificarEnvelopeDeErro(t, registrador, http.StatusNotFound)
+}
+
+func TestUsuarioHandlerAutenticarBloqueiaDepoisDeFalhasSeguidas(t *testing.T) {
+	fake := novoFakeUsuarios()
+	handler := NewUsuarioHandler(fake, tokensDeTeste{}, middleware.NovoLimitadorDeTentativas())
+	semearUsuario(t, fake, "Ana Souza", "ana@exemplo.com", "segredo123")
+
+	for tentativa := 0; tentativa < 5; tentativa++ {
+		registrador := apoioteste.ExecutarHandler(handler.Autenticar, http.MethodPost, "/api/v1/usuarios/autenticar", "", `{"email":"ana@exemplo.com","senha":"errada123"}`)
+		if registrador.Code != http.StatusNotFound {
+			t.Fatalf("tentativa %d: status %d, esperado %d", tentativa+1, registrador.Code, http.StatusNotFound)
+		}
+	}
+
+	registrador := apoioteste.ExecutarHandler(handler.Autenticar, http.MethodPost, "/api/v1/usuarios/autenticar", "", `{"email":"ana@exemplo.com","senha":"segredo123"}`)
+
+	apoioteste.VerificarEnvelopeDeErro(t, registrador, http.StatusTooManyRequests)
+	if registrador.Header().Get("Retry-After") == "" {
+		t.Error("resposta 429 sem cabeçalho Retry-After")
+	}
+	if !fake.ultimoLogin.IsZero() {
+		t.Error("login bloqueado chegou a autenticar")
+	}
 }

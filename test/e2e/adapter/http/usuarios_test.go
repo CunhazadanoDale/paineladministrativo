@@ -367,3 +367,24 @@ func TestUltimoAdministradorNaoPodeSerDesativadoNemPerderOPerfil(t *testing.T) {
 	resposta = enviaComToken(t, servidor, http.MethodGet, "/api/v1/usuarios", nil, sessao.Token)
 	conferirStatus(t, resposta, http.StatusOK)
 }
+
+func TestLoginBloqueiaDepoisDeCincoFalhasSeguidas(t *testing.T) {
+	servidor, _ := servidorDoTeste(t)
+
+	for tentativa := 0; tentativa < 5; tentativa++ {
+		resposta := enviaSemToken(t, servidor, http.MethodPost, "/api/v1/usuarios/autenticar", map[string]string{
+			"email": emailAdministrador,
+			"senha": "senhaErrada1",
+		})
+		conferirStatus(t, resposta, http.StatusNotFound)
+	}
+
+	resposta := enviaSemToken(t, servidor, http.MethodPost, "/api/v1/usuarios/autenticar", map[string]string{
+		"email": emailAdministrador,
+		"senha": senhaAdministrador,
+	})
+	conferirStatus(t, resposta, http.StatusTooManyRequests)
+	if resposta.Header.Get("Retry-After") == "" {
+		t.Error("resposta 429 sem cabeçalho Retry-After")
+	}
+}

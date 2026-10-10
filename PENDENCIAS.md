@@ -13,7 +13,7 @@ atualize a coluna **Status** conforme forem resolvidos.
 | 1 | **README completo** | O `README.md` tem 2 bytes. Quem clona não descobre que `JWT_SECRET` é obrigatório (a API não sobe sem), como subir banco/migrations, os comandos de teste nem que existe a `API.md` | Baixo | pendente |
 | 2 | **Rotas de sessão** | Usuário comum consegue logar, mas não vê o próprio perfil nem troca a própria senha — todas as rotas `/usuarios` são de administrador. Criar `GET /api/v1/sessao` (perfil do token) e `POST /api/v1/sessao/senha` (exigindo a senha atual) | Baixo | concluído (`GET /api/v1/sessao`, `POST /api/v1/sessao/senha` exigindo `senha_atual` e `POST /api/v1/sessao/encerrar`; trocar a senha ou encerrar a sessão revoga todos os tokens do usuário via `usuario.versao_sessao`, migração `000022`; e2e em `usuarios_test.go`; API.md atualizado) |
 | 3 | **Senha temporária no 1º login** | A decisão tomada no seed foi "senha inicial fixa, trocar no primeiro login", mas não existe flag de senha temporária nem exigência de troca. Alternativa: aceitar o fluxo manual e apenas manter a orientação na `API.md` | Médio | pendente |
-| 4 | **Rate limit no login** | `POST /usuarios/autenticar` não limita tentativas: é possível testar senhas em loop. A mensagem genérica `email ou senha inválidos` esconde o que existe, mas não limita a frequência. Limite simples por IP/e-mail, em memória | Médio | pendente |
+| 4 | **Rate limit no login** | `POST /usuarios/autenticar` não limita tentativas: é possível testar senhas em loop. A mensagem genérica `email ou senha inválidos` esconde o que existe, mas não limita a frequência. Limite simples por IP/e-mail, em memória | Médio | concluído (em memória: 5 falhas por e-mail + IP e 50 por IP em 15 minutos, `429` com `Retry-After`; e-mail inexistente compara contra hash fictício para não revelar cadastro) |
 | 5 | **Total de páginas na paginação** | Hoje a resposta ecoa só `pagina`/`tamanho` (decisão registrada). Se o front for fazer navegação "página X de Y", precisa de contagem — muda o contrato das listas | Baixo | pendente |
 | 6 | **Notificação de fila nova** | O módulo de solicitações só empurra trabalho para a pessoa se ela abrir a fila (`escopo=aprovacao` / `escopo=financeiro`). Sem e-mail, webhook ou ao menos badge de pendências, aprovação depende de alguém lembrar de olhar | Médio | pendente |
 | 7 | **Editar e estornar solicitação** | Não existe `PUT /api/v1/solicitacoes/{id}` (para corrigir um dado é cancelar e recriar, e o histórico fica) e a tabela `pagamento` é única por solicitação, então um pagamento errado não tem estorno pela API — só correção direta no banco | Médio | pendente |
@@ -37,8 +37,11 @@ mensagem foi limpa — vinha como `registro não encontrado: email ou senha inv�
 
 ### Rate limit: em memória ou no proxy?
 
-Se o item 4 for feito, decidir se fica na aplicação (simples, zera ao reiniciar) ou no
-nginx/Caddy da frente (sobrevive a restarts, mas exige mudar o deploy).
+Decidido: na aplicação, em memória (zera ao reiniciar e não é compartilhado entre réplicas).
+A origem é o `RemoteAddr` da conexão. Atrás de um proxy reverso todo mundo chega com o IP do
+proxy: aí o limite por IP (50) vira um limite global e o por e-mail + IP passa a valer por
+e-mail. Se a API for para trás de nginx/Caddy, ou o limite migra para o proxy ou a aplicação
+passa a ler um cabeçalho de IP confiável configurado explicitamente.
 
 ---
 

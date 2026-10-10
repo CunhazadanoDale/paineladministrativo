@@ -3,12 +3,16 @@ package usuarios
 import (
 	"context"
 	"errors"
+	"fmt"
+	"math"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto"
 	usuariosdto "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto/usuarios"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/resposta"
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/middleware"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	domainusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/usuarios"
 	portsinautenticacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/autenticacao"
@@ -17,12 +21,13 @@ import (
 )
 
 type UsuarioHandler struct {
-	usecase portsin.UsuarioUseCase
-	tokens  portsinautenticacao.TokenService
+	usecase    portsin.UsuarioUseCase
+	tokens     portsinautenticacao.TokenService
+	tentativas *middleware.LimitadorDeTentativas
 }
 
-func NewUsuarioHandler(usecase portsin.UsuarioUseCase, tokens portsinautenticacao.TokenService) *UsuarioHandler {
-	return &UsuarioHandler{usecase: usecase, tokens: tokens}
+func NewUsuarioHandler(usecase portsin.UsuarioUseCase, tokens portsinautenticacao.TokenService, tentativas *middleware.LimitadorDeTentativas) *UsuarioHandler {
+	return &UsuarioHandler{usecase: usecase, tokens: tokens, tentativas: tentativas}
 }
 
 func (h *UsuarioHandler) Criar(w http.ResponseWriter, r *http.Request) {
@@ -142,8 +147,16 @@ func (h *UsuarioHandler) Autenticar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if restante, bloqueado := h.tentativas.Bloqueio(r, requisicao.Email); bloqueado {
+		responderTentativasEsgotadas(w, restante)
+		return
+	}
+
 	usuario, err := h.usecase.Authenticate(r.Context(), requisicao.Email, requisicao.Senha)
 	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) || errors.Is(err, domain.ErrValidacao) {
+			h.tentativas.RegistrarFalha(r, requisicao.Email)
+		}
 		if errors.Is(err, domain.ErrNotFound) {
 			dto.EscreverErro(w, http.StatusNotFound, "email ou senha inválidos")
 			return
@@ -178,6 +191,8 @@ func (h *UsuarioHandler) Autenticar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.tentativas.RegistrarSucesso(r, requisicao.Email)
+
 	dto.EscreverJSON(w, http.StatusOK, dto.Resposta[usuariosdto.SessaoResponse]{
 		Dados: usuariosdto.SessaoResponse{
 			Token:         token,
@@ -187,6 +202,13 @@ func (h *UsuarioHandler) Autenticar(w http.ResponseWriter, r *http.Request) {
 			Usuario:       usuariosdto.NovaUsuarioResponse(usuario),
 		},
 	})
+}
+
+func responderTentativasEsgotadas(w http.ResponseWriter, restante time.Duration) {
+	minutos := int(math.Ceil(restante.Minutes()))
+
+	w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(restante.Seconds()))))
+	dto.EscreverErro(w, http.StatusTooManyRequests, fmt.Sprintf("muitas tentativas de login; tente novamente em %d minuto(s)", minutos))
 }
 
 func (h *UsuarioHandler) TrocarSenha(w http.ResponseWriter, r *http.Request) {

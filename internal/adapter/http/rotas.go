@@ -127,7 +127,7 @@ func novasRotas(
 	administrador("PUT /api/v1/cargos/{id}", cargoHandler.Atualizar)
 	administrador("DELETE /api/v1/cargos/{id}", cargoHandler.Remover)
 
-	usuarioHandler := usuarios.NewUsuarioHandler(usuarioUseCase, tokens)
+	usuarioHandler := usuarios.NewUsuarioHandler(usuarioUseCase, tokens, middleware.NovoLimitadorDeTentativas())
 	administrador("POST /api/v1/usuarios", usuarioHandler.Criar)
 	administrador("GET /api/v1/usuarios", usuarioHandler.Listar)
 	mux.HandleFunc("POST /api/v1/usuarios/autenticar", usuarioHandler.Autenticar)

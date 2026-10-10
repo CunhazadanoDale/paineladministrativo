@@ -209,9 +209,15 @@ Resposta `200`:
 
 O login registra o `ultimo_login` e a resposta nunca contém a senha.
 
+Proteção contra força bruta: 5 falhas do mesmo e-mail a partir do mesmo IP, ou 50 falhas
+de um mesmo IP, em 15 minutos, bloqueiam novas tentativas por 15 minutos (`429`). Um login
+bem-sucedido zera o contador daquele e-mail. O tempo de resposta para e-mail inexistente é
+o mesmo de senha errada, para não revelar quem tem cadastro.
+
 | Erro | Status | Mensagem |
 | --- | --- | --- |
 | E-mail ou senha incorretos | `404` | `email ou senha inválidos` |
+| Muitas falhas seguidas | `429` | `muitas tentativas de login; tente novamente em N minuto(s)` (com `Retry-After` em segundos) |
 | Usuário desativado | `400` | `erro de validação: usuário desativado` |
 | Corpo ausente/inválido | `400` | `erro de validação: corpo da requisição inválido: ...` |
 

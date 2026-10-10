@@ -20,6 +20,8 @@ const (
 
 const mensagemUltimoAdministrador = "o sistema precisa de pelo menos um administrador ativo"
 
+const hashFicticio = "$2a$10$oj4O7jHgLO6q7cx8igQd2OVrpG9VYkPpkeT7RT7Hq82wnq9A3O.3C"
+
 var _ portsin.UsuarioUseCase = (*UsuarioUsecaseImpl)(nil)
 
 type UsuarioUsecaseImpl struct {
@@ -54,6 +56,7 @@ func (u *UsuarioUsecaseImpl) Authenticate(ctx context.Context, email string, sen
 		return nil, err
 	}
 	if usuario == nil {
+		_ = bcrypt.CompareHashAndPassword([]byte(hashFicticio), []byte(senha))
 		return nil, domain.ErroNaoEncontrado("email ou senha inválidos")
 	}
 	if bcrypt.CompareHashAndPassword([]byte(usuario.Senha), []byte(senha)) != nil {

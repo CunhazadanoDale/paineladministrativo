@@ -876,3 +876,19 @@ func TestCargoAdministradorPodePerderOPerfilQuandoHaAdminEmOutroCargo(t *testing
 		t.Errorf("remoção do perfil com outro administrador falhou: %v", err)
 	}
 }
+
+func TestUsuarioAuthenticateComEmailInexistenteGastaOTempoDoBcrypt(t *testing.T) {
+	c := novoCenario(t)
+	ctx := context.Background()
+
+	inicio := time.Now()
+	_, err := c.usuario.Authenticate(ctx, "ninguem@exemplo.com", "qualquer123")
+	duracao := time.Since(inicio)
+
+	if !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("erro %v, esperado não encontrado", err)
+	}
+	if duracao < 10*time.Millisecond {
+		t.Errorf("e-mail inexistente respondeu em %v, rápido demais para ter comparado a senha", duracao)
+	}
+}
