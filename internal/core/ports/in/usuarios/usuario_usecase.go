@@ -19,6 +19,7 @@ type UsuarioUseCase interface {
 	Search(ctx context.Context, termo string, filtro domain.PaginacaoFiltro) ([]*usuarios.Usuario, error)
 	Authenticate(ctx context.Context, email string, senha string) (*usuarios.Usuario, error)
 	EhAdministrador(ctx context.Context, usuario *usuarios.Usuario) (bool, error)
+	TemAcessoComercial(ctx context.Context, usuario *usuarios.Usuario) (bool, error)
 	UpdateSenha(ctx context.Context, id uuid.UUID, novaSenha string) error
 	TrocarSenhaPropria(ctx context.Context, id uuid.UUID, senhaAtual string, novaSenha string) error
 	EncerrarSessoes(ctx context.Context, id uuid.UUID) error

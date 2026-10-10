@@ -7,11 +7,6 @@ import (
 	"github.com/google/uuid"
 )
 
-type RegistrarMovimentacaoRequest struct {
-	EtapaAnteriorID uuid.UUID `json:"etapa_anterior_id"`
-	EtapaAtualID    uuid.UUID `json:"etapa_atual_id"`
-}
-
 type LeadHistoricoResponse struct {
 	ID              uuid.UUID `json:"id"`
 	LeadID          uuid.UUID `json:"lead_id"`

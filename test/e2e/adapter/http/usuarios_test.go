@@ -144,8 +144,8 @@ func TestUsuarioSemAdministracaoRecebeProibido(t *testing.T) {
 	}
 
 	resposta = enviaComToken(t, servidor, http.MethodGet, "/api/v1/leads", nil, sessao.Token)
-	if resposta.StatusCode != http.StatusOK {
-		t.Errorf("listagem de leads com status %d, esperado %d", resposta.StatusCode, http.StatusOK)
+	if resposta.StatusCode != http.StatusForbidden {
+		t.Errorf("listagem de leads com status %d, esperado %d", resposta.StatusCode, http.StatusForbidden)
 	}
 }
 

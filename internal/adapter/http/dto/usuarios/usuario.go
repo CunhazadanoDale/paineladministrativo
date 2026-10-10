@@ -50,6 +50,7 @@ type SessaoResponse struct {
 	Token         string          `json:"token"`
 	ExpiraEm      time.Time       `json:"expira_em"`
 	Administrador bool            `json:"administrador"`
+	Comercial     bool            `json:"comercial"`
 	Usuario       UsuarioResponse `json:"usuario"`
 }
 

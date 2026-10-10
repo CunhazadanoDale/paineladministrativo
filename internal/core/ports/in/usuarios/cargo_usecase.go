@@ -9,7 +9,7 @@ import (
 )
 
 type CargoUseCase interface {
-	Create(ctx context.Context, nome string, descricao string, administrador bool, financeiro bool) (uuid.UUID, error)
+	Create(ctx context.Context, cargo *usuarios.Cargo) (uuid.UUID, error)
 	Update(ctx context.Context, cargo *usuarios.Cargo) error
 	GetByID(ctx context.Context, id uuid.UUID) (*usuarios.Cargo, error)
 	GetByNome(ctx context.Context, nome string) (*usuarios.Cargo, error)

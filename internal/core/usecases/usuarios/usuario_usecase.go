@@ -65,16 +65,29 @@ func (u *UsuarioUsecaseImpl) Authenticate(ctx context.Context, email string, sen
 }
 
 func (u *UsuarioUsecaseImpl) EhAdministrador(ctx context.Context, usuario *domainusuarios.Usuario) (bool, error) {
-	if usuario == nil || usuario.CargoID == uuid.Nil {
-		return false, nil
-	}
-
-	cargo, err := u.cargos.GetByID(ctx, usuario.CargoID)
+	cargo, err := u.cargoDoUsuario(ctx, usuario)
 	if err != nil {
 		return false, err
 	}
 
 	return cargo != nil && cargo.Administrador, nil
+}
+
+func (u *UsuarioUsecaseImpl) TemAcessoComercial(ctx context.Context, usuario *domainusuarios.Usuario) (bool, error) {
+	cargo, err := u.cargoDoUsuario(ctx, usuario)
+	if err != nil {
+		return false, err
+	}
+
+	return cargo != nil && (cargo.Comercial || cargo.Administrador), nil
+}
+
+func (u *UsuarioUsecaseImpl) cargoDoUsuario(ctx context.Context, usuario *domainusuarios.Usuario) (*domainusuarios.Cargo, error) {
+	if usuario == nil || usuario.CargoID == uuid.Nil {
+		return nil, nil
+	}
+
+	return u.cargos.GetByID(ctx, usuario.CargoID)
 }
 
 func (u *UsuarioUsecaseImpl) Create(ctx context.Context, nome string, email string, senha string, cargoID uuid.UUID) (uuid.UUID, error) {

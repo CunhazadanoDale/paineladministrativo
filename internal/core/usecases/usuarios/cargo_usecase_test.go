@@ -108,7 +108,7 @@ func TestCargoCreate(t *testing.T) {
 	c := novoCenario(t)
 	ctx := context.Background()
 
-	id, err := c.cargo.Create(ctx, "  Engenheiro  ", "  Responsável técnico  ", true, false)
+	id, err := c.cargo.Create(ctx, &domainusuarios.Cargo{Nome: "  Engenheiro  ", Descricao: "  Responsável técnico  ", Administrador: true})
 	if err != nil {
 		t.Fatalf("criação falhou: %v", err)
 	}
@@ -133,11 +133,11 @@ func TestCargoCreate(t *testing.T) {
 		t.Error("cargo deveria ter sido criado como administrador")
 	}
 
-	if _, err := c.cargo.Create(ctx, "   ", "sem nome", false, false); !errors.Is(err, domain.ErrValidacao) {
+	if _, err := c.cargo.Create(ctx, &domainusuarios.Cargo{Nome: "   ", Descricao: "sem nome"}); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("erro %v, esperado erro de validação", err)
 	}
 
-	if _, err := c.cargo.Create(ctx, "Engenheiro", "outro", false, false); !errors.Is(err, domain.ErrValidacao) {
+	if _, err := c.cargo.Create(ctx, &domainusuarios.Cargo{Nome: "Engenheiro", Descricao: "outro"}); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("erro %v, esperado erro de validação", err)
 	}
 }
@@ -172,11 +172,11 @@ func TestCargoUpdate(t *testing.T) {
 	c := novoCenario(t)
 	ctx := context.Background()
 
-	engenheiroID, err := c.cargo.Create(ctx, "Engenheiro", "", false, false)
+	engenheiroID, err := c.cargo.Create(ctx, &domainusuarios.Cargo{Nome: "Engenheiro"})
 	if err != nil {
 		t.Fatalf("criação do cargo falhou: %v", err)
 	}
-	if _, err := c.cargo.Create(ctx, "Arquiteto", "", false, false); err != nil {
+	if _, err := c.cargo.Create(ctx, &domainusuarios.Cargo{Nome: "Arquiteto"}); err != nil {
 		t.Fatalf("criação do segundo cargo falhou: %v", err)
 	}
 
@@ -263,10 +263,10 @@ func TestCargoListas(t *testing.T) {
 	c := novoCenario(t)
 	ctx := context.Background()
 
-	if _, err := c.cargo.Create(ctx, "Engenheiro", "", false, false); err != nil {
+	if _, err := c.cargo.Create(ctx, &domainusuarios.Cargo{Nome: "Engenheiro"}); err != nil {
 		t.Fatalf("criação do cargo falhou: %v", err)
 	}
-	arquitetoID, err := c.cargo.Create(ctx, "Arquiteto", "", false, false)
+	arquitetoID, err := c.cargo.Create(ctx, &domainusuarios.Cargo{Nome: "Arquiteto"})
 	if err != nil {
 		t.Fatalf("criação do segundo cargo falhou: %v", err)
 	}

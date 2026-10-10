@@ -235,6 +235,29 @@ func TestMoverLeadInexistenteDevolveNaoEncontrado(t *testing.T) {
 	}
 }
 
+func TestMoverLeadComEtapaAnteriorDesatualizadaDevolveConflito(t *testing.T) {
+	repo, banco, _, etapas := cenario(t)
+	ctx := context.Background()
+
+	leadID, err := repo.Create(ctx, novoLead(etapas[0], "Ana Souza"))
+	if err != nil {
+		t.Fatalf("criação falhou: %v", err)
+	}
+
+	err = repo.MoverParaEtapa(ctx, leadID, etapas[1], etapas[0])
+	if !errors.Is(err, domain.ErrConflito) {
+		t.Fatalf("erro %v, esperado %v", err, domain.ErrConflito)
+	}
+
+	var registros int
+	if err := banco.Get(&registros, `SELECT COUNT(*) FROM lead_historico WHERE lead_id = $1`, leadID); err != nil {
+		t.Fatalf("contagem do histórico falhou: %v", err)
+	}
+	if registros != 0 {
+		t.Errorf("histórico com %d registros, esperado nenhum", registros)
+	}
+}
+
 func TestContarPorFunilETapa(t *testing.T) {
 	repo, banco, funil, etapas := cenario(t)
 	ctx := context.Background()

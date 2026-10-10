@@ -35,13 +35,3 @@ func (l *LeadHistoryRepository) ListByLead(ctx context.Context, leadID uuid.UUID
 	}
 	return itens, nil
 }
-
-func (l *LeadHistoryRepository) RegistrarMovimentacao(ctx context.Context, leadID uuid.UUID, etapaAnteriorID uuid.UUID, etapaAtualID uuid.UUID) error {
-	query := `
-		INSERT INTO lead_historico (id, lead_id, etapa_anterior_id, etapa_atual_id, movido_em)
-		VALUES (gen_random_uuid(), $1, $2, $3, NOW())
-	`
-
-	_, err := l.db.ExecContext(ctx, query, leadID, etapaAnteriorID, etapaAtualID)
-	return err
-}

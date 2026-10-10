@@ -46,7 +46,21 @@ func Autenticar(tokens portsinautenticacao.TokenService, usuarios portsinusuario
 	}
 }
 
+type verificacaoDePerfil func(ctx context.Context, usuario *domainusuarios.Usuario) (bool, error)
+
 func ExigirAdministrador(usuarios portsinusuarios.UsuarioUseCase, proximo http.HandlerFunc) http.HandlerFunc {
+	return exigirPerfil(func(ctx context.Context, usuario *domainusuarios.Usuario) (bool, error) {
+		return usuarios.EhAdministrador(ctx, usuario)
+	}, proximo)
+}
+
+func ExigirComercial(usuarios portsinusuarios.UsuarioUseCase, proximo http.HandlerFunc) http.HandlerFunc {
+	return exigirPerfil(func(ctx context.Context, usuario *domainusuarios.Usuario) (bool, error) {
+		return usuarios.TemAcessoComercial(ctx, usuario)
+	}, proximo)
+}
+
+func exigirPerfil(verificar verificacaoDePerfil, proximo http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		usuario, ok := UsuarioDoContexto(r.Context())
 		if !ok {
@@ -54,13 +68,13 @@ func ExigirAdministrador(usuarios portsinusuarios.UsuarioUseCase, proximo http.H
 			return
 		}
 
-		administrador, err := usuarios.EhAdministrador(r.Context(), usuario)
+		permitido, err := verificar(r.Context(), usuario)
 		if err != nil {
 			AnotarErro(w, err)
 			dto.EscreverErro(w, http.StatusInternalServerError, "erro interno do servidor")
 			return
 		}
-		if !administrador {
+		if !permitido {
 			dto.EscreverErro(w, http.StatusForbidden, "perfil sem permissão para esta operação")
 			return
 		}

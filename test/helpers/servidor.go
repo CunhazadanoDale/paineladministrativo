@@ -43,7 +43,7 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 	rotas := httpapi.NewRouter(
 		banco,
 		[]string{"*"},
-		leadpoint.NewLeadUsecase(postgres.NewLeadRepository(banco)),
+		leadpoint.NewLeadUsecase(postgres.NewLeadRepository(banco), postgres.NewEtapaRepository(banco)),
 		leadpoint.NewFunilUsecase(postgres.NewFunilRepo(banco)),
 		leadpoint.NewEtapaUsecase(postgres.NewEtapaRepository(banco)),
 		leadpoint.NewLeadHistoryUsecase(postgres.NewLeadHistoryRepository(banco)),

@@ -72,7 +72,7 @@ func executar(registrador *slog.Logger) error {
 	rotas := httpapi.NewRouter(
 		banco,
 		cfg.CORSOrigins,
-		leadpoint.NewLeadUsecase(postgres.NewLeadRepository(banco)),
+		leadpoint.NewLeadUsecase(postgres.NewLeadRepository(banco), postgres.NewEtapaRepository(banco)),
 		leadpoint.NewFunilUsecase(postgres.NewFunilRepo(banco)),
 		leadpoint.NewEtapaUsecase(postgres.NewEtapaRepository(banco)),
 		leadpoint.NewLeadHistoryUsecase(postgres.NewLeadHistoryRepository(banco)),

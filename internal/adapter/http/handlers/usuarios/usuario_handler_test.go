@@ -205,6 +205,10 @@ func (f *fakeUsuarioUseCase) EhAdministrador(_ context.Context, usuario *domainu
 	return f.administrador, nil
 }
 
+func (f *fakeUsuarioUseCase) TemAcessoComercial(ctx context.Context, usuario *domainusuarios.Usuario) (bool, error) {
+	return f.EhAdministrador(ctx, usuario)
+}
+
 func (f *fakeUsuarioUseCase) TrocarSenhaPropria(ctx context.Context, id uuid.UUID, senhaAtual string, novaSenha string) error {
 	if senhaAtual == "" {
 		return domain.ErroValidacao("senha atual é obrigatória")

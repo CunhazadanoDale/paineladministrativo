@@ -22,7 +22,6 @@ func NewLeadRepository(db *sqlx.DB) *LeadRepository {
 	return &LeadRepository{db: db}
 }
 
-// CountByEtapa implements [leads.LeadRepository].
 func (l *LeadRepository) CountByEtapa(ctx context.Context, etapaID uuid.UUID) (int, error) {
 	var count int
 	query := `SELECT COUNT(*) FROM lead WHERE etapa_id = $1`
@@ -32,7 +31,6 @@ func (l *LeadRepository) CountByEtapa(ctx context.Context, etapaID uuid.UUID) (i
 	return count, nil
 }
 
-// CountByFunil implements [leads.LeadRepository].
 func (l *LeadRepository) CountByFunil(ctx context.Context, funilID uuid.UUID) (int, error) {
 	var count int
 	query := `
@@ -47,7 +45,6 @@ func (l *LeadRepository) CountByFunil(ctx context.Context, funilID uuid.UUID) (i
 	return count, nil
 }
 
-// Create implements [leads.LeadRepository].
 func (l *LeadRepository) Create(ctx context.Context, lead *lead.Lead) (uuid.UUID, error) {
 	query := `
 		INSERT INTO lead (id, nome, email, telefone, ativo, origem, criado_em, atualizado_em, etapa_id)
@@ -57,7 +54,7 @@ func (l *LeadRepository) Create(ctx context.Context, lead *lead.Lead) (uuid.UUID
 
 	rows, err := l.db.NamedQueryContext(ctx, query, lead)
 	if err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, tratarErro(err)
 	}
 	defer rows.Close()
 
@@ -73,13 +70,11 @@ func (l *LeadRepository) Create(ctx context.Context, lead *lead.Lead) (uuid.UUID
 	return id, nil
 }
 
-// Delete implements [leads.LeadRepository].
 func (l *LeadRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	_, err := l.db.ExecContext(ctx, `DELETE FROM lead WHERE id = $1`, id)
 	return tratarErro(err)
 }
 
-// GetByID implements [leads.LeadRepository].
 func (l *LeadRepository) GetByID(ctx context.Context, id uuid.UUID) (*lead.Lead, error) {
 	query := `
 		SELECT id, nome, email, telefone, ativo, origem, criado_em, atualizado_em, etapa_id
@@ -97,7 +92,6 @@ func (l *LeadRepository) GetByID(ctx context.Context, id uuid.UUID) (*lead.Lead,
 	return &item, nil
 }
 
-// ListAtivos implements [leads.LeadRepository].
 func (l *LeadRepository) ListAtivos(ctx context.Context, paginacao domain.PaginacaoFiltro) ([]*lead.Lead, error) {
 	query := `
 		SELECT id, nome, email, telefone, ativo, origem, criado_em, atualizado_em, etapa_id
@@ -114,7 +108,6 @@ func (l *LeadRepository) ListAtivos(ctx context.Context, paginacao domain.Pagina
 	return itens, nil
 }
 
-// ListByEtapa implements [leads.LeadRepository].
 func (l *LeadRepository) ListByEtapa(ctx context.Context, etapaID uuid.UUID) ([]*lead.Lead, error) {
 	query := `
 		SELECT id, nome, email, telefone, ativo, origem, criado_em, atualizado_em, etapa_id
@@ -130,7 +123,6 @@ func (l *LeadRepository) ListByEtapa(ctx context.Context, etapaID uuid.UUID) ([]
 	return itens, nil
 }
 
-// ListByFunil implements [leads.LeadRepository].
 func (l *LeadRepository) ListByFunil(ctx context.Context, funilID uuid.UUID) ([]*lead.Lead, error) {
 	query := `
 		SELECT l.id, l.nome, l.email, l.telefone, l.ativo, l.origem, l.criado_em, l.atualizado_em, l.etapa_id
@@ -147,7 +139,6 @@ func (l *LeadRepository) ListByFunil(ctx context.Context, funilID uuid.UUID) ([]
 	return itens, nil
 }
 
-// Search implements [leads.LeadRepository].
 func (l *LeadRepository) Search(ctx context.Context, query string, paginacao domain.PaginacaoFiltro) ([]*lead.Lead, error) {
 	searchQuery := `
 		SELECT id, nome, email, telefone, ativo, origem, criado_em, atualizado_em, etapa_id
@@ -169,7 +160,6 @@ func (l *LeadRepository) Search(ctx context.Context, query string, paginacao dom
 	return itens, nil
 }
 
-// Update implements [leads.LeadRepository].
 func (l *LeadRepository) Update(ctx context.Context, lead *lead.Lead) error {
 	query := `
 		UPDATE lead
@@ -178,26 +168,12 @@ func (l *LeadRepository) Update(ctx context.Context, lead *lead.Lead) error {
 		    telefone = :telefone,
 		    ativo = :ativo,
 		    origem = :origem,
-		    atualizado_em = :atualizado_em,
-		    etapa_id = :etapa_id
+		    atualizado_em = :atualizado_em
 		WHERE id = :id
 	`
 
 	_, err := l.db.NamedExecContext(ctx, query, lead)
-	return err
-}
-
-// UpdateEtapa implements [leads.LeadRepository].
-func (l *LeadRepository) UpdateEtapa(ctx context.Context, leadID uuid.UUID, newEtapaID uuid.UUID) error {
-	query := `
-		UPDATE lead
-		SET etapa_id = $1,
-		    atualizado_em = NOW()
-		WHERE id = $2
-	`
-
-	_, err := l.db.ExecContext(ctx, query, newEtapaID, leadID)
-	return err
+	return tratarErro(err)
 }
 
 func (l *LeadRepository) MoverParaEtapa(ctx context.Context, leadID uuid.UUID, etapaAnteriorID uuid.UUID, etapaAtualID uuid.UUID) error {
@@ -211,10 +187,11 @@ func (l *LeadRepository) MoverParaEtapa(ctx context.Context, leadID uuid.UUID, e
 		SET etapa_id = $1,
 		    atualizado_em = NOW()
 		WHERE id = $2
-	`, etapaAtualID, leadID)
+		  AND etapa_id = $3
+	`, etapaAtualID, leadID, etapaAnteriorID)
 	if err != nil {
 		_ = tx.Rollback()
-		return err
+		return tratarErro(err)
 	}
 
 	afetados, err := result.RowsAffected()
@@ -223,8 +200,16 @@ func (l *LeadRepository) MoverParaEtapa(ctx context.Context, leadID uuid.UUID, e
 		return err
 	}
 	if afetados == 0 {
+		var existe bool
+		if err := tx.GetContext(ctx, &existe, `SELECT EXISTS(SELECT 1 FROM lead WHERE id = $1)`, leadID); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
 		_ = tx.Rollback()
-		return domain.ErrNotFound
+		if !existe {
+			return domain.ErrNotFound
+		}
+		return domain.ErroConflito("o lead mudou de etapa durante a operação; recarregue e tente de novo")
 	}
 
 	if _, err = tx.ExecContext(ctx, `
@@ -232,7 +217,7 @@ func (l *LeadRepository) MoverParaEtapa(ctx context.Context, leadID uuid.UUID, e
 		VALUES (gen_random_uuid(), $1, $2, $3, NOW())
 	`, leadID, etapaAnteriorID, etapaAtualID); err != nil {
 		_ = tx.Rollback()
-		return err
+		return tratarErro(err)
 	}
 
 	return tx.Commit()

@@ -3,6 +3,7 @@ package lead
 import (
 	"time"
 
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	domainlead "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/lead"
 	"github.com/google/uuid"
 )
@@ -20,7 +21,7 @@ type AtualizarLeadRequest struct {
 	Email    string    `json:"email"`
 	Telefone string    `json:"telefone"`
 	Origem   string    `json:"origem"`
-	Ativo    bool      `json:"ativo"`
+	Ativo    *bool     `json:"ativo"`
 	EtapaID  uuid.UUID `json:"etapa_id"`
 }
 
@@ -54,16 +55,20 @@ func (r CriarLeadRequest) ParaLead() *domainlead.Lead {
 	}
 }
 
-func (r AtualizarLeadRequest) ParaLead(id uuid.UUID) *domainlead.Lead {
+func (r AtualizarLeadRequest) ParaLead(id uuid.UUID) (*domainlead.Lead, error) {
+	if r.Ativo == nil {
+		return nil, domain.ErroValidacao("campo ativo é obrigatório")
+	}
+
 	return &domainlead.Lead{
 		ID:       id,
 		Nome:     r.Nome,
 		Email:    r.Email,
 		Telefone: r.Telefone,
 		Origem:   r.Origem,
-		Ativo:    r.Ativo,
+		Ativo:    *r.Ativo,
 		EtapaID:  r.EtapaID,
-	}
+	}, nil
 }
 
 func NovaLeadResponse(item *domainlead.Lead) LeadResponse {

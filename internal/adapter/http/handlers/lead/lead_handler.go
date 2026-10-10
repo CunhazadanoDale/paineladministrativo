@@ -96,7 +96,13 @@ func (h *LeadHandler) Atualizar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.usecase.Update(r.Context(), requisicao.ParaLead(id)); err != nil {
+	lead, err := requisicao.ParaLead(id)
+	if err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+
+	if err := h.usecase.Update(r.Context(), lead); err != nil {
 		resposta.ResponderErro(w, err)
 		return
 	}

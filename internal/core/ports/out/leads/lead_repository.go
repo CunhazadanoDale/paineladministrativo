@@ -19,6 +19,5 @@ type LeadRepository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 	CountByEtapa(ctx context.Context, etapaID uuid.UUID) (int, error)
 	CountByFunil(ctx context.Context, funilID uuid.UUID) (int, error)
-	UpdateEtapa(ctx context.Context, leadID uuid.UUID, newEtapaID uuid.UUID) error
 	MoverParaEtapa(ctx context.Context, leadID uuid.UUID, etapaAnteriorID uuid.UUID, etapaAtualID uuid.UUID) error
 }

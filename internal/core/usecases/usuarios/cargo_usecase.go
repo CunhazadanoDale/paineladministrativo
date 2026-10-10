@@ -21,9 +21,12 @@ func NewCargoUsecase(repo portsout.CargoRepository) *CargoUsecaseImpl {
 	return &CargoUsecaseImpl{repo: repo}
 }
 
-func (c *CargoUsecaseImpl) Create(ctx context.Context, nome string, descricao string, administrador bool, financeiro bool) (uuid.UUID, error) {
-	nome = strings.TrimSpace(nome)
+func (c *CargoUsecaseImpl) Create(ctx context.Context, cargo *domainusuarios.Cargo) (uuid.UUID, error) {
+	if cargo == nil {
+		return uuid.Nil, domain.ErroValidacao("cargo não informado")
+	}
 
+	nome := strings.TrimSpace(cargo.Nome)
 	if nome == "" {
 		return uuid.Nil, domain.ErroValidacao("nome do cargo é obrigatório")
 	}
@@ -36,16 +39,17 @@ func (c *CargoUsecaseImpl) Create(ctx context.Context, nome string, descricao st
 		return uuid.Nil, domain.ErroValidacao("já existe um cargo com esse nome")
 	}
 
-	cargo := &domainusuarios.Cargo{
+	novo := &domainusuarios.Cargo{
 		ID:            uuid.New(),
 		Nome:          nome,
-		Descricao:     strings.TrimSpace(descricao),
+		Descricao:     strings.TrimSpace(cargo.Descricao),
 		Ativo:         true,
-		Administrador: administrador,
-		Financeiro:    financeiro,
+		Administrador: cargo.Administrador,
+		Financeiro:    cargo.Financeiro,
+		Comercial:     cargo.Comercial,
 	}
 
-	return c.repo.Create(ctx, cargo)
+	return c.repo.Create(ctx, novo)
 }
 
 func (c *CargoUsecaseImpl) Delete(ctx context.Context, id uuid.UUID) error {

@@ -37,28 +37,3 @@ func (h *LeadHistoryHandler) Listar(w http.ResponseWriter, r *http.Request) {
 		Tamanho: paginacao.Size,
 	})
 }
-
-func (h *LeadHistoryHandler) RegistrarMovimentacao(w http.ResponseWriter, r *http.Request) {
-	leadID, ok := resposta.ParametroUUID(w, r, "lead_id")
-	if !ok {
-		return
-	}
-
-	var requisicao leaddto.RegistrarMovimentacaoRequest
-	if !resposta.CorpoJSON(w, r, &requisicao) {
-		return
-	}
-
-	err := h.usecase.RegistrarMovimentacao(
-		r.Context(),
-		leadID,
-		requisicao.EtapaAnteriorID,
-		requisicao.EtapaAtualID,
-	)
-	if err != nil {
-		resposta.ResponderErro(w, err)
-		return
-	}
-
-	dto.EscreverVazio(w, http.StatusNoContent)
-}

@@ -48,8 +48,9 @@ cliente deve autenticar de novo.
 | Perfil | Como é definido | O que pode |
 | --- | --- | --- |
 | Público | — | `/health`, `/health/db`, `POST /api/v1/usuarios/autenticar` |
-| Autenticado | Token válido de usuário ativo | Leads, funis, etapas, histórico, **leitura** de cargos, a própria sessão (`/api/v1/sessao`) e o próprio bolso de solicitações (`escopo=minhas`) |
-| Administrador | Token de um usuário cujo cargo tem `"administrador": true` | Tudo o que o perfil autenticado pode, **mais** a gestão de usuários, a escrita de cargos, a designação de aprovadores e `escopo=todas` |
+| Autenticado | Token válido de usuário ativo | **Leitura** de cargos, a própria sessão (`/api/v1/sessao`) e o próprio bolso de solicitações (`escopo=minhas`) |
+| Comercial | Token de um usuário cujo cargo tem `"comercial": true` | Leads (criar, editar, mover, excluir), histórico e **leitura** de funis e etapas |
+| Administrador | Token de um usuário cujo cargo tem `"administrador": true` | Tudo o que os perfis autenticado e comercial podem, **mais** a estrutura de funis e etapas, a gestão de usuários, a escrita de cargos, a designação de aprovadores e `escopo=todas` |
 | Aprovador | Usuário **designado** na tabela `aprovador` pelo administrador | `escopo=aprovacao`, aprovar e rejeitar as solicitações pendentes |
 | Financeiro | Token de um usuário cujo cargo tem `"financeiro": true` | `escopo=financeiro` e o registro de pagamento das solicitações aprovadas |
 
@@ -178,6 +179,7 @@ Resposta `200`:
     "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
     "expira_em": "2026-10-07T15:29:42.0670651Z",
     "administrador": true,
+    "comercial": true,
     "usuario": {
       "id": "00000000-0000-0000-0000-0000000000ad",
       "nome": "Administrador",
@@ -338,8 +340,12 @@ Cada usuário tem uma versão de sessão gravada no banco e copiada para o token
 ### `POST /api/v1/cargos`
 
 ```json
-{ "nome": "Gerente de obra", "descricao": "Acompanha a obra", "administrador": false }
+{ "nome": "Gerente de obra", "descricao": "Acompanha a obra", "administrador": false, "financeiro": false, "comercial": false }
 ```
+
+Os três perfis são independentes e opcionais (ausente vale `false`). Um cargo criado antes
+da migração `000023` nasce com `"comercial": false`: quem já usava leads precisa ter o cargo
+marcado como comercial pelo administrador.
 
 `PUT /api/v1/cargos/{id}` usa o mesmo corpo mais `"ativo": true`.
 
@@ -357,13 +363,15 @@ Cada usuário tem uma versão de sessão gravada no banco e copiada para o token
   "nome": "Administrador",
   "descricao": "Perfil com acesso total ao painel",
   "ativo": true,
-  "administrador": true
+  "administrador": true,
+  "financeiro": false,
+  "comercial": false
 }
 ```
 
 ---
 
-## Leads — autenticado
+## Leads — comercial
 
 | Método | Rota | Sucesso | Descrição |
 | --- | --- | --- | --- |
@@ -384,11 +392,27 @@ Corpos:
 { "nome": "Ana Souza", "email": "ana@exemplo.com", "telefone": "", "origem": "site", "etapa_id": "uuid" }
 ```
 
-`PUT` aceita o mesmo corpo mais `"ativo": true`. `PATCH /etapa`:
+Limites: `nome` obrigatório até 200 caracteres, `email` vazio ou com `@` até 255,
+`telefone` até 40 e `origem` até 80. A etapa precisa existir e estar ativa.
+
+`PUT` edita só o cadastro e exige `"ativo"` explícito (`true` ou `false`). O `etapa_id` é
+opcional: se vier, precisa ser a etapa atual — a troca de etapa só acontece pelo `PATCH`,
+que é quem grava o histórico.
+
+`PATCH /etapa`:
 
 ```json
 { "etapa_id": "uuid-da-etapa" }
 ```
+
+| Erro | Status | Mensagem |
+| --- | --- | --- |
+| `PUT` sem `ativo` | `400` | `erro de validação: campo ativo é obrigatório` |
+| `PUT` com outra etapa | `400` | `erro de validação: a etapa do lead só muda pela movimentação de etapa` |
+| Etapa inexistente | `400` | `erro de validação: etapa de destino não encontrada` |
+| Etapa inativa | `400` | `erro de validação: etapa de destino está inativa` |
+| Etapa de outro funil | `400` | `erro de validação: a etapa de destino pertence a outro funil` |
+| Lead movido por outra pessoa no meio da operação | `409` | `o lead mudou de etapa durante a operação; recarregue e tente de novo` |
 
 **Objeto de lead:**
 
@@ -408,15 +432,15 @@ Corpos:
 
 ---
 
-## Funis — autenticado
+## Funis — comercial lê, administrador escreve
 
-| Método | Rota | Sucesso |
-| --- | --- | --- |
-| `POST` | `/api/v1/funils` | `201` |
-| `GET` | `/api/v1/funils` | `200` lista paginada (`ativos=true` filtra) |
-| `GET` | `/api/v1/funils/{funil_id}` | `200` |
-| `PUT` | `/api/v1/funils/{funil_id}` | `200` |
-| `DELETE` | `/api/v1/funils/{funil_id}` | `204` |
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/funils` | **administrador** | `201` |
+| `GET` | `/api/v1/funils` | comercial | `200` lista paginada (`ativos=true` filtra) |
+| `GET` | `/api/v1/funils/{funil_id}` | comercial | `200` |
+| `PUT` | `/api/v1/funils/{funil_id}` | **administrador** | `200` |
+| `DELETE` | `/api/v1/funils/{funil_id}` | **administrador** | `204` |
 
 ```json
 { "nome": "Vendas" }
@@ -430,18 +454,18 @@ Corpos:
 
 ---
 
-## Etapas — autenticado
+## Etapas — comercial lê, administrador escreve
 
-| Método | Rota | Sucesso |
-| --- | --- | --- |
-| `POST` | `/api/v1/etapas` | `201` |
-| `GET` | `/api/v1/funils/{funil_id}/etapas` | `200` lista (sem paginação) |
-| `PUT` | `/api/v1/funils/{funil_id}/etapas/ordem` | `200` lista reordenada |
-| `GET` | `/api/v1/etapas/{etapa_id}` | `200` |
-| `PUT` | `/api/v1/etapas/{etapa_id}` | `200` |
-| `DELETE` | `/api/v1/etapas/{etapa_id}` | `204` |
-| `GET` | `/api/v1/etapas/{etapa_id}/proxima` | `200` |
-| `GET` | `/api/v1/etapas/{etapa_id}/anterior` | `200` |
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/etapas` | **administrador** | `201` |
+| `GET` | `/api/v1/funils/{funil_id}/etapas` | comercial | `200` lista (sem paginação) |
+| `PUT` | `/api/v1/funils/{funil_id}/etapas/ordem` | **administrador** | `200` lista reordenada |
+| `GET` | `/api/v1/etapas/{etapa_id}` | comercial | `200` |
+| `PUT` | `/api/v1/etapas/{etapa_id}` | **administrador** | `200` |
+| `DELETE` | `/api/v1/etapas/{etapa_id}` | **administrador** | `204` |
+| `GET` | `/api/v1/etapas/{etapa_id}/proxima` | comercial | `200` |
+| `GET` | `/api/v1/etapas/{etapa_id}/anterior` | comercial | `200` |
 
 ```json
 { "nome": "Novo contato", "ordem": 1, "funil_id": "uuid" }
@@ -459,16 +483,14 @@ Corpos:
 
 ---
 
-## Histórico de movimentação — autenticado
+## Histórico de movimentação — comercial
 
 | Método | Rota | Sucesso |
 | --- | --- | --- |
 | `GET` | `/api/v1/leads/{lead_id}/historico` | `200` lista paginada |
-| `POST` | `/api/v1/leads/{lead_id}/historico` | `204` |
 
-```json
-{ "etapa_anterior_id": "uuid", "etapa_atual_id": "uuid" }
-```
+O histórico é só leitura: cada registro nasce do `PATCH /api/v1/leads/{id}/etapa`, na mesma
+transação que move o lead. Não existe gravação manual (o antigo `POST` responde `405`).
 
 ```json
 {

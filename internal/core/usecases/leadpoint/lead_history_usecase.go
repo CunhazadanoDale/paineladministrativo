@@ -27,20 +27,3 @@ func (h *LeadHistoryUsecaseImpl) ListByLead(ctx context.Context, leadID uuid.UUI
 
 	return h.repo.ListByLead(ctx, leadID, paginacao.Normalizada())
 }
-
-func (h *LeadHistoryUsecaseImpl) RegistrarMovimentacao(ctx context.Context, leadID uuid.UUID, etapaAnteriorID uuid.UUID, etapaAtualID uuid.UUID) error {
-	if leadID == uuid.Nil {
-		return domain.ErroValidacao("lead não informado")
-	}
-	if etapaAnteriorID == uuid.Nil {
-		return domain.ErroValidacao("etapa anterior não informada")
-	}
-	if etapaAtualID == uuid.Nil {
-		return domain.ErroValidacao("etapa atual não informada")
-	}
-	if etapaAnteriorID == etapaAtualID {
-		return domain.ErroValidacao("etapa anterior e atual não podem ser iguais")
-	}
-
-	return h.repo.RegistrarMovimentacao(ctx, leadID, etapaAnteriorID, etapaAtualID)
-}

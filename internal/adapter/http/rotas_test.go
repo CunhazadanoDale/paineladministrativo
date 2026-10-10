@@ -49,7 +49,6 @@ func TestRotasRegistradasSemConflito(t *testing.T) {
 		{"GET /api/v1/funils/22222222-2222-2222-2222-222222222222/leads/contagem", "GET /api/v1/funils/{funil_id}/leads/contagem"},
 		{"GET /api/v1/etapas/33333333-3333-3333-3333-333333333333/leads/contagem", "GET /api/v1/etapas/{etapa_id}/leads/contagem"},
 		{"GET /api/v1/leads/11111111-1111-1111-1111-111111111111/historico", "GET /api/v1/leads/{lead_id}/historico"},
-		{"POST /api/v1/leads/11111111-1111-1111-1111-111111111111/historico", "POST /api/v1/leads/{lead_id}/historico"},
 		{"POST /api/v1/funils", "POST /api/v1/funils"},
 		{"GET /api/v1/funils", "GET /api/v1/funils"},
 		{"GET /api/v1/funils/22222222-2222-2222-2222-222222222222", "GET /api/v1/funils/{funil_id}"},

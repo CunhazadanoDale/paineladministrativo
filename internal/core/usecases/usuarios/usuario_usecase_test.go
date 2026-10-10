@@ -203,7 +203,7 @@ func novoCenario(t *testing.T) *cenario {
 	repoUsuarios := novoRepositorioUsuarios()
 	cargos := usuarios.NewCargoUsecase(repoCargos)
 
-	cargoID, err := cargos.Create(context.Background(), "Gerente de obra", "Responsável pela obra", false, false)
+	cargoID, err := cargos.Create(context.Background(), &domainusuarios.Cargo{Nome: "Gerente de obra", Descricao: "Responsável pela obra"})
 	if err != nil {
 		t.Fatalf("não criei o cargo do cenário: %v", err)
 	}
@@ -711,5 +711,44 @@ func TestUsuarioListasEBusca(t *testing.T) {
 	}
 	if len(porEmail) != 1 || porEmail[0].Email != "ana@exemplo.com" {
 		t.Errorf("busca devolveu %+v, esperado ana@exemplo.com", porEmail)
+	}
+}
+
+func TestUsuarioTemAcessoComercialPeloCargo(t *testing.T) {
+	c := novoCenario(t)
+	ctx := context.Background()
+
+	casos := []struct {
+		nome     string
+		cargo    domainusuarios.Cargo
+		esperado bool
+	}{
+		{"cargo sem perfil", domainusuarios.Cargo{Nome: "Almoxarife"}, false},
+		{"cargo comercial", domainusuarios.Cargo{Nome: "Vendedor", Comercial: true}, true},
+		{"cargo administrador", domainusuarios.Cargo{Nome: "Diretor", Administrador: true}, true},
+		{"cargo financeiro", domainusuarios.Cargo{Nome: "Tesoureiro", Financeiro: true}, false},
+	}
+
+	for _, caso := range casos {
+		t.Run(caso.nome, func(t *testing.T) {
+			cargo := caso.cargo
+			cargoID, err := c.cargo.Create(ctx, &cargo)
+			if err != nil {
+				t.Fatalf("criação do cargo falhou: %v", err)
+			}
+
+			usuario := &domainusuarios.Usuario{ID: uuid.New(), CargoID: cargoID}
+			acesso, err := c.usuario.TemAcessoComercial(ctx, usuario)
+			if err != nil {
+				t.Fatalf("consulta falhou: %v", err)
+			}
+			if acesso != caso.esperado {
+				t.Errorf("acesso comercial = %v, esperado %v", acesso, caso.esperado)
+			}
+		})
+	}
+
+	if acesso, err := c.usuario.TemAcessoComercial(ctx, nil); err != nil || acesso {
+		t.Errorf("usuário nulo = %v, %v; esperado false sem erro", acesso, err)
 	}
 }

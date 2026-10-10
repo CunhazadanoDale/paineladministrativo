@@ -172,11 +172,18 @@ func (h *UsuarioHandler) Autenticar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	comercial, err := h.usecase.TemAcessoComercial(r.Context(), usuario)
+	if err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+
 	dto.EscreverJSON(w, http.StatusOK, dto.Resposta[usuariosdto.SessaoResponse]{
 		Dados: usuariosdto.SessaoResponse{
 			Token:         token,
 			ExpiraEm:      expiraEm,
 			Administrador: administrador,
+			Comercial:     comercial,
 			Usuario:       usuariosdto.NovaUsuarioResponse(usuario),
 		},
 	})

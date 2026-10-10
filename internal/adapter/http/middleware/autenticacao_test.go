@@ -45,6 +45,7 @@ type usuariosDeTeste struct {
 	portsinusuarios.UsuarioUseCase
 	usuario       *domainusuarios.Usuario
 	administrador bool
+	comercial     bool
 	erro          error
 }
 
@@ -67,6 +68,14 @@ func (u *usuariosDeTeste) EhAdministrador(_ context.Context, usuario *domainusua
 	}
 
 	return u.administrador, nil
+}
+
+func (u *usuariosDeTeste) TemAcessoComercial(_ context.Context, usuario *domainusuarios.Usuario) (bool, error) {
+	if u.erro != nil {
+		return false, u.erro
+	}
+
+	return u.comercial, nil
 }
 
 func novoUsuario() *domainusuarios.Usuario {
@@ -277,5 +286,30 @@ func TestExtrairToken(t *testing.T) {
 		if obtido := extrairToken(caso.autorizacao); obtido != caso.esperado {
 			t.Errorf("%q extraiu %q, esperado %q", caso.autorizacao, obtido, caso.esperado)
 		}
+	}
+}
+
+func TestExigirComercialRespeitaOPerfil(t *testing.T) {
+	casos := []struct {
+		nome     string
+		usuarios *usuariosDeTeste
+		esperado int
+	}{
+		{"sem acesso comercial", &usuariosDeTeste{usuario: novoUsuario()}, http.StatusForbidden},
+		{"com acesso comercial", &usuariosDeTeste{usuario: novoUsuario(), comercial: true}, http.StatusOK},
+		{"falha ao consultar o cargo", &usuariosDeTeste{usuario: novoUsuario(), erro: errors.New("banco fora")}, http.StatusInternalServerError},
+	}
+
+	for _, caso := range casos {
+		t.Run(caso.nome, func(t *testing.T) {
+			registrador := httptest.NewRecorder()
+			requisicao := httptest.NewRequest(http.MethodGet, "/api/v1/leads", nil)
+			requisicao = requisicao.WithContext(context.WithValue(requisicao.Context(), chaveUsuario, caso.usuarios.usuario))
+			ExigirComercial(caso.usuarios, rotaDeTeste).ServeHTTP(registrador, requisicao)
+
+			if registrador.Code != caso.esperado {
+				t.Errorf("status %d, esperado %d: %s", registrador.Code, caso.esperado, registrador.Body.String())
+			}
+		})
 	}
 }
