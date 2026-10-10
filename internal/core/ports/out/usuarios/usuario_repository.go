@@ -18,6 +18,8 @@ type UsuarioRepository interface {
 	ListAtivos(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*usuarios.Usuario, error)
 	Search(ctx context.Context, termo string, filtro domain.PaginacaoFiltro) ([]*usuarios.Usuario, error)
 	UpdateUltimoLogin(ctx context.Context, id uuid.UUID, ultimoLogin time.Time) error
+	AtualizarSenha(ctx context.Context, id uuid.UUID, senha string, atualizadoEm time.Time) error
+	EncerrarSessoes(ctx context.Context, id uuid.UUID) error
 	Ativar(ctx context.Context, id uuid.UUID) error
 	Desativar(ctx context.Context, id uuid.UUID) error
 	Delete(ctx context.Context, id uuid.UUID) error

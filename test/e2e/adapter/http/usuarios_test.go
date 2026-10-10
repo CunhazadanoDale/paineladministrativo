@@ -275,12 +275,69 @@ func TestTrocarSenhaDaPropriaSessao(t *testing.T) {
 	resposta := enviaComToken(t, servidor, http.MethodPost, "/api/v1/sessao/senha", map[string]string{
 		"nova_senha": "senhaNova123",
 	}, sessao.Token)
-	conferirStatus(t, resposta, http.StatusNoContent)
-
-	autenticar(t, servidor, "tiago@exemplo.com", "senhaNova123")
+	conferirStatus(t, resposta, http.StatusBadRequest)
 
 	resposta = enviaComToken(t, servidor, http.MethodPost, "/api/v1/sessao/senha", map[string]string{
-		"nova_senha": "curta",
+		"senha_atual": "senhaErrada1",
+		"nova_senha":  "senhaNova123",
 	}, sessao.Token)
 	conferirStatus(t, resposta, http.StatusBadRequest)
+
+	resposta = enviaComToken(t, servidor, http.MethodPost, "/api/v1/sessao/senha", map[string]string{
+		"senha_atual": "senhaForte123",
+		"nova_senha":  "curta",
+	}, sessao.Token)
+	conferirStatus(t, resposta, http.StatusBadRequest)
+
+	resposta = enviaComToken(t, servidor, http.MethodPost, "/api/v1/sessao/senha", map[string]string{
+		"senha_atual": "senhaForte123",
+		"nova_senha":  "senhaNova123",
+	}, sessao.Token)
+	conferirStatus(t, resposta, http.StatusNoContent)
+
+	resposta = enviaComToken(t, servidor, http.MethodGet, "/api/v1/sessao", nil, sessao.Token)
+	conferirStatus(t, resposta, http.StatusUnauthorized)
+
+	novaSessao := autenticar(t, servidor, "tiago@exemplo.com", "senhaNova123")
+
+	resposta = enviaComToken(t, servidor, http.MethodGet, "/api/v1/sessao", nil, novaSessao.Token)
+	conferirStatus(t, resposta, http.StatusOK)
+}
+
+func TestEncerrarSessaoRevogaOsTokensEmitidos(t *testing.T) {
+	servidor, _ := servidorDoTeste(t)
+
+	cargoID := criarCargo(t, servidor, "Almoxarife", false)
+	criarUsuario(t, servidor, "Rita Paz", "rita@exemplo.com", "senhaForte123", cargoID)
+	primeira := autenticar(t, servidor, "rita@exemplo.com", "senhaForte123")
+	segunda := autenticar(t, servidor, "rita@exemplo.com", "senhaForte123")
+
+	resposta := enviaComToken(t, servidor, http.MethodPost, "/api/v1/sessao/encerrar", nil, primeira.Token)
+	conferirStatus(t, resposta, http.StatusNoContent)
+
+	for _, token := range []string{primeira.Token, segunda.Token} {
+		resposta = enviaComToken(t, servidor, http.MethodGet, "/api/v1/sessao", nil, token)
+		conferirStatus(t, resposta, http.StatusUnauthorized)
+	}
+
+	nova := autenticar(t, servidor, "rita@exemplo.com", "senhaForte123")
+
+	resposta = enviaComToken(t, servidor, http.MethodGet, "/api/v1/sessao", nil, nova.Token)
+	conferirStatus(t, resposta, http.StatusOK)
+}
+
+func TestTrocaDeSenhaPeloAdministradorRevogaOsTokensDoUsuario(t *testing.T) {
+	servidor, _ := servidorDoTeste(t)
+
+	cargoID := criarCargo(t, servidor, "Almoxarife", false)
+	id := criarUsuario(t, servidor, "Caio Reis", "caio@exemplo.com", "senhaForte123", cargoID)
+	sessao := autenticar(t, servidor, "caio@exemplo.com", "senhaForte123")
+
+	resposta := enviaComToken(t, servidor, http.MethodPost, "/api/v1/usuarios/"+id.String()+"/senha", map[string]string{
+		"nova_senha": "senhaNova123",
+	}, tokenDoTeste)
+	conferirStatus(t, resposta, http.StatusNoContent)
+
+	resposta = enviaComToken(t, servidor, http.MethodGet, "/api/v1/sessao", nil, sessao.Token)
+	conferirStatus(t, resposta, http.StatusUnauthorized)
 }

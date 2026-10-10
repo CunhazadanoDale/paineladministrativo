@@ -48,7 +48,7 @@ type fakeUsuarioUseCase struct {
 
 type tokensDeTeste struct{}
 
-func (tokensDeTeste) Gerar(usuarioID uuid.UUID) (string, time.Time, error) {
+func (tokensDeTeste) Gerar(usuarioID uuid.UUID, _ int) (string, time.Time, error) {
 	if usuarioID == uuid.Nil {
 		return "", time.Time{}, domain.ErroValidacao("usuário inválido para o token")
 	}
@@ -56,8 +56,8 @@ func (tokensDeTeste) Gerar(usuarioID uuid.UUID) (string, time.Time, error) {
 	return "token-" + usuarioID.String(), time.Now().UTC().Add(time.Hour), nil
 }
 
-func (tokensDeTeste) Validar(token string) (uuid.UUID, error) {
-	return uuid.Nil, domain.ErroValidacao("token inválido")
+func (tokensDeTeste) Validar(token string) (uuid.UUID, int, error) {
+	return uuid.Nil, 0, domain.ErroValidacao("token inválido")
 }
 
 func novoFakeUsuarios() *fakeUsuarioUseCase {
@@ -203,6 +203,25 @@ func (f *fakeUsuarioUseCase) EhAdministrador(_ context.Context, usuario *domainu
 	}
 
 	return f.administrador, nil
+}
+
+func (f *fakeUsuarioUseCase) TrocarSenhaPropria(ctx context.Context, id uuid.UUID, senhaAtual string, novaSenha string) error {
+	if senhaAtual == "" {
+		return domain.ErroValidacao("senha atual é obrigatória")
+	}
+
+	return f.UpdateSenha(ctx, id, novaSenha)
+}
+
+func (f *fakeUsuarioUseCase) EncerrarSessoes(_ context.Context, id uuid.UUID) error {
+	usuario, ok := f.usuarios[id]
+	if !ok {
+		return domain.ErroNaoEncontrado("usuário não encontrado")
+	}
+
+	usuario.VersaoSessao++
+
+	return nil
 }
 
 func (f *fakeUsuarioUseCase) UpdateSenha(_ context.Context, id uuid.UUID, novaSenha string) error {

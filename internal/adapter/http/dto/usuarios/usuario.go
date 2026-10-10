@@ -30,6 +30,11 @@ type TrocarSenhaRequest struct {
 	NovaSenha string `json:"nova_senha"`
 }
 
+type TrocarSenhaPropriaRequest struct {
+	SenhaAtual string `json:"senha_atual"`
+	NovaSenha  string `json:"nova_senha"`
+}
+
 type UsuarioResponse struct {
 	ID           uuid.UUID `json:"id"`
 	Nome         string    `json:"nome"`

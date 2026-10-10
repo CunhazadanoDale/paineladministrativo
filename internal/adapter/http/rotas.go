@@ -135,6 +135,7 @@ func novasRotas(
 	sessaoHandler := usuarios.NewSessaoHandler(usuarioUseCase)
 	protegido("GET /api/v1/sessao", sessaoHandler.Obter)
 	protegido("POST /api/v1/sessao/senha", sessaoHandler.TrocarSenha)
+	protegido("POST /api/v1/sessao/encerrar", sessaoHandler.Encerrar)
 
 	solicitacaoHandler := solicitacaohandlers.NewSolicitacaoHandler(solicitacaoUseCase)
 	protegido("POST /api/v1/solicitacoes", solicitacaoHandler.Criar)

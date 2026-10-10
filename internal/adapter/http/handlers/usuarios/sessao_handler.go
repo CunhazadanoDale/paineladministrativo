@@ -40,12 +40,26 @@ func (h *SessaoHandler) TrocarSenha(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var requisicao usuariosdto.TrocarSenhaRequest
+	var requisicao usuariosdto.TrocarSenhaPropriaRequest
 	if !resposta.CorpoJSON(w, r, &requisicao) {
 		return
 	}
 
-	if err := h.usecase.UpdateSenha(r.Context(), usuario.ID, requisicao.NovaSenha); err != nil {
+	if err := h.usecase.TrocarSenhaPropria(r.Context(), usuario.ID, requisicao.SenhaAtual, requisicao.NovaSenha); err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+
+	dto.EscreverVazio(w, http.StatusNoContent)
+}
+
+func (h *SessaoHandler) Encerrar(w http.ResponseWriter, r *http.Request) {
+	usuario, ok := resposta.UsuarioDoContexto(w, r)
+	if !ok {
+		return
+	}
+
+	if err := h.usecase.EncerrarSessoes(r.Context(), usuario.ID); err != nil {
 		resposta.ResponderErro(w, err)
 		return
 	}

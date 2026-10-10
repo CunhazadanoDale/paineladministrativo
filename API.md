@@ -271,6 +271,7 @@ responde `404`.
 | --- | --- | --- | --- |
 | `GET` | `/api/v1/sessao` | autenticado | `200` objeto único |
 | `POST` | `/api/v1/sessao/senha` | autenticado | `204` vazio |
+| `POST` | `/api/v1/sessao/encerrar` | autenticado | `204` vazio |
 
 ### `GET /api/v1/sessao`
 
@@ -281,17 +282,34 @@ sem depender do perfil administrador.
 ### `POST /api/v1/sessao/senha`
 
 ```json
-{ "nova_senha": "senhaNova123" }
+{ "senha_atual": "senhaForte123", "nova_senha": "senhaNova123" }
 ```
 
-Troca a senha do próprio usuário dono do token, com as mesmas regras de validação de
-`POST /api/v1/usuarios/{id}/senha` (8 a 72 caracteres). Depois do `204`, o login com a
-senha anterior responde `404`.
+Troca a senha do próprio usuário dono do token. Exige a senha atual e aplica à nova as
+mesmas regras de `POST /api/v1/usuarios/{id}/senha` (8 a 72 caracteres). Depois do `204`,
+o login com a senha anterior responde `404` e **todos os tokens já emitidos para o
+usuário deixam de valer**, inclusive o que fez a troca: o cliente precisa autenticar de novo.
 
 | Erro | Status | Mensagem |
 | --- | --- | --- |
-| Senha fora da faixa | `400` | `erro de validação: senha do usuário deve ter no mínimo 8 caracteres` |
+| Senha atual ausente | `400` | `erro de validação: senha atual é obrigatória` |
+| Senha atual incorreta | `400` | `erro de validação: senha atual incorreta` |
+| Nova senha fora da faixa | `400` | `erro de validação: senha do usuário deve ter no mínimo 8 caracteres` |
 | Sem token | `401` | `token ausente ou inválido` |
+
+### `POST /api/v1/sessao/encerrar`
+
+Sem corpo. Encerra **todas** as sessões do usuário dono do token: qualquer token emitido
+antes desta chamada passa a responder `401`. É o logout do lado do servidor.
+
+### Revogação de tokens
+
+Cada usuário tem uma versão de sessão gravada no banco e copiada para o token no login
+(claim `ver`). O middleware compara as duas a cada requisição. A versão avança quando:
+
+- o próprio usuário troca a senha (`POST /api/v1/sessao/senha`);
+- o administrador redefine a senha (`POST /api/v1/usuarios/{id}/senha`);
+- o usuário encerra as sessões (`POST /api/v1/sessao/encerrar`).
 
 ---
 

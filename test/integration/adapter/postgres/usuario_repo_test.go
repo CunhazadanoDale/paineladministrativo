@@ -505,3 +505,57 @@ func TestUsuarioDelete(t *testing.T) {
 		t.Errorf("usuário ainda existe depois da exclusão: %+v", excluido)
 	}
 }
+
+func TestUsuarioAtualizarSenhaEEncerrarSessoesAvancamAVersao(t *testing.T) {
+	usuarios, cargos, _ := cenarioUsuarios(t)
+	ctx := context.Background()
+
+	cargo := novoCargo("Almoxarife")
+	if _, err := cargos.Create(ctx, cargo); err != nil {
+		t.Fatalf("criação do cargo falhou: %v", err)
+	}
+
+	usuario := novoUsuario(cargo.ID, "Ana Souza", "ana@exemplo.com")
+	if _, err := usuarios.Create(ctx, usuario); err != nil {
+		t.Fatalf("criação do usuário falhou: %v", err)
+	}
+
+	criado, err := usuarios.GetByID(ctx, usuario.ID)
+	if err != nil {
+		t.Fatalf("busca falhou: %v", err)
+	}
+	if criado.VersaoSessao != 0 {
+		t.Fatalf("versão inicial %d, esperada 0", criado.VersaoSessao)
+	}
+
+	if err := usuarios.AtualizarSenha(ctx, usuario.ID, "hash-novo", time.Now().UTC()); err != nil {
+		t.Fatalf("troca de senha falhou: %v", err)
+	}
+	if err := usuarios.EncerrarSessoes(ctx, usuario.ID); err != nil {
+		t.Fatalf("encerramento falhou: %v", err)
+	}
+
+	salvo, err := usuarios.GetByID(ctx, usuario.ID)
+	if err != nil {
+		t.Fatalf("busca falhou: %v", err)
+	}
+	if salvo.Senha != "hash-novo" {
+		t.Errorf("senha %q, esperada %q", salvo.Senha, "hash-novo")
+	}
+	if salvo.VersaoSessao != 2 {
+		t.Errorf("versão %d, esperada 2", salvo.VersaoSessao)
+	}
+
+	salvo.Nome = "Ana Souza Lima"
+	if err := usuarios.Update(ctx, salvo); err != nil {
+		t.Fatalf("atualização falhou: %v", err)
+	}
+
+	atualizado, err := usuarios.GetByID(ctx, usuario.ID)
+	if err != nil {
+		t.Fatalf("busca falhou: %v", err)
+	}
+	if atualizado.VersaoSessao != 2 {
+		t.Errorf("atualização cadastral mudou a versão para %d", atualizado.VersaoSessao)
+	}
+}

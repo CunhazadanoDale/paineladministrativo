@@ -384,6 +384,14 @@ func (r *repositorioUsuarios) UpdateUltimoLogin(_ context.Context, _ uuid.UUID, 
 	return nil
 }
 
+func (r *repositorioUsuarios) AtualizarSenha(_ context.Context, _ uuid.UUID, _ string, _ time.Time) error {
+	return nil
+}
+
+func (r *repositorioUsuarios) EncerrarSessoes(_ context.Context, _ uuid.UUID) error {
+	return nil
+}
+
 func (r *repositorioUsuarios) Ativar(_ context.Context, id uuid.UUID) error {
 	if usuario, ok := r.itens[id]; ok {
 		usuario.Ativo = true

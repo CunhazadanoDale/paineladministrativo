@@ -25,7 +25,7 @@ func UsuarioDoContexto(ctx context.Context) (*domainusuarios.Usuario, bool) {
 
 func Autenticar(tokens portsinautenticacao.TokenService, usuarios portsinusuarios.UsuarioUseCase, proximo http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		usuarioID, err := tokens.Validar(extrairToken(r.Header.Get("Authorization")))
+		usuarioID, versaoSessao, err := tokens.Validar(extrairToken(r.Header.Get("Authorization")))
 		if err != nil {
 			responderNaoAutenticado(w)
 			return
@@ -36,7 +36,7 @@ func Autenticar(tokens portsinautenticacao.TokenService, usuarios portsinusuario
 			dto.EscreverErro(w, http.StatusInternalServerError, "erro interno do servidor")
 			return
 		}
-		if usuario == nil || !usuario.Ativo {
+		if usuario == nil || !usuario.Ativo || usuario.VersaoSessao != versaoSessao {
 			responderNaoAutenticado(w)
 			return
 		}

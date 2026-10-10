@@ -79,7 +79,7 @@ func (u *UsuarioRepository) Desativar(ctx context.Context, id uuid.UUID) error {
 
 func (u *UsuarioRepository) GetByEmail(ctx context.Context, email string) (*domainusuarios.Usuario, error) {
 	query := `
-		SELECT id, nome, email, senha, cargo_id, ativo, ultimo_login, criado_em, atualizado_em
+		SELECT id, nome, email, senha, cargo_id, ativo, versao_sessao, ultimo_login, criado_em, atualizado_em
 		FROM usuario
 		WHERE email = $1
 	`
@@ -96,7 +96,7 @@ func (u *UsuarioRepository) GetByEmail(ctx context.Context, email string) (*doma
 
 func (u *UsuarioRepository) GetByID(ctx context.Context, id uuid.UUID) (*domainusuarios.Usuario, error) {
 	query := `
-		SELECT id, nome, email, senha, cargo_id, ativo, ultimo_login, criado_em, atualizado_em
+		SELECT id, nome, email, senha, cargo_id, ativo, versao_sessao, ultimo_login, criado_em, atualizado_em
 		FROM usuario
 		WHERE id = $1
 	`
@@ -114,7 +114,7 @@ func (u *UsuarioRepository) GetByID(ctx context.Context, id uuid.UUID) (*domainu
 func (u *UsuarioRepository) List(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
 	offset := (filtro.Page - 1) * filtro.Size
 	query := `
-		SELECT id, nome, email, senha, cargo_id, ativo, ultimo_login, criado_em, atualizado_em
+		SELECT id, nome, email, senha, cargo_id, ativo, versao_sessao, ultimo_login, criado_em, atualizado_em
 		FROM usuario
 		ORDER BY nome ASC
 		LIMIT $1 OFFSET $2
@@ -130,7 +130,7 @@ func (u *UsuarioRepository) List(ctx context.Context, filtro domain.PaginacaoFil
 func (u *UsuarioRepository) ListAtivos(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
 	offset := (filtro.Page - 1) * filtro.Size
 	query := `
-		SELECT id, nome, email, senha, cargo_id, ativo, ultimo_login, criado_em, atualizado_em
+		SELECT id, nome, email, senha, cargo_id, ativo, versao_sessao, ultimo_login, criado_em, atualizado_em
 		FROM usuario
 		WHERE ativo = TRUE
 		ORDER BY nome ASC
@@ -147,7 +147,7 @@ func (u *UsuarioRepository) ListAtivos(ctx context.Context, filtro domain.Pagina
 func (u *UsuarioRepository) Search(ctx context.Context, termo string, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
 	offset := (filtro.Page - 1) * filtro.Size
 	query := `
-		SELECT id, nome, email, senha, cargo_id, ativo, ultimo_login, criado_em, atualizado_em
+		SELECT id, nome, email, senha, cargo_id, ativo, versao_sessao, ultimo_login, criado_em, atualizado_em
 		FROM usuario
 		WHERE LOWER(nome) LIKE '%' || LOWER($1) || '%'
 		   OR LOWER(email) LIKE '%' || LOWER($1) || '%'
@@ -187,5 +187,29 @@ func (u *UsuarioRepository) UpdateUltimoLogin(ctx context.Context, id uuid.UUID,
 	`
 
 	_, err := u.db.ExecContext(ctx, query, ultimoLogin, id)
+	return err
+}
+
+func (u *UsuarioRepository) AtualizarSenha(ctx context.Context, id uuid.UUID, senha string, atualizadoEm time.Time) error {
+	query := `
+		UPDATE usuario
+		SET senha = $1,
+		    versao_sessao = versao_sessao + 1,
+		    atualizado_em = $2
+		WHERE id = $3
+	`
+
+	_, err := u.db.ExecContext(ctx, query, senha, atualizadoEm, id)
+	return err
+}
+
+func (u *UsuarioRepository) EncerrarSessoes(ctx context.Context, id uuid.UUID) error {
+	query := `
+		UPDATE usuario
+		SET versao_sessao = versao_sessao + 1
+		WHERE id = $1
+	`
+
+	_, err := u.db.ExecContext(ctx, query, id)
 	return err
 }

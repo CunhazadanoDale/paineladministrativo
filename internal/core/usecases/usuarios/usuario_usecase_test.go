@@ -131,6 +131,27 @@ func (m *memoriaUsuarios) UpdateUltimoLogin(ctx context.Context, id uuid.UUID, u
 	return nil
 }
 
+func (m *memoriaUsuarios) AtualizarSenha(ctx context.Context, id uuid.UUID, senha string, atualizadoEm time.Time) error {
+	usuario, ok := m.itens[id]
+	if !ok {
+		return nil
+	}
+
+	usuario.Senha = senha
+	usuario.VersaoSessao++
+	usuario.AtualizadoEm = atualizadoEm
+
+	return nil
+}
+
+func (m *memoriaUsuarios) EncerrarSessoes(ctx context.Context, id uuid.UUID) error {
+	if usuario, ok := m.itens[id]; ok {
+		usuario.VersaoSessao++
+	}
+
+	return nil
+}
+
 func (m *memoriaUsuarios) Ativar(ctx context.Context, id uuid.UUID) error {
 	if usuario, ok := m.itens[id]; ok {
 		usuario.Ativo = true
@@ -407,6 +428,91 @@ func TestUsuarioUpdateSenha(t *testing.T) {
 		t.Errorf("erro %v, esperado erro de validação", err)
 	}
 	if err := c.usuario.UpdateSenha(ctx, uuid.New(), "senhaNova123"); !errors.Is(err, domain.ErrNotFound) {
+		t.Errorf("erro %v, esperado registro não encontrado", err)
+	}
+}
+
+func TestUsuarioUpdateSenhaEncerraSessoes(t *testing.T) {
+	c := novoCenario(t)
+	ctx := context.Background()
+
+	id := c.criarUsuario(t, "Ana Souza", "ana@exemplo.com", "segredo123")
+
+	if err := c.usuario.UpdateSenha(ctx, id, "senhaNova123"); err != nil {
+		t.Fatalf("troca de senha falhou: %v", err)
+	}
+
+	salvo, err := c.repoUsuarios.GetByID(ctx, id)
+	if err != nil {
+		t.Fatalf("busca no repositório falhou: %v", err)
+	}
+	if salvo.VersaoSessao != 1 {
+		t.Errorf("versão da sessão %d, esperada 1", salvo.VersaoSessao)
+	}
+}
+
+func TestUsuarioTrocarSenhaPropriaExigeSenhaAtual(t *testing.T) {
+	c := novoCenario(t)
+	ctx := context.Background()
+
+	id := c.criarUsuario(t, "Ana Souza", "ana@exemplo.com", "segredo123")
+
+	casos := []struct {
+		nome       string
+		senhaAtual string
+		novaSenha  string
+	}{
+		{"senha atual vazia", "", "senhaNova123"},
+		{"senha atual incorreta", "errada123", "senhaNova123"},
+		{"nova senha curta", "segredo123", "curta"},
+	}
+
+	for _, caso := range casos {
+		t.Run(caso.nome, func(t *testing.T) {
+			if err := c.usuario.TrocarSenhaPropria(ctx, id, caso.senhaAtual, caso.novaSenha); !errors.Is(err, domain.ErrValidacao) {
+				t.Errorf("erro %v, esperado erro de validação", err)
+			}
+		})
+	}
+
+	if _, err := c.usuario.Authenticate(ctx, "ana@exemplo.com", "segredo123"); err != nil {
+		t.Errorf("senha original deixou de autenticar: %v", err)
+	}
+
+	if err := c.usuario.TrocarSenhaPropria(ctx, id, "segredo123", "senhaNova123"); err != nil {
+		t.Fatalf("troca de senha falhou: %v", err)
+	}
+	if _, err := c.usuario.Authenticate(ctx, "ana@exemplo.com", "senhaNova123"); err != nil {
+		t.Errorf("nova senha não autenticou: %v", err)
+	}
+
+	salvo, err := c.repoUsuarios.GetByID(ctx, id)
+	if err != nil {
+		t.Fatalf("busca no repositório falhou: %v", err)
+	}
+	if salvo.VersaoSessao != 1 {
+		t.Errorf("versão da sessão %d, esperada 1", salvo.VersaoSessao)
+	}
+}
+
+func TestUsuarioEncerrarSessoes(t *testing.T) {
+	c := novoCenario(t)
+	ctx := context.Background()
+
+	id := c.criarUsuario(t, "Ana Souza", "ana@exemplo.com", "segredo123")
+
+	if err := c.usuario.EncerrarSessoes(ctx, id); err != nil {
+		t.Fatalf("encerramento falhou: %v", err)
+	}
+
+	salvo, err := c.repoUsuarios.GetByID(ctx, id)
+	if err != nil {
+		t.Fatalf("busca no repositório falhou: %v", err)
+	}
+	if salvo.VersaoSessao != 1 {
+		t.Errorf("versão da sessão %d, esperada 1", salvo.VersaoSessao)
+	}
+	if err := c.usuario.EncerrarSessoes(ctx, uuid.New()); !errors.Is(err, domain.ErrNotFound) {
 		t.Errorf("erro %v, esperado registro não encontrado", err)
 	}
 }

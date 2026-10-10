@@ -20,6 +20,8 @@ type UsuarioUseCase interface {
 	Authenticate(ctx context.Context, email string, senha string) (*usuarios.Usuario, error)
 	EhAdministrador(ctx context.Context, usuario *usuarios.Usuario) (bool, error)
 	UpdateSenha(ctx context.Context, id uuid.UUID, novaSenha string) error
+	TrocarSenhaPropria(ctx context.Context, id uuid.UUID, senhaAtual string, novaSenha string) error
+	EncerrarSessoes(ctx context.Context, id uuid.UUID) error
 	UpdateUltimoLogin(ctx context.Context, id uuid.UUID, ultimoLogin time.Time) error
 	Ativar(ctx context.Context, id uuid.UUID) error
 	Desativar(ctx context.Context, id uuid.UUID) error

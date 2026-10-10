@@ -7,6 +7,6 @@ import (
 )
 
 type TokenService interface {
-	Gerar(usuarioID uuid.UUID) (string, time.Time, error)
-	Validar(token string) (uuid.UUID, error)
+	Gerar(usuarioID uuid.UUID, versaoSessao int) (string, time.Time, error)
+	Validar(token string) (uuid.UUID, int, error)
 }

@@ -57,12 +57,12 @@ type tokensFalso struct {
 	usuarioID uuid.UUID
 }
 
-func (t *tokensFalso) Gerar(uuid.UUID) (string, time.Time, error) {
+func (t *tokensFalso) Gerar(uuid.UUID, int) (string, time.Time, error) {
 	return "token", time.Now().UTC().Add(time.Hour), nil
 }
 
-func (t *tokensFalso) Validar(string) (uuid.UUID, error) {
-	return t.usuarioID, nil
+func (t *tokensFalso) Validar(string) (uuid.UUID, int, error) {
+	return t.usuarioID, 0, nil
 }
 
 var _ portsinautenticacao.TokenService = (*tokensFalso)(nil)

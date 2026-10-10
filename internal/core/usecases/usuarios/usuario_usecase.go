@@ -237,20 +237,47 @@ func (u *UsuarioUsecaseImpl) UpdateSenha(ctx context.Context, id uuid.UUID, nova
 		return err
 	}
 
+	if _, err := u.buscar(ctx, id); err != nil {
+		return err
+	}
+
+	return u.gravarSenha(ctx, id, novaSenha)
+}
+
+func (u *UsuarioUsecaseImpl) TrocarSenhaPropria(ctx context.Context, id uuid.UUID, senhaAtual string, novaSenha string) error {
+	if senhaAtual == "" {
+		return domain.ErroValidacao("senha atual é obrigatória")
+	}
+	if err := validarSenha(novaSenha); err != nil {
+		return err
+	}
+
 	usuario, err := u.buscar(ctx, id)
 	if err != nil {
 		return err
 	}
+	if bcrypt.CompareHashAndPassword([]byte(usuario.Senha), []byte(senhaAtual)) != nil {
+		return domain.ErroValidacao("senha atual incorreta")
+	}
 
+	return u.gravarSenha(ctx, id, novaSenha)
+}
+
+func (u *UsuarioUsecaseImpl) EncerrarSessoes(ctx context.Context, id uuid.UUID) error {
+	if _, err := u.buscar(ctx, id); err != nil {
+		return err
+	}
+
+	return u.repo.EncerrarSessoes(ctx, id)
+}
+
+func (u *UsuarioUsecaseImpl) gravarSenha(ctx context.Context, id uuid.UUID, novaSenha string) error {
 	hash, err := bcrypt.GenerateFromPassword([]byte(novaSenha), bcrypt.DefaultCost)
 	if err != nil {
 		return err
 	}
 
-	usuario.Senha = string(hash)
-	usuario.AtualizadoEm = time.Now().UTC()
-
-	return u.repo.Update(ctx, usuario)
+	return u.repo.AtualizarSenha(ctx, id, string(hash), time.Now().UTC())
 }
 
 func (u *UsuarioUsecaseImpl) UpdateUltimoLogin(ctx context.Context, id uuid.UUID, ultimoLogin time.Time) error {

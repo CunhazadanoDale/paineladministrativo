@@ -160,7 +160,7 @@ func (h *UsuarioHandler) Autenticar(w http.ResponseWriter, r *http.Request) {
 	}
 	usuario.UltimoLogin = login
 
-	token, expiraEm, err := h.tokens.Gerar(usuario.ID)
+	token, expiraEm, err := h.tokens.Gerar(usuario.ID, usuario.VersaoSessao)
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return

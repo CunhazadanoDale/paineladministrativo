@@ -21,23 +21,24 @@ var _ portsinautenticacao.TokenService = (*tokensDeTeste)(nil)
 var _ portsinusuarios.UsuarioUseCase = (*usuariosDeTeste)(nil)
 
 type tokensDeTeste struct {
-	usuarioID uuid.UUID
-	erro      error
+	usuarioID    uuid.UUID
+	versaoSessao int
+	erro         error
 }
 
-func (t *tokensDeTeste) Gerar(usuarioID uuid.UUID) (string, time.Time, error) {
+func (t *tokensDeTeste) Gerar(usuarioID uuid.UUID, versaoSessao int) (string, time.Time, error) {
 	return "token", time.Now().UTC().Add(time.Hour), nil
 }
 
-func (t *tokensDeTeste) Validar(token string) (uuid.UUID, error) {
+func (t *tokensDeTeste) Validar(token string) (uuid.UUID, int, error) {
 	if t.erro != nil {
-		return uuid.Nil, t.erro
+		return uuid.Nil, 0, t.erro
 	}
 	if token == "" {
-		return uuid.Nil, errors.New("token vazio")
+		return uuid.Nil, 0, errors.New("token vazio")
 	}
 
-	return t.usuarioID, nil
+	return t.usuarioID, t.versaoSessao, nil
 }
 
 type usuariosDeTeste struct {
@@ -154,6 +155,20 @@ func TestAutenticarComUsuarioDesativadoDevolveNaoAutenticado(t *testing.T) {
 	usuario.Ativo = false
 
 	tokens := &tokensDeTeste{usuarioID: usuario.ID}
+	usuarios := &usuariosDeTeste{usuario: usuario}
+
+	registrador := executar(func(rota http.HandlerFunc) http.HandlerFunc {
+		return Autenticar(tokens, usuarios, rota)
+	}, rotaDeTeste, "Bearer qualquer")
+
+	verificarNaoAutenticado(t, registrador)
+}
+
+func TestAutenticarComSessaoEncerradaDevolveNaoAutenticado(t *testing.T) {
+	usuario := novoUsuario()
+	usuario.VersaoSessao = 2
+
+	tokens := &tokensDeTeste{usuarioID: usuario.ID, versaoSessao: 1}
 	usuarios := &usuariosDeTeste{usuario: usuario}
 
 	registrador := executar(func(rota http.HandlerFunc) http.HandlerFunc {
