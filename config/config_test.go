@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestSepararOrigens(t *testing.T) {
 	casos := []struct {
@@ -28,5 +31,37 @@ func TestSepararOrigens(t *testing.T) {
 				break
 			}
 		}
+	}
+}
+
+func TestValidarExigeSegredoComTamanhoMinimo(t *testing.T) {
+	casos := []struct {
+		segredo string
+		valido  bool
+	}{
+		{"", false},
+		{"curto-demais-16c", false},
+		{strings.Repeat("a", 31), false},
+		{strings.Repeat("a", 32), true},
+	}
+
+	for _, caso := range casos {
+		err := (&Config{JWTSecret: caso.segredo}).Validar()
+		if (err == nil) != caso.valido {
+			t.Errorf("segredo de %d caracteres: erro %v, esperado válido=%v", len(caso.segredo), err, caso.valido)
+		}
+	}
+}
+
+func TestLoadConfigUsaPortaPadrao(t *testing.T) {
+	t.Setenv("PORT", "")
+
+	if porta := LoadConfig().AppPort; porta != "8080" {
+		t.Errorf("porta %q, esperado %q", porta, "8080")
+	}
+
+	t.Setenv("PORT", "9090")
+	if porta := LoadConfig().AppPort; porta != "9090" {
+		t.Errorf("porta %q, esperado %q", porta, "9090")
 	}
 }

@@ -9,6 +9,7 @@ func CORS(origens []string, next http.Handler) http.Handler {
 
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept")
+		w.Header().Set("Access-Control-Expose-Headers", CabecalhoRequisicao+", Retry-After")
 		w.Header().Set("Access-Control-Max-Age", "86400")
 
 		if r.Method == http.MethodOptions {
@@ -21,7 +22,7 @@ func CORS(origens []string, next http.Handler) http.Handler {
 }
 
 func liberarOrigem(w http.ResponseWriter, origem string, origens []string) {
-	if len(origens) == 0 || contem(origens, "*") {
+	if contem(origens, "*") {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		return
 	}

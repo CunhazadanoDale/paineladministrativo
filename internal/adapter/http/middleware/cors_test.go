@@ -74,7 +74,7 @@ func TestCORSOrigemNaoPermitida(t *testing.T) {
 	}
 }
 
-func TestCORSListaVaziaLiberaQualquerOrigem(t *testing.T) {
+func TestCORSListaVaziaNaoLiberaOrigemNenhuma(t *testing.T) {
 	destino := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -85,8 +85,8 @@ func TestCORSListaVaziaLiberaQualquerOrigem(t *testing.T) {
 
 	CORS([]string{}, destino).ServeHTTP(registrador, requisicao)
 
-	if origem := registrador.Header().Get("Access-Control-Allow-Origin"); origem != "*" {
-		t.Errorf("Access-Control-Allow-Origin %q, esperado %q", origem, "*")
+	if origem := registrador.Header().Get("Access-Control-Allow-Origin"); origem != "" {
+		t.Errorf("Access-Control-Allow-Origin %q, esperado vazio", origem)
 	}
 }
 
@@ -149,5 +149,19 @@ func verificarCabecalhosDeMetodo(t *testing.T, registrador *httptest.ResponseRec
 		if valor := registrador.Header().Get(linha.cabecalho); valor != linha.esperado {
 			t.Errorf("%s = %q, esperado %q", linha.cabecalho, valor, linha.esperado)
 		}
+	}
+}
+
+func TestCORSExpoeCabecalhosDeRastreamento(t *testing.T) {
+	destino := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
+
+	requisicao := httptest.NewRequest(http.MethodGet, "/api/v1/leads", nil)
+	requisicao.Header.Set("Origin", "http://localhost:5173")
+	registrador := httptest.NewRecorder()
+
+	CORS([]string{"http://localhost:5173"}, destino).ServeHTTP(registrador, requisicao)
+
+	if expostos := registrador.Header().Get("Access-Control-Expose-Headers"); expostos != "X-Request-Id, Retry-After" {
+		t.Errorf("Access-Control-Expose-Headers %q, esperado %q", expostos, "X-Request-Id, Retry-After")
 	}
 }

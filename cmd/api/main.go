@@ -44,8 +44,8 @@ func main() {
 func executar(registrador *slog.Logger) error {
 	cfg := config.LoadConfig()
 
-	if cfg.JWTSecret == "" {
-		return errors.New("JWT_SECRET não configurada: defina o segredo usado nos tokens de acesso")
+	if err := cfg.Validar(); err != nil {
+		return err
 	}
 
 	banco, err := postgres.ConnectionDB(cfg.DatabaseUrl)
@@ -98,7 +98,7 @@ func executar(registrador *slog.Logger) error {
 		estoqueusecases.NewProdutoUsecase(produtoRepository, categoriaRepository, imagemRepository, usuarioRepository, cargoRepository),
 		estoqueusecases.NewMovimentoUsecase(produtoRepository, movimentoRepository, usuarioRepository, cargoRepository),
 		estoqueusecases.NewResumoUsecase(produtoRepository, movimentoRepository),
-		estoqueusecases.NewImagemUsecase(imagemRepository, produtoRepository, arquivoRepository, usuarioRepository, cargoRepository),
+		estoqueusecases.NewImagemUsecase(imagemRepository, produtoRepository, categoriaRepository, arquivoRepository, storageArquivos, usuarioRepository, cargoRepository),
 		estoqueusecases.NewPublicoUsecase(categoriaRepository, produtoRepository, imagemRepository),
 		autenticacao.NovoTokenService(cfg.JWTSecret, cfg.JWTExpiracao),
 	)

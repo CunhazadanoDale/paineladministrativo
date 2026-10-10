@@ -1,6 +1,8 @@
 package config
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -12,6 +14,10 @@ import (
 const expiracaoTokenPadrao = 480 * time.Minute
 
 const storageDiscoPadrao = "disco"
+
+const portaPadrao = "8080"
+
+const tamanhoMinimoSegredo = 32
 
 type Config struct {
 	AppPort           string
@@ -31,7 +37,7 @@ func LoadConfig() *Config {
 	_ = godotenv.Load()
 
 	return &Config{
-		AppPort:           os.Getenv("PORT"),
+		AppPort:           valorOuPadrao(os.Getenv("PORT"), portaPadrao),
 		DatabaseUrl:       os.Getenv("DATABASE_URL"),
 		CORSOrigins:       separarOrigens(os.Getenv("CORS_ORIGINS")),
 		JWTSecret:         strings.TrimSpace(os.Getenv("JWT_SECRET")),
@@ -82,4 +88,15 @@ func valorOuPadrao(valor, padrao string) string {
 	}
 
 	return valor
+}
+
+func (c *Config) Validar() error {
+	if c.JWTSecret == "" {
+		return errors.New("JWT_SECRET não configurada: defina o segredo usado nos tokens de acesso")
+	}
+	if len(c.JWTSecret) < tamanhoMinimoSegredo {
+		return fmt.Errorf("JWT_SECRET precisa ter pelo menos %d caracteres: gere um com `openssl rand -hex 32`", tamanhoMinimoSegredo)
+	}
+
+	return nil
 }
