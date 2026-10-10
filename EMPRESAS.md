@@ -193,7 +193,7 @@ nova (sem empresa ativa no acesso, `POST /solicitacoes` responde `400`/`403`).
 | Fase | Entrega | Estado |
 |---|---|---|
 | **1** | Migrations 000025–000026 + domínio (`CNPJ`, `UF`, `RegimeTributario`, `Empresa`, `Acesso`) + testes | concluída |
-| **2** | Repositório de empresas e acesso + testes de integração | pendente |
+| **2** | Repositório de empresas e acesso + testes de integração | concluída |
 | **3** | Usecases de empresa e de acesso do usuário + permissões + testes com fakes | pendente |
 | **4** | Handlers/DTOs + rotas + e2e + `API.md` | pendente |
 | **5** | Adoção em `solicitacao`: migration 000027, domínio, usecase, filtro, testes de isolamento, e2e, `API.md` | pendente |
