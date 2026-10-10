@@ -559,3 +559,51 @@ func TestUsuarioAtualizarSenhaEEncerrarSessoesAvancamAVersao(t *testing.T) {
 		t.Errorf("atualização cadastral mudou a versão para %d", atualizado.VersaoSessao)
 	}
 }
+
+func TestUsuarioContaAdministradoresEAtivosPorCargo(t *testing.T) {
+	usuarios, cargos, _ := cenarioUsuarios(t)
+	ctx := context.Background()
+
+	inicial, err := usuarios.ContarAdministradoresAtivos(ctx)
+	if err != nil {
+		t.Fatalf("contagem inicial falhou: %v", err)
+	}
+
+	diretoria := novoCargo("Diretoria")
+	diretoria.Administrador = true
+	if _, err := cargos.Create(ctx, diretoria); err != nil {
+		t.Fatalf("criação do cargo falhou: %v", err)
+	}
+	obra := novoCargo("Obra")
+	if _, err := cargos.Create(ctx, obra); err != nil {
+		t.Fatalf("criação do cargo falhou: %v", err)
+	}
+
+	ativo := novoUsuario(diretoria.ID, "Ana Souza", "ana@exemplo.com")
+	inativo := novoUsuario(diretoria.ID, "Bia Lima", "bia@exemplo.com")
+	comum := novoUsuario(obra.ID, "Caio Reis", "caio@exemplo.com")
+	for _, usuario := range []*domainusuarios.Usuario{ativo, inativo, comum} {
+		if _, err := usuarios.Create(ctx, usuario); err != nil {
+			t.Fatalf("criação do usuário falhou: %v", err)
+		}
+	}
+	if err := usuarios.Desativar(ctx, inativo.ID); err != nil {
+		t.Fatalf("desativação falhou: %v", err)
+	}
+
+	administradores, err := usuarios.ContarAdministradoresAtivos(ctx)
+	if err != nil {
+		t.Fatalf("contagem de administradores falhou: %v", err)
+	}
+	if administradores != inicial+1 {
+		t.Errorf("%d administradores ativos, esperado %d", administradores, inicial+1)
+	}
+
+	naDiretoria, err := usuarios.ContarAtivosPorCargo(ctx, diretoria.ID)
+	if err != nil {
+		t.Fatalf("contagem por cargo falhou: %v", err)
+	}
+	if naDiretoria != 1 {
+		t.Errorf("%d ativos na diretoria, esperado 1", naDiretoria)
+	}
+}

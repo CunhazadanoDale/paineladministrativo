@@ -341,3 +341,29 @@ func TestTrocaDeSenhaPeloAdministradorRevogaOsTokensDoUsuario(t *testing.T) {
 	resposta = enviaComToken(t, servidor, http.MethodGet, "/api/v1/sessao", nil, sessao.Token)
 	conferirStatus(t, resposta, http.StatusUnauthorized)
 }
+
+func TestUltimoAdministradorNaoPodeSerDesativadoNemPerderOPerfil(t *testing.T) {
+	servidor, _ := servidorDoTeste(t)
+	sessao := autenticar(t, servidor, emailAdministrador, senhaAdministrador)
+	adminID := sessao.Usuario.ID.String()
+
+	resposta := envia(t, servidor, http.MethodPatch, "/api/v1/usuarios/"+adminID+"/desativar", nil)
+	conferirStatus(t, resposta, http.StatusConflict)
+	if mensagem := decodificarErro(t, resposta).Erro.Mensagem; mensagem != "o sistema precisa de pelo menos um administrador ativo" {
+		t.Errorf("mensagem %q inesperada", mensagem)
+	}
+
+	resposta = envia(t, servidor, http.MethodDelete, "/api/v1/usuarios/"+adminID, nil)
+	conferirStatus(t, resposta, http.StatusConflict)
+
+	resposta = envia(t, servidor, http.MethodPut, "/api/v1/cargos/"+sessao.Usuario.CargoID.String(), map[string]any{
+		"nome":          "Administrador",
+		"descricao":     "Perfil com acesso total ao painel",
+		"ativo":         true,
+		"administrador": false,
+	})
+	conferirStatus(t, resposta, http.StatusConflict)
+
+	resposta = enviaComToken(t, servidor, http.MethodGet, "/api/v1/usuarios", nil, sessao.Token)
+	conferirStatus(t, resposta, http.StatusOK)
+}

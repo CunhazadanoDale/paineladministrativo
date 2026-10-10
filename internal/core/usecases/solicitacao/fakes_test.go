@@ -335,6 +335,14 @@ func (r *repositorioUsuarios) EncerrarSessoes(_ context.Context, _ uuid.UUID) er
 	return nil
 }
 
+func (r *repositorioUsuarios) ContarAdministradoresAtivos(_ context.Context) (int, error) {
+	return 0, nil
+}
+
+func (r *repositorioUsuarios) ContarAtivosPorCargo(_ context.Context, _ uuid.UUID) (int, error) {
+	return 0, nil
+}
+
 func (r *repositorioUsuarios) Ativar(_ context.Context, id uuid.UUID) error {
 	if usuario, ok := r.itens[id]; ok {
 		usuario.Ativo = true

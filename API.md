@@ -232,6 +232,17 @@ Todas as rotas abaixo exigem perfil administrador, exceto `POST /usuarios/autent
 | `PATCH` | `/api/v1/usuarios/{id}/ativar` | `200` | Ativa e devolve o usuário |
 | `PATCH` | `/api/v1/usuarios/{id}/desativar` | `200` | Desativa e devolve o usuário |
 
+### Último administrador
+
+O sistema nunca fica sem administrador ativo. Responde `409` com
+`o sistema precisa de pelo menos um administrador ativo` qualquer operação que tire o acesso
+do último deles:
+
+- desativar (`PATCH .../desativar` ou `PUT` com `"ativo": false`) ou excluir o usuário;
+- trocar o cargo dele por um cargo sem `administrador`;
+- tirar o `administrador` do cargo (`PUT /api/v1/cargos/{id}`) quando todos os
+  administradores ativos estão nesse cargo.
+
 ### `POST /api/v1/usuarios`
 
 ```json
@@ -366,6 +377,7 @@ marcado como comercial pelo administrador.
 | Nome vazio | `400` | `erro de validação: nome do cargo é obrigatório` |
 | Nome repetido | `400` | `erro de validação: já existe um cargo com esse nome` |
 | Cargo com usuários | `400` | `erro de validação: registro em uso por outros dados e não pode ser excluído` |
+| Tirar `administrador` do cargo de todos os admins ativos | `409` | `o sistema precisa de pelo menos um administrador ativo` |
 
 **Objeto de cargo:**
 

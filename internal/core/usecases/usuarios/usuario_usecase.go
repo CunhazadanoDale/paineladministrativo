@@ -18,6 +18,8 @@ const (
 	tamanhoMaximoSenha = 72
 )
 
+const mensagemUltimoAdministrador = "o sistema precisa de pelo menos um administrador ativo"
+
 var _ portsin.UsuarioUseCase = (*UsuarioUsecaseImpl)(nil)
 
 type UsuarioUsecaseImpl struct {
@@ -145,7 +147,11 @@ func (u *UsuarioUsecaseImpl) Create(ctx context.Context, nome string, email stri
 }
 
 func (u *UsuarioUsecaseImpl) Delete(ctx context.Context, id uuid.UUID) error {
-	if _, err := u.buscar(ctx, id); err != nil {
+	atual, err := u.buscar(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := u.garantirOutroAdministrador(ctx, atual); err != nil {
 		return err
 	}
 
@@ -153,7 +159,11 @@ func (u *UsuarioUsecaseImpl) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 func (u *UsuarioUsecaseImpl) Desativar(ctx context.Context, id uuid.UUID) error {
-	if _, err := u.buscar(ctx, id); err != nil {
+	atual, err := u.buscar(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := u.garantirOutroAdministrador(ctx, atual); err != nil {
 		return err
 	}
 
@@ -227,6 +237,7 @@ func (u *UsuarioUsecaseImpl) Update(ctx context.Context, usuario *domainusuarios
 		}
 	}
 
+	continuaAdministrador := usuario.Ativo
 	if usuario.CargoID != atual.CargoID {
 		cargo, err := u.cargos.GetByID(ctx, usuario.CargoID)
 		if err != nil {
@@ -234,6 +245,17 @@ func (u *UsuarioUsecaseImpl) Update(ctx context.Context, usuario *domainusuarios
 		}
 		if cargo == nil {
 			return domain.ErroValidacao("cargo do usuário não encontrado")
+		}
+		continuaAdministrador = continuaAdministrador && cargo.Administrador
+	} else if continuaAdministrador {
+		continuaAdministrador, err = u.EhAdministrador(ctx, atual)
+		if err != nil {
+			return err
+		}
+	}
+	if !continuaAdministrador {
+		if err := u.garantirOutroAdministrador(ctx, atual); err != nil {
+			return err
 		}
 	}
 
@@ -303,6 +325,27 @@ func (u *UsuarioUsecaseImpl) UpdateUltimoLogin(ctx context.Context, id uuid.UUID
 	}
 
 	return u.repo.UpdateUltimoLogin(ctx, id, ultimoLogin)
+}
+
+func (u *UsuarioUsecaseImpl) garantirOutroAdministrador(ctx context.Context, usuario *domainusuarios.Usuario) error {
+	if !usuario.Ativo {
+		return nil
+	}
+
+	administrador, err := u.EhAdministrador(ctx, usuario)
+	if err != nil || !administrador {
+		return err
+	}
+
+	total, err := u.repo.ContarAdministradoresAtivos(ctx)
+	if err != nil {
+		return err
+	}
+	if total <= 1 {
+		return domain.ErroConflito(mensagemUltimoAdministrador)
+	}
+
+	return nil
 }
 
 func (u *UsuarioUsecaseImpl) buscar(ctx context.Context, id uuid.UUID) (*domainusuarios.Usuario, error) {

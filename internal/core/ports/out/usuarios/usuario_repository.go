@@ -20,6 +20,8 @@ type UsuarioRepository interface {
 	UpdateUltimoLogin(ctx context.Context, id uuid.UUID, ultimoLogin time.Time) error
 	AtualizarSenha(ctx context.Context, id uuid.UUID, senha string, atualizadoEm time.Time) error
 	EncerrarSessoes(ctx context.Context, id uuid.UUID) error
+	ContarAdministradoresAtivos(ctx context.Context) (int, error)
+	ContarAtivosPorCargo(ctx context.Context, cargoID uuid.UUID) (int, error)
 	Ativar(ctx context.Context, id uuid.UUID) error
 	Desativar(ctx context.Context, id uuid.UUID) error
 	Delete(ctx context.Context, id uuid.UUID) error

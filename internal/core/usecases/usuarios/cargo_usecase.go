@@ -14,11 +14,12 @@ import (
 var _ portsin.CargoUseCase = (*CargoUsecaseImpl)(nil)
 
 type CargoUsecaseImpl struct {
-	repo portsout.CargoRepository
+	repo     portsout.CargoRepository
+	usuarios portsout.UsuarioRepository
 }
 
-func NewCargoUsecase(repo portsout.CargoRepository) *CargoUsecaseImpl {
-	return &CargoUsecaseImpl{repo: repo}
+func NewCargoUsecase(repo portsout.CargoRepository, usuarios portsout.UsuarioRepository) *CargoUsecaseImpl {
+	return &CargoUsecaseImpl{repo: repo, usuarios: usuarios}
 }
 
 func (c *CargoUsecaseImpl) Create(ctx context.Context, cargo *domainusuarios.Cargo) (uuid.UUID, error) {
@@ -113,8 +114,30 @@ func (c *CargoUsecaseImpl) Update(ctx context.Context, cargo *domainusuarios.Car
 	if existente != nil && existente.ID != atual.ID {
 		return domain.ErroValidacao("já existe um cargo com esse nome")
 	}
+	if atual.Administrador && !cargo.Administrador {
+		if err := c.garantirAdministradorForaDoCargo(ctx, atual.ID); err != nil {
+			return err
+		}
+	}
 
 	return c.repo.Update(ctx, cargo)
+}
+
+func (c *CargoUsecaseImpl) garantirAdministradorForaDoCargo(ctx context.Context, cargoID uuid.UUID) error {
+	noCargo, err := c.usuarios.ContarAtivosPorCargo(ctx, cargoID)
+	if err != nil || noCargo == 0 {
+		return err
+	}
+
+	total, err := c.usuarios.ContarAdministradoresAtivos(ctx)
+	if err != nil {
+		return err
+	}
+	if total-noCargo < 1 {
+		return domain.ErroConflito(mensagemUltimoAdministrador)
+	}
+
+	return nil
 }
 
 func (c *CargoUsecaseImpl) buscar(ctx context.Context, id uuid.UUID) (*domainusuarios.Cargo, error) {

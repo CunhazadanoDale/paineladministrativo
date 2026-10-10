@@ -37,7 +37,8 @@ func paginar[T any](itens []T, filtro domain.PaginacaoFiltro) []T {
 }
 
 type memoriaUsuarios struct {
-	itens map[uuid.UUID]*domainusuarios.Usuario
+	itens  map[uuid.UUID]*domainusuarios.Usuario
+	cargos *memoriaCargos
 }
 
 func novoRepositorioUsuarios() *memoriaUsuarios {
@@ -152,6 +153,28 @@ func (m *memoriaUsuarios) EncerrarSessoes(ctx context.Context, id uuid.UUID) err
 	return nil
 }
 
+func (m *memoriaUsuarios) ContarAdministradoresAtivos(ctx context.Context) (int, error) {
+	total := 0
+	for _, usuario := range m.itens {
+		if cargo, ok := m.cargos.itens[usuario.CargoID]; ok && usuario.Ativo && cargo.Administrador {
+			total++
+		}
+	}
+
+	return total, nil
+}
+
+func (m *memoriaUsuarios) ContarAtivosPorCargo(ctx context.Context, cargoID uuid.UUID) (int, error) {
+	total := 0
+	for _, usuario := range m.itens {
+		if usuario.Ativo && usuario.CargoID == cargoID {
+			total++
+		}
+	}
+
+	return total, nil
+}
+
 func (m *memoriaUsuarios) Ativar(ctx context.Context, id uuid.UUID) error {
 	if usuario, ok := m.itens[id]; ok {
 		usuario.Ativo = true
@@ -201,7 +224,8 @@ func novoCenario(t *testing.T) *cenario {
 
 	repoCargos := novoRepositorioCargos()
 	repoUsuarios := novoRepositorioUsuarios()
-	cargos := usuarios.NewCargoUsecase(repoCargos)
+	repoUsuarios.cargos = repoCargos
+	cargos := usuarios.NewCargoUsecase(repoCargos, repoUsuarios)
 
 	cargoID, err := cargos.Create(context.Background(), &domainusuarios.Cargo{Nome: "Gerente de obra", Descricao: "Responsável pela obra"})
 	if err != nil {
@@ -750,5 +774,105 @@ func TestUsuarioTemAcessoComercialPeloCargo(t *testing.T) {
 
 	if acesso, err := c.usuario.TemAcessoComercial(ctx, nil); err != nil || acesso {
 		t.Errorf("usuário nulo = %v, %v; esperado false sem erro", acesso, err)
+	}
+}
+
+func (c *cenario) criarAdministrador(t *testing.T, email string) (uuid.UUID, uuid.UUID) {
+	t.Helper()
+
+	cargoID, err := c.cargo.Create(context.Background(), &domainusuarios.Cargo{Nome: "Diretoria " + email, Administrador: true})
+	if err != nil {
+		t.Fatalf("criação do cargo administrador falhou: %v", err)
+	}
+
+	id, err := c.usuario.Create(context.Background(), "Administrador", email, "segredo123", cargoID)
+	if err != nil {
+		t.Fatalf("criação do administrador falhou: %v", err)
+	}
+
+	return id, cargoID
+}
+
+func TestUltimoAdministradorAtivoNaoPerdeOAcesso(t *testing.T) {
+	c := novoCenario(t)
+	ctx := context.Background()
+	adminID, cargoAdminID := c.criarAdministrador(t, "admin@exemplo.com")
+
+	atual, err := c.usuario.GetByID(ctx, adminID)
+	if err != nil {
+		t.Fatalf("busca falhou: %v", err)
+	}
+
+	desativado := *atual
+	desativado.Ativo = false
+	semPerfil := *atual
+	semPerfil.CargoID = c.cargoID
+
+	operacoes := []struct {
+		nome     string
+		executar func() error
+	}{
+		{"desativar", func() error { return c.usuario.Desativar(ctx, adminID) }},
+		{"excluir", func() error { return c.usuario.Delete(ctx, adminID) }},
+		{"desativar pelo cadastro", func() error { return c.usuario.Update(ctx, &desativado) }},
+		{"trocar para cargo sem perfil", func() error { return c.usuario.Update(ctx, &semPerfil) }},
+		{"tirar o perfil do cargo", func() error {
+			return c.cargo.Update(ctx, &domainusuarios.Cargo{ID: cargoAdminID, Nome: "Diretoria admin@exemplo.com", Ativo: true})
+		}},
+	}
+
+	for _, operacao := range operacoes {
+		t.Run(operacao.nome, func(t *testing.T) {
+			if err := operacao.executar(); !errors.Is(err, domain.ErrConflito) {
+				t.Errorf("erro %v, esperado conflito", err)
+			}
+		})
+	}
+
+	salvo, err := c.usuario.GetByID(ctx, adminID)
+	if err != nil {
+		t.Fatalf("busca falhou: %v", err)
+	}
+	if !salvo.Ativo || salvo.CargoID != cargoAdminID {
+		t.Errorf("administrador alterado: %+v", salvo)
+	}
+
+	atualizado := *salvo
+	atualizado.Nome = "Administrador Geral"
+	if err := c.usuario.Update(ctx, &atualizado); err != nil {
+		t.Errorf("edição cadastral do último administrador falhou: %v", err)
+	}
+}
+
+func TestAdministradorPodeSairQuandoHaOutro(t *testing.T) {
+	c := novoCenario(t)
+	ctx := context.Background()
+	primeiroID, cargoID := c.criarAdministrador(t, "um@exemplo.com")
+
+	if _, err := c.usuario.Create(ctx, "Segundo", "dois@exemplo.com", "segredo123", cargoID); err != nil {
+		t.Fatalf("criação do segundo administrador falhou: %v", err)
+	}
+
+	if err := c.usuario.Desativar(ctx, primeiroID); err != nil {
+		t.Fatalf("desativação com outro administrador ativo falhou: %v", err)
+	}
+
+	segundo, err := c.usuario.GetByEmail(ctx, "dois@exemplo.com")
+	if err != nil {
+		t.Fatalf("busca falhou: %v", err)
+	}
+	if err := c.usuario.Desativar(ctx, segundo.ID); !errors.Is(err, domain.ErrConflito) {
+		t.Errorf("desativação do último restante = %v, esperado conflito", err)
+	}
+}
+
+func TestCargoAdministradorPodePerderOPerfilQuandoHaAdminEmOutroCargo(t *testing.T) {
+	c := novoCenario(t)
+	ctx := context.Background()
+	_, cargoUm := c.criarAdministrador(t, "um@exemplo.com")
+	c.criarAdministrador(t, "dois@exemplo.com")
+
+	if err := c.cargo.Update(ctx, &domainusuarios.Cargo{ID: cargoUm, Nome: "Diretoria um@exemplo.com", Ativo: true}); err != nil {
+		t.Errorf("remoção do perfil com outro administrador falhou: %v", err)
 	}
 }

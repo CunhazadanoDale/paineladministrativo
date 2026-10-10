@@ -213,3 +213,29 @@ func (u *UsuarioRepository) EncerrarSessoes(ctx context.Context, id uuid.UUID) e
 	_, err := u.db.ExecContext(ctx, query, id)
 	return tratarErroDeGravacao(err)
 }
+
+func (u *UsuarioRepository) ContarAdministradoresAtivos(ctx context.Context) (int, error) {
+	query := `
+		SELECT COUNT(*)
+		FROM usuario u
+		JOIN cargo c ON c.id = u.cargo_id
+		WHERE u.ativo = TRUE
+		  AND c.administrador = TRUE
+	`
+
+	var total int
+	if err := u.db.GetContext(ctx, &total, query); err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
+func (u *UsuarioRepository) ContarAtivosPorCargo(ctx context.Context, cargoID uuid.UUID) (int, error) {
+	query := `SELECT COUNT(*) FROM usuario WHERE cargo_id = $1 AND ativo = TRUE`
+
+	var total int
+	if err := u.db.GetContext(ctx, &total, query, cargoID); err != nil {
+		return 0, err
+	}
+	return total, nil
+}

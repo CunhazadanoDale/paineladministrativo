@@ -48,7 +48,7 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 		leadpoint.NewEtapaUsecase(postgres.NewEtapaRepository(banco)),
 		leadpoint.NewLeadHistoryUsecase(postgres.NewLeadHistoryRepository(banco)),
 		usuarios.NewUsuarioUsecase(usuarioRepository, cargoRepository),
-		usuarios.NewCargoUsecase(cargoRepository),
+		usuarios.NewCargoUsecase(cargoRepository, usuarioRepository),
 		solicitacaousecases.NewSolicitacaoUsecase(
 			solicitacaoRepository,
 			arquivoRepository,
