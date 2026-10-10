@@ -448,8 +448,8 @@ Somente leitura; nenhum dado digitado aqui.
       comissões (afeta M3, M6, M10).
 - [ ] **Importação histórica**: quantos meses de NFs, títulos e extratos carregar.
 - [x] **Nomenclatura dos ports** de `lead`/`usuarios` (T0): traduzidos para português.
-- [ ] **Modelo de permissões**: flags no cargo ou tabela de permissões, e o padrão de
-      escopo por empresa (M1, antes da onda 2).
+- [x] **Modelo de permissões** (M1): flags no cargo continuam; o escopo por empresa segue
+      o padrão da seção 4 do `EMPRESAS.md`.
 - [ ] **IP atrás de proxy**: o limite de tentativas de login usa o IP da conexão. Se o
       deploy ficar atrás de nginx/Caddy/load balancer, decidir entre mover o limite para o
       proxy ou ler um cabeçalho de IP confiável configurado por ambiente.
