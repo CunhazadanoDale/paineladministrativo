@@ -31,7 +31,7 @@ func (e *EtapaRepository) Create(ctx context.Context, etapa *lead.Etapa) (uuid.U
 
 	rows, err := e.db.NamedQueryContext(ctx, query, etapa)
 	if err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, tratarErroDeGravacao(err)
 	}
 	defer rows.Close()
 
@@ -41,7 +41,7 @@ func (e *EtapaRepository) Create(ctx context.Context, etapa *lead.Etapa) (uuid.U
 
 	var id uuid.UUID
 	if err := rows.Scan(&id); err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, tratarErroDeGravacao(err)
 	}
 
 	return id, nil
@@ -137,7 +137,7 @@ func (e *EtapaRepository) ListByFunilOrdenado(ctx context.Context, funilID uuid.
 func (e *EtapaRepository) Reordenar(ctx context.Context, funilID uuid.UUID, etapas []*lead.Etapa) error {
 	tx, err := e.db.BeginTxx(ctx, nil)
 	if err != nil {
-		return err
+		return tratarErroDeGravacao(err)
 	}
 
 	for i, etapa := range etapas {
@@ -152,11 +152,11 @@ func (e *EtapaRepository) Reordenar(ctx context.Context, funilID uuid.UUID, etap
 			funilID,
 		); err != nil {
 			_ = tx.Rollback()
-			return err
+			return tratarErroDeGravacao(err)
 		}
 	}
 
-	return tx.Commit()
+	return tratarErroDeGravacao(tx.Commit())
 }
 
 func (e *EtapaRepository) Update(ctx context.Context, etapa *lead.Etapa) error {
@@ -167,5 +167,5 @@ func (e *EtapaRepository) Update(ctx context.Context, etapa *lead.Etapa) error {
 	`
 
 	_, err := e.db.NamedExecContext(ctx, query, etapa)
-	return err
+	return tratarErroDeGravacao(err)
 }

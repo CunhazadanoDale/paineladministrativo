@@ -31,7 +31,7 @@ func (c *CargoRepository) Create(ctx context.Context, cargo *domainusuarios.Carg
 
 	rows, err := c.db.NamedQueryContext(ctx, query, cargo)
 	if err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, tratarErroDeGravacao(err)
 	}
 	defer rows.Close()
 
@@ -41,7 +41,7 @@ func (c *CargoRepository) Create(ctx context.Context, cargo *domainusuarios.Carg
 
 	var id uuid.UUID
 	if err := rows.Scan(&id); err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, tratarErroDeGravacao(err)
 	}
 
 	return id, nil
@@ -124,5 +124,5 @@ func (c *CargoRepository) Update(ctx context.Context, cargo *domainusuarios.Carg
 	`
 
 	_, err := c.db.NamedExecContext(ctx, query, cargo)
-	return err
+	return tratarErroDeGravacao(err)
 }

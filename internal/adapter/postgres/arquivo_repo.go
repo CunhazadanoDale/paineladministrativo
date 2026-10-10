@@ -31,7 +31,7 @@ func (a *ArquivoRepository) Criar(ctx context.Context, arquivo *domainsolicitaca
 
 	rows, err := a.db.NamedQueryContext(ctx, query, arquivo)
 	if err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, tratarErroDeGravacao(err)
 	}
 	defer rows.Close()
 
@@ -41,7 +41,7 @@ func (a *ArquivoRepository) Criar(ctx context.Context, arquivo *domainsolicitaca
 
 	var id uuid.UUID
 	if err := rows.Scan(&id); err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, tratarErroDeGravacao(err)
 	}
 
 	return id, nil

@@ -6,6 +6,7 @@ package postgres_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -255,6 +256,38 @@ func TestMoverLeadComEtapaAnteriorDesatualizadaDevolveConflito(t *testing.T) {
 	}
 	if registros != 0 {
 		t.Errorf("histórico com %d registros, esperado nenhum", registros)
+	}
+}
+
+func TestGravacaoForaDasRegrasDoBancoViraErroDeValidacao(t *testing.T) {
+	repo, _, _, etapas := cenario(t)
+	ctx := context.Background()
+
+	nomeLongo := novoLead(etapas[0], strings.Repeat("a", 201))
+	emailInvalido := novoLead(etapas[0], "Ana Souza")
+	emailInvalido.Email = "sem-arroba"
+	etapaInexistente := novoLead(uuid.New(), "Ana Souza")
+
+	casos := []struct {
+		nome     string
+		lead     *domainlead.Lead
+		mensagem string
+	}{
+		{"texto longo", nomeLongo, "texto maior que o tamanho permitido"},
+		{"regra do cadastro", emailInvalido, "dados fora das regras do cadastro"},
+		{"chave estrangeira", etapaInexistente, "registro relacionado não encontrado"},
+	}
+
+	for _, caso := range casos {
+		t.Run(caso.nome, func(t *testing.T) {
+			_, err := repo.Create(ctx, caso.lead)
+			if !errors.Is(err, domain.ErrValidacao) {
+				t.Fatalf("erro %v, esperado erro de validação", err)
+			}
+			if !strings.HasSuffix(err.Error(), caso.mensagem) {
+				t.Errorf("mensagem %q, esperado terminar com %q", err.Error(), caso.mensagem)
+			}
+		})
 	}
 }
 

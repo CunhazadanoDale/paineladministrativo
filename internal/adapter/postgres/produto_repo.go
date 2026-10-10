@@ -65,7 +65,7 @@ func (p *ProdutoRepository) Criar(ctx context.Context, produto *domainestoque.Pr
 	`
 
 	if _, err := p.db.NamedExecContext(ctx, query, paraLinhaProduto(produto)); err != nil {
-		return uuid.Nil, tratarErro(err)
+		return uuid.Nil, tratarErroDeGravacao(err)
 	}
 
 	return produto.ID, nil
@@ -229,12 +229,12 @@ func (p *ProdutoRepository) Atualizar(ctx context.Context, produto *domainestoqu
 		linha.ID,
 	)
 	if err != nil {
-		return false, tratarErro(err)
+		return false, tratarErroDeGravacao(err)
 	}
 
 	linhas, err := resultado.RowsAffected()
 	if err != nil {
-		return false, err
+		return false, tratarErroDeGravacao(err)
 	}
 
 	return linhas > 0, nil
@@ -243,7 +243,7 @@ func (p *ProdutoRepository) Atualizar(ctx context.Context, produto *domainestoqu
 func (p *ProdutoRepository) Movimentar(ctx context.Context, produto *domainestoque.Produto, movimento *domainestoque.Movimento) error {
 	tx, err := p.db.BeginTxx(ctx, nil)
 	if err != nil {
-		return err
+		return tratarErroDeGravacao(err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
@@ -252,7 +252,7 @@ func (p *ProdutoRepository) Movimentar(ctx context.Context, produto *domainestoq
 
 	atualizado, err := atualizarSaldoComGuarda(ctx, tx, produto.ID, movimento, saldoAnterior)
 	if err != nil {
-		return err
+		return tratarErroDeGravacao(err)
 	}
 	if !atualizado {
 		return domain.ErroConflito("produto com saldo alterado por outra operação, recarregue e tente novamente")
@@ -263,10 +263,10 @@ func (p *ProdutoRepository) Movimentar(ctx context.Context, produto *domainestoq
 		INSERT INTO produto_movimento (id, produto_id, tipo, quantidade, saldo_apos, usuario_id, documento_ref, observacao, criado_em)
 		VALUES (:id, :produto_id, :tipo, :quantidade, :saldo_apos, :usuario_id, :documento_ref, :observacao, :criado_em)
 	`, linha); err != nil {
-		return tratarErro(err)
+		return tratarErroDeGravacao(err)
 	}
 
-	return tx.Commit()
+	return tratarErroDeGravacao(tx.Commit())
 }
 
 func atualizarSaldoComGuarda(ctx context.Context, tx *sqlx.Tx, produtoID uuid.UUID, movimento *domainestoque.Movimento, saldoAnterior int) (bool, error) {

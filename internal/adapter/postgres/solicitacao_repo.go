@@ -59,7 +59,7 @@ const colunasSolicitacao = `
 func (s *SolicitacaoRepository) Criar(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, arquivoIDs []uuid.UUID, historico *domainsolicitacao.Historico) (uuid.UUID, error) {
 	tx, err := s.db.BeginTxx(ctx, nil)
 	if err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, tratarErroDeGravacao(err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
@@ -77,23 +77,23 @@ func (s *SolicitacaoRepository) Criar(ctx context.Context, solicitacao *domainso
 	`
 
 	if _, err := tx.NamedExecContext(ctx, query, linha); err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, tratarErroDeGravacao(err)
 	}
 
 	if err := inserirHistorico(ctx, tx, historico); err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, tratarErroDeGravacao(err)
 	}
 
 	for _, arquivoID := range arquivoIDs {
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO solicitacao_arquivo (solicitacao_id, arquivo_id) VALUES ($1, $2)
 		`, solicitacao.ID, arquivoID); err != nil {
-			return uuid.Nil, err
+			return uuid.Nil, tratarErroDeGravacao(err)
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, tratarErroDeGravacao(err)
 	}
 
 	return solicitacao.ID, nil
@@ -151,24 +151,24 @@ func (s *SolicitacaoRepository) Listar(ctx context.Context, filtro portsout.Soli
 func (s *SolicitacaoRepository) AtualizarStatus(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, historico *domainsolicitacao.Historico) (bool, error) {
 	tx, err := s.db.BeginTxx(ctx, nil)
 	if err != nil {
-		return false, err
+		return false, tratarErroDeGravacao(err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
 	atualizado, err := atualizarStatusComGuarda(ctx, tx, solicitacao, historico.DeStatus)
 	if err != nil {
-		return false, err
+		return false, tratarErroDeGravacao(err)
 	}
 	if !atualizado {
 		return false, nil
 	}
 
 	if err := inserirHistorico(ctx, tx, historico); err != nil {
-		return false, err
+		return false, tratarErroDeGravacao(err)
 	}
 
 	if err := tx.Commit(); err != nil {
-		return false, err
+		return false, tratarErroDeGravacao(err)
 	}
 
 	return true, nil
@@ -177,13 +177,13 @@ func (s *SolicitacaoRepository) AtualizarStatus(ctx context.Context, solicitacao
 func (s *SolicitacaoRepository) CriarPagamento(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, pagamento *domainsolicitacao.Pagamento, historico *domainsolicitacao.Historico) error {
 	tx, err := s.db.BeginTxx(ctx, nil)
 	if err != nil {
-		return err
+		return tratarErroDeGravacao(err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
 	atualizado, err := atualizarStatusComGuarda(ctx, tx, solicitacao, historico.DeStatus)
 	if err != nil {
-		return err
+		return tratarErroDeGravacao(err)
 	}
 	if !atualizado {
 		return domain.ErroConflito("solicitação alterada por outra operação, recarregue e tente novamente")
@@ -202,7 +202,7 @@ func (s *SolicitacaoRepository) CriarPagamento(ctx context.Context, solicitacao 
 		INSERT INTO pagamento (id, solicitacao_id, comprovante_arquivo_id, valor, pago_em, criado_em)
 		VALUES (:id, :solicitacao_id, :comprovante_arquivo_id, :valor, :pago_em, :criado_em)
 	`, linhaPagamento); err != nil {
-		return err
+		return tratarErroDeGravacao(err)
 	}
 
 	if pagamento.ComprovanteArquivoID != nil {
@@ -210,15 +210,15 @@ func (s *SolicitacaoRepository) CriarPagamento(ctx context.Context, solicitacao 
 			INSERT INTO solicitacao_arquivo (solicitacao_id, arquivo_id) VALUES ($1, $2)
 			ON CONFLICT DO NOTHING
 		`, pagamento.SolicitacaoID, *pagamento.ComprovanteArquivoID); err != nil {
-			return err
+			return tratarErroDeGravacao(err)
 		}
 	}
 
 	if err := inserirHistorico(ctx, tx, historico); err != nil {
-		return err
+		return tratarErroDeGravacao(err)
 	}
 
-	return tx.Commit()
+	return tratarErroDeGravacao(tx.Commit())
 }
 
 func (s *SolicitacaoRepository) ListarArquivos(ctx context.Context, solicitacaoID uuid.UUID) ([]*domainsolicitacao.Arquivo, error) {

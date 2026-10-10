@@ -31,7 +31,7 @@ func (f *FunilRepo) Create(ctx context.Context, funil *lead.Funil) (uuid.UUID, e
 
 	rows, err := f.db.NamedQueryContext(ctx, query, funil)
 	if err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, tratarErroDeGravacao(err)
 	}
 	defer rows.Close()
 
@@ -41,7 +41,7 @@ func (f *FunilRepo) Create(ctx context.Context, funil *lead.Funil) (uuid.UUID, e
 
 	var id uuid.UUID
 	if err := rows.Scan(&id); err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, tratarErroDeGravacao(err)
 	}
 
 	return id, nil
@@ -114,5 +114,5 @@ func (f *FunilRepo) Update(ctx context.Context, funil *lead.Funil) error {
 	`
 
 	_, err := f.db.NamedExecContext(ctx, query, funil)
-	return err
+	return tratarErroDeGravacao(err)
 }

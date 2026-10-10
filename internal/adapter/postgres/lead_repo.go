@@ -54,7 +54,7 @@ func (l *LeadRepository) Create(ctx context.Context, lead *lead.Lead) (uuid.UUID
 
 	rows, err := l.db.NamedQueryContext(ctx, query, lead)
 	if err != nil {
-		return uuid.Nil, tratarErro(err)
+		return uuid.Nil, tratarErroDeGravacao(err)
 	}
 	defer rows.Close()
 
@@ -64,7 +64,7 @@ func (l *LeadRepository) Create(ctx context.Context, lead *lead.Lead) (uuid.UUID
 
 	var id uuid.UUID
 	if err := rows.Scan(&id); err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, tratarErroDeGravacao(err)
 	}
 
 	return id, nil
@@ -173,13 +173,13 @@ func (l *LeadRepository) Update(ctx context.Context, lead *lead.Lead) error {
 	`
 
 	_, err := l.db.NamedExecContext(ctx, query, lead)
-	return tratarErro(err)
+	return tratarErroDeGravacao(err)
 }
 
 func (l *LeadRepository) MoverParaEtapa(ctx context.Context, leadID uuid.UUID, etapaAnteriorID uuid.UUID, etapaAtualID uuid.UUID) error {
 	tx, err := l.db.BeginTxx(ctx, nil)
 	if err != nil {
-		return err
+		return tratarErroDeGravacao(err)
 	}
 
 	result, err := tx.ExecContext(ctx, `
@@ -191,19 +191,19 @@ func (l *LeadRepository) MoverParaEtapa(ctx context.Context, leadID uuid.UUID, e
 	`, etapaAtualID, leadID, etapaAnteriorID)
 	if err != nil {
 		_ = tx.Rollback()
-		return tratarErro(err)
+		return tratarErroDeGravacao(err)
 	}
 
 	afetados, err := result.RowsAffected()
 	if err != nil {
 		_ = tx.Rollback()
-		return err
+		return tratarErroDeGravacao(err)
 	}
 	if afetados == 0 {
 		var existe bool
 		if err := tx.GetContext(ctx, &existe, `SELECT EXISTS(SELECT 1 FROM lead WHERE id = $1)`, leadID); err != nil {
 			_ = tx.Rollback()
-			return err
+			return tratarErroDeGravacao(err)
 		}
 		_ = tx.Rollback()
 		if !existe {
@@ -217,8 +217,8 @@ func (l *LeadRepository) MoverParaEtapa(ctx context.Context, leadID uuid.UUID, e
 		VALUES (gen_random_uuid(), $1, $2, $3, NOW())
 	`, leadID, etapaAnteriorID, etapaAtualID); err != nil {
 		_ = tx.Rollback()
-		return tratarErro(err)
+		return tratarErroDeGravacao(err)
 	}
 
-	return tx.Commit()
+	return tratarErroDeGravacao(tx.Commit())
 }

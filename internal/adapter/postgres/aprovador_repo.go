@@ -31,7 +31,7 @@ func (a *AprovadorRepository) Criar(ctx context.Context, aprovador *domainsolici
 
 	rows, err := a.db.NamedQueryContext(ctx, query, aprovador)
 	if err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, tratarErroDeGravacao(err)
 	}
 	defer rows.Close()
 
@@ -41,7 +41,7 @@ func (a *AprovadorRepository) Criar(ctx context.Context, aprovador *domainsolici
 
 	var id uuid.UUID
 	if err := rows.Scan(&id); err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, tratarErroDeGravacao(err)
 	}
 
 	return id, nil

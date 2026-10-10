@@ -32,7 +32,7 @@ func (u *UsuarioRepository) Ativar(ctx context.Context, id uuid.UUID) error {
 	`
 
 	_, err := u.db.ExecContext(ctx, query, id)
-	return err
+	return tratarErroDeGravacao(err)
 }
 
 func (u *UsuarioRepository) Create(ctx context.Context, usuario *domainusuarios.Usuario) (uuid.UUID, error) {
@@ -44,7 +44,7 @@ func (u *UsuarioRepository) Create(ctx context.Context, usuario *domainusuarios.
 
 	rows, err := u.db.NamedQueryContext(ctx, query, usuario)
 	if err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, tratarErroDeGravacao(err)
 	}
 	defer rows.Close()
 
@@ -54,7 +54,7 @@ func (u *UsuarioRepository) Create(ctx context.Context, usuario *domainusuarios.
 
 	var id uuid.UUID
 	if err := rows.Scan(&id); err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, tratarErroDeGravacao(err)
 	}
 
 	return id, nil
@@ -74,7 +74,7 @@ func (u *UsuarioRepository) Desativar(ctx context.Context, id uuid.UUID) error {
 	`
 
 	_, err := u.db.ExecContext(ctx, query, id)
-	return err
+	return tratarErroDeGravacao(err)
 }
 
 func (u *UsuarioRepository) GetByEmail(ctx context.Context, email string) (*domainusuarios.Usuario, error) {
@@ -176,7 +176,7 @@ func (u *UsuarioRepository) Update(ctx context.Context, usuario *domainusuarios.
 	`
 
 	_, err := u.db.NamedExecContext(ctx, query, usuario)
-	return err
+	return tratarErroDeGravacao(err)
 }
 
 func (u *UsuarioRepository) UpdateUltimoLogin(ctx context.Context, id uuid.UUID, ultimoLogin time.Time) error {
@@ -187,7 +187,7 @@ func (u *UsuarioRepository) UpdateUltimoLogin(ctx context.Context, id uuid.UUID,
 	`
 
 	_, err := u.db.ExecContext(ctx, query, ultimoLogin, id)
-	return err
+	return tratarErroDeGravacao(err)
 }
 
 func (u *UsuarioRepository) AtualizarSenha(ctx context.Context, id uuid.UUID, senha string, atualizadoEm time.Time) error {
@@ -200,7 +200,7 @@ func (u *UsuarioRepository) AtualizarSenha(ctx context.Context, id uuid.UUID, se
 	`
 
 	_, err := u.db.ExecContext(ctx, query, senha, atualizadoEm, id)
-	return err
+	return tratarErroDeGravacao(err)
 }
 
 func (u *UsuarioRepository) EncerrarSessoes(ctx context.Context, id uuid.UUID) error {
@@ -211,5 +211,5 @@ func (u *UsuarioRepository) EncerrarSessoes(ctx context.Context, id uuid.UUID) e
 	`
 
 	_, err := u.db.ExecContext(ctx, query, id)
-	return err
+	return tratarErroDeGravacao(err)
 }

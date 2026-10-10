@@ -46,7 +46,7 @@ func (i *ImagemRepository) Criar(ctx context.Context, imagem *domainestoque.Imag
 	`
 
 	if _, err := i.db.NamedExecContext(ctx, query, paraLinhaImagem(imagem)); err != nil {
-		return uuid.Nil, tratarErro(err)
+		return uuid.Nil, tratarErroDeGravacao(err)
 	}
 
 	return imagem.ID, nil

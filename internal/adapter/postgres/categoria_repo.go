@@ -45,7 +45,7 @@ func (c *CategoriaRepository) Criar(ctx context.Context, categoria *domainestoqu
 	`
 
 	if _, err := c.db.NamedExecContext(ctx, query, paraLinhaCategoria(categoria)); err != nil {
-		return uuid.Nil, tratarErro(err)
+		return uuid.Nil, tratarErroDeGravacao(err)
 	}
 
 	return categoria.ID, nil
@@ -135,12 +135,12 @@ func (c *CategoriaRepository) Atualizar(ctx context.Context, categoria *domaines
 		categoria.ID,
 	)
 	if err != nil {
-		return false, tratarErro(err)
+		return false, tratarErroDeGravacao(err)
 	}
 
 	linhas, err := resultado.RowsAffected()
 	if err != nil {
-		return false, err
+		return false, tratarErroDeGravacao(err)
 	}
 
 	return linhas > 0, nil
