@@ -430,6 +430,55 @@ func TestRegistrarPagamentoExigePerfilFinanceiro(t *testing.T) {
 	}
 }
 
+func TestRegistrarPagamentoValidaADataInformada(t *testing.T) {
+	c := novoCenario(t)
+	ana := c.novoUsuario("Ana", false, false)
+	financeiro := c.novoUsuario("Bruno", false, true)
+	aprovador := c.novoUsuario("Carla", false, false)
+	c.designar(t, aprovador)
+	id := c.criarSolicitacao(t, ana, 150000)
+
+	if err := c.solicitacao.Aprovar(c.ctx, id, aprovador); err != nil {
+		t.Fatalf("aprovação falhou: %v", err)
+	}
+
+	if err := c.solicitacao.RegistrarPagamento(c.ctx, portsin.RegistrarPagamentoInput{
+		SolicitacaoID: id,
+		UsuarioID:     financeiro,
+		ValorCentavos: 150000,
+		PagoEm:        time.Now().UTC().Add(48 * time.Hour),
+	}); !errors.Is(err, domain.ErrValidacao) {
+		t.Fatalf("pagamento com data futura = %v, esperado erro de validação", err)
+	}
+
+	pagoEm := time.Now().UTC().AddDate(0, 0, -3)
+	antes := time.Now().UTC()
+	if err := c.solicitacao.RegistrarPagamento(c.ctx, portsin.RegistrarPagamentoInput{
+		SolicitacaoID: id,
+		UsuarioID:     financeiro,
+		ValorCentavos: 150000,
+		PagoEm:        pagoEm,
+	}); err != nil {
+		t.Fatalf("pagamento retroativo falhou: %v", err)
+	}
+
+	salva, err := c.solicitacao.Obter(c.ctx, id, ana)
+	if err != nil {
+		t.Fatalf("consulta falhou: %v", err)
+	}
+	if salva.AtualizadoEm.Before(antes) {
+		t.Errorf("atualizado_em %v recebeu a data do pagamento, esperado o momento do registro", salva.AtualizadoEm)
+	}
+
+	pagamento, err := c.solicitacao.ObterPagamento(c.ctx, id, ana)
+	if err != nil {
+		t.Fatalf("consulta do pagamento falhou: %v", err)
+	}
+	if !pagamento.PagoEm.Equal(pagoEm) || pagamento.CriadoEm.Before(antes) {
+		t.Errorf("pago_em %v criado_em %v, esperado pago_em informado e criado_em atual", pagamento.PagoEm, pagamento.CriadoEm)
+	}
+}
+
 func TestRegistrarPagamentoAceitaValorDiferenteDoEstimado(t *testing.T) {
 	c := novoCenario(t)
 	ana := c.novoUsuario("Ana", false, false)

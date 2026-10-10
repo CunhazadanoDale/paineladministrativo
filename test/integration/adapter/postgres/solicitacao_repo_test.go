@@ -250,7 +250,10 @@ func TestCreatePagamentoGravaValorEFicaUnicoPorSolicitacao(t *testing.T) {
 	if err != nil {
 		t.Fatalf("valor de teste inválido: %v", err)
 	}
-	pagamento := domainsolicitacao.NovoPagamento(solicitacao.ID, valor, &arquivo.ID, time.Now().UTC())
+	pagamento, err := domainsolicitacao.NovoPagamento(solicitacao.ID, valor, &arquivo.ID, time.Time{}, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("pagamento inválido: %v", err)
+	}
 	pagamentoHistorico := domainsolicitacao.NovoHistorico(
 		solicitacao.ID, c.terceiroID, &statusAnterior, solicitacao.Status, "pagamento registrado",
 	)
@@ -281,7 +284,10 @@ func TestCreatePagamentoGravaValorEFicaUnicoPorSolicitacao(t *testing.T) {
 		t.Errorf("status = %q, esperado %q", solicitacaoPaga.Status, domainsolicitacao.StatusPago)
 	}
 
-	segundaVez := domainsolicitacao.NovoPagamento(solicitacao.ID, valor, nil, time.Now().UTC())
+	segundaVez, err := domainsolicitacao.NovoPagamento(solicitacao.ID, valor, nil, time.Time{}, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("pagamento inválido: %v", err)
+	}
 	historicoDuplicado := domainsolicitacao.NovoHistorico(
 		solicitacao.ID, c.terceiroID, &statusAnterior, solicitacao.Status, "pagamento registrado",
 	)

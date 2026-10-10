@@ -226,8 +226,9 @@ func (u *SolicitacaoUsecaseImpl) RegistrarPagamento(ctx context.Context, input p
 	}
 
 	agora := time.Now().UTC()
-	if !input.PagoEm.IsZero() {
-		agora = input.PagoEm.UTC()
+	pagamento, err := domainsolicitacao.NovoPagamento(solicitacao.ID, valor, input.ComprovanteArquivoID, input.PagoEm.UTC(), agora)
+	if err != nil {
+		return err
 	}
 
 	statusAnterior := solicitacao.Status
@@ -235,7 +236,6 @@ func (u *SolicitacaoUsecaseImpl) RegistrarPagamento(ctx context.Context, input p
 		return err
 	}
 
-	pagamento := domainsolicitacao.NovoPagamento(solicitacao.ID, valor, input.ComprovanteArquivoID, agora)
 	historico := domainsolicitacao.NovoHistorico(
 		solicitacao.ID, input.UsuarioID, &statusAnterior, solicitacao.Status, "pagamento registrado",
 	)
