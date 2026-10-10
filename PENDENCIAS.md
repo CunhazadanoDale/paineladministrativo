@@ -113,10 +113,9 @@ O módulo foi alinhado ao padrão dos módulos `lead`/`usuarios` + miolo transve
 
 **Em aberto**
 
-- [ ] **Nomenclatura dos ports divergente entre módulos** — `lead`/`usuarios` ainda usam
-  nomes em inglês (`Create`, `GetByID`, `Delete`, `List`). Padronizar os dois lados é
-  mexer em código já commitado e testado: decidir se a próxima rodada traduz o baseline
-  para português ou devolve o módulo de solicitações para inglês.
+- [x] **Nomenclatura dos ports divergente entre módulos** — resolvido no T0 do
+  `ROADMAP.md`: `lead`/`usuarios` traduzidos para português, alinhados a `solicitacao` e
+  `estoque`.
 
 ---
 

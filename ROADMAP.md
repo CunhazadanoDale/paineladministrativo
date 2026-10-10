@@ -39,7 +39,7 @@ Documentos irmãos: `API.md` (contrato), `ESTOQUE.md` (modelo de escopo de módu
 | Erros | só `domain.ErroValidacao`, `ErroNaoEncontrado`, `ErroPermissao`, `ErroConflito` | `domain/errors.go` |
 | Erros HTTP | `400`/`404` com prefixo da sentinela, `403`/`409` sem prefixo, `500` fixo; `404`/`405` de rota também no envelope JSON | `handlers/resposta`, `middleware/roteamento.go` |
 | Erros do banco | todo retorno de erro de função de escrita do repositório passa por `tratarErroDeGravacao` (FK → `registro relacionado não encontrado`); exclusões passam por `tratarErro` (FK → `registro em uso`). Os dois traduzem unique → `409` e CHECK, NOT NULL, texto longo, número fora do intervalo e formato inválido → `400`. Inclui o `tx.Commit()`, onde estouram as constraints adiadas | `postgres/erros.go`, `postgres/lead_repo.go` |
-| Validação antes do banco | limites de tamanho e de tipo da coluna validados no domínio ou no usecase (ex.: `utf8.RuneCountInString` contra o `VARCHAR`, `int32` para coluna `INT`); a tradução do banco é rede de segurança, não regra de negócio | `usecases/leadpoint/lead_usecase.go`, `domain/estoque/quantidade.go` |
+| Validação antes do banco | limites de tamanho e de tipo da coluna validados no domínio ou no usecase (ex.: `utf8.RuneCountInString` contra o `VARCHAR`, `int32` para coluna `INT`); a tradução do banco é rede de segurança, não regra de negócio | `usecases/lead/lead_usecase.go`, `domain/estoque/quantidade.go` |
 | Observabilidade | handler nunca engole erro: causa de `500` vai por `resposta.ResponderErro` ou `middleware.AnotarErro(w, err)`, e o `middleware.Registrar` grava a linha JSON com `requisicao_id`; falha depois de a resposta começar (ex.: `io.Copy` interrompido) também é anotada e sai como `WARN` | `middleware/registro.go`, `handlers/solicitacao/arquivo_handler.go` |
 | Nomes | português em tudo, inclusive ports (`Criar`, `Obter`, `Listar`, `Atualizar`, `Remover`) | módulos `solicitacao` e `estoque` |
 | Permissões | wrappers `protegido` / `administrador` / `comercial` em `rotas.go`; perfil novo = flag no `cargo` + método `TemAcesso<Perfil>` no usecase de usuários + `middleware.Exigir<Perfil>` + campo na resposta do login; regras finas em `usecases/<modulo>/permissoes.go` | `middleware/autenticacao.go`, `usecases/solicitacao/permissoes.go` |
@@ -137,7 +137,7 @@ M6, M7, M9 e M13.
 
 | # | Módulo | Depende de | Substitui (controle manual atual) | Status |
 |---|---|---|---|---|
-| T0 | Saneamento | — | — | em andamento (main) |
+| T0 | Saneamento | — | — | concluído |
 | F0 | Correções do front | — | — | pendente |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | pendente |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | pendente |
@@ -182,6 +182,14 @@ importa, e qualquer sessão em paralelo entraria em conflito.
   `estoque` e `solicitacao` no port inteiro: cada um declara a porta mínima de usuários e
   cargos que usa (regra 6 da seção 3), e os fakes encolhem.
 - Sem migration. Não altera contrato HTTP.
+
+**Entregue (outubro/2026):** comentários removidos dos testes e `doc.go` apagado; diretórios
+vazios removidos; ports de `usuarios` e `lead` em português (`Criar`, `Obter`, `Listar`,
+`Buscar`, `Remover`, `ContarPorFunil`, `ObterProxima`…), tipos `LeadHistory*` →
+`LeadHistorico*`, `FunilRepo` → `FunilRepository`, `usecases/leadpoint` → `usecases/lead`
+(importado como `leadusecases`; domínio como `domainlead`); portas mínimas
+`UsuarioRepository`/`CargoRepository` (só `Obter`) em `ports/out/estoque` e
+`ports/out/solicitacao`. Construtores seguem `NewX`, padrão de todos os módulos.
 
 ### F0 — Correções do front
 
@@ -439,7 +447,7 @@ Somente leitura; nenhum dado digitado aqui.
 - [ ] **Representante é usuário?** Se sim, o representante vê só os próprios pedidos e
       comissões (afeta M3, M6, M10).
 - [ ] **Importação histórica**: quantos meses de NFs, títulos e extratos carregar.
-- [ ] **Nomenclatura dos ports** de `lead`/`usuarios` (T0).
+- [x] **Nomenclatura dos ports** de `lead`/`usuarios` (T0): traduzidos para português.
 - [ ] **Modelo de permissões**: flags no cargo ou tabela de permissões, e o padrão de
       escopo por empresa (M1, antes da onda 2).
 - [ ] **IP atrás de proxy**: o limite de tentativas de login usa o IP da conexão. Se o
