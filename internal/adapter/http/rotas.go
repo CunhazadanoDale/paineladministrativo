@@ -40,7 +40,7 @@ func NewRouter(
 	publicoUseCase portsinestoque.PublicoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
-	return middleware.CORS(origensCORS, novasRotas(
+	return middleware.CORS(origensCORS, middleware.ErrosDeRoteamento(novasRotas(
 		banco,
 		leadUseCase, funilUseCase, etapaUseCase, historicoUseCase,
 		usuarioUseCase, cargoUseCase,
@@ -48,7 +48,7 @@ func NewRouter(
 		categoriaUseCase, produtoUseCase, movimentoUseCase, resumoUseCase,
 		imagemUseCase, publicoUseCase,
 		tokens,
-	))
+	)))
 }
 
 func novasRotas(
@@ -203,8 +203,6 @@ func novasRotas(
 
 	imagemPublicaHandler := estoque.NewImagemPublicaHandler(imagemUseCase, arquivoUseCase)
 	mux.HandleFunc("GET /api/v1/publico/imagens/{id}", middleware.EstenderPrazo(prazoDeArquivo, imagemPublicaHandler.Servir))
-
-	mux.HandleFunc("GET /", saude.NaoEncontrado)
 
 	return mux
 }

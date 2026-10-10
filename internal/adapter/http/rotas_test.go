@@ -138,16 +138,28 @@ func TestRotasRegistradasSemConflito(t *testing.T) {
 	}
 }
 
-func TestRotaNaoRegistradaCaiNoCoringa(t *testing.T) {
-	mux := muxDoTeste(t)
+func TestRotaNaoAtendidaRespondeNoEnvelopeJSON(t *testing.T) {
+	roteador := NewRouter(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
-	requisicao, err := http.NewRequest(http.MethodGet, "/nao-existe", nil)
-	if err != nil {
-		t.Fatalf("não foi possível montar a requisição: %v", err)
+	casos := []struct {
+		metodo string
+		rota   string
+		status int
+	}{
+		{http.MethodGet, "/nao-existe", http.StatusNotFound},
+		{http.MethodPost, "/nao-existe", http.StatusNotFound},
+		{http.MethodDelete, "/api/v1/sessao", http.StatusMethodNotAllowed},
 	}
 
-	_, padrao := mux.Handler(requisicao)
-	if padrao != "GET /" {
-		t.Errorf("esperava o coringa GET / para /nao-existe, veio %q", padrao)
+	for _, caso := range casos {
+		registrador := httptest.NewRecorder()
+		roteador.ServeHTTP(registrador, httptest.NewRequest(caso.metodo, caso.rota, nil))
+
+		if registrador.Code != caso.status {
+			t.Errorf("%s %s: status %d, esperado %d", caso.metodo, caso.rota, registrador.Code, caso.status)
+		}
+		if !strings.Contains(registrador.Body.String(), `"erro"`) {
+			t.Errorf("%s %s: corpo %q fora do envelope de erro", caso.metodo, caso.rota, registrador.Body.String())
+		}
 	}
 }

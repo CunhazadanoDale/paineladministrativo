@@ -30,10 +30,6 @@ func ResponderComBanco(banco Pinger) http.HandlerFunc {
 	}
 }
 
-func NaoEncontrado(w http.ResponseWriter, r *http.Request) {
-	dto.EscreverErro(w, http.StatusNotFound, "rota não encontrada")
-}
-
 func responderOK(w http.ResponseWriter) {
 	dto.EscreverJSON(w, http.StatusOK, dto.Resposta[Saude]{
 		Dados: Saude{Status: "ok"},

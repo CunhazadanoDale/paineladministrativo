@@ -62,16 +62,3 @@ func TestResponderComBancoIndisponivel(t *testing.T) {
 
 	apoioteste.VerificarEnvelopeDeErro(t, registrador, http.StatusServiceUnavailable)
 }
-
-func TestNaoEncontrado(t *testing.T) {
-	requisicao := httptest.NewRequest(http.MethodGet, "/nao-existe", nil)
-	registrador := httptest.NewRecorder()
-
-	NaoEncontrado(registrador, requisicao)
-
-	if registrador.Code != http.StatusNotFound {
-		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusNotFound)
-	}
-
-	apoioteste.VerificarEnvelopeDeErro(t, registrador, http.StatusNotFound)
-}
