@@ -1,14 +1,17 @@
 package resposta
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto"
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/middleware"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	"github.com/google/uuid"
 )
@@ -235,5 +238,32 @@ func TestConsultaUUIDInvalidaRespondeErroDeValidacao(t *testing.T) {
 
 	if _, err := ConsultaUUID(requisicao, "categoria_id"); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("erro %v, esperado domain.ErrValidacao", err)
+	}
+}
+
+func TestResponderErroRegistraACausaSoDoErroInterno(t *testing.T) {
+	casos := []struct {
+		nome      string
+		origem    error
+		registrou bool
+	}{
+		{"erro inesperado", errors.New("pq: conexão recusada"), true},
+		{"erro de validação", domain.ErroValidacao("nome obrigatório"), false},
+	}
+
+	for _, caso := range casos {
+		t.Run(caso.nome, func(t *testing.T) {
+			saida := &bytes.Buffer{}
+			registrador := slog.New(slog.NewJSONHandler(saida, nil))
+
+			manipulador := middleware.Registrar(registrador, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				ResponderErro(w, caso.origem)
+			}))
+			manipulador.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/v1/leads", nil))
+
+			if registrou := strings.Contains(saida.String(), caso.origem.Error()); registrou != caso.registrou {
+				t.Errorf("causa registrada = %v, esperado %v: %s", registrou, caso.registrou, saida.String())
+			}
+		})
 	}
 }

@@ -33,6 +33,7 @@ func Autenticar(tokens portsinautenticacao.TokenService, usuarios portsinusuario
 
 		usuario, err := usuarios.GetByID(r.Context(), usuarioID)
 		if err != nil && !errors.Is(err, domain.ErrNotFound) && !errors.Is(err, domain.ErrValidacao) {
+			AnotarErro(w, err)
 			dto.EscreverErro(w, http.StatusInternalServerError, "erro interno do servidor")
 			return
 		}
@@ -55,6 +56,7 @@ func ExigirAdministrador(usuarios portsinusuarios.UsuarioUseCase, proximo http.H
 
 		administrador, err := usuarios.EhAdministrador(r.Context(), usuario)
 		if err != nil {
+			AnotarErro(w, err)
 			dto.EscreverErro(w, http.StatusInternalServerError, "erro interno do servidor")
 			return
 		}

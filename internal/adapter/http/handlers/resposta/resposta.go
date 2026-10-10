@@ -34,6 +34,9 @@ func detalhe(err error, sentinela error) string {
 
 func ResponderErro(w http.ResponseWriter, err error) {
 	status, mensagem := MapearErro(err)
+	if status == http.StatusInternalServerError {
+		middleware.AnotarErro(w, err)
+	}
 
 	dto.EscreverErro(w, status, mensagem)
 }

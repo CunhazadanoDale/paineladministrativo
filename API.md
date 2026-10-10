@@ -139,6 +139,14 @@ Observações:
   regras de negócio. `403` e `409` devolvem só o detalhe, **sem** o prefixo da
   sentinela (mesmo estilo do middleware: `perfil sem permissão para esta operação`)
 
+### Rastreamento de requisições
+
+Toda resposta traz o cabeçalho `X-Request-Id`. A API grava uma linha JSON por requisição
+na saída padrão (`requisicao_id`, `metodo`, `caminho`, `status`, `duracao_ms`); nas
+respostas `5xx` a linha sai com nível `ERROR` e o campo `erro` com a causa real, que nunca
+vai para o corpo da resposta. Para investigar um `500`, peça ao cliente o `X-Request-Id` e
+procure a mesma chave nos logs.
+
 ---
 
 ## Rotas de saúde — público

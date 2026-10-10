@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,6 +14,7 @@ import (
 	"github.com/CunhazadanoDale/paineladministrativo.git/config"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/autenticacao"
 	httpapi "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http"
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/middleware"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/postgres"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/storage/disco"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/storage/r2"
@@ -32,21 +33,30 @@ const (
 const tempoDeEncerramento = 10 * time.Second
 
 func main() {
+	registrador := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
+	if err := executar(registrador); err != nil {
+		registrador.Error("a api parou", slog.String("erro", err.Error()))
+		os.Exit(1)
+	}
+}
+
+func executar(registrador *slog.Logger) error {
 	cfg := config.LoadConfig()
 
 	if cfg.JWTSecret == "" {
-		log.Fatal("JWT_SECRET não configurada: defina o segredo usado nos tokens de acesso")
+		return errors.New("JWT_SECRET não configurada: defina o segredo usado nos tokens de acesso")
 	}
 
 	banco, err := postgres.ConnectionDB(cfg.DatabaseUrl)
 	if err != nil {
-		log.Fatalf("não conectei no banco de dados: %v", err)
+		return fmt.Errorf("não conectei no banco de dados: %w", err)
 	}
 	defer banco.Close()
 
 	storageArquivos, err := montarStorage(context.Background(), cfg)
 	if err != nil {
-		log.Fatalf("não montei o storage de arquivos: %v", err)
+		return fmt.Errorf("não montei o storage de arquivos: %w", err)
 	}
 
 	cargoRepository := postgres.NewCargoRepository(banco)
@@ -95,27 +105,34 @@ func main() {
 
 	servidor := &http.Server{
 		Addr:              ":" + cfg.AppPort,
-		Handler:           rotas,
+		Handler:           middleware.Registrar(registrador, rotas),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      15 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
 
-	go ouvir(servidor, cfg.AppPort)
+	falhas := make(chan error, 1)
+	go ouvir(registrador, servidor, cfg.AppPort, falhas)
 
-	aguardarSinal()
+	select {
+	case err := <-falhas:
+		return err
+	case <-aguardarSinal():
+	}
 
-	log.Print("encerrando a api")
+	registrador.Info("encerrando a api")
 
 	ctx, cancel := context.WithTimeout(context.Background(), tempoDeEncerramento)
 	defer cancel()
 
 	if err := servidor.Shutdown(ctx); err != nil {
-		log.Fatalf("não encerrei a api a tempo: %v", err)
+		return fmt.Errorf("não encerrei a api a tempo: %w", err)
 	}
 
-	log.Print("api encerrada")
+	registrador.Info("api encerrada")
+
+	return nil
 }
 
 func montarStorage(ctx context.Context, cfg *config.Config) (solicitacao.Storage, error) {
@@ -138,17 +155,17 @@ func montarStorage(ctx context.Context, cfg *config.Config) (solicitacao.Storage
 	}
 }
 
-func ouvir(servidor *http.Server, porta string) {
-	log.Printf("api ouvindo em http://localhost:%s", porta)
+func ouvir(registrador *slog.Logger, servidor *http.Server, porta string, falhas chan<- error) {
+	registrador.Info("api ouvindo", slog.String("endereco", "http://localhost:"+porta))
 
 	if err := servidor.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Fatalf("o servidor parou: %v", err)
+		falhas <- fmt.Errorf("o servidor parou: %w", err)
 	}
 }
 
-func aguardarSinal() {
+func aguardarSinal() <-chan os.Signal {
 	parar := make(chan os.Signal, 1)
 	signal.Notify(parar, os.Interrupt, syscall.SIGTERM)
 
-	<-parar
+	return parar
 }
