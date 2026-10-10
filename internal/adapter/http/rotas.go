@@ -2,6 +2,7 @@ package http
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/estoque"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/lead"
@@ -16,6 +17,8 @@ import (
 	portsinusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/usuarios"
 	"github.com/jmoiron/sqlx"
 )
+
+const prazoDeArquivo = 5 * time.Minute
 
 func NewRouter(
 	banco *sqlx.DB,
@@ -153,9 +156,9 @@ func novasRotas(
 	protegido("GET /api/v1/solicitacoes/{id}/arquivos", solicitacaoHandler.ListarArquivos)
 
 	arquivoHandler := solicitacaohandlers.NewArquivoHandler(arquivoUseCase)
-	protegido("POST /api/v1/arquivos", arquivoHandler.Enviar)
+	protegido("POST /api/v1/arquivos", middleware.EstenderPrazo(prazoDeArquivo, arquivoHandler.Enviar))
 	protegido("GET /api/v1/arquivos", arquivoHandler.Listar)
-	protegido("GET /api/v1/arquivos/{id}", arquivoHandler.Baixar)
+	protegido("GET /api/v1/arquivos/{id}", middleware.EstenderPrazo(prazoDeArquivo, arquivoHandler.Baixar))
 	protegido("DELETE /api/v1/arquivos/{id}", arquivoHandler.Remover)
 
 	aprovadorHandler := solicitacaohandlers.NewAprovadorHandler(aprovadorUseCase)
@@ -199,7 +202,7 @@ func novasRotas(
 	mux.HandleFunc("GET /api/v1/publico/destaques", publicoHandler.ListarDestaques)
 
 	imagemPublicaHandler := estoque.NewImagemPublicaHandler(imagemUseCase, arquivoUseCase)
-	mux.HandleFunc("GET /api/v1/publico/imagens/{id}", imagemPublicaHandler.Servir)
+	mux.HandleFunc("GET /api/v1/publico/imagens/{id}", middleware.EstenderPrazo(prazoDeArquivo, imagemPublicaHandler.Servir))
 
 	mux.HandleFunc("GET /", saude.NaoEncontrado)
 

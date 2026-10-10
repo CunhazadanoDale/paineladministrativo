@@ -719,6 +719,7 @@ O upload é `multipart/form-data` com **um campo só**: `arquivo`.
 | Regra | Valor |
 | --- | --- |
 | Tamanho máximo | 10MB por arquivo (`413 arquivo excede o limite de 10MB`) |
+| Tempo de transferência | até 5 minutos no envio (`POST /api/v1/arquivos`) e no download (`GET /api/v1/arquivos/{id}` e `GET /api/v1/publico/imagens/{id}`); as demais rotas têm 15 segundos para ler a requisição e escrever a resposta |
 | Tipos aceitos | `application/pdf`, `image/png`, `image/jpeg`, `image/webp` |
 | Nome | obrigatório, no máximo 255 caracteres |
 | Chave no storage | `{proprietario_id}/{uuid}/{nome}` |
