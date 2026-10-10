@@ -10,7 +10,7 @@ atualize a coluna **Status** conforme forem resolvidos.
 
 | # | Item | Por quê | Esforço | Status |
 | --- | --- | --- | --- | --- |
-| 1 | **README completo** | O `README.md` tem 2 bytes. Quem clona não descobre que `JWT_SECRET` é obrigatório (a API não sobe sem), como subir banco/migrations, os comandos de teste nem que existe a `API.md` | Baixo | pendente |
+| 1 | **README completo** | O `README.md` tem 2 bytes. Quem clona não descobre que `JWT_SECRET` é obrigatório (a API não sobe sem), como subir banco/migrations, os comandos de teste nem que existe a `API.md` | Baixo | concluído (requisitos, variáveis, subida pelo Compose, comandos de teste e links da documentação) |
 | 2 | **Rotas de sessão** | Usuário comum consegue logar, mas não vê o próprio perfil nem troca a própria senha — todas as rotas `/usuarios` são de administrador. Criar `GET /api/v1/sessao` (perfil do token) e `POST /api/v1/sessao/senha` (exigindo a senha atual) | Baixo | concluído (`GET /api/v1/sessao`, `POST /api/v1/sessao/senha` exigindo `senha_atual` e `POST /api/v1/sessao/encerrar`; trocar a senha ou encerrar a sessão revoga todos os tokens do usuário via `usuario.versao_sessao`, migração `000022`; e2e em `usuarios_test.go`; API.md atualizado) |
 | 3 | **Senha temporária no 1º login** | A decisão tomada no seed foi "senha inicial fixa, trocar no primeiro login", mas não existe flag de senha temporária nem exigência de troca. Alternativa: aceitar o fluxo manual e apenas manter a orientação na `API.md` | Médio | pendente |
 | 4 | **Rate limit no login** | `POST /usuarios/autenticar` não limita tentativas: é possível testar senhas em loop. A mensagem genérica `email ou senha inválidos` esconde o que existe, mas não limita a frequência. Limite simples por IP/e-mail, em memória | Médio | concluído (em memória: 5 falhas por e-mail + IP e 50 por IP em 15 minutos, `429` com `Retry-After`; e-mail inexistente compara contra hash fictício para não revelar cadastro) |
@@ -55,7 +55,12 @@ passa a ler um cabeçalho de IP confiável configurado explicitamente.
 - [ ] **`JWT_SECRET` no ambiente de produção** — o `docker compose up api` falha de
   propósito se não houver `.env` com o segredo (fail-closed). Garantir que o ambiente
   tenha um valor gerado (`openssl rand -hex 32`), nunca o de desenvolvimento.
-- [ ] **`CORS_ORIGINS` explícito em produção** — vazio ou `*` libera qualquer origem.
+- [ ] **Go 1.27.2 no `go.mod`** — o Dockerfile e o `govulncheck` já usam 1.27.2, que corrige
+  9 vulnerabilidades da biblioteca padrão presentes na 1.27.1 (`net/http`, `http2`,
+  `crypto/tls`, `net/textproto`). O `go.mod` e os workflows de lint e testes ficam em 1.27.1
+  de propósito: o `staticcheck@v0.8.1` não lê o formato de pacote do 1.27.2 ("export data
+  version 5"). Subir o `go.mod` assim que sair um staticcheck compatível.
+- [ ] **`CORS_ORIGINS` explícito em produção** — vazio não libera nenhuma origem (o front em outro domínio deixa de funcionar até a variável ser preenchida); `*` libera todas.
 - [ ] **Storage dos anexos** — com `STORAGE_DRIVER=r2` (padrão de produção sugerido) as
   quatro variáveis `R2_*` são obrigatórias: a API **não sobe** sem elas. Com o driver
   `disco`, o volume `storage_data` do `docker-compose.yml` monta `/storage_local` e é o

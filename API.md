@@ -4,7 +4,7 @@ Documentação das rotas HTTP do painel administrativo.
 
 - Base URL local: `http://localhost:8080` (docker compose) ou a porta definida em `PORT`
 - Todas as rotas de negócio ficam sob `/api/v1`
-- Todas as respostas são JSON (`application/json; charset=utf-8`), exceto `204` e `405`
+- Todas as respostas são JSON (`application/json; charset=utf-8`), exceto `204` e os binários de arquivo
 
 ---
 
@@ -14,7 +14,7 @@ Documentação das rotas HTTP do painel administrativo.
 | --- | --- | --- | --- |
 | `PORT` | não | `8080` | Porta HTTP do servidor |
 | `DATABASE_URL` | sim | — | String de conexão PostgreSQL, ex.: `postgres://mia:mia@localhost:5444/mia?sslmode=disable` |
-| `CORS_ORIGINS` | não | libera todas | Origens separadas por vírgula. Ex.: `http://localhost:5173`. Vazio ou `*` libera qualquer origem |
+| `CORS_ORIGINS` | não | nenhuma | Origens separadas por vírgula. Ex.: `http://localhost:5173`. Vazio não libera nenhuma origem; `*` libera todas. As respostas expõem `X-Request-Id` e `Retry-After` ao navegador |
 | `JWT_SECRET` | **sim** | — | Segredo usado para assinar os tokens (HS256). A API **não sobe** se estiver vazio |
 | `JWT_EXPIRA_MINUTOS` | não | `480` (8 h) | Validade do token emitido no login. Valores vazios ou inválidos caem no padrão |
 | `STORAGE_DRIVER` | não | `disco` | Onde os anexos são gravados: `disco`, `r2` (Cloudflare R2) |
@@ -127,7 +127,7 @@ A resposta ecoa os valores efetivamente usados. Não há campo de total de regis
 | `401` | Token ausente, inválido, expirado, ou de usuário inexistente/inativo. Sempre com `WWW-Authenticate: Bearer` |
 | `403` | Usuário autenticado sem o perfil necessário: sem `administrador`, ou tentando um `escopo` que não é seu (ex.: `aprovacao` de quem não foi designado) |
 | `404` | Recurso não encontrado ou credenciais de login inválidas |
-| `405` | Método não permitido na rota (resposta em texto puro do roteador, com cabeçalho `Allow`) |
+| `405` | Método não permitido na rota: `{"erro":{"codigo":405,"mensagem":"método não permitido nesta rota"}}`, com cabeçalho `Allow` |
 | `409` | Conflito: transição de status inválida, registro já preenchido (ex.: segundo pagamento na mesma solicitação, aprovador já designado) ou exclusão de anexo vinculado |
 | `500` | Erro interno — mensagem fixa `erro interno do servidor` |
 | `503` | `/health/db` sem conexão com o banco |
@@ -683,7 +683,7 @@ pede e quem aprova vale para todos os perfis.
 | --- | --- |
 | `valor_centavos` | valor **efetivo** pago, maior que zero — pode diferir do estimado |
 | `comprovante_arquivo_id` | opcional. Quando presente tem que ser um PDF **de quem está registrando** e ainda não vinculado a outra solicitação |
-| `pago_em` | opcional, RFC3339. Padrão: agora (UTC) |
+| `pago_em` | opcional, RFC3339. Padrão: agora (UTC). Não pode estar no futuro (`400 erro de validação: data do pagamento não pode estar no futuro`). É a data em que o dinheiro saiu; `criado_em` do pagamento e `atualizado_em` da solicitação registram o momento do lançamento |
 
 **Objeto de pagamento:**
 
@@ -929,7 +929,7 @@ Escrita restrita ao **administrador**. O arquivo chega primeiro pelo upload comu
 
 | Campo | Regra |
 | --- | --- |
-| `arquivo_id` | obrigatório, precisa existir e ser **imagem** (`400 arquivo deve ser uma imagem`) |
+| `arquivo_id` | obrigatório, precisa existir, ser **imagem** (`400 arquivo deve ser uma imagem`) e não pertencer a uma solicitação (`400 arquivo de uma solicitação não pode virar imagem pública de produto`) |
 | `ordem` | inteiro ≥ `0`, define a ordem de exibição no site (`400`) |
 | `alt` | texto alternativo, no máximo 160 caracteres (`400`) |
 
@@ -942,8 +942,8 @@ Escrita restrita ao **administrador**. O arquivo chega primeiro pelo upload comu
 
 As imagens aparecem preenchidas no **detalhe** do produto do painel e nas respostas
 públicas, ordenadas por `ordem`; a **lista** do painel devolve `imagens: []` (a tela de
-edição busca o detalhe). O produto não tem exclusão — só desativação — e o arquivo
-original continua no storage, podendo ser reaproveitado por outro produto.
+edição busca o detalhe). O produto não tem exclusão — só desativação. Ao remover a imagem,
+o arquivo também é apagado do cadastro e do storage quando nenhum outro produto o usa.
 
 ---
 
@@ -978,15 +978,16 @@ oculto em detalhe devolve `404`.
 
 | Rota | Observações |
 | --- | --- |
-| `/publico/categorias` | só ativas, montadas em árvore (`filhas[]`), casamento por `categoria_id` |
+| `/publico/categorias` | só ativas, montadas em árvore (`filhas[]`), casamento por `categoria_id`; subcategoria de pai inativo não aparece |
 | `/publico/produtos` | `?categoria=<slug>` aceita raiz (inclui as subcategorias), `?pagina` e `?tamanho` |
 | `/publico/produtos/{slug}` | slug desconhecido ou produto oculto → `404` |
 | `/publico/destaques` | ativos com destaque **e** estoque |
-| `/publico/imagens/{id}` | `Content-Type` original da imagem; id de imagem de produto inativo → `404` |
+| `/publico/imagens/{id}` | `Content-Type` original, `X-Content-Type-Options: nosniff` e `Cache-Control: public, max-age=300`; imagem de produto fora da vitrine → `404` |
 
 O objeto público **não expõe** `saldo`, `codigo`, `ativo`, `estoque_minimo`, `criado_em`
 nem `atualizado_em`. Sem estoque o produto some da vitrine inteira (lista, destaques e
-detalhe) — não há selo "esgotado". Categoria desconhecida em `?categoria=` devolve `404`.
+detalhe) — não há selo "esgotado". O mesmo vale para produto de categoria inativa ou de
+subcategoria cujo pai está inativo. Categoria desconhecida ou oculta em `?categoria=` devolve `404`.
 
 ---
 
