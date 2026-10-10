@@ -8,7 +8,6 @@ import (
 	domainestoque "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/estoque"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/estoque"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/estoque"
-	portsoutusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/usuarios"
 	"github.com/google/uuid"
 )
 
@@ -25,8 +24,8 @@ func NewProdutoUsecase(
 	produtos portsout.ProdutoRepository,
 	categorias portsout.CategoriaRepository,
 	imagens portsout.ImagemRepository,
-	usuarios portsoutusuarios.UsuarioRepository,
-	cargos portsoutusuarios.CargoRepository,
+	usuarios portsout.UsuarioRepository,
+	cargos portsout.CargoRepository,
 ) *ProdutoUsecaseImpl {
 	return &ProdutoUsecaseImpl{
 		produtos:   produtos,

@@ -8,7 +8,6 @@ import (
 	domainestoque "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/estoque"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/estoque"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/estoque"
-	portsoutusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/usuarios"
 )
 
 var _ portsin.MovimentoUseCase = (*MovimentoUsecaseImpl)(nil)
@@ -22,8 +21,8 @@ type MovimentoUsecaseImpl struct {
 func NewMovimentoUsecase(
 	produtos portsout.ProdutoRepository,
 	movimentos portsout.MovimentoRepository,
-	usuarios portsoutusuarios.UsuarioRepository,
-	cargos portsoutusuarios.CargoRepository,
+	usuarios portsout.UsuarioRepository,
+	cargos portsout.CargoRepository,
 ) *MovimentoUsecaseImpl {
 	return &MovimentoUsecaseImpl{
 		produtos:   produtos,

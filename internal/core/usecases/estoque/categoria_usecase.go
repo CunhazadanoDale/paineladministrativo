@@ -8,7 +8,6 @@ import (
 	domainestoque "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/estoque"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/estoque"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/estoque"
-	portsoutusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/usuarios"
 	"github.com/google/uuid"
 )
 
@@ -21,8 +20,8 @@ type CategoriaUsecaseImpl struct {
 
 func NewCategoriaUsecase(
 	repo portsout.CategoriaRepository,
-	usuarios portsoutusuarios.UsuarioRepository,
-	cargos portsoutusuarios.CargoRepository,
+	usuarios portsout.UsuarioRepository,
+	cargos portsout.CargoRepository,
 ) *CategoriaUsecaseImpl {
 	return &CategoriaUsecaseImpl{
 		repo: repo,

@@ -8,7 +8,6 @@ import (
 	domainsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/solicitacao"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/solicitacao"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/solicitacao"
-	portsoutusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/usuarios"
 	"github.com/google/uuid"
 )
 
@@ -16,10 +15,10 @@ var _ portsin.AprovadorUseCase = (*AprovadorUsecaseImpl)(nil)
 
 type AprovadorUsecaseImpl struct {
 	repo     portsout.AprovadorRepository
-	usuarios portsoutusuarios.UsuarioRepository
+	usuarios portsout.UsuarioRepository
 }
 
-func NewAprovadorUsecase(aprovadores portsout.AprovadorRepository, usuarios portsoutusuarios.UsuarioRepository) *AprovadorUsecaseImpl {
+func NewAprovadorUsecase(aprovadores portsout.AprovadorRepository, usuarios portsout.UsuarioRepository) *AprovadorUsecaseImpl {
 	return &AprovadorUsecaseImpl{
 		repo:     aprovadores,
 		usuarios: usuarios,

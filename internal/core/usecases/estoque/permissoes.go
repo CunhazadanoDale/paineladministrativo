@@ -5,13 +5,13 @@ import (
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	domainusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/usuarios"
-	portsoutusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/usuarios"
+	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/estoque"
 	"github.com/google/uuid"
 )
 
 type permissoes struct {
-	usuarios portsoutusuarios.UsuarioRepository
-	cargos   portsoutusuarios.CargoRepository
+	usuarios portsout.UsuarioRepository
+	cargos   portsout.CargoRepository
 }
 
 func (p *permissoes) exigeAdministrador(ctx context.Context, usuarioID uuid.UUID) error {

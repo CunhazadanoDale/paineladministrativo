@@ -12,7 +12,6 @@ import (
 	domainsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/solicitacao"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/solicitacao"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/solicitacao"
-	portsoutusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/usuarios"
 	"github.com/google/uuid"
 )
 
@@ -31,8 +30,8 @@ func NewArquivoUsecase(
 	arquivos portsout.ArquivoRepository,
 	solicitacoes portsout.SolicitacaoRepository,
 	storage portsout.Storage,
-	usuarios portsoutusuarios.UsuarioRepository,
-	cargos portsoutusuarios.CargoRepository,
+	usuarios portsout.UsuarioRepository,
+	cargos portsout.CargoRepository,
 	aprovadores portsout.AprovadorRepository,
 ) *ArquivoUsecaseImpl {
 	return &ArquivoUsecaseImpl{

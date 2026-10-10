@@ -8,7 +8,6 @@ import (
 	domainsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/solicitacao"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/solicitacao"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/solicitacao"
-	portsoutusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/usuarios"
 	"github.com/google/uuid"
 )
 
@@ -24,8 +23,8 @@ func NewSolicitacaoUsecase(
 	repo portsout.SolicitacaoRepository,
 	arquivos portsout.ArquivoRepository,
 	aprovadores portsout.AprovadorRepository,
-	usuarios portsoutusuarios.UsuarioRepository,
-	cargos portsoutusuarios.CargoRepository,
+	usuarios portsout.UsuarioRepository,
+	cargos portsout.CargoRepository,
 ) *SolicitacaoUsecaseImpl {
 	return &SolicitacaoUsecaseImpl{
 		repo:     repo,

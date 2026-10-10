@@ -7,13 +7,12 @@ import (
 	domainsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/solicitacao"
 	domainusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/usuarios"
 	portsoutsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/solicitacao"
-	portsoutusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/usuarios"
 	"github.com/google/uuid"
 )
 
 type permissoes struct {
-	usuarios    portsoutusuarios.UsuarioRepository
-	cargos      portsoutusuarios.CargoRepository
+	usuarios    portsoutsolicitacao.UsuarioRepository
+	cargos      portsoutsolicitacao.CargoRepository
 	aprovadores portsoutsolicitacao.AprovadorRepository
 }
 

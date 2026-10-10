@@ -5,7 +5,6 @@ import (
 	"io"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	domainestoque "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/estoque"
@@ -13,7 +12,6 @@ import (
 	domainusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/usuarios"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/estoque"
 	portsoutsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/solicitacao"
-	portsoutusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/usuarios"
 	"github.com/google/uuid"
 )
 
@@ -23,8 +21,8 @@ var (
 	_ portsout.MovimentoRepository          = (*repositorioMovimentos)(nil)
 	_ portsout.ImagemRepository             = (*repositorioImagens)(nil)
 	_ portsoutsolicitacao.ArquivoRepository = (*repositorioArquivos)(nil)
-	_ portsoutusuarios.UsuarioRepository    = (*repositorioUsuarios)(nil)
-	_ portsoutusuarios.CargoRepository      = (*repositorioCargos)(nil)
+	_ portsout.UsuarioRepository            = (*repositorioUsuarios)(nil)
+	_ portsout.CargoRepository              = (*repositorioCargos)(nil)
 )
 
 type repositorioCategorias struct {
@@ -351,20 +349,6 @@ func novoRepositorioUsuarios() *repositorioUsuarios {
 	return &repositorioUsuarios{itens: map[uuid.UUID]*domainusuarios.Usuario{}}
 }
 
-func (r *repositorioUsuarios) Criar(_ context.Context, usuario *domainusuarios.Usuario) (uuid.UUID, error) {
-	copia := *usuario
-	r.itens[usuario.ID] = &copia
-
-	return usuario.ID, nil
-}
-
-func (r *repositorioUsuarios) Atualizar(_ context.Context, usuario *domainusuarios.Usuario) error {
-	copia := *usuario
-	r.itens[usuario.ID] = &copia
-
-	return nil
-}
-
 func (r *repositorioUsuarios) Obter(_ context.Context, id uuid.UUID) (*domainusuarios.Usuario, error) {
 	usuario, ok := r.itens[id]
 	if !ok {
@@ -375,91 +359,12 @@ func (r *repositorioUsuarios) Obter(_ context.Context, id uuid.UUID) (*domainusu
 	return &copia, nil
 }
 
-func (r *repositorioUsuarios) ObterPorEmail(_ context.Context, email string) (*domainusuarios.Usuario, error) {
-	for _, usuario := range r.itens {
-		if usuario.Email == email {
-			copia := *usuario
-			return &copia, nil
-		}
-	}
-
-	return nil, nil
-}
-
-func (r *repositorioUsuarios) Listar(_ context.Context, _ domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
-	return nil, nil
-}
-
-func (r *repositorioUsuarios) ListarAtivos(_ context.Context, _ domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
-	return nil, nil
-}
-
-func (r *repositorioUsuarios) Buscar(_ context.Context, _ string, _ domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
-	return nil, nil
-}
-
-func (r *repositorioUsuarios) AtualizarUltimoLogin(_ context.Context, _ uuid.UUID, _ time.Time) error {
-	return nil
-}
-
-func (r *repositorioUsuarios) AtualizarSenha(_ context.Context, _ uuid.UUID, _ string, _ time.Time) error {
-	return nil
-}
-
-func (r *repositorioUsuarios) EncerrarSessoes(_ context.Context, _ uuid.UUID) error {
-	return nil
-}
-
-func (r *repositorioUsuarios) ContarAdministradoresAtivos(_ context.Context) (int, error) {
-	return 0, nil
-}
-
-func (r *repositorioUsuarios) ContarAtivosPorCargo(_ context.Context, _ uuid.UUID) (int, error) {
-	return 0, nil
-}
-
-func (r *repositorioUsuarios) Ativar(_ context.Context, id uuid.UUID) error {
-	if usuario, ok := r.itens[id]; ok {
-		usuario.Ativo = true
-	}
-
-	return nil
-}
-
-func (r *repositorioUsuarios) Desativar(_ context.Context, id uuid.UUID) error {
-	if usuario, ok := r.itens[id]; ok {
-		usuario.Ativo = false
-	}
-
-	return nil
-}
-
-func (r *repositorioUsuarios) Remover(_ context.Context, id uuid.UUID) error {
-	delete(r.itens, id)
-
-	return nil
-}
-
 type repositorioCargos struct {
 	itens map[uuid.UUID]*domainusuarios.Cargo
 }
 
 func novoRepositorioCargos() *repositorioCargos {
 	return &repositorioCargos{itens: map[uuid.UUID]*domainusuarios.Cargo{}}
-}
-
-func (r *repositorioCargos) Criar(_ context.Context, cargo *domainusuarios.Cargo) (uuid.UUID, error) {
-	copia := *cargo
-	r.itens[cargo.ID] = &copia
-
-	return cargo.ID, nil
-}
-
-func (r *repositorioCargos) Atualizar(_ context.Context, cargo *domainusuarios.Cargo) error {
-	copia := *cargo
-	r.itens[cargo.ID] = &copia
-
-	return nil
 }
 
 func (r *repositorioCargos) Obter(_ context.Context, id uuid.UUID) (*domainusuarios.Cargo, error) {
@@ -470,31 +375,6 @@ func (r *repositorioCargos) Obter(_ context.Context, id uuid.UUID) (*domainusuar
 
 	copia := *cargo
 	return &copia, nil
-}
-
-func (r *repositorioCargos) ObterPorNome(_ context.Context, nome string) (*domainusuarios.Cargo, error) {
-	for _, cargo := range r.itens {
-		if cargo.Nome == nome {
-			copia := *cargo
-			return &copia, nil
-		}
-	}
-
-	return nil, nil
-}
-
-func (r *repositorioCargos) Listar(_ context.Context, _ domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
-	return nil, nil
-}
-
-func (r *repositorioCargos) ListarAtivos(_ context.Context, _ domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
-	return nil, nil
-}
-
-func (r *repositorioCargos) Remover(_ context.Context, id uuid.UUID) error {
-	delete(r.itens, id)
-
-	return nil
 }
 
 type repositorioImagens struct {

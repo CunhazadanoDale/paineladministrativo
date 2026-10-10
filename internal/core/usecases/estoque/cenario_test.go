@@ -66,18 +66,17 @@ func novoCenario(t *testing.T) *cenario {
 func criarUsuario(t *testing.T, usuarios *repositorioUsuarios, cargos *repositorioCargos, nome, email string, administrador bool) uuid.UUID {
 	t.Helper()
 
-	cargoID, err := cargos.Criar(context.Background(), &domainusuarios.Cargo{
-		ID:            uuid.New(),
+	cargoID := uuid.New()
+	cargos.itens[cargoID] = &domainusuarios.Cargo{
+		ID:            cargoID,
 		Nome:          "Cargo " + nome,
 		Ativo:         true,
 		Administrador: administrador,
-	})
-	if err != nil {
-		t.Fatalf("não criei o cargo do cenário: %v", err)
 	}
 
-	usuarioID, err := usuarios.Criar(context.Background(), &domainusuarios.Usuario{
-		ID:           uuid.New(),
+	usuarioID := uuid.New()
+	usuarios.itens[usuarioID] = &domainusuarios.Usuario{
+		ID:           usuarioID,
 		Nome:         nome,
 		Email:        email,
 		Senha:        "hash-segredo",
@@ -85,9 +84,6 @@ func criarUsuario(t *testing.T, usuarios *repositorioUsuarios, cargos *repositor
 		Ativo:        true,
 		CriadoEm:     time.Now().UTC(),
 		AtualizadoEm: time.Now().UTC(),
-	})
-	if err != nil {
-		t.Fatalf("não criei o usuário do cenário: %v", err)
 	}
 
 	return usuarioID

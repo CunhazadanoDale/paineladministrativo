@@ -1,0 +1,12 @@
+package solicitacao
+
+import (
+	"context"
+
+	domainusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/usuarios"
+	"github.com/google/uuid"
+)
+
+type CargoRepository interface {
+	Obter(ctx context.Context, id uuid.UUID) (*domainusuarios.Cargo, error)
+}

@@ -9,7 +9,6 @@ import (
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/estoque"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/estoque"
 	portsoutsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/solicitacao"
-	portsoutusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/usuarios"
 	"github.com/google/uuid"
 )
 
@@ -32,8 +31,8 @@ func NewImagemUsecase(
 	categorias portsout.CategoriaRepository,
 	arquivos portsoutsolicitacao.ArquivoRepository,
 	storage portsoutsolicitacao.Storage,
-	usuarios portsoutusuarios.UsuarioRepository,
-	cargos portsoutusuarios.CargoRepository,
+	usuarios portsout.UsuarioRepository,
+	cargos portsout.CargoRepository,
 ) *ImagemUsecaseImpl {
 	return &ImagemUsecaseImpl{
 		imagens:    imagens,
