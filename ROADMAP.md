@@ -137,7 +137,7 @@ M6, M7, M9 e M13.
 
 | # | Módulo | Depende de | Substitui (controle manual atual) | Status |
 |---|---|---|---|---|
-| T0 | Saneamento | — | — | pendente (comentários do `lead_repo.go` já removidos) |
+| T0 | Saneamento | — | — | em andamento (main) |
 | F0 | Correções do front | — | — | pendente |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | pendente |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | pendente |
