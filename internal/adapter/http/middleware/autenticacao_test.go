@@ -49,7 +49,7 @@ type usuariosDeTeste struct {
 	erro          error
 }
 
-func (u *usuariosDeTeste) GetByID(_ context.Context, id uuid.UUID) (*domainusuarios.Usuario, error) {
+func (u *usuariosDeTeste) Obter(_ context.Context, id uuid.UUID) (*domainusuarios.Usuario, error) {
 	if u.erro != nil {
 		return nil, u.erro
 	}

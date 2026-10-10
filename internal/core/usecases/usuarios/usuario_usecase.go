@@ -41,7 +41,7 @@ func (u *UsuarioUsecaseImpl) Ativar(ctx context.Context, id uuid.UUID) error {
 	return u.repo.Ativar(ctx, id)
 }
 
-func (u *UsuarioUsecaseImpl) Authenticate(ctx context.Context, email string, senha string) (*domainusuarios.Usuario, error) {
+func (u *UsuarioUsecaseImpl) Autenticar(ctx context.Context, email string, senha string) (*domainusuarios.Usuario, error) {
 	email = normalizarEmail(email)
 
 	if err := validarEmail(email); err != nil {
@@ -51,7 +51,7 @@ func (u *UsuarioUsecaseImpl) Authenticate(ctx context.Context, email string, sen
 		return nil, domain.ErroValidacao("senha do usuário é obrigatória")
 	}
 
-	usuario, err := u.repo.GetByEmail(ctx, email)
+	usuario, err := u.repo.ObterPorEmail(ctx, email)
 	if err != nil {
 		return nil, err
 	}
@@ -92,10 +92,10 @@ func (u *UsuarioUsecaseImpl) cargoDoUsuario(ctx context.Context, usuario *domain
 		return nil, nil
 	}
 
-	return u.cargos.GetByID(ctx, usuario.CargoID)
+	return u.cargos.Obter(ctx, usuario.CargoID)
 }
 
-func (u *UsuarioUsecaseImpl) Create(ctx context.Context, nome string, email string, senha string, cargoID uuid.UUID) (uuid.UUID, error) {
+func (u *UsuarioUsecaseImpl) Criar(ctx context.Context, nome string, email string, senha string, cargoID uuid.UUID) (uuid.UUID, error) {
 	nome = strings.TrimSpace(nome)
 	email = normalizarEmail(email)
 
@@ -112,7 +112,7 @@ func (u *UsuarioUsecaseImpl) Create(ctx context.Context, nome string, email stri
 		return uuid.Nil, domain.ErroValidacao("cargo do usuário é obrigatório")
 	}
 
-	cargo, err := u.cargos.GetByID(ctx, cargoID)
+	cargo, err := u.cargos.Obter(ctx, cargoID)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -120,7 +120,7 @@ func (u *UsuarioUsecaseImpl) Create(ctx context.Context, nome string, email stri
 		return uuid.Nil, domain.ErroValidacao("cargo do usuário não encontrado")
 	}
 
-	cadastrado, err := u.repo.GetByEmail(ctx, email)
+	cadastrado, err := u.repo.ObterPorEmail(ctx, email)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -146,10 +146,10 @@ func (u *UsuarioUsecaseImpl) Create(ctx context.Context, nome string, email stri
 		AtualizadoEm: agora,
 	}
 
-	return u.repo.Create(ctx, usuario)
+	return u.repo.Criar(ctx, usuario)
 }
 
-func (u *UsuarioUsecaseImpl) Delete(ctx context.Context, id uuid.UUID) error {
+func (u *UsuarioUsecaseImpl) Remover(ctx context.Context, id uuid.UUID) error {
 	atual, err := u.buscar(ctx, id)
 	if err != nil {
 		return err
@@ -158,7 +158,7 @@ func (u *UsuarioUsecaseImpl) Delete(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 
-	return u.repo.Delete(ctx, id)
+	return u.repo.Remover(ctx, id)
 }
 
 func (u *UsuarioUsecaseImpl) Desativar(ctx context.Context, id uuid.UUID) error {
@@ -173,14 +173,14 @@ func (u *UsuarioUsecaseImpl) Desativar(ctx context.Context, id uuid.UUID) error 
 	return u.repo.Desativar(ctx, id)
 }
 
-func (u *UsuarioUsecaseImpl) GetByEmail(ctx context.Context, email string) (*domainusuarios.Usuario, error) {
+func (u *UsuarioUsecaseImpl) ObterPorEmail(ctx context.Context, email string) (*domainusuarios.Usuario, error) {
 	email = normalizarEmail(email)
 
 	if err := validarEmail(email); err != nil {
 		return nil, err
 	}
 
-	usuario, err := u.repo.GetByEmail(ctx, email)
+	usuario, err := u.repo.ObterPorEmail(ctx, email)
 	if err != nil {
 		return nil, err
 	}
@@ -191,23 +191,23 @@ func (u *UsuarioUsecaseImpl) GetByEmail(ctx context.Context, email string) (*dom
 	return usuario, nil
 }
 
-func (u *UsuarioUsecaseImpl) GetByID(ctx context.Context, id uuid.UUID) (*domainusuarios.Usuario, error) {
+func (u *UsuarioUsecaseImpl) Obter(ctx context.Context, id uuid.UUID) (*domainusuarios.Usuario, error) {
 	return u.buscar(ctx, id)
 }
 
-func (u *UsuarioUsecaseImpl) List(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
-	return u.repo.List(ctx, filtro.Normalizada())
+func (u *UsuarioUsecaseImpl) Listar(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
+	return u.repo.Listar(ctx, filtro.Normalizada())
 }
 
-func (u *UsuarioUsecaseImpl) ListAtivos(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
-	return u.repo.ListAtivos(ctx, filtro.Normalizada())
+func (u *UsuarioUsecaseImpl) ListarAtivos(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
+	return u.repo.ListarAtivos(ctx, filtro.Normalizada())
 }
 
-func (u *UsuarioUsecaseImpl) Search(ctx context.Context, termo string, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
-	return u.repo.Search(ctx, strings.TrimSpace(termo), filtro.Normalizada())
+func (u *UsuarioUsecaseImpl) Buscar(ctx context.Context, termo string, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
+	return u.repo.Buscar(ctx, strings.TrimSpace(termo), filtro.Normalizada())
 }
 
-func (u *UsuarioUsecaseImpl) Update(ctx context.Context, usuario *domainusuarios.Usuario) error {
+func (u *UsuarioUsecaseImpl) Atualizar(ctx context.Context, usuario *domainusuarios.Usuario) error {
 	if usuario == nil || usuario.ID == uuid.Nil {
 		return domain.ErroValidacao("usuário inválido")
 	}
@@ -231,7 +231,7 @@ func (u *UsuarioUsecaseImpl) Update(ctx context.Context, usuario *domainusuarios
 	}
 
 	if usuario.Email != atual.Email {
-		cadastrado, err := u.repo.GetByEmail(ctx, usuario.Email)
+		cadastrado, err := u.repo.ObterPorEmail(ctx, usuario.Email)
 		if err != nil {
 			return err
 		}
@@ -242,7 +242,7 @@ func (u *UsuarioUsecaseImpl) Update(ctx context.Context, usuario *domainusuarios
 
 	continuaAdministrador := usuario.Ativo
 	if usuario.CargoID != atual.CargoID {
-		cargo, err := u.cargos.GetByID(ctx, usuario.CargoID)
+		cargo, err := u.cargos.Obter(ctx, usuario.CargoID)
 		if err != nil {
 			return err
 		}
@@ -267,10 +267,10 @@ func (u *UsuarioUsecaseImpl) Update(ctx context.Context, usuario *domainusuarios
 	usuario.CriadoEm = atual.CriadoEm
 	usuario.AtualizadoEm = time.Now().UTC()
 
-	return u.repo.Update(ctx, usuario)
+	return u.repo.Atualizar(ctx, usuario)
 }
 
-func (u *UsuarioUsecaseImpl) UpdateSenha(ctx context.Context, id uuid.UUID, novaSenha string) error {
+func (u *UsuarioUsecaseImpl) AtualizarSenha(ctx context.Context, id uuid.UUID, novaSenha string) error {
 	if err := validarSenha(novaSenha); err != nil {
 		return err
 	}
@@ -318,7 +318,7 @@ func (u *UsuarioUsecaseImpl) gravarSenha(ctx context.Context, id uuid.UUID, nova
 	return u.repo.AtualizarSenha(ctx, id, string(hash), time.Now().UTC())
 }
 
-func (u *UsuarioUsecaseImpl) UpdateUltimoLogin(ctx context.Context, id uuid.UUID, ultimoLogin time.Time) error {
+func (u *UsuarioUsecaseImpl) AtualizarUltimoLogin(ctx context.Context, id uuid.UUID, ultimoLogin time.Time) error {
 	if ultimoLogin.IsZero() {
 		return domain.ErroValidacao("data do último login inválida")
 	}
@@ -327,7 +327,7 @@ func (u *UsuarioUsecaseImpl) UpdateUltimoLogin(ctx context.Context, id uuid.UUID
 		return err
 	}
 
-	return u.repo.UpdateUltimoLogin(ctx, id, ultimoLogin)
+	return u.repo.AtualizarUltimoLogin(ctx, id, ultimoLogin)
 }
 
 func (u *UsuarioUsecaseImpl) garantirOutroAdministrador(ctx context.Context, usuario *domainusuarios.Usuario) error {
@@ -356,7 +356,7 @@ func (u *UsuarioUsecaseImpl) buscar(ctx context.Context, id uuid.UUID) (*domainu
 		return nil, domain.ErroValidacao("id do usuário não informado")
 	}
 
-	usuario, err := u.repo.GetByID(ctx, id)
+	usuario, err := u.repo.Obter(ctx, id)
 	if err != nil {
 		return nil, err
 	}

@@ -103,7 +103,7 @@ type usuariosFalso struct {
 	usuario *domainusuarios.Usuario
 }
 
-func (u *usuariosFalso) GetByID(context.Context, uuid.UUID) (*domainusuarios.Usuario, error) {
+func (u *usuariosFalso) Obter(context.Context, uuid.UUID) (*domainusuarios.Usuario, error) {
 	return u.usuario, nil
 }
 

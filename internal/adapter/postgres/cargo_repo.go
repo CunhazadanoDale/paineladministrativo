@@ -22,7 +22,7 @@ func NewCargoRepository(db *sqlx.DB) *CargoRepository {
 	return &CargoRepository{db: db}
 }
 
-func (c *CargoRepository) Create(ctx context.Context, cargo *domainusuarios.Cargo) (uuid.UUID, error) {
+func (c *CargoRepository) Criar(ctx context.Context, cargo *domainusuarios.Cargo) (uuid.UUID, error) {
 	query := `
 		INSERT INTO cargo (id, nome, descricao, ativo, administrador, financeiro, comercial)
 		VALUES (:id, :nome, :descricao, :ativo, :administrador, :financeiro, :comercial)
@@ -47,12 +47,12 @@ func (c *CargoRepository) Create(ctx context.Context, cargo *domainusuarios.Carg
 	return id, nil
 }
 
-func (c *CargoRepository) Delete(ctx context.Context, id uuid.UUID) error {
+func (c *CargoRepository) Remover(ctx context.Context, id uuid.UUID) error {
 	_, err := c.db.ExecContext(ctx, `DELETE FROM cargo WHERE id = $1`, id)
 	return tratarErro(err)
 }
 
-func (c *CargoRepository) GetByID(ctx context.Context, id uuid.UUID) (*domainusuarios.Cargo, error) {
+func (c *CargoRepository) Obter(ctx context.Context, id uuid.UUID) (*domainusuarios.Cargo, error) {
 	query := `SELECT id, nome, descricao, ativo, administrador, financeiro, comercial FROM cargo WHERE id = $1`
 
 	var item domainusuarios.Cargo
@@ -65,7 +65,7 @@ func (c *CargoRepository) GetByID(ctx context.Context, id uuid.UUID) (*domainusu
 	return &item, nil
 }
 
-func (c *CargoRepository) GetByNome(ctx context.Context, nome string) (*domainusuarios.Cargo, error) {
+func (c *CargoRepository) ObterPorNome(ctx context.Context, nome string) (*domainusuarios.Cargo, error) {
 	query := `SELECT id, nome, descricao, ativo, administrador, financeiro, comercial FROM cargo WHERE nome = $1`
 
 	var item domainusuarios.Cargo
@@ -78,7 +78,7 @@ func (c *CargoRepository) GetByNome(ctx context.Context, nome string) (*domainus
 	return &item, nil
 }
 
-func (c *CargoRepository) List(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
+func (c *CargoRepository) Listar(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
 	offset := (filtro.Page - 1) * filtro.Size
 	query := `
 		SELECT id, nome, descricao, ativo, administrador, financeiro, comercial
@@ -94,7 +94,7 @@ func (c *CargoRepository) List(ctx context.Context, filtro domain.PaginacaoFiltr
 	return itens, nil
 }
 
-func (c *CargoRepository) ListAtivos(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
+func (c *CargoRepository) ListarAtivos(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
 	offset := (filtro.Page - 1) * filtro.Size
 	query := `
 		SELECT id, nome, descricao, ativo, administrador, financeiro, comercial
@@ -111,7 +111,7 @@ func (c *CargoRepository) ListAtivos(ctx context.Context, filtro domain.Paginaca
 	return itens, nil
 }
 
-func (c *CargoRepository) Update(ctx context.Context, cargo *domainusuarios.Cargo) error {
+func (c *CargoRepository) Atualizar(ctx context.Context, cargo *domainusuarios.Cargo) error {
 	query := `
 		UPDATE cargo
 		SET nome = :nome,

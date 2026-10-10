@@ -48,12 +48,12 @@ func cenarioSolicitacoes(t *testing.T) *cenarioBancoSolicitacoes {
 func inserirUsuario(t *testing.T, cargos *postgres.CargoRepository, usuarios *postgres.UsuarioRepository, nome, email string) uuid.UUID {
 	t.Helper()
 
-	cargoID, err := cargos.Create(context.Background(), novoCargo("Cargo de "+nome))
+	cargoID, err := cargos.Criar(context.Background(), novoCargo("Cargo de "+nome))
 	if err != nil {
 		t.Fatalf("não criei o cargo do cenário: %v", err)
 	}
 
-	usuarioID, err := usuarios.Create(context.Background(), novoUsuario(cargoID, nome, email))
+	usuarioID, err := usuarios.Criar(context.Background(), novoUsuario(cargoID, nome, email))
 	if err != nil {
 		t.Fatalf("não criei o usuário do cenário: %v", err)
 	}

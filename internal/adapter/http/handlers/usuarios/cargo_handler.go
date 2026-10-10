@@ -25,13 +25,13 @@ func (h *CargoHandler) Criar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := h.usecase.Create(r.Context(), requisicao.ParaCargo())
+	id, err := h.usecase.Criar(r.Context(), requisicao.ParaCargo())
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
 	}
 
-	item, err := h.usecase.GetByID(r.Context(), id)
+	item, err := h.usecase.Obter(r.Context(), id)
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
@@ -51,9 +51,9 @@ func (h *CargoHandler) Listar(w http.ResponseWriter, r *http.Request) {
 	)
 
 	if resposta.ConsultaBooleana(r, "ativos") {
-		itens, err = h.usecase.ListAtivos(r.Context(), paginacao)
+		itens, err = h.usecase.ListarAtivos(r.Context(), paginacao)
 	} else {
-		itens, err = h.usecase.List(r.Context(), paginacao)
+		itens, err = h.usecase.Listar(r.Context(), paginacao)
 	}
 
 	if err != nil {
@@ -74,7 +74,7 @@ func (h *CargoHandler) Obter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	item, err := h.usecase.GetByID(r.Context(), id)
+	item, err := h.usecase.Obter(r.Context(), id)
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
@@ -92,7 +92,7 @@ func (h *CargoHandler) ObterPorNome(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	item, err := h.usecase.GetByNome(r.Context(), nome)
+	item, err := h.usecase.ObterPorNome(r.Context(), nome)
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
@@ -114,12 +114,12 @@ func (h *CargoHandler) Atualizar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.usecase.Update(r.Context(), requisicao.ParaCargo(id)); err != nil {
+	if err := h.usecase.Atualizar(r.Context(), requisicao.ParaCargo(id)); err != nil {
 		resposta.ResponderErro(w, err)
 		return
 	}
 
-	item, err := h.usecase.GetByID(r.Context(), id)
+	item, err := h.usecase.Obter(r.Context(), id)
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
@@ -136,7 +136,7 @@ func (h *CargoHandler) Remover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.usecase.Delete(r.Context(), id); err != nil {
+	if err := h.usecase.Remover(r.Context(), id); err != nil {
 		resposta.ResponderErro(w, err)
 		return
 	}

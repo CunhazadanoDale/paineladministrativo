@@ -22,7 +22,7 @@ func NewCargoUsecase(repo portsout.CargoRepository, usuarios portsout.UsuarioRep
 	return &CargoUsecaseImpl{repo: repo, usuarios: usuarios}
 }
 
-func (c *CargoUsecaseImpl) Create(ctx context.Context, cargo *domainusuarios.Cargo) (uuid.UUID, error) {
+func (c *CargoUsecaseImpl) Criar(ctx context.Context, cargo *domainusuarios.Cargo) (uuid.UUID, error) {
 	if cargo == nil {
 		return uuid.Nil, domain.ErroValidacao("cargo não informado")
 	}
@@ -32,7 +32,7 @@ func (c *CargoUsecaseImpl) Create(ctx context.Context, cargo *domainusuarios.Car
 		return uuid.Nil, domain.ErroValidacao("nome do cargo é obrigatório")
 	}
 
-	existente, err := c.repo.GetByNome(ctx, nome)
+	existente, err := c.repo.ObterPorNome(ctx, nome)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -50,28 +50,28 @@ func (c *CargoUsecaseImpl) Create(ctx context.Context, cargo *domainusuarios.Car
 		Comercial:     cargo.Comercial,
 	}
 
-	return c.repo.Create(ctx, novo)
+	return c.repo.Criar(ctx, novo)
 }
 
-func (c *CargoUsecaseImpl) Delete(ctx context.Context, id uuid.UUID) error {
+func (c *CargoUsecaseImpl) Remover(ctx context.Context, id uuid.UUID) error {
 	if _, err := c.buscar(ctx, id); err != nil {
 		return err
 	}
 
-	return c.repo.Delete(ctx, id)
+	return c.repo.Remover(ctx, id)
 }
 
-func (c *CargoUsecaseImpl) GetByID(ctx context.Context, id uuid.UUID) (*domainusuarios.Cargo, error) {
+func (c *CargoUsecaseImpl) Obter(ctx context.Context, id uuid.UUID) (*domainusuarios.Cargo, error) {
 	return c.buscar(ctx, id)
 }
 
-func (c *CargoUsecaseImpl) GetByNome(ctx context.Context, nome string) (*domainusuarios.Cargo, error) {
+func (c *CargoUsecaseImpl) ObterPorNome(ctx context.Context, nome string) (*domainusuarios.Cargo, error) {
 	nome = strings.TrimSpace(nome)
 	if nome == "" {
 		return nil, domain.ErroValidacao("nome do cargo não informado")
 	}
 
-	cargo, err := c.repo.GetByNome(ctx, nome)
+	cargo, err := c.repo.ObterPorNome(ctx, nome)
 	if err != nil {
 		return nil, err
 	}
@@ -82,15 +82,15 @@ func (c *CargoUsecaseImpl) GetByNome(ctx context.Context, nome string) (*domainu
 	return cargo, nil
 }
 
-func (c *CargoUsecaseImpl) List(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
-	return c.repo.List(ctx, filtro.Normalizada())
+func (c *CargoUsecaseImpl) Listar(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
+	return c.repo.Listar(ctx, filtro.Normalizada())
 }
 
-func (c *CargoUsecaseImpl) ListAtivos(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
-	return c.repo.ListAtivos(ctx, filtro.Normalizada())
+func (c *CargoUsecaseImpl) ListarAtivos(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
+	return c.repo.ListarAtivos(ctx, filtro.Normalizada())
 }
 
-func (c *CargoUsecaseImpl) Update(ctx context.Context, cargo *domainusuarios.Cargo) error {
+func (c *CargoUsecaseImpl) Atualizar(ctx context.Context, cargo *domainusuarios.Cargo) error {
 	if cargo == nil || cargo.ID == uuid.Nil {
 		return domain.ErroValidacao("cargo inválido")
 	}
@@ -107,7 +107,7 @@ func (c *CargoUsecaseImpl) Update(ctx context.Context, cargo *domainusuarios.Car
 		return err
 	}
 
-	existente, err := c.repo.GetByNome(ctx, cargo.Nome)
+	existente, err := c.repo.ObterPorNome(ctx, cargo.Nome)
 	if err != nil {
 		return err
 	}
@@ -120,7 +120,7 @@ func (c *CargoUsecaseImpl) Update(ctx context.Context, cargo *domainusuarios.Car
 		}
 	}
 
-	return c.repo.Update(ctx, cargo)
+	return c.repo.Atualizar(ctx, cargo)
 }
 
 func (c *CargoUsecaseImpl) garantirAdministradorForaDoCargo(ctx context.Context, cargoID uuid.UUID) error {
@@ -145,7 +145,7 @@ func (c *CargoUsecaseImpl) buscar(ctx context.Context, id uuid.UUID) (*domainusu
 		return nil, domain.ErroValidacao("id do cargo não informado")
 	}
 
-	cargo, err := c.repo.GetByID(ctx, id)
+	cargo, err := c.repo.Obter(ctx, id)
 	if err != nil {
 		return nil, err
 	}

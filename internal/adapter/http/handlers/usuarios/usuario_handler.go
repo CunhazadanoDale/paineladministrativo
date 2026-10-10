@@ -36,13 +36,13 @@ func (h *UsuarioHandler) Criar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := h.usecase.Create(r.Context(), requisicao.Nome, requisicao.Email, requisicao.Senha, requisicao.CargoID)
+	id, err := h.usecase.Criar(r.Context(), requisicao.Nome, requisicao.Email, requisicao.Senha, requisicao.CargoID)
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
 	}
 
-	item, err := h.usecase.GetByID(r.Context(), id)
+	item, err := h.usecase.Obter(r.Context(), id)
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
@@ -64,11 +64,11 @@ func (h *UsuarioHandler) Listar(w http.ResponseWriter, r *http.Request) {
 
 	switch {
 	case busca != "":
-		itens, err = h.usecase.Search(r.Context(), busca, paginacao)
+		itens, err = h.usecase.Buscar(r.Context(), busca, paginacao)
 	case resposta.ConsultaBooleana(r, "ativos"):
-		itens, err = h.usecase.ListAtivos(r.Context(), paginacao)
+		itens, err = h.usecase.ListarAtivos(r.Context(), paginacao)
 	default:
-		itens, err = h.usecase.List(r.Context(), paginacao)
+		itens, err = h.usecase.Listar(r.Context(), paginacao)
 	}
 
 	if err != nil {
@@ -89,7 +89,7 @@ func (h *UsuarioHandler) Obter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	item, err := h.usecase.GetByID(r.Context(), id)
+	item, err := h.usecase.Obter(r.Context(), id)
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
@@ -111,12 +111,12 @@ func (h *UsuarioHandler) Atualizar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.usecase.Update(r.Context(), requisicao.ParaUsuario(id)); err != nil {
+	if err := h.usecase.Atualizar(r.Context(), requisicao.ParaUsuario(id)); err != nil {
 		resposta.ResponderErro(w, err)
 		return
 	}
 
-	item, err := h.usecase.GetByID(r.Context(), id)
+	item, err := h.usecase.Obter(r.Context(), id)
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
@@ -133,7 +133,7 @@ func (h *UsuarioHandler) Remover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.usecase.Delete(r.Context(), id); err != nil {
+	if err := h.usecase.Remover(r.Context(), id); err != nil {
 		resposta.ResponderErro(w, err)
 		return
 	}
@@ -152,7 +152,7 @@ func (h *UsuarioHandler) Autenticar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	usuario, err := h.usecase.Authenticate(r.Context(), requisicao.Email, requisicao.Senha)
+	usuario, err := h.usecase.Autenticar(r.Context(), requisicao.Email, requisicao.Senha)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) || errors.Is(err, domain.ErrValidacao) {
 			h.tentativas.RegistrarFalha(r, requisicao.Email)
@@ -167,7 +167,7 @@ func (h *UsuarioHandler) Autenticar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	login := time.Now().UTC()
-	if err := h.usecase.UpdateUltimoLogin(r.Context(), usuario.ID, login); err != nil {
+	if err := h.usecase.AtualizarUltimoLogin(r.Context(), usuario.ID, login); err != nil {
 		resposta.ResponderErro(w, err)
 		return
 	}
@@ -222,7 +222,7 @@ func (h *UsuarioHandler) TrocarSenha(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.usecase.UpdateSenha(r.Context(), id, requisicao.NovaSenha); err != nil {
+	if err := h.usecase.AtualizarSenha(r.Context(), id, requisicao.NovaSenha); err != nil {
 		resposta.ResponderErro(w, err)
 		return
 	}
@@ -249,7 +249,7 @@ func (h *UsuarioHandler) alterarAtivo(w http.ResponseWriter, r *http.Request, ac
 		return
 	}
 
-	item, err := h.usecase.GetByID(r.Context(), id)
+	item, err := h.usecase.Obter(r.Context(), id)
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return

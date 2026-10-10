@@ -31,7 +31,7 @@ func Autenticar(tokens portsinautenticacao.TokenService, usuarios portsinusuario
 			return
 		}
 
-		usuario, err := usuarios.GetByID(r.Context(), usuarioID)
+		usuario, err := usuarios.Obter(r.Context(), usuarioID)
 		if err != nil && !errors.Is(err, domain.ErrNotFound) && !errors.Is(err, domain.ErrValidacao) {
 			AnotarErro(w, err)
 			dto.EscreverErro(w, http.StatusInternalServerError, "erro interno do servidor")

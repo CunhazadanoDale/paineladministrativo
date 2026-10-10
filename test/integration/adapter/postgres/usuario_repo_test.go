@@ -54,7 +54,7 @@ func TestCargoCriaAtualizaELista(t *testing.T) {
 	ctx := context.Background()
 
 	criado := novoCargo("Engenheiro")
-	id, err := cargos.Create(ctx, criado)
+	id, err := cargos.Criar(ctx, criado)
 	if err != nil {
 		t.Fatalf("criação do cargo falhou: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestCargoCriaAtualizaELista(t *testing.T) {
 		t.Fatal("criação devolveu id zero")
 	}
 
-	salvo, err := cargos.GetByID(ctx, id)
+	salvo, err := cargos.Obter(ctx, id)
 	if err != nil {
 		t.Fatalf("busca por id falhou: %v", err)
 	}
@@ -73,7 +73,7 @@ func TestCargoCriaAtualizaELista(t *testing.T) {
 		t.Errorf("cargo salvo %+v, esperado nome %q ativo", salvo, "Engenheiro")
 	}
 
-	porNome, err := cargos.GetByNome(ctx, "Engenheiro")
+	porNome, err := cargos.ObterPorNome(ctx, "Engenheiro")
 	if err != nil {
 		t.Fatalf("busca por nome falhou: %v", err)
 	}
@@ -81,7 +81,7 @@ func TestCargoCriaAtualizaELista(t *testing.T) {
 		t.Errorf("busca por nome devolveu %+v, esperado o cargo %s", porNome, id)
 	}
 
-	inexistente, err := cargos.GetByNome(ctx, "Pedreiro")
+	inexistente, err := cargos.ObterPorNome(ctx, "Pedreiro")
 	if err != nil {
 		t.Fatalf("busca por nome inexistente falhou: %v", err)
 	}
@@ -92,11 +92,11 @@ func TestCargoCriaAtualizaELista(t *testing.T) {
 	salvo.Nome = "Engenheiro Civil"
 	salvo.Descricao = "Responsável técnico"
 	salvo.Ativo = false
-	if err := cargos.Update(ctx, salvo); err != nil {
+	if err := cargos.Atualizar(ctx, salvo); err != nil {
 		t.Fatalf("atualização do cargo falhou: %v", err)
 	}
 
-	atualizado, err := cargos.GetByID(ctx, id)
+	atualizado, err := cargos.Obter(ctx, id)
 	if err != nil {
 		t.Fatalf("busca após atualização falhou: %v", err)
 	}
@@ -107,14 +107,14 @@ func TestCargoCriaAtualizaELista(t *testing.T) {
 		t.Errorf("cargo atualizado %+v, esperado nome %q e inativo", atualizado, "Engenheiro Civil")
 	}
 
-	if _, err := cargos.Create(ctx, novoCargo("Arquiteto")); err != nil {
+	if _, err := cargos.Criar(ctx, novoCargo("Arquiteto")); err != nil {
 		t.Fatalf("criação do segundo cargo falhou: %v", err)
 	}
-	if _, err := cargos.Create(ctx, novoCargo("Mestre de obras")); err != nil {
+	if _, err := cargos.Criar(ctx, novoCargo("Mestre de obras")); err != nil {
 		t.Fatalf("criação do terceiro cargo falhou: %v", err)
 	}
 
-	todos, err := cargos.List(ctx, todasAsPaginas)
+	todos, err := cargos.Listar(ctx, todasAsPaginas)
 	if err != nil {
 		t.Fatalf("listagem falhou: %v", err)
 	}
@@ -122,7 +122,7 @@ func TestCargoCriaAtualizaELista(t *testing.T) {
 		t.Errorf("listagem devolveu %d cargos, esperado 4", len(todos))
 	}
 
-	ativos, err := cargos.ListAtivos(ctx, todasAsPaginas)
+	ativos, err := cargos.ListarAtivos(ctx, todasAsPaginas)
 	if err != nil {
 		t.Fatalf("listagem de ativos falhou: %v", err)
 	}
@@ -137,7 +137,7 @@ func TestCargoCriaAtualizaELista(t *testing.T) {
 func TestCargoInexistenteDevolveNil(t *testing.T) {
 	_, cargos, _ := cenarioUsuarios(t)
 
-	salvo, err := cargos.GetByID(context.Background(), uuid.New())
+	salvo, err := cargos.Obter(context.Background(), uuid.New())
 	if err != nil {
 		t.Fatalf("busca por id inexistente falhou: %v", err)
 	}
@@ -150,16 +150,16 @@ func TestCargoComUsuarioNaoPodeSerExcluido(t *testing.T) {
 	usuarios, cargos, _ := cenarioUsuarios(t)
 	ctx := context.Background()
 
-	cargoID, err := cargos.Create(ctx, novoCargo("Gerente de obra"))
+	cargoID, err := cargos.Criar(ctx, novoCargo("Gerente de obra"))
 	if err != nil {
 		t.Fatalf("criação do cargo falhou: %v", err)
 	}
 
-	if _, err := usuarios.Create(ctx, novoUsuario(cargoID, "Ana Souza", "ana@exemplo.com")); err != nil {
+	if _, err := usuarios.Criar(ctx, novoUsuario(cargoID, "Ana Souza", "ana@exemplo.com")); err != nil {
 		t.Fatalf("criação do usuário falhou: %v", err)
 	}
 
-	err = cargos.Delete(ctx, cargoID)
+	err = cargos.Remover(ctx, cargoID)
 	if err == nil {
 		t.Fatal("exclusão do cargo em uso deveria ter falhado")
 	}
@@ -172,13 +172,13 @@ func TestUsuarioCriaEBuscaPorIDEEEmail(t *testing.T) {
 	usuarios, cargos, _ := cenarioUsuarios(t)
 	ctx := context.Background()
 
-	cargoID, err := cargos.Create(ctx, novoCargo("Gerente de obra"))
+	cargoID, err := cargos.Criar(ctx, novoCargo("Gerente de obra"))
 	if err != nil {
 		t.Fatalf("criação do cargo falhou: %v", err)
 	}
 
 	criado := novoUsuario(cargoID, "Ana Souza", "ana@exemplo.com")
-	id, err := usuarios.Create(ctx, criado)
+	id, err := usuarios.Criar(ctx, criado)
 	if err != nil {
 		t.Fatalf("criação do usuário falhou: %v", err)
 	}
@@ -186,7 +186,7 @@ func TestUsuarioCriaEBuscaPorIDEEEmail(t *testing.T) {
 		t.Fatal("criação devolveu id zero")
 	}
 
-	porID, err := usuarios.GetByID(ctx, id)
+	porID, err := usuarios.Obter(ctx, id)
 	if err != nil {
 		t.Fatalf("busca por id falhou: %v", err)
 	}
@@ -206,7 +206,7 @@ func TestUsuarioCriaEBuscaPorIDEEEmail(t *testing.T) {
 		t.Error("usuário deveria ter sido criado ativo")
 	}
 
-	porEmail, err := usuarios.GetByEmail(ctx, "ana@exemplo.com")
+	porEmail, err := usuarios.ObterPorEmail(ctx, "ana@exemplo.com")
 	if err != nil {
 		t.Fatalf("busca por email falhou: %v", err)
 	}
@@ -214,7 +214,7 @@ func TestUsuarioCriaEBuscaPorIDEEEmail(t *testing.T) {
 		t.Errorf("busca por email devolveu %+v, esperado o usuário %s", porEmail, id)
 	}
 
-	semRegistro, err := usuarios.GetByEmail(ctx, "nao@exemplo.com")
+	semRegistro, err := usuarios.ObterPorEmail(ctx, "nao@exemplo.com")
 	if err != nil {
 		t.Fatalf("busca por email inexistente falhou: %v", err)
 	}
@@ -226,7 +226,7 @@ func TestUsuarioCriaEBuscaPorIDEEEmail(t *testing.T) {
 func TestUsuarioInexistenteDevolveNil(t *testing.T) {
 	usuarios, _, _ := cenarioUsuarios(t)
 
-	salvo, err := usuarios.GetByID(context.Background(), uuid.New())
+	salvo, err := usuarios.Obter(context.Background(), uuid.New())
 	if err != nil {
 		t.Fatalf("busca por id inexistente falhou: %v", err)
 	}
@@ -239,21 +239,21 @@ func TestUsuarioAtualiza(t *testing.T) {
 	usuarios, cargos, _ := cenarioUsuarios(t)
 	ctx := context.Background()
 
-	cargoID, err := cargos.Create(ctx, novoCargo("Gerente de obra"))
+	cargoID, err := cargos.Criar(ctx, novoCargo("Gerente de obra"))
 	if err != nil {
 		t.Fatalf("criação do cargo falhou: %v", err)
 	}
-	outroCargoID, err := cargos.Create(ctx, novoCargo("Almoxarife"))
+	outroCargoID, err := cargos.Criar(ctx, novoCargo("Almoxarife"))
 	if err != nil {
 		t.Fatalf("criação do segundo cargo falhou: %v", err)
 	}
 
-	id, err := usuarios.Create(ctx, novoUsuario(cargoID, "Ana Souza", "ana@exemplo.com"))
+	id, err := usuarios.Criar(ctx, novoUsuario(cargoID, "Ana Souza", "ana@exemplo.com"))
 	if err != nil {
 		t.Fatalf("criação do usuário falhou: %v", err)
 	}
 
-	salvo, err := usuarios.GetByID(ctx, id)
+	salvo, err := usuarios.Obter(ctx, id)
 	if err != nil {
 		t.Fatalf("busca por id falhou: %v", err)
 	}
@@ -267,11 +267,11 @@ func TestUsuarioAtualiza(t *testing.T) {
 	salvo.CargoID = outroCargoID
 	salvo.Ativo = false
 	salvo.AtualizadoEm = time.Now().UTC().Add(time.Hour)
-	if err := usuarios.Update(ctx, salvo); err != nil {
+	if err := usuarios.Atualizar(ctx, salvo); err != nil {
 		t.Fatalf("atualização do usuário falhou: %v", err)
 	}
 
-	atualizado, err := usuarios.GetByID(ctx, id)
+	atualizado, err := usuarios.Obter(ctx, id)
 	if err != nil {
 		t.Fatalf("busca após atualização falhou: %v", err)
 	}
@@ -299,7 +299,7 @@ func TestUsuarioListasEBusca(t *testing.T) {
 	usuarios, cargos, _ := cenarioUsuarios(t)
 	ctx := context.Background()
 
-	cargoID, err := cargos.Create(ctx, novoCargo("Gerente de obra"))
+	cargoID, err := cargos.Criar(ctx, novoCargo("Gerente de obra"))
 	if err != nil {
 		t.Fatalf("criação do cargo falhou: %v", err)
 	}
@@ -314,7 +314,7 @@ func TestUsuarioListasEBusca(t *testing.T) {
 		{"Carla Dias", "carla@exemplo.com"},
 		{"Diego Ramos", "diego@exemplo.com"},
 	} {
-		id, err := usuarios.Create(ctx, novoUsuario(cargoID, item.nome, item.email))
+		id, err := usuarios.Criar(ctx, novoUsuario(cargoID, item.nome, item.email))
 		if err != nil {
 			t.Fatalf("criação do usuário %q falhou: %v", item.nome, err)
 		}
@@ -325,7 +325,7 @@ func TestUsuarioListasEBusca(t *testing.T) {
 		t.Fatalf("desativação falhou: %v", err)
 	}
 
-	todos, err := usuarios.List(ctx, todasAsPaginas)
+	todos, err := usuarios.Listar(ctx, todasAsPaginas)
 	if err != nil {
 		t.Fatalf("listagem falhou: %v", err)
 	}
@@ -336,7 +336,7 @@ func TestUsuarioListasEBusca(t *testing.T) {
 		t.Errorf("ordem inesperada: %q, %q", todos[0].Nome, todos[4].Nome)
 	}
 
-	ativos, err := usuarios.ListAtivos(ctx, todasAsPaginas)
+	ativos, err := usuarios.ListarAtivos(ctx, todasAsPaginas)
 	if err != nil {
 		t.Fatalf("listagem de ativos falhou: %v", err)
 	}
@@ -349,7 +349,7 @@ func TestUsuarioListasEBusca(t *testing.T) {
 		}
 	}
 
-	porNome, err := usuarios.Search(ctx, "SILVA", todasAsPaginas)
+	porNome, err := usuarios.Buscar(ctx, "SILVA", todasAsPaginas)
 	if err != nil {
 		t.Fatalf("busca falhou: %v", err)
 	}
@@ -357,7 +357,7 @@ func TestUsuarioListasEBusca(t *testing.T) {
 		t.Errorf("busca por nome devolveu %d usuários, esperado 0", len(porNome))
 	}
 
-	porNome, err = usuarios.Search(ctx, "BRUNO", todasAsPaginas)
+	porNome, err = usuarios.Buscar(ctx, "BRUNO", todasAsPaginas)
 	if err != nil {
 		t.Fatalf("busca falhou: %v", err)
 	}
@@ -365,7 +365,7 @@ func TestUsuarioListasEBusca(t *testing.T) {
 		t.Errorf("busca por nome devolveu %+v, esperado o usuário %s", porNome, ids[1])
 	}
 
-	porEmail, err := usuarios.Search(ctx, "carla@exemplo", todasAsPaginas)
+	porEmail, err := usuarios.Buscar(ctx, "carla@exemplo", todasAsPaginas)
 	if err != nil {
 		t.Fatalf("busca por email falhou: %v", err)
 	}
@@ -378,7 +378,7 @@ func TestUsuarioListaPaginada(t *testing.T) {
 	usuarios, cargos, _ := cenarioUsuarios(t)
 	ctx := context.Background()
 
-	cargoID, err := cargos.Create(ctx, novoCargo("Gerente de obra"))
+	cargoID, err := cargos.Criar(ctx, novoCargo("Gerente de obra"))
 	if err != nil {
 		t.Fatalf("criação do cargo falhou: %v", err)
 	}
@@ -388,12 +388,12 @@ func TestUsuarioListaPaginada(t *testing.T) {
 		{"Bruno Lima", "bruno@exemplo.com"},
 		{"Carla Dias", "carla@exemplo.com"},
 	} {
-		if _, err := usuarios.Create(ctx, novoUsuario(cargoID, item.nome, item.email)); err != nil {
+		if _, err := usuarios.Criar(ctx, novoUsuario(cargoID, item.nome, item.email)); err != nil {
 			t.Fatalf("criação do usuário %q falhou: %v", item.nome, err)
 		}
 	}
 
-	primeira, err := usuarios.List(ctx, domain.PaginacaoFiltro{Page: 1, Size: 2})
+	primeira, err := usuarios.Listar(ctx, domain.PaginacaoFiltro{Page: 1, Size: 2})
 	if err != nil {
 		t.Fatalf("primeira página falhou: %v", err)
 	}
@@ -401,7 +401,7 @@ func TestUsuarioListaPaginada(t *testing.T) {
 		t.Errorf("primeira página devolveu %+v, esperado Administrador e Ana Souza", nomes(primeira))
 	}
 
-	segunda, err := usuarios.List(ctx, domain.PaginacaoFiltro{Page: 2, Size: 2})
+	segunda, err := usuarios.Listar(ctx, domain.PaginacaoFiltro{Page: 2, Size: 2})
 	if err != nil {
 		t.Fatalf("segunda página falhou: %v", err)
 	}
@@ -409,7 +409,7 @@ func TestUsuarioListaPaginada(t *testing.T) {
 		t.Errorf("segunda página devolveu %+v, esperado Bruno Lima e Carla Dias", nomes(segunda))
 	}
 
-	terceira, err := usuarios.List(ctx, domain.PaginacaoFiltro{Page: 3, Size: 2})
+	terceira, err := usuarios.Listar(ctx, domain.PaginacaoFiltro{Page: 3, Size: 2})
 	if err != nil {
 		t.Fatalf("terceira página falhou: %v", err)
 	}
@@ -431,12 +431,12 @@ func TestUsuarioAtivaDesativaEAtualizaUltimoLogin(t *testing.T) {
 	usuarios, cargos, _ := cenarioUsuarios(t)
 	ctx := context.Background()
 
-	cargoID, err := cargos.Create(ctx, novoCargo("Gerente de obra"))
+	cargoID, err := cargos.Criar(ctx, novoCargo("Gerente de obra"))
 	if err != nil {
 		t.Fatalf("criação do cargo falhou: %v", err)
 	}
 
-	id, err := usuarios.Create(ctx, novoUsuario(cargoID, "Ana Souza", "ana@exemplo.com"))
+	id, err := usuarios.Criar(ctx, novoUsuario(cargoID, "Ana Souza", "ana@exemplo.com"))
 	if err != nil {
 		t.Fatalf("criação do usuário falhou: %v", err)
 	}
@@ -444,7 +444,7 @@ func TestUsuarioAtivaDesativaEAtualizaUltimoLogin(t *testing.T) {
 	if err := usuarios.Desativar(ctx, id); err != nil {
 		t.Fatalf("desativação falhou: %v", err)
 	}
-	desativado, err := usuarios.GetByID(ctx, id)
+	desativado, err := usuarios.Obter(ctx, id)
 	if err != nil {
 		t.Fatalf("busca após desativação falhou: %v", err)
 	}
@@ -455,7 +455,7 @@ func TestUsuarioAtivaDesativaEAtualizaUltimoLogin(t *testing.T) {
 	if err := usuarios.Ativar(ctx, id); err != nil {
 		t.Fatalf("ativação falhou: %v", err)
 	}
-	ativado, err := usuarios.GetByID(ctx, id)
+	ativado, err := usuarios.Obter(ctx, id)
 	if err != nil {
 		t.Fatalf("busca após ativação falhou: %v", err)
 	}
@@ -464,10 +464,10 @@ func TestUsuarioAtivaDesativaEAtualizaUltimoLogin(t *testing.T) {
 	}
 
 	login := time.Date(2026, time.October, 5, 10, 30, 0, 0, time.UTC)
-	if err := usuarios.UpdateUltimoLogin(ctx, id, login); err != nil {
+	if err := usuarios.AtualizarUltimoLogin(ctx, id, login); err != nil {
 		t.Fatalf("atualização do último login falhou: %v", err)
 	}
-	comLogin, err := usuarios.GetByID(ctx, id)
+	comLogin, err := usuarios.Obter(ctx, id)
 	if err != nil {
 		t.Fatalf("busca após atualizar o último login falhou: %v", err)
 	}
@@ -483,21 +483,21 @@ func TestUsuarioDelete(t *testing.T) {
 	usuarios, cargos, _ := cenarioUsuarios(t)
 	ctx := context.Background()
 
-	cargoID, err := cargos.Create(ctx, novoCargo("Gerente de obra"))
+	cargoID, err := cargos.Criar(ctx, novoCargo("Gerente de obra"))
 	if err != nil {
 		t.Fatalf("criação do cargo falhou: %v", err)
 	}
 
-	id, err := usuarios.Create(ctx, novoUsuario(cargoID, "Ana Souza", "ana@exemplo.com"))
+	id, err := usuarios.Criar(ctx, novoUsuario(cargoID, "Ana Souza", "ana@exemplo.com"))
 	if err != nil {
 		t.Fatalf("criação do usuário falhou: %v", err)
 	}
 
-	if err := usuarios.Delete(ctx, id); err != nil {
+	if err := usuarios.Remover(ctx, id); err != nil {
 		t.Fatalf("exclusão falhou: %v", err)
 	}
 
-	excluido, err := usuarios.GetByID(ctx, id)
+	excluido, err := usuarios.Obter(ctx, id)
 	if err != nil {
 		t.Fatalf("busca após exclusão falhou: %v", err)
 	}
@@ -511,16 +511,16 @@ func TestUsuarioAtualizarSenhaEEncerrarSessoesAvancamAVersao(t *testing.T) {
 	ctx := context.Background()
 
 	cargo := novoCargo("Almoxarife")
-	if _, err := cargos.Create(ctx, cargo); err != nil {
+	if _, err := cargos.Criar(ctx, cargo); err != nil {
 		t.Fatalf("criação do cargo falhou: %v", err)
 	}
 
 	usuario := novoUsuario(cargo.ID, "Ana Souza", "ana@exemplo.com")
-	if _, err := usuarios.Create(ctx, usuario); err != nil {
+	if _, err := usuarios.Criar(ctx, usuario); err != nil {
 		t.Fatalf("criação do usuário falhou: %v", err)
 	}
 
-	criado, err := usuarios.GetByID(ctx, usuario.ID)
+	criado, err := usuarios.Obter(ctx, usuario.ID)
 	if err != nil {
 		t.Fatalf("busca falhou: %v", err)
 	}
@@ -535,7 +535,7 @@ func TestUsuarioAtualizarSenhaEEncerrarSessoesAvancamAVersao(t *testing.T) {
 		t.Fatalf("encerramento falhou: %v", err)
 	}
 
-	salvo, err := usuarios.GetByID(ctx, usuario.ID)
+	salvo, err := usuarios.Obter(ctx, usuario.ID)
 	if err != nil {
 		t.Fatalf("busca falhou: %v", err)
 	}
@@ -547,11 +547,11 @@ func TestUsuarioAtualizarSenhaEEncerrarSessoesAvancamAVersao(t *testing.T) {
 	}
 
 	salvo.Nome = "Ana Souza Lima"
-	if err := usuarios.Update(ctx, salvo); err != nil {
+	if err := usuarios.Atualizar(ctx, salvo); err != nil {
 		t.Fatalf("atualização falhou: %v", err)
 	}
 
-	atualizado, err := usuarios.GetByID(ctx, usuario.ID)
+	atualizado, err := usuarios.Obter(ctx, usuario.ID)
 	if err != nil {
 		t.Fatalf("busca falhou: %v", err)
 	}
@@ -571,11 +571,11 @@ func TestUsuarioContaAdministradoresEAtivosPorCargo(t *testing.T) {
 
 	diretoria := novoCargo("Diretoria")
 	diretoria.Administrador = true
-	if _, err := cargos.Create(ctx, diretoria); err != nil {
+	if _, err := cargos.Criar(ctx, diretoria); err != nil {
 		t.Fatalf("criação do cargo falhou: %v", err)
 	}
 	obra := novoCargo("Obra")
-	if _, err := cargos.Create(ctx, obra); err != nil {
+	if _, err := cargos.Criar(ctx, obra); err != nil {
 		t.Fatalf("criação do cargo falhou: %v", err)
 	}
 
@@ -583,7 +583,7 @@ func TestUsuarioContaAdministradoresEAtivosPorCargo(t *testing.T) {
 	inativo := novoUsuario(diretoria.ID, "Bia Lima", "bia@exemplo.com")
 	comum := novoUsuario(obra.ID, "Caio Reis", "caio@exemplo.com")
 	for _, usuario := range []*domainusuarios.Usuario{ativo, inativo, comum} {
-		if _, err := usuarios.Create(ctx, usuario); err != nil {
+		if _, err := usuarios.Criar(ctx, usuario); err != nil {
 			t.Fatalf("criação do usuário falhou: %v", err)
 		}
 	}

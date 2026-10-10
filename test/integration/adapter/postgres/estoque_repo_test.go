@@ -32,11 +32,11 @@ func cenarioEstoque(t *testing.T) *cenarioBancoEstoque {
 	cargos := postgres.NewCargoRepository(banco)
 	usuarios := postgres.NewUsuarioRepository(banco)
 
-	cargoID, err := cargos.Create(context.Background(), novoCargo("Almoxarife"))
+	cargoID, err := cargos.Criar(context.Background(), novoCargo("Almoxarife"))
 	if err != nil {
 		t.Fatalf("não criei o cargo do cenário: %v", err)
 	}
-	usuarioID, err := usuarios.Create(context.Background(), novoUsuario(cargoID, "Ana Souza", "ana.souza@estoque.exemplo.com"))
+	usuarioID, err := usuarios.Criar(context.Background(), novoUsuario(cargoID, "Ana Souza", "ana.souza@estoque.exemplo.com"))
 	if err != nil {
 		t.Fatalf("não criei o usuário do cenário: %v", err)
 	}

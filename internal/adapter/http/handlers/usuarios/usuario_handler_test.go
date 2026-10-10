@@ -65,7 +65,7 @@ func novoFakeUsuarios() *fakeUsuarioUseCase {
 	return &fakeUsuarioUseCase{usuarios: map[uuid.UUID]*domainusuarios.Usuario{}}
 }
 
-func (f *fakeUsuarioUseCase) Create(_ context.Context, nome, email, senha string, cargoID uuid.UUID) (uuid.UUID, error) {
+func (f *fakeUsuarioUseCase) Criar(_ context.Context, nome, email, senha string, cargoID uuid.UUID) (uuid.UUID, error) {
 	if nome == "" {
 		return uuid.Nil, domain.ErroValidacao("nome do usuário é obrigatório")
 	}
@@ -94,7 +94,7 @@ func (f *fakeUsuarioUseCase) Create(_ context.Context, nome, email, senha string
 	return id, nil
 }
 
-func (f *fakeUsuarioUseCase) Update(_ context.Context, usuario *domainusuarios.Usuario) error {
+func (f *fakeUsuarioUseCase) Atualizar(_ context.Context, usuario *domainusuarios.Usuario) error {
 	atual, ok := f.usuarios[usuario.ID]
 	if !ok {
 		return domain.ErroNaoEncontrado("usuário não encontrado")
@@ -109,7 +109,7 @@ func (f *fakeUsuarioUseCase) Update(_ context.Context, usuario *domainusuarios.U
 	return nil
 }
 
-func (f *fakeUsuarioUseCase) GetByID(_ context.Context, id uuid.UUID) (*domainusuarios.Usuario, error) {
+func (f *fakeUsuarioUseCase) Obter(_ context.Context, id uuid.UUID) (*domainusuarios.Usuario, error) {
 	usuario, ok := f.usuarios[id]
 	if !ok {
 		return nil, domain.ErroNaoEncontrado("usuário não encontrado")
@@ -120,7 +120,7 @@ func (f *fakeUsuarioUseCase) GetByID(_ context.Context, id uuid.UUID) (*domainus
 	return &copia, nil
 }
 
-func (f *fakeUsuarioUseCase) GetByEmail(_ context.Context, email string) (*domainusuarios.Usuario, error) {
+func (f *fakeUsuarioUseCase) ObterPorEmail(_ context.Context, email string) (*domainusuarios.Usuario, error) {
 	for _, usuario := range f.usuarios {
 		if usuario.Email == email {
 			copia := *usuario
@@ -132,7 +132,7 @@ func (f *fakeUsuarioUseCase) GetByEmail(_ context.Context, email string) (*domai
 	return nil, domain.ErroNaoEncontrado("usuário não encontrado")
 }
 
-func (f *fakeUsuarioUseCase) List(_ context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
+func (f *fakeUsuarioUseCase) Listar(_ context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
 	var itens []*domainusuarios.Usuario
 	for _, usuario := range f.usuarios {
 		copia := *usuario
@@ -143,7 +143,7 @@ func (f *fakeUsuarioUseCase) List(_ context.Context, filtro domain.PaginacaoFilt
 	return paginar(itens, filtro), nil
 }
 
-func (f *fakeUsuarioUseCase) ListAtivos(_ context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
+func (f *fakeUsuarioUseCase) ListarAtivos(_ context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
 	var itens []*domainusuarios.Usuario
 	for _, usuario := range f.usuarios {
 		if !usuario.Ativo {
@@ -158,7 +158,7 @@ func (f *fakeUsuarioUseCase) ListAtivos(_ context.Context, filtro domain.Paginac
 	return paginar(itens, filtro), nil
 }
 
-func (f *fakeUsuarioUseCase) Search(_ context.Context, termo string, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
+func (f *fakeUsuarioUseCase) Buscar(_ context.Context, termo string, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
 	pesquisa := strings.ToLower(termo)
 
 	var itens []*domainusuarios.Usuario
@@ -181,7 +181,7 @@ func ordenarUsuarios(itens []*domainusuarios.Usuario) {
 	})
 }
 
-func (f *fakeUsuarioUseCase) Authenticate(_ context.Context, email, senha string) (*domainusuarios.Usuario, error) {
+func (f *fakeUsuarioUseCase) Autenticar(_ context.Context, email, senha string) (*domainusuarios.Usuario, error) {
 	for _, usuario := range f.usuarios {
 		if usuario.Email != email {
 			continue
@@ -215,7 +215,7 @@ func (f *fakeUsuarioUseCase) TrocarSenhaPropria(ctx context.Context, id uuid.UUI
 		return domain.ErroValidacao("senha atual é obrigatória")
 	}
 
-	return f.UpdateSenha(ctx, id, novaSenha)
+	return f.AtualizarSenha(ctx, id, novaSenha)
 }
 
 func (f *fakeUsuarioUseCase) EncerrarSessoes(_ context.Context, id uuid.UUID) error {
@@ -229,7 +229,7 @@ func (f *fakeUsuarioUseCase) EncerrarSessoes(_ context.Context, id uuid.UUID) er
 	return nil
 }
 
-func (f *fakeUsuarioUseCase) UpdateSenha(_ context.Context, id uuid.UUID, novaSenha string) error {
+func (f *fakeUsuarioUseCase) AtualizarSenha(_ context.Context, id uuid.UUID, novaSenha string) error {
 	if novaSenha == "" {
 		return domain.ErroValidacao("senha do usuário é obrigatória")
 	}
@@ -244,7 +244,7 @@ func (f *fakeUsuarioUseCase) UpdateSenha(_ context.Context, id uuid.UUID, novaSe
 	return nil
 }
 
-func (f *fakeUsuarioUseCase) UpdateUltimoLogin(_ context.Context, id uuid.UUID, ultimoLogin time.Time) error {
+func (f *fakeUsuarioUseCase) AtualizarUltimoLogin(_ context.Context, id uuid.UUID, ultimoLogin time.Time) error {
 	if _, ok := f.usuarios[id]; !ok {
 		return domain.ErroNaoEncontrado("usuário não encontrado")
 	}
@@ -274,7 +274,7 @@ func (f *fakeUsuarioUseCase) alterarAtivo(id uuid.UUID, ativo bool) error {
 	return nil
 }
 
-func (f *fakeUsuarioUseCase) Delete(_ context.Context, id uuid.UUID) error {
+func (f *fakeUsuarioUseCase) Remover(_ context.Context, id uuid.UUID) error {
 	if _, ok := f.usuarios[id]; !ok {
 		return domain.ErroNaoEncontrado("usuário não encontrado")
 	}
@@ -287,7 +287,7 @@ func (f *fakeUsuarioUseCase) Delete(_ context.Context, id uuid.UUID) error {
 func semearUsuario(t *testing.T, fake *fakeUsuarioUseCase, nome, email, senha string) uuid.UUID {
 	t.Helper()
 
-	id, err := fake.Create(context.Background(), nome, email, senha, uuid.New())
+	id, err := fake.Criar(context.Background(), nome, email, senha, uuid.New())
 	if err != nil {
 		t.Fatalf("falha ao semear usuário: %v", err)
 	}

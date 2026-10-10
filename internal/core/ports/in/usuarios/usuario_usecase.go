@@ -10,21 +10,21 @@ import (
 )
 
 type UsuarioUseCase interface {
-	Create(ctx context.Context, nome string, email string, senha string, cargoID uuid.UUID) (uuid.UUID, error)
-	Update(ctx context.Context, usuario *usuarios.Usuario) error
-	GetByID(ctx context.Context, id uuid.UUID) (*usuarios.Usuario, error)
-	GetByEmail(ctx context.Context, email string) (*usuarios.Usuario, error)
-	List(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*usuarios.Usuario, error)
-	ListAtivos(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*usuarios.Usuario, error)
-	Search(ctx context.Context, termo string, filtro domain.PaginacaoFiltro) ([]*usuarios.Usuario, error)
-	Authenticate(ctx context.Context, email string, senha string) (*usuarios.Usuario, error)
+	Criar(ctx context.Context, nome string, email string, senha string, cargoID uuid.UUID) (uuid.UUID, error)
+	Atualizar(ctx context.Context, usuario *usuarios.Usuario) error
+	Obter(ctx context.Context, id uuid.UUID) (*usuarios.Usuario, error)
+	ObterPorEmail(ctx context.Context, email string) (*usuarios.Usuario, error)
+	Listar(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*usuarios.Usuario, error)
+	ListarAtivos(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*usuarios.Usuario, error)
+	Buscar(ctx context.Context, termo string, filtro domain.PaginacaoFiltro) ([]*usuarios.Usuario, error)
+	Autenticar(ctx context.Context, email string, senha string) (*usuarios.Usuario, error)
 	EhAdministrador(ctx context.Context, usuario *usuarios.Usuario) (bool, error)
 	TemAcessoComercial(ctx context.Context, usuario *usuarios.Usuario) (bool, error)
-	UpdateSenha(ctx context.Context, id uuid.UUID, novaSenha string) error
+	AtualizarSenha(ctx context.Context, id uuid.UUID, novaSenha string) error
 	TrocarSenhaPropria(ctx context.Context, id uuid.UUID, senhaAtual string, novaSenha string) error
 	EncerrarSessoes(ctx context.Context, id uuid.UUID) error
-	UpdateUltimoLogin(ctx context.Context, id uuid.UUID, ultimoLogin time.Time) error
+	AtualizarUltimoLogin(ctx context.Context, id uuid.UUID, ultimoLogin time.Time) error
 	Ativar(ctx context.Context, id uuid.UUID) error
 	Desativar(ctx context.Context, id uuid.UUID) error
-	Delete(ctx context.Context, id uuid.UUID) error
+	Remover(ctx context.Context, id uuid.UUID) error
 }

@@ -31,7 +31,7 @@ func (u *AprovadorUsecaseImpl) Designar(ctx context.Context, usuarioID uuid.UUID
 		return uuid.Nil, domain.ErroValidacao("usuário do aprovador não informado")
 	}
 
-	usuario, err := u.usuarios.GetByID(ctx, usuarioID)
+	usuario, err := u.usuarios.Obter(ctx, usuarioID)
 	if err != nil {
 		return uuid.Nil, err
 	}

@@ -351,21 +351,21 @@ func novoRepositorioUsuarios() *repositorioUsuarios {
 	return &repositorioUsuarios{itens: map[uuid.UUID]*domainusuarios.Usuario{}}
 }
 
-func (r *repositorioUsuarios) Create(_ context.Context, usuario *domainusuarios.Usuario) (uuid.UUID, error) {
+func (r *repositorioUsuarios) Criar(_ context.Context, usuario *domainusuarios.Usuario) (uuid.UUID, error) {
 	copia := *usuario
 	r.itens[usuario.ID] = &copia
 
 	return usuario.ID, nil
 }
 
-func (r *repositorioUsuarios) Update(_ context.Context, usuario *domainusuarios.Usuario) error {
+func (r *repositorioUsuarios) Atualizar(_ context.Context, usuario *domainusuarios.Usuario) error {
 	copia := *usuario
 	r.itens[usuario.ID] = &copia
 
 	return nil
 }
 
-func (r *repositorioUsuarios) GetByID(_ context.Context, id uuid.UUID) (*domainusuarios.Usuario, error) {
+func (r *repositorioUsuarios) Obter(_ context.Context, id uuid.UUID) (*domainusuarios.Usuario, error) {
 	usuario, ok := r.itens[id]
 	if !ok {
 		return nil, nil
@@ -375,7 +375,7 @@ func (r *repositorioUsuarios) GetByID(_ context.Context, id uuid.UUID) (*domainu
 	return &copia, nil
 }
 
-func (r *repositorioUsuarios) GetByEmail(_ context.Context, email string) (*domainusuarios.Usuario, error) {
+func (r *repositorioUsuarios) ObterPorEmail(_ context.Context, email string) (*domainusuarios.Usuario, error) {
 	for _, usuario := range r.itens {
 		if usuario.Email == email {
 			copia := *usuario
@@ -386,19 +386,19 @@ func (r *repositorioUsuarios) GetByEmail(_ context.Context, email string) (*doma
 	return nil, nil
 }
 
-func (r *repositorioUsuarios) List(_ context.Context, _ domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
+func (r *repositorioUsuarios) Listar(_ context.Context, _ domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
 	return nil, nil
 }
 
-func (r *repositorioUsuarios) ListAtivos(_ context.Context, _ domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
+func (r *repositorioUsuarios) ListarAtivos(_ context.Context, _ domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
 	return nil, nil
 }
 
-func (r *repositorioUsuarios) Search(_ context.Context, _ string, _ domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
+func (r *repositorioUsuarios) Buscar(_ context.Context, _ string, _ domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
 	return nil, nil
 }
 
-func (r *repositorioUsuarios) UpdateUltimoLogin(_ context.Context, _ uuid.UUID, _ time.Time) error {
+func (r *repositorioUsuarios) AtualizarUltimoLogin(_ context.Context, _ uuid.UUID, _ time.Time) error {
 	return nil
 }
 
@@ -434,7 +434,7 @@ func (r *repositorioUsuarios) Desativar(_ context.Context, id uuid.UUID) error {
 	return nil
 }
 
-func (r *repositorioUsuarios) Delete(_ context.Context, id uuid.UUID) error {
+func (r *repositorioUsuarios) Remover(_ context.Context, id uuid.UUID) error {
 	delete(r.itens, id)
 
 	return nil
@@ -448,21 +448,21 @@ func novoRepositorioCargos() *repositorioCargos {
 	return &repositorioCargos{itens: map[uuid.UUID]*domainusuarios.Cargo{}}
 }
 
-func (r *repositorioCargos) Create(_ context.Context, cargo *domainusuarios.Cargo) (uuid.UUID, error) {
+func (r *repositorioCargos) Criar(_ context.Context, cargo *domainusuarios.Cargo) (uuid.UUID, error) {
 	copia := *cargo
 	r.itens[cargo.ID] = &copia
 
 	return cargo.ID, nil
 }
 
-func (r *repositorioCargos) Update(_ context.Context, cargo *domainusuarios.Cargo) error {
+func (r *repositorioCargos) Atualizar(_ context.Context, cargo *domainusuarios.Cargo) error {
 	copia := *cargo
 	r.itens[cargo.ID] = &copia
 
 	return nil
 }
 
-func (r *repositorioCargos) GetByID(_ context.Context, id uuid.UUID) (*domainusuarios.Cargo, error) {
+func (r *repositorioCargos) Obter(_ context.Context, id uuid.UUID) (*domainusuarios.Cargo, error) {
 	cargo, ok := r.itens[id]
 	if !ok {
 		return nil, nil
@@ -472,7 +472,7 @@ func (r *repositorioCargos) GetByID(_ context.Context, id uuid.UUID) (*domainusu
 	return &copia, nil
 }
 
-func (r *repositorioCargos) GetByNome(_ context.Context, nome string) (*domainusuarios.Cargo, error) {
+func (r *repositorioCargos) ObterPorNome(_ context.Context, nome string) (*domainusuarios.Cargo, error) {
 	for _, cargo := range r.itens {
 		if cargo.Nome == nome {
 			copia := *cargo
@@ -483,15 +483,15 @@ func (r *repositorioCargos) GetByNome(_ context.Context, nome string) (*domainus
 	return nil, nil
 }
 
-func (r *repositorioCargos) List(_ context.Context, _ domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
+func (r *repositorioCargos) Listar(_ context.Context, _ domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
 	return nil, nil
 }
 
-func (r *repositorioCargos) ListAtivos(_ context.Context, _ domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
+func (r *repositorioCargos) ListarAtivos(_ context.Context, _ domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
 	return nil, nil
 }
 
-func (r *repositorioCargos) Delete(_ context.Context, id uuid.UUID) error {
+func (r *repositorioCargos) Remover(_ context.Context, id uuid.UUID) error {
 	delete(r.itens, id)
 
 	return nil

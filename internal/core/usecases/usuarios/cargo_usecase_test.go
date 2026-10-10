@@ -22,7 +22,7 @@ func novoRepositorioCargos() *memoriaCargos {
 	return &memoriaCargos{itens: map[uuid.UUID]*domainusuarios.Cargo{}}
 }
 
-func (m *memoriaCargos) Create(ctx context.Context, cargo *domainusuarios.Cargo) (uuid.UUID, error) {
+func (m *memoriaCargos) Criar(ctx context.Context, cargo *domainusuarios.Cargo) (uuid.UUID, error) {
 	if cargo.ID == uuid.Nil {
 		return uuid.Nil, errors.New("id do cargo não informado")
 	}
@@ -33,7 +33,7 @@ func (m *memoriaCargos) Create(ctx context.Context, cargo *domainusuarios.Cargo)
 	return cargo.ID, nil
 }
 
-func (m *memoriaCargos) Update(ctx context.Context, cargo *domainusuarios.Cargo) error {
+func (m *memoriaCargos) Atualizar(ctx context.Context, cargo *domainusuarios.Cargo) error {
 	if _, ok := m.itens[cargo.ID]; !ok {
 		return nil
 	}
@@ -44,7 +44,7 @@ func (m *memoriaCargos) Update(ctx context.Context, cargo *domainusuarios.Cargo)
 	return nil
 }
 
-func (m *memoriaCargos) GetByID(ctx context.Context, id uuid.UUID) (*domainusuarios.Cargo, error) {
+func (m *memoriaCargos) Obter(ctx context.Context, id uuid.UUID) (*domainusuarios.Cargo, error) {
 	cargo, ok := m.itens[id]
 	if !ok {
 		return nil, nil
@@ -54,7 +54,7 @@ func (m *memoriaCargos) GetByID(ctx context.Context, id uuid.UUID) (*domainusuar
 	return &copia, nil
 }
 
-func (m *memoriaCargos) GetByNome(ctx context.Context, nome string) (*domainusuarios.Cargo, error) {
+func (m *memoriaCargos) ObterPorNome(ctx context.Context, nome string) (*domainusuarios.Cargo, error) {
 	for _, cargo := range m.itens {
 		if cargo.Nome == nome {
 			copia := *cargo
@@ -65,14 +65,14 @@ func (m *memoriaCargos) GetByNome(ctx context.Context, nome string) (*domainusua
 	return nil, nil
 }
 
-func (m *memoriaCargos) List(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
+func (m *memoriaCargos) Listar(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
 	itens := m.copias()
 	ordenarCargos(itens)
 
 	return paginar(itens, filtro), nil
 }
 
-func (m *memoriaCargos) ListAtivos(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
+func (m *memoriaCargos) ListarAtivos(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
 	var itens []*domainusuarios.Cargo
 	for _, cargo := range m.copias() {
 		if cargo.Ativo {
@@ -84,7 +84,7 @@ func (m *memoriaCargos) ListAtivos(ctx context.Context, filtro domain.PaginacaoF
 	return paginar(itens, filtro), nil
 }
 
-func (m *memoriaCargos) Delete(ctx context.Context, id uuid.UUID) error {
+func (m *memoriaCargos) Remover(ctx context.Context, id uuid.UUID) error {
 	delete(m.itens, id)
 
 	return nil
@@ -108,7 +108,7 @@ func TestCargoCreate(t *testing.T) {
 	c := novoCenario(t)
 	ctx := context.Background()
 
-	id, err := c.cargo.Create(ctx, &domainusuarios.Cargo{Nome: "  Engenheiro  ", Descricao: "  Responsável técnico  ", Administrador: true})
+	id, err := c.cargo.Criar(ctx, &domainusuarios.Cargo{Nome: "  Engenheiro  ", Descricao: "  Responsável técnico  ", Administrador: true})
 	if err != nil {
 		t.Fatalf("criação falhou: %v", err)
 	}
@@ -116,7 +116,7 @@ func TestCargoCreate(t *testing.T) {
 		t.Fatal("criação devolveu id zero")
 	}
 
-	salvo, err := c.cargo.GetByID(ctx, id)
+	salvo, err := c.cargo.Obter(ctx, id)
 	if err != nil {
 		t.Fatalf("busca por id falhou: %v", err)
 	}
@@ -133,11 +133,11 @@ func TestCargoCreate(t *testing.T) {
 		t.Error("cargo deveria ter sido criado como administrador")
 	}
 
-	if _, err := c.cargo.Create(ctx, &domainusuarios.Cargo{Nome: "   ", Descricao: "sem nome"}); !errors.Is(err, domain.ErrValidacao) {
+	if _, err := c.cargo.Criar(ctx, &domainusuarios.Cargo{Nome: "   ", Descricao: "sem nome"}); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("erro %v, esperado erro de validação", err)
 	}
 
-	if _, err := c.cargo.Create(ctx, &domainusuarios.Cargo{Nome: "Engenheiro", Descricao: "outro"}); !errors.Is(err, domain.ErrValidacao) {
+	if _, err := c.cargo.Criar(ctx, &domainusuarios.Cargo{Nome: "Engenheiro", Descricao: "outro"}); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("erro %v, esperado erro de validação", err)
 	}
 }
@@ -146,7 +146,7 @@ func TestCargoGet(t *testing.T) {
 	c := novoCenario(t)
 	ctx := context.Background()
 
-	porNome, err := c.cargo.GetByNome(ctx, "  Gerente de obra  ")
+	porNome, err := c.cargo.ObterPorNome(ctx, "  Gerente de obra  ")
 	if err != nil {
 		t.Fatalf("busca por nome falhou: %v", err)
 	}
@@ -154,16 +154,16 @@ func TestCargoGet(t *testing.T) {
 		t.Errorf("busca por nome devolveu %+v, esperado o cargo %s", porNome, c.cargoID)
 	}
 
-	if _, err := c.cargo.GetByID(ctx, uuid.New()); !errors.Is(err, domain.ErrNotFound) {
+	if _, err := c.cargo.Obter(ctx, uuid.New()); !errors.Is(err, domain.ErrNotFound) {
 		t.Errorf("erro %v, esperado registro não encontrado", err)
 	}
-	if _, err := c.cargo.GetByID(ctx, uuid.Nil); !errors.Is(err, domain.ErrValidacao) {
+	if _, err := c.cargo.Obter(ctx, uuid.Nil); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("erro %v, esperado erro de validação", err)
 	}
-	if _, err := c.cargo.GetByNome(ctx, "  "); !errors.Is(err, domain.ErrValidacao) {
+	if _, err := c.cargo.ObterPorNome(ctx, "  "); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("erro %v, esperado erro de validação", err)
 	}
-	if _, err := c.cargo.GetByNome(ctx, "Pedreiro"); !errors.Is(err, domain.ErrNotFound) {
+	if _, err := c.cargo.ObterPorNome(ctx, "Pedreiro"); !errors.Is(err, domain.ErrNotFound) {
 		t.Errorf("erro %v, esperado registro não encontrado", err)
 	}
 }
@@ -172,15 +172,15 @@ func TestCargoUpdate(t *testing.T) {
 	c := novoCenario(t)
 	ctx := context.Background()
 
-	engenheiroID, err := c.cargo.Create(ctx, &domainusuarios.Cargo{Nome: "Engenheiro"})
+	engenheiroID, err := c.cargo.Criar(ctx, &domainusuarios.Cargo{Nome: "Engenheiro"})
 	if err != nil {
 		t.Fatalf("criação do cargo falhou: %v", err)
 	}
-	if _, err := c.cargo.Create(ctx, &domainusuarios.Cargo{Nome: "Arquiteto"}); err != nil {
+	if _, err := c.cargo.Criar(ctx, &domainusuarios.Cargo{Nome: "Arquiteto"}); err != nil {
 		t.Fatalf("criação do segundo cargo falhou: %v", err)
 	}
 
-	salvo, err := c.cargo.GetByID(ctx, engenheiroID)
+	salvo, err := c.cargo.Obter(ctx, engenheiroID)
 	if err != nil {
 		t.Fatalf("busca por id falhou: %v", err)
 	}
@@ -188,31 +188,31 @@ func TestCargoUpdate(t *testing.T) {
 		t.Fatal("cargo criado não foi encontrado")
 	}
 
-	if err := c.cargo.Update(ctx, nil); !errors.Is(err, domain.ErrValidacao) {
+	if err := c.cargo.Atualizar(ctx, nil); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("erro %v, esperado erro de validação", err)
 	}
 
 	semID := *salvo
 	semID.ID = uuid.Nil
-	if err := c.cargo.Update(ctx, &semID); !errors.Is(err, domain.ErrValidacao) {
+	if err := c.cargo.Atualizar(ctx, &semID); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("erro %v, esperado erro de validação", err)
 	}
 
 	inexistente := *salvo
 	inexistente.ID = uuid.New()
-	if err := c.cargo.Update(ctx, &inexistente); !errors.Is(err, domain.ErrNotFound) {
+	if err := c.cargo.Atualizar(ctx, &inexistente); !errors.Is(err, domain.ErrNotFound) {
 		t.Errorf("erro %v, esperado registro não encontrado", err)
 	}
 
 	nomeVazio := *salvo
 	nomeVazio.Nome = "   "
-	if err := c.cargo.Update(ctx, &nomeVazio); !errors.Is(err, domain.ErrValidacao) {
+	if err := c.cargo.Atualizar(ctx, &nomeVazio); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("erro %v, esperado erro de validação", err)
 	}
 
 	repetido := *salvo
 	repetido.Nome = "Arquiteto"
-	if err := c.cargo.Update(ctx, &repetido); !errors.Is(err, domain.ErrValidacao) {
+	if err := c.cargo.Atualizar(ctx, &repetido); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("erro %v, esperado erro de validação", err)
 	}
 
@@ -220,11 +220,11 @@ func TestCargoUpdate(t *testing.T) {
 	atualizar.Nome = "  Engenheiro Civil  "
 	atualizar.Descricao = "  Responsável técnico  "
 	atualizar.Ativo = false
-	if err := c.cargo.Update(ctx, &atualizar); err != nil {
+	if err := c.cargo.Atualizar(ctx, &atualizar); err != nil {
 		t.Fatalf("atualização falhou: %v", err)
 	}
 
-	atualizado, err := c.cargo.GetByID(ctx, engenheiroID)
+	atualizado, err := c.cargo.Obter(ctx, engenheiroID)
 	if err != nil {
 		t.Fatalf("busca após atualização falhou: %v", err)
 	}
@@ -243,18 +243,18 @@ func TestCargoDelete(t *testing.T) {
 	c := novoCenario(t)
 	ctx := context.Background()
 
-	if err := c.cargo.Delete(ctx, uuid.Nil); !errors.Is(err, domain.ErrValidacao) {
+	if err := c.cargo.Remover(ctx, uuid.Nil); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("erro %v, esperado erro de validação", err)
 	}
-	if err := c.cargo.Delete(ctx, uuid.New()); !errors.Is(err, domain.ErrNotFound) {
+	if err := c.cargo.Remover(ctx, uuid.New()); !errors.Is(err, domain.ErrNotFound) {
 		t.Errorf("erro %v, esperado registro não encontrado", err)
 	}
 
-	if err := c.cargo.Delete(ctx, c.cargoID); err != nil {
+	if err := c.cargo.Remover(ctx, c.cargoID); err != nil {
 		t.Fatalf("exclusão falhou: %v", err)
 	}
 
-	if _, err := c.cargo.GetByID(ctx, c.cargoID); !errors.Is(err, domain.ErrNotFound) {
+	if _, err := c.cargo.Obter(ctx, c.cargoID); !errors.Is(err, domain.ErrNotFound) {
 		t.Errorf("erro %v, esperado registro não encontrado", err)
 	}
 }
@@ -263,15 +263,15 @@ func TestCargoListas(t *testing.T) {
 	c := novoCenario(t)
 	ctx := context.Background()
 
-	if _, err := c.cargo.Create(ctx, &domainusuarios.Cargo{Nome: "Engenheiro"}); err != nil {
+	if _, err := c.cargo.Criar(ctx, &domainusuarios.Cargo{Nome: "Engenheiro"}); err != nil {
 		t.Fatalf("criação do cargo falhou: %v", err)
 	}
-	arquitetoID, err := c.cargo.Create(ctx, &domainusuarios.Cargo{Nome: "Arquiteto"})
+	arquitetoID, err := c.cargo.Criar(ctx, &domainusuarios.Cargo{Nome: "Arquiteto"})
 	if err != nil {
 		t.Fatalf("criação do segundo cargo falhou: %v", err)
 	}
 
-	todos, err := c.cargo.List(ctx, todasAsPaginas)
+	todos, err := c.cargo.Listar(ctx, todasAsPaginas)
 	if err != nil {
 		t.Fatalf("listagem falhou: %v", err)
 	}
@@ -282,16 +282,16 @@ func TestCargoListas(t *testing.T) {
 		t.Errorf("ordem inesperada: %q, %q, %q", todos[0].Nome, todos[1].Nome, todos[2].Nome)
 	}
 
-	arquiteto, err := c.cargo.GetByID(ctx, arquitetoID)
+	arquiteto, err := c.cargo.Obter(ctx, arquitetoID)
 	if err != nil {
 		t.Fatalf("busca por id falhou: %v", err)
 	}
 	arquiteto.Ativo = false
-	if err := c.cargo.Update(ctx, arquiteto); err != nil {
+	if err := c.cargo.Atualizar(ctx, arquiteto); err != nil {
 		t.Fatalf("atualização falhou: %v", err)
 	}
 
-	ativos, err := c.cargo.ListAtivos(ctx, todasAsPaginas)
+	ativos, err := c.cargo.ListarAtivos(ctx, todasAsPaginas)
 	if err != nil {
 		t.Fatalf("listagem de ativos falhou: %v", err)
 	}

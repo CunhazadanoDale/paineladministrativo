@@ -35,7 +35,7 @@ func (u *UsuarioRepository) Ativar(ctx context.Context, id uuid.UUID) error {
 	return tratarErroDeGravacao(err)
 }
 
-func (u *UsuarioRepository) Create(ctx context.Context, usuario *domainusuarios.Usuario) (uuid.UUID, error) {
+func (u *UsuarioRepository) Criar(ctx context.Context, usuario *domainusuarios.Usuario) (uuid.UUID, error) {
 	query := `
 		INSERT INTO usuario (id, nome, email, senha, cargo_id, ativo, ultimo_login, criado_em, atualizado_em)
 		VALUES (:id, :nome, :email, :senha, :cargo_id, :ativo, :ultimo_login, :criado_em, :atualizado_em)
@@ -60,7 +60,7 @@ func (u *UsuarioRepository) Create(ctx context.Context, usuario *domainusuarios.
 	return id, nil
 }
 
-func (u *UsuarioRepository) Delete(ctx context.Context, id uuid.UUID) error {
+func (u *UsuarioRepository) Remover(ctx context.Context, id uuid.UUID) error {
 	_, err := u.db.ExecContext(ctx, `DELETE FROM usuario WHERE id = $1`, id)
 	return tratarErro(err)
 }
@@ -77,7 +77,7 @@ func (u *UsuarioRepository) Desativar(ctx context.Context, id uuid.UUID) error {
 	return tratarErroDeGravacao(err)
 }
 
-func (u *UsuarioRepository) GetByEmail(ctx context.Context, email string) (*domainusuarios.Usuario, error) {
+func (u *UsuarioRepository) ObterPorEmail(ctx context.Context, email string) (*domainusuarios.Usuario, error) {
 	query := `
 		SELECT id, nome, email, senha, cargo_id, ativo, versao_sessao, ultimo_login, criado_em, atualizado_em
 		FROM usuario
@@ -94,7 +94,7 @@ func (u *UsuarioRepository) GetByEmail(ctx context.Context, email string) (*doma
 	return &item, nil
 }
 
-func (u *UsuarioRepository) GetByID(ctx context.Context, id uuid.UUID) (*domainusuarios.Usuario, error) {
+func (u *UsuarioRepository) Obter(ctx context.Context, id uuid.UUID) (*domainusuarios.Usuario, error) {
 	query := `
 		SELECT id, nome, email, senha, cargo_id, ativo, versao_sessao, ultimo_login, criado_em, atualizado_em
 		FROM usuario
@@ -111,7 +111,7 @@ func (u *UsuarioRepository) GetByID(ctx context.Context, id uuid.UUID) (*domainu
 	return &item, nil
 }
 
-func (u *UsuarioRepository) List(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
+func (u *UsuarioRepository) Listar(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
 	offset := (filtro.Page - 1) * filtro.Size
 	query := `
 		SELECT id, nome, email, senha, cargo_id, ativo, versao_sessao, ultimo_login, criado_em, atualizado_em
@@ -127,7 +127,7 @@ func (u *UsuarioRepository) List(ctx context.Context, filtro domain.PaginacaoFil
 	return itens, nil
 }
 
-func (u *UsuarioRepository) ListAtivos(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
+func (u *UsuarioRepository) ListarAtivos(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
 	offset := (filtro.Page - 1) * filtro.Size
 	query := `
 		SELECT id, nome, email, senha, cargo_id, ativo, versao_sessao, ultimo_login, criado_em, atualizado_em
@@ -144,7 +144,7 @@ func (u *UsuarioRepository) ListAtivos(ctx context.Context, filtro domain.Pagina
 	return itens, nil
 }
 
-func (u *UsuarioRepository) Search(ctx context.Context, termo string, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
+func (u *UsuarioRepository) Buscar(ctx context.Context, termo string, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
 	offset := (filtro.Page - 1) * filtro.Size
 	query := `
 		SELECT id, nome, email, senha, cargo_id, ativo, versao_sessao, ultimo_login, criado_em, atualizado_em
@@ -162,7 +162,7 @@ func (u *UsuarioRepository) Search(ctx context.Context, termo string, filtro dom
 	return itens, nil
 }
 
-func (u *UsuarioRepository) Update(ctx context.Context, usuario *domainusuarios.Usuario) error {
+func (u *UsuarioRepository) Atualizar(ctx context.Context, usuario *domainusuarios.Usuario) error {
 	query := `
 		UPDATE usuario
 		SET nome = :nome,
@@ -179,7 +179,7 @@ func (u *UsuarioRepository) Update(ctx context.Context, usuario *domainusuarios.
 	return tratarErroDeGravacao(err)
 }
 
-func (u *UsuarioRepository) UpdateUltimoLogin(ctx context.Context, id uuid.UUID, ultimoLogin time.Time) error {
+func (u *UsuarioRepository) AtualizarUltimoLogin(ctx context.Context, id uuid.UUID, ultimoLogin time.Time) error {
 	query := `
 		UPDATE usuario
 		SET ultimo_login = $1

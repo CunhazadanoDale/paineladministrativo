@@ -55,7 +55,7 @@ func (p *permissoes) cargoDoUsuario(ctx context.Context, usuarioID uuid.UUID) (*
 		return nil, nil
 	}
 
-	usuario, err := p.usuarios.GetByID(ctx, usuarioID)
+	usuario, err := p.usuarios.Obter(ctx, usuarioID)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func (p *permissoes) cargoDoUsuario(ctx context.Context, usuarioID uuid.UUID) (*
 		return nil, domain.ErroNaoEncontrado("usuário não encontrado")
 	}
 
-	cargo, err := p.cargos.GetByID(ctx, usuario.CargoID)
+	cargo, err := p.cargos.Obter(ctx, usuario.CargoID)
 	if err != nil {
 		return nil, err
 	}

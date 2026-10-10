@@ -45,7 +45,7 @@ func novoRepositorioUsuarios() *memoriaUsuarios {
 	return &memoriaUsuarios{itens: map[uuid.UUID]*domainusuarios.Usuario{}}
 }
 
-func (m *memoriaUsuarios) Create(ctx context.Context, usuario *domainusuarios.Usuario) (uuid.UUID, error) {
+func (m *memoriaUsuarios) Criar(ctx context.Context, usuario *domainusuarios.Usuario) (uuid.UUID, error) {
 	if usuario.ID == uuid.Nil {
 		return uuid.Nil, errors.New("id do usuário não informado")
 	}
@@ -56,7 +56,7 @@ func (m *memoriaUsuarios) Create(ctx context.Context, usuario *domainusuarios.Us
 	return usuario.ID, nil
 }
 
-func (m *memoriaUsuarios) Update(ctx context.Context, usuario *domainusuarios.Usuario) error {
+func (m *memoriaUsuarios) Atualizar(ctx context.Context, usuario *domainusuarios.Usuario) error {
 	if _, ok := m.itens[usuario.ID]; !ok {
 		return nil
 	}
@@ -67,7 +67,7 @@ func (m *memoriaUsuarios) Update(ctx context.Context, usuario *domainusuarios.Us
 	return nil
 }
 
-func (m *memoriaUsuarios) GetByID(ctx context.Context, id uuid.UUID) (*domainusuarios.Usuario, error) {
+func (m *memoriaUsuarios) Obter(ctx context.Context, id uuid.UUID) (*domainusuarios.Usuario, error) {
 	usuario, ok := m.itens[id]
 	if !ok {
 		return nil, nil
@@ -77,7 +77,7 @@ func (m *memoriaUsuarios) GetByID(ctx context.Context, id uuid.UUID) (*domainusu
 	return &copia, nil
 }
 
-func (m *memoriaUsuarios) GetByEmail(ctx context.Context, email string) (*domainusuarios.Usuario, error) {
+func (m *memoriaUsuarios) ObterPorEmail(ctx context.Context, email string) (*domainusuarios.Usuario, error) {
 	for _, usuario := range m.itens {
 		if usuario.Email == email {
 			copia := *usuario
@@ -88,14 +88,14 @@ func (m *memoriaUsuarios) GetByEmail(ctx context.Context, email string) (*domain
 	return nil, nil
 }
 
-func (m *memoriaUsuarios) List(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
+func (m *memoriaUsuarios) Listar(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
 	itens := m.copias()
 	ordenarUsuarios(itens)
 
 	return paginar(itens, filtro), nil
 }
 
-func (m *memoriaUsuarios) ListAtivos(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
+func (m *memoriaUsuarios) ListarAtivos(ctx context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
 	var itens []*domainusuarios.Usuario
 	for _, usuario := range m.copias() {
 		if usuario.Ativo {
@@ -107,7 +107,7 @@ func (m *memoriaUsuarios) ListAtivos(ctx context.Context, filtro domain.Paginaca
 	return paginar(itens, filtro), nil
 }
 
-func (m *memoriaUsuarios) Search(ctx context.Context, termo string, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
+func (m *memoriaUsuarios) Buscar(ctx context.Context, termo string, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Usuario, error) {
 	termo = strings.ToLower(termo)
 
 	var itens []*domainusuarios.Usuario
@@ -121,7 +121,7 @@ func (m *memoriaUsuarios) Search(ctx context.Context, termo string, filtro domai
 	return paginar(itens, filtro), nil
 }
 
-func (m *memoriaUsuarios) UpdateUltimoLogin(ctx context.Context, id uuid.UUID, ultimoLogin time.Time) error {
+func (m *memoriaUsuarios) AtualizarUltimoLogin(ctx context.Context, id uuid.UUID, ultimoLogin time.Time) error {
 	usuario, ok := m.itens[id]
 	if !ok {
 		return nil
@@ -191,7 +191,7 @@ func (m *memoriaUsuarios) Desativar(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-func (m *memoriaUsuarios) Delete(ctx context.Context, id uuid.UUID) error {
+func (m *memoriaUsuarios) Remover(ctx context.Context, id uuid.UUID) error {
 	delete(m.itens, id)
 
 	return nil
@@ -227,7 +227,7 @@ func novoCenario(t *testing.T) *cenario {
 	repoUsuarios.cargos = repoCargos
 	cargos := usuarios.NewCargoUsecase(repoCargos, repoUsuarios)
 
-	cargoID, err := cargos.Create(context.Background(), &domainusuarios.Cargo{Nome: "Gerente de obra", Descricao: "Responsável pela obra"})
+	cargoID, err := cargos.Criar(context.Background(), &domainusuarios.Cargo{Nome: "Gerente de obra", Descricao: "Responsável pela obra"})
 	if err != nil {
 		t.Fatalf("não criei o cargo do cenário: %v", err)
 	}
@@ -244,7 +244,7 @@ func novoCenario(t *testing.T) *cenario {
 func (c *cenario) criarUsuario(t *testing.T, nome, email, senha string) uuid.UUID {
 	t.Helper()
 
-	id, err := c.usuario.Create(context.Background(), nome, email, senha, c.cargoID)
+	id, err := c.usuario.Criar(context.Background(), nome, email, senha, c.cargoID)
 	if err != nil {
 		t.Fatalf("não criei o usuário %q: %v", email, err)
 	}
@@ -256,7 +256,7 @@ func TestUsuarioCreateProtegeASenha(t *testing.T) {
 	c := novoCenario(t)
 	ctx := context.Background()
 
-	id, err := c.usuario.Create(ctx, "  Ana Souza  ", "ANA@Exemplo.com", "segredo123", c.cargoID)
+	id, err := c.usuario.Criar(ctx, "  Ana Souza  ", "ANA@Exemplo.com", "segredo123", c.cargoID)
 	if err != nil {
 		t.Fatalf("criação falhou: %v", err)
 	}
@@ -264,7 +264,7 @@ func TestUsuarioCreateProtegeASenha(t *testing.T) {
 		t.Fatal("criação devolveu id zero")
 	}
 
-	salvo, err := c.repoUsuarios.GetByID(ctx, id)
+	salvo, err := c.repoUsuarios.Obter(ctx, id)
 	if err != nil {
 		t.Fatalf("busca no repositório falhou: %v", err)
 	}
@@ -317,7 +317,7 @@ func TestUsuarioCreateValidaEntrada(t *testing.T) {
 	}
 
 	for _, caso := range casos {
-		_, err := c.usuario.Create(ctx, caso.nome, caso.email, caso.senha, caso.cargoID)
+		_, err := c.usuario.Criar(ctx, caso.nome, caso.email, caso.senha, caso.cargoID)
 		if err == nil {
 			t.Errorf("%q: criação deveria ter falhado", caso.email)
 			continue
@@ -338,7 +338,7 @@ func TestUsuarioCreateRejeitaEmailDuplicado(t *testing.T) {
 
 	c.criarUsuario(t, "Ana Souza", "ana@exemplo.com", "segredo123")
 
-	_, err := c.usuario.Create(ctx, "Ana Lima", "ANA@exemplo.com", "outrasenha1", c.cargoID)
+	_, err := c.usuario.Criar(ctx, "Ana Lima", "ANA@exemplo.com", "outrasenha1", c.cargoID)
 	if !errors.Is(err, domain.ErrValidacao) {
 		t.Fatalf("erro %v, esperado erro de validação", err)
 	}
@@ -353,7 +353,7 @@ func TestUsuarioGetByEmail(t *testing.T) {
 
 	c.criarUsuario(t, "Ana Souza", "ana@exemplo.com", "segredo123")
 
-	encontrado, err := c.usuario.GetByEmail(ctx, "  ANA@Exemplo.COM  ")
+	encontrado, err := c.usuario.ObterPorEmail(ctx, "  ANA@Exemplo.COM  ")
 	if err != nil {
 		t.Fatalf("busca por email falhou: %v", err)
 	}
@@ -361,11 +361,11 @@ func TestUsuarioGetByEmail(t *testing.T) {
 		t.Errorf("busca devolveu %+v, esperado Ana Souza", encontrado)
 	}
 
-	if _, err := c.usuario.GetByEmail(ctx, "outra@exemplo.com"); !errors.Is(err, domain.ErrNotFound) {
+	if _, err := c.usuario.ObterPorEmail(ctx, "outra@exemplo.com"); !errors.Is(err, domain.ErrNotFound) {
 		t.Errorf("erro %v, esperado registro não encontrado", err)
 	}
 
-	if _, err := c.usuario.GetByEmail(ctx, "sem-arroba"); !errors.Is(err, domain.ErrValidacao) {
+	if _, err := c.usuario.ObterPorEmail(ctx, "sem-arroba"); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("erro %v, esperado erro de validação", err)
 	}
 }
@@ -376,7 +376,7 @@ func TestUsuarioAuthenticate(t *testing.T) {
 
 	c.criarUsuario(t, "Ana Souza", "ana@exemplo.com", "segredo123")
 
-	autenticado, err := c.usuario.Authenticate(ctx, "ANA@Exemplo.com", "segredo123")
+	autenticado, err := c.usuario.Autenticar(ctx, "ANA@Exemplo.com", "segredo123")
 	if err != nil {
 		t.Fatalf("autenticação falhou: %v", err)
 	}
@@ -384,12 +384,12 @@ func TestUsuarioAuthenticate(t *testing.T) {
 		t.Fatalf("autenticação devolveu %+v, esperado Ana Souza", autenticado)
 	}
 
-	_, errSenha := c.usuario.Authenticate(ctx, "ana@exemplo.com", "senhaerrada")
+	_, errSenha := c.usuario.Autenticar(ctx, "ana@exemplo.com", "senhaerrada")
 	if !errors.Is(errSenha, domain.ErrNotFound) {
 		t.Errorf("senha errada devolveu %v, esperado registro não encontrado", errSenha)
 	}
 
-	_, errEmail := c.usuario.Authenticate(ctx, "outra@exemplo.com", "segredo123")
+	_, errEmail := c.usuario.Autenticar(ctx, "outra@exemplo.com", "segredo123")
 	if !errors.Is(errEmail, domain.ErrNotFound) {
 		t.Errorf("email inexistente devolveu %v, esperado registro não encontrado", errEmail)
 	}
@@ -397,7 +397,7 @@ func TestUsuarioAuthenticate(t *testing.T) {
 		t.Errorf("mensagens diferentes: %q e %q", errEmail, errSenha)
 	}
 
-	if _, err := c.usuario.Authenticate(ctx, "sem-arroba", "segredo123"); !errors.Is(err, domain.ErrValidacao) {
+	if _, err := c.usuario.Autenticar(ctx, "sem-arroba", "segredo123"); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("erro %v, esperado erro de validação", err)
 	}
 }
@@ -411,7 +411,7 @@ func TestUsuarioAuthenticateBloqueiaDesativado(t *testing.T) {
 		t.Fatalf("desativação falhou: %v", err)
 	}
 
-	_, err := c.usuario.Authenticate(ctx, "ana@exemplo.com", "segredo123")
+	_, err := c.usuario.Autenticar(ctx, "ana@exemplo.com", "segredo123")
 	if !errors.Is(err, domain.ErrValidacao) {
 		t.Fatalf("erro %v, esperado erro de validação", err)
 	}
@@ -426,11 +426,11 @@ func TestUsuarioUpdateSenha(t *testing.T) {
 
 	id := c.criarUsuario(t, "Ana Souza", "ana@exemplo.com", "segredo123")
 
-	if err := c.usuario.UpdateSenha(ctx, id, "senhaNova123"); err != nil {
+	if err := c.usuario.AtualizarSenha(ctx, id, "senhaNova123"); err != nil {
 		t.Fatalf("troca de senha falhou: %v", err)
 	}
 
-	salvo, err := c.repoUsuarios.GetByID(ctx, id)
+	salvo, err := c.repoUsuarios.Obter(ctx, id)
 	if err != nil {
 		t.Fatalf("busca no repositório falhou: %v", err)
 	}
@@ -441,17 +441,17 @@ func TestUsuarioUpdateSenha(t *testing.T) {
 		t.Error("hash gravado não confere com a nova senha")
 	}
 
-	if _, err := c.usuario.Authenticate(ctx, "ana@exemplo.com", "senhaNova123"); err != nil {
+	if _, err := c.usuario.Autenticar(ctx, "ana@exemplo.com", "senhaNova123"); err != nil {
 		t.Errorf("nova senha não autenticou: %v", err)
 	}
-	if _, err := c.usuario.Authenticate(ctx, "ana@exemplo.com", "segredo123"); err == nil {
+	if _, err := c.usuario.Autenticar(ctx, "ana@exemplo.com", "segredo123"); err == nil {
 		t.Error("senha antiga ainda autentica")
 	}
 
-	if err := c.usuario.UpdateSenha(ctx, id, "curta"); !errors.Is(err, domain.ErrValidacao) {
+	if err := c.usuario.AtualizarSenha(ctx, id, "curta"); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("erro %v, esperado erro de validação", err)
 	}
-	if err := c.usuario.UpdateSenha(ctx, uuid.New(), "senhaNova123"); !errors.Is(err, domain.ErrNotFound) {
+	if err := c.usuario.AtualizarSenha(ctx, uuid.New(), "senhaNova123"); !errors.Is(err, domain.ErrNotFound) {
 		t.Errorf("erro %v, esperado registro não encontrado", err)
 	}
 }
@@ -462,11 +462,11 @@ func TestUsuarioUpdateSenhaEncerraSessoes(t *testing.T) {
 
 	id := c.criarUsuario(t, "Ana Souza", "ana@exemplo.com", "segredo123")
 
-	if err := c.usuario.UpdateSenha(ctx, id, "senhaNova123"); err != nil {
+	if err := c.usuario.AtualizarSenha(ctx, id, "senhaNova123"); err != nil {
 		t.Fatalf("troca de senha falhou: %v", err)
 	}
 
-	salvo, err := c.repoUsuarios.GetByID(ctx, id)
+	salvo, err := c.repoUsuarios.Obter(ctx, id)
 	if err != nil {
 		t.Fatalf("busca no repositório falhou: %v", err)
 	}
@@ -499,18 +499,18 @@ func TestUsuarioTrocarSenhaPropriaExigeSenhaAtual(t *testing.T) {
 		})
 	}
 
-	if _, err := c.usuario.Authenticate(ctx, "ana@exemplo.com", "segredo123"); err != nil {
+	if _, err := c.usuario.Autenticar(ctx, "ana@exemplo.com", "segredo123"); err != nil {
 		t.Errorf("senha original deixou de autenticar: %v", err)
 	}
 
 	if err := c.usuario.TrocarSenhaPropria(ctx, id, "segredo123", "senhaNova123"); err != nil {
 		t.Fatalf("troca de senha falhou: %v", err)
 	}
-	if _, err := c.usuario.Authenticate(ctx, "ana@exemplo.com", "senhaNova123"); err != nil {
+	if _, err := c.usuario.Autenticar(ctx, "ana@exemplo.com", "senhaNova123"); err != nil {
 		t.Errorf("nova senha não autenticou: %v", err)
 	}
 
-	salvo, err := c.repoUsuarios.GetByID(ctx, id)
+	salvo, err := c.repoUsuarios.Obter(ctx, id)
 	if err != nil {
 		t.Fatalf("busca no repositório falhou: %v", err)
 	}
@@ -529,7 +529,7 @@ func TestUsuarioEncerrarSessoes(t *testing.T) {
 		t.Fatalf("encerramento falhou: %v", err)
 	}
 
-	salvo, err := c.repoUsuarios.GetByID(ctx, id)
+	salvo, err := c.repoUsuarios.Obter(ctx, id)
 	if err != nil {
 		t.Fatalf("busca no repositório falhou: %v", err)
 	}
@@ -548,11 +548,11 @@ func TestUsuarioUpdatePreservaSenhaEUltimoLogin(t *testing.T) {
 	id := c.criarUsuario(t, "Ana Souza", "ana@exemplo.com", "segredo123")
 
 	login := time.Date(2026, time.October, 5, 10, 30, 0, 0, time.UTC)
-	if err := c.usuario.UpdateUltimoLogin(ctx, id, login); err != nil {
+	if err := c.usuario.AtualizarUltimoLogin(ctx, id, login); err != nil {
 		t.Fatalf("atualização do último login falhou: %v", err)
 	}
 
-	usuario, err := c.usuario.GetByID(ctx, id)
+	usuario, err := c.usuario.Obter(ctx, id)
 	if err != nil {
 		t.Fatalf("busca por id falhou: %v", err)
 	}
@@ -563,11 +563,11 @@ func TestUsuarioUpdatePreservaSenhaEUltimoLogin(t *testing.T) {
 	usuario.Senha = "senha que não deveria ser gravada"
 	usuario.UltimoLogin = time.Time{}
 
-	if err := c.usuario.Update(ctx, usuario); err != nil {
+	if err := c.usuario.Atualizar(ctx, usuario); err != nil {
 		t.Fatalf("atualização falhou: %v", err)
 	}
 
-	atualizado, err := c.usuario.GetByID(ctx, id)
+	atualizado, err := c.usuario.Obter(ctx, id)
 	if err != nil {
 		t.Fatalf("busca após atualização falhou: %v", err)
 	}
@@ -592,54 +592,54 @@ func TestUsuarioUpdateValida(t *testing.T) {
 	id := c.criarUsuario(t, "Ana Souza", "ana@exemplo.com", "segredo123")
 	outroID := c.criarUsuario(t, "Bruno Lima", "bruno@exemplo.com", "segredo123")
 
-	usuario, err := c.usuario.GetByID(ctx, id)
+	usuario, err := c.usuario.Obter(ctx, id)
 	if err != nil {
 		t.Fatalf("busca por id falhou: %v", err)
 	}
 
-	if err := c.usuario.Update(ctx, nil); !errors.Is(err, domain.ErrValidacao) {
+	if err := c.usuario.Atualizar(ctx, nil); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("erro %v, esperado erro de validação", err)
 	}
 
 	semID := *usuario
 	semID.ID = uuid.Nil
-	if err := c.usuario.Update(ctx, &semID); !errors.Is(err, domain.ErrValidacao) {
+	if err := c.usuario.Atualizar(ctx, &semID); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("erro %v, esperado erro de validação", err)
 	}
 
 	nomeVazio := *usuario
 	nomeVazio.Nome = "   "
-	if err := c.usuario.Update(ctx, &nomeVazio); !errors.Is(err, domain.ErrValidacao) {
+	if err := c.usuario.Atualizar(ctx, &nomeVazio); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("erro %v, esperado erro de validação", err)
 	}
 
 	emailInvalido := *usuario
 	emailInvalido.Email = "ana.exemplo.com"
-	if err := c.usuario.Update(ctx, &emailInvalido); !errors.Is(err, domain.ErrValidacao) {
+	if err := c.usuario.Atualizar(ctx, &emailInvalido); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("erro %v, esperado erro de validação", err)
 	}
 
 	semCargo := *usuario
 	semCargo.CargoID = uuid.Nil
-	if err := c.usuario.Update(ctx, &semCargo); !errors.Is(err, domain.ErrValidacao) {
+	if err := c.usuario.Atualizar(ctx, &semCargo); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("erro %v, esperado erro de validação", err)
 	}
 
 	inexistente := *usuario
 	inexistente.ID = uuid.New()
-	if err := c.usuario.Update(ctx, &inexistente); !errors.Is(err, domain.ErrNotFound) {
+	if err := c.usuario.Atualizar(ctx, &inexistente); !errors.Is(err, domain.ErrNotFound) {
 		t.Errorf("erro %v, esperado registro não encontrado", err)
 	}
 
 	cargoInexistente := *usuario
 	cargoInexistente.CargoID = uuid.New()
-	if err := c.usuario.Update(ctx, &cargoInexistente); !errors.Is(err, domain.ErrValidacao) {
+	if err := c.usuario.Atualizar(ctx, &cargoInexistente); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("erro %v, esperado erro de validação", err)
 	}
 
 	emailRepetido := *usuario
 	emailRepetido.Email = "bruno@exemplo.com"
-	if err := c.usuario.Update(ctx, &emailRepetido); !errors.Is(err, domain.ErrValidacao) {
+	if err := c.usuario.Atualizar(ctx, &emailRepetido); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("erro %v, esperado erro de validação", err)
 	}
 	if outroID == uuid.Nil {
@@ -652,7 +652,7 @@ func TestUsuarioOperacoesComIdInexistente(t *testing.T) {
 	ctx := context.Background()
 	desconhecido := uuid.New()
 
-	if _, err := c.usuario.GetByID(ctx, desconhecido); !errors.Is(err, domain.ErrNotFound) {
+	if _, err := c.usuario.Obter(ctx, desconhecido); !errors.Is(err, domain.ErrNotFound) {
 		t.Errorf("erro %v, esperado registro não encontrado", err)
 	}
 	if err := c.usuario.Ativar(ctx, desconhecido); !errors.Is(err, domain.ErrNotFound) {
@@ -661,26 +661,26 @@ func TestUsuarioOperacoesComIdInexistente(t *testing.T) {
 	if err := c.usuario.Desativar(ctx, desconhecido); !errors.Is(err, domain.ErrNotFound) {
 		t.Errorf("erro %v, esperado registro não encontrado", err)
 	}
-	if err := c.usuario.Delete(ctx, desconhecido); !errors.Is(err, domain.ErrNotFound) {
+	if err := c.usuario.Remover(ctx, desconhecido); !errors.Is(err, domain.ErrNotFound) {
 		t.Errorf("erro %v, esperado registro não encontrado", err)
 	}
-	if err := c.usuario.UpdateUltimoLogin(ctx, desconhecido, time.Now().UTC()); !errors.Is(err, domain.ErrNotFound) {
+	if err := c.usuario.AtualizarUltimoLogin(ctx, desconhecido, time.Now().UTC()); !errors.Is(err, domain.ErrNotFound) {
 		t.Errorf("erro %v, esperado registro não encontrado", err)
 	}
 
-	if _, err := c.usuario.GetByID(ctx, uuid.Nil); !errors.Is(err, domain.ErrValidacao) {
+	if _, err := c.usuario.Obter(ctx, uuid.Nil); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("erro %v, esperado erro de validação", err)
 	}
 	if err := c.usuario.Ativar(ctx, uuid.Nil); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("erro %v, esperado erro de validação", err)
 	}
-	if err := c.usuario.Delete(ctx, uuid.Nil); !errors.Is(err, domain.ErrValidacao) {
+	if err := c.usuario.Remover(ctx, uuid.Nil); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("erro %v, esperado erro de validação", err)
 	}
-	if err := c.usuario.UpdateUltimoLogin(ctx, uuid.Nil, time.Now().UTC()); !errors.Is(err, domain.ErrValidacao) {
+	if err := c.usuario.AtualizarUltimoLogin(ctx, uuid.Nil, time.Now().UTC()); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("erro %v, esperado erro de validação", err)
 	}
-	if err := c.usuario.UpdateUltimoLogin(ctx, c.cargoID, time.Time{}); !errors.Is(err, domain.ErrValidacao) {
+	if err := c.usuario.AtualizarUltimoLogin(ctx, c.cargoID, time.Time{}); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("erro %v, esperado erro de validação", err)
 	}
 }
@@ -693,7 +693,7 @@ func TestUsuarioListasEBusca(t *testing.T) {
 	c.criarUsuario(t, "Bruno Lima", "bruno@exemplo.com", "segredo123")
 	diego := c.criarUsuario(t, "Diego Ramos", "diego@exemplo.com", "segredo123")
 
-	todos, err := c.usuario.List(ctx, todasAsPaginas)
+	todos, err := c.usuario.Listar(ctx, todasAsPaginas)
 	if err != nil {
 		t.Fatalf("listagem falhou: %v", err)
 	}
@@ -708,7 +708,7 @@ func TestUsuarioListasEBusca(t *testing.T) {
 		t.Fatalf("desativação falhou: %v", err)
 	}
 
-	ativos, err := c.usuario.ListAtivos(ctx, todasAsPaginas)
+	ativos, err := c.usuario.ListarAtivos(ctx, todasAsPaginas)
 	if err != nil {
 		t.Fatalf("listagem de ativos falhou: %v", err)
 	}
@@ -721,7 +721,7 @@ func TestUsuarioListasEBusca(t *testing.T) {
 		}
 	}
 
-	encontrados, err := c.usuario.Search(ctx, "  BRUNO  ", todasAsPaginas)
+	encontrados, err := c.usuario.Buscar(ctx, "  BRUNO  ", todasAsPaginas)
 	if err != nil {
 		t.Fatalf("busca falhou: %v", err)
 	}
@@ -729,7 +729,7 @@ func TestUsuarioListasEBusca(t *testing.T) {
 		t.Errorf("busca devolveu %+v, esperado Bruno Lima", encontrados)
 	}
 
-	porEmail, err := c.usuario.Search(ctx, "ANA@exemplo", todasAsPaginas)
+	porEmail, err := c.usuario.Buscar(ctx, "ANA@exemplo", todasAsPaginas)
 	if err != nil {
 		t.Fatalf("busca por email falhou: %v", err)
 	}
@@ -756,7 +756,7 @@ func TestUsuarioTemAcessoComercialPeloCargo(t *testing.T) {
 	for _, caso := range casos {
 		t.Run(caso.nome, func(t *testing.T) {
 			cargo := caso.cargo
-			cargoID, err := c.cargo.Create(ctx, &cargo)
+			cargoID, err := c.cargo.Criar(ctx, &cargo)
 			if err != nil {
 				t.Fatalf("criação do cargo falhou: %v", err)
 			}
@@ -780,12 +780,12 @@ func TestUsuarioTemAcessoComercialPeloCargo(t *testing.T) {
 func (c *cenario) criarAdministrador(t *testing.T, email string) (uuid.UUID, uuid.UUID) {
 	t.Helper()
 
-	cargoID, err := c.cargo.Create(context.Background(), &domainusuarios.Cargo{Nome: "Diretoria " + email, Administrador: true})
+	cargoID, err := c.cargo.Criar(context.Background(), &domainusuarios.Cargo{Nome: "Diretoria " + email, Administrador: true})
 	if err != nil {
 		t.Fatalf("criação do cargo administrador falhou: %v", err)
 	}
 
-	id, err := c.usuario.Create(context.Background(), "Administrador", email, "segredo123", cargoID)
+	id, err := c.usuario.Criar(context.Background(), "Administrador", email, "segredo123", cargoID)
 	if err != nil {
 		t.Fatalf("criação do administrador falhou: %v", err)
 	}
@@ -798,7 +798,7 @@ func TestUltimoAdministradorAtivoNaoPerdeOAcesso(t *testing.T) {
 	ctx := context.Background()
 	adminID, cargoAdminID := c.criarAdministrador(t, "admin@exemplo.com")
 
-	atual, err := c.usuario.GetByID(ctx, adminID)
+	atual, err := c.usuario.Obter(ctx, adminID)
 	if err != nil {
 		t.Fatalf("busca falhou: %v", err)
 	}
@@ -813,11 +813,11 @@ func TestUltimoAdministradorAtivoNaoPerdeOAcesso(t *testing.T) {
 		executar func() error
 	}{
 		{"desativar", func() error { return c.usuario.Desativar(ctx, adminID) }},
-		{"excluir", func() error { return c.usuario.Delete(ctx, adminID) }},
-		{"desativar pelo cadastro", func() error { return c.usuario.Update(ctx, &desativado) }},
-		{"trocar para cargo sem perfil", func() error { return c.usuario.Update(ctx, &semPerfil) }},
+		{"excluir", func() error { return c.usuario.Remover(ctx, adminID) }},
+		{"desativar pelo cadastro", func() error { return c.usuario.Atualizar(ctx, &desativado) }},
+		{"trocar para cargo sem perfil", func() error { return c.usuario.Atualizar(ctx, &semPerfil) }},
 		{"tirar o perfil do cargo", func() error {
-			return c.cargo.Update(ctx, &domainusuarios.Cargo{ID: cargoAdminID, Nome: "Diretoria admin@exemplo.com", Ativo: true})
+			return c.cargo.Atualizar(ctx, &domainusuarios.Cargo{ID: cargoAdminID, Nome: "Diretoria admin@exemplo.com", Ativo: true})
 		}},
 	}
 
@@ -829,7 +829,7 @@ func TestUltimoAdministradorAtivoNaoPerdeOAcesso(t *testing.T) {
 		})
 	}
 
-	salvo, err := c.usuario.GetByID(ctx, adminID)
+	salvo, err := c.usuario.Obter(ctx, adminID)
 	if err != nil {
 		t.Fatalf("busca falhou: %v", err)
 	}
@@ -839,7 +839,7 @@ func TestUltimoAdministradorAtivoNaoPerdeOAcesso(t *testing.T) {
 
 	atualizado := *salvo
 	atualizado.Nome = "Administrador Geral"
-	if err := c.usuario.Update(ctx, &atualizado); err != nil {
+	if err := c.usuario.Atualizar(ctx, &atualizado); err != nil {
 		t.Errorf("edição cadastral do último administrador falhou: %v", err)
 	}
 }
@@ -849,7 +849,7 @@ func TestAdministradorPodeSairQuandoHaOutro(t *testing.T) {
 	ctx := context.Background()
 	primeiroID, cargoID := c.criarAdministrador(t, "um@exemplo.com")
 
-	if _, err := c.usuario.Create(ctx, "Segundo", "dois@exemplo.com", "segredo123", cargoID); err != nil {
+	if _, err := c.usuario.Criar(ctx, "Segundo", "dois@exemplo.com", "segredo123", cargoID); err != nil {
 		t.Fatalf("criação do segundo administrador falhou: %v", err)
 	}
 
@@ -857,7 +857,7 @@ func TestAdministradorPodeSairQuandoHaOutro(t *testing.T) {
 		t.Fatalf("desativação com outro administrador ativo falhou: %v", err)
 	}
 
-	segundo, err := c.usuario.GetByEmail(ctx, "dois@exemplo.com")
+	segundo, err := c.usuario.ObterPorEmail(ctx, "dois@exemplo.com")
 	if err != nil {
 		t.Fatalf("busca falhou: %v", err)
 	}
@@ -872,7 +872,7 @@ func TestCargoAdministradorPodePerderOPerfilQuandoHaAdminEmOutroCargo(t *testing
 	_, cargoUm := c.criarAdministrador(t, "um@exemplo.com")
 	c.criarAdministrador(t, "dois@exemplo.com")
 
-	if err := c.cargo.Update(ctx, &domainusuarios.Cargo{ID: cargoUm, Nome: "Diretoria um@exemplo.com", Ativo: true}); err != nil {
+	if err := c.cargo.Atualizar(ctx, &domainusuarios.Cargo{ID: cargoUm, Nome: "Diretoria um@exemplo.com", Ativo: true}); err != nil {
 		t.Errorf("remoção do perfil com outro administrador falhou: %v", err)
 	}
 }
@@ -882,7 +882,7 @@ func TestUsuarioAuthenticateComEmailInexistenteGastaOTempoDoBcrypt(t *testing.T)
 	ctx := context.Background()
 
 	inicio := time.Now()
-	_, err := c.usuario.Authenticate(ctx, "ninguem@exemplo.com", "qualquer123")
+	_, err := c.usuario.Autenticar(ctx, "ninguem@exemplo.com", "qualquer123")
 	duracao := time.Since(inicio)
 
 	if !errors.Is(err, domain.ErrNotFound) {

@@ -23,7 +23,7 @@ func (h *SessaoHandler) Obter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	item, err := h.usecase.GetByID(r.Context(), usuario.ID)
+	item, err := h.usecase.Obter(r.Context(), usuario.ID)
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return

@@ -27,7 +27,7 @@ func novoFakeCargos() *fakeCargoUseCase {
 	return &fakeCargoUseCase{cargos: map[uuid.UUID]*domainusuarios.Cargo{}}
 }
 
-func (f *fakeCargoUseCase) Create(_ context.Context, novo *domainusuarios.Cargo) (uuid.UUID, error) {
+func (f *fakeCargoUseCase) Criar(_ context.Context, novo *domainusuarios.Cargo) (uuid.UUID, error) {
 	nome := novo.Nome
 	if nome == "" {
 		return uuid.Nil, domain.ErroValidacao("nome do cargo é obrigatório")
@@ -53,7 +53,7 @@ func (f *fakeCargoUseCase) Create(_ context.Context, novo *domainusuarios.Cargo)
 	return id, nil
 }
 
-func (f *fakeCargoUseCase) Update(_ context.Context, cargo *domainusuarios.Cargo) error {
+func (f *fakeCargoUseCase) Atualizar(_ context.Context, cargo *domainusuarios.Cargo) error {
 	if _, ok := f.cargos[cargo.ID]; !ok {
 		return domain.ErroNaoEncontrado("cargo não encontrado")
 	}
@@ -64,7 +64,7 @@ func (f *fakeCargoUseCase) Update(_ context.Context, cargo *domainusuarios.Cargo
 	return nil
 }
 
-func (f *fakeCargoUseCase) GetByID(_ context.Context, id uuid.UUID) (*domainusuarios.Cargo, error) {
+func (f *fakeCargoUseCase) Obter(_ context.Context, id uuid.UUID) (*domainusuarios.Cargo, error) {
 	cargo, ok := f.cargos[id]
 	if !ok {
 		return nil, domain.ErroNaoEncontrado("cargo não encontrado")
@@ -75,7 +75,7 @@ func (f *fakeCargoUseCase) GetByID(_ context.Context, id uuid.UUID) (*domainusua
 	return &copia, nil
 }
 
-func (f *fakeCargoUseCase) GetByNome(_ context.Context, nome string) (*domainusuarios.Cargo, error) {
+func (f *fakeCargoUseCase) ObterPorNome(_ context.Context, nome string) (*domainusuarios.Cargo, error) {
 	for _, cargo := range f.cargos {
 		if cargo.Nome == nome {
 			copia := *cargo
@@ -87,7 +87,7 @@ func (f *fakeCargoUseCase) GetByNome(_ context.Context, nome string) (*domainusu
 	return nil, domain.ErroNaoEncontrado("cargo não encontrado")
 }
 
-func (f *fakeCargoUseCase) List(_ context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
+func (f *fakeCargoUseCase) Listar(_ context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
 	var itens []*domainusuarios.Cargo
 	for _, cargo := range f.cargos {
 		copia := *cargo
@@ -98,7 +98,7 @@ func (f *fakeCargoUseCase) List(_ context.Context, filtro domain.PaginacaoFiltro
 	return paginar(itens, filtro), nil
 }
 
-func (f *fakeCargoUseCase) ListAtivos(_ context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
+func (f *fakeCargoUseCase) ListarAtivos(_ context.Context, filtro domain.PaginacaoFiltro) ([]*domainusuarios.Cargo, error) {
 	var itens []*domainusuarios.Cargo
 	for _, cargo := range f.cargos {
 		if !cargo.Ativo {
@@ -119,7 +119,7 @@ func ordenarCargos(itens []*domainusuarios.Cargo) {
 	})
 }
 
-func (f *fakeCargoUseCase) Delete(_ context.Context, id uuid.UUID) error {
+func (f *fakeCargoUseCase) Remover(_ context.Context, id uuid.UUID) error {
 	if _, ok := f.cargos[id]; !ok {
 		return domain.ErroNaoEncontrado("cargo não encontrado")
 	}
@@ -132,7 +132,7 @@ func (f *fakeCargoUseCase) Delete(_ context.Context, id uuid.UUID) error {
 func semearCargo(t *testing.T, fake *fakeCargoUseCase, nome, descricao string) uuid.UUID {
 	t.Helper()
 
-	id, err := fake.Create(context.Background(), &domainusuarios.Cargo{Nome: nome, Descricao: descricao})
+	id, err := fake.Criar(context.Background(), &domainusuarios.Cargo{Nome: nome, Descricao: descricao})
 	if err != nil {
 		t.Fatalf("falha ao semear cargo: %v", err)
 	}
