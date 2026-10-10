@@ -13,26 +13,12 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-// DSNPadrao aponta para o serviço postgres do docker-compose.yml.
 const DSNPadrao = "postgres://mia:mia@localhost:5444/mia?sslmode=disable"
 
-// VariavelDSN é a variável de ambiente que sobrepõe a DSN padrão.
 const VariavelDSN = "TEST_DATABASE_URL"
 
-// prefixoBancoDeTeste identifica os bancos descartáveis criados aqui, para
-// facilitar a limpeza caso algum fique órfão.
 const prefixoBancoDeTeste = "mia_teste_"
 
-// BancoDoTeste cria um banco novo para este teste, aplica as migrations e
-// devolve a conexão. O banco é derrubado quando o teste termina.
-//
-// Um banco por teste não é luxo: `go test ./...` roda os pacotes em
-// paralelo, e um banco compartilhado faria os testes apagarem os dados uns
-// dos outros — o problema clássico de teste de banco que falha só às vezes.
-//
-// Sem Postgres disponível o teste é pulado, para `go test ./...` continuar
-// verde em máquina sem Docker. Quando VariavelDSN está definida o banco é
-// obrigatório e a falha derruba o teste em vez de pular.
 func BancoDoTeste(t *testing.T) *sqlx.DB {
 	t.Helper()
 
@@ -55,8 +41,6 @@ func BancoDoTeste(t *testing.T) *sqlx.DB {
 		}
 		t.Skipf("Postgres indisponível em %s — suba com `docker compose up -d postgres` ou defina %s: %v", dsn, VariavelDSN, err)
 	}
-	// Limpeza registrada antes: o Go roda os cleanups em LIFO, então o banco
-	// é derrubado antes de fechar a conexão de manutenção.
 	t.Cleanup(func() {
 		_ = base.Close()
 	})
@@ -81,9 +65,6 @@ func BancoDoTeste(t *testing.T) *sqlx.DB {
 	return banco
 }
 
-// aplicarMigrations roda, em uma única transação, todos os arquivos
-// migrations/*.up.sql em ordem. A transação garante que ou o schema fica
-// inteiro, ou o teste falha sem deixar banco pela metade.
 func aplicarMigrations(t *testing.T, banco *sqlx.DB) {
 	t.Helper()
 
@@ -125,8 +106,6 @@ func aplicarMigrations(t *testing.T, banco *sqlx.DB) {
 	sucesso = true
 }
 
-// comBanco devolve a DSN apontando para outro banco, mantendo host, porta,
-// usuário e senha.
 func comBanco(dsn, nome string) (string, error) {
 	endereco, err := url.Parse(dsn)
 	if err != nil {
@@ -138,7 +117,6 @@ func comBanco(dsn, nome string) (string, error) {
 	return endereco.String(), nil
 }
 
-// trocarBanco é comBanco falhando pelo teste, já que a DSN veio de fora.
 func trocarBanco(dsn, nome string) string {
 	endereco, err := comBanco(dsn, nome)
 	if err != nil {
@@ -148,8 +126,6 @@ func trocarBanco(dsn, nome string) string {
 	return endereco
 }
 
-// raizDoProjeto sobe a árvore de diretórios até achar o go.mod, para achar
-// as migrations independente de onde o teste está na árvore.
 func raizDoProjeto(t *testing.T) string {
 	t.Helper()
 

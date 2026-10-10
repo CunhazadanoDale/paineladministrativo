@@ -1,12 +1,5 @@
 //go:build e2e
 
-// Package http testa a aplicação montada inteira: requisição HTTP entrando,
-// camada de rotas, handlers, usecases e Postgres saindo. É o teste mais
-// distante do código e o mais próximo do que o usuário final vê.
-//
-// Roda atrás da tag `e2e` porque depende do banco e da camada HTTP:
-//
-//	go test -tags=e2e ./test/...
 package http
 
 import (
@@ -25,12 +18,10 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-// statusSaude é o conteúdo devolvido por GET /health.
 type statusSaude struct {
 	Status string `json:"status"`
 }
 
-// servidorDoTeste sobe a aplicação com um banco novo para o teste.
 func servidorDoTeste(t *testing.T) (*httptest.Server, *sqlx.DB) {
 	t.Helper()
 
@@ -41,20 +32,16 @@ func servidorDoTeste(t *testing.T) (*httptest.Server, *sqlx.DB) {
 	return servidor, banco
 }
 
-// tokenDoTeste é o token do administrador logado pelo servidorDoTeste.
 var tokenDoTeste string
 
-// envia faz uma requisição ao servidor de teste e devolve a resposta.
 func envia(t *testing.T, servidor *httptest.Server, metodo, caminho string, corpo any) *http.Response {
 	return enviar(t, servidor, metodo, caminho, corpo, tokenDoTeste)
 }
 
-// enviaSemToken faz a mesma requisição de envia, sem cabeçalho de autorização.
 func enviaSemToken(t *testing.T, servidor *httptest.Server, metodo, caminho string, corpo any) *http.Response {
 	return enviar(t, servidor, metodo, caminho, corpo, "")
 }
 
-// enviaComToken faz a requisição com o token informado.
 func enviaComToken(t *testing.T, servidor *httptest.Server, metodo, caminho string, corpo any, token string) *http.Response {
 	return enviar(t, servidor, metodo, caminho, corpo, token)
 }
@@ -93,7 +80,6 @@ func enviar(t *testing.T, servidor *httptest.Server, metodo, caminho string, cor
 	return resposta
 }
 
-// conferirStatus falha o teste se o status HTTP for diferente do esperado.
 func conferirStatus(t *testing.T, resposta *http.Response, esperado int) {
 	t.Helper()
 
@@ -102,7 +88,6 @@ func conferirStatus(t *testing.T, resposta *http.Response, esperado int) {
 	}
 }
 
-// decodificarEnvelope lê um corpo no formato {"dados": ...}.
 func decodificarEnvelope[T any](t *testing.T, resposta *http.Response) dto.Resposta[T] {
 	t.Helper()
 
@@ -112,7 +97,6 @@ func decodificarEnvelope[T any](t *testing.T, resposta *http.Response) dto.Respo
 	return conteudo
 }
 
-// decodificarPagina lê um corpo paginado ({"dados": [...], "pagina": ...}).
 func decodificarPagina[T any](t *testing.T, resposta *http.Response) dto.Paginado[T] {
 	t.Helper()
 
@@ -122,7 +106,6 @@ func decodificarPagina[T any](t *testing.T, resposta *http.Response) dto.Paginad
 	return conteudo
 }
 
-// decodificarErro lê o envelope de erro {"erro": {"codigo": ..., ...}}.
 func decodificarErro(t *testing.T, resposta *http.Response) dto.RespostaErro {
 	t.Helper()
 
@@ -140,7 +123,6 @@ func decodificar(t *testing.T, resposta *http.Response, destino any) {
 	}
 }
 
-// criarFunil cria um funil pela API e devolve o id.
 func criarFunil(t *testing.T, servidor *httptest.Server, nome string) uuid.UUID {
 	t.Helper()
 
@@ -150,7 +132,6 @@ func criarFunil(t *testing.T, servidor *httptest.Server, nome string) uuid.UUID 
 	return decodificarEnvelope[leaddto.FunilResponse](t, resposta).Dados.FunilID
 }
 
-// criarEtapa cria uma etapa pela API e devolve o id.
 func criarEtapa(t *testing.T, servidor *httptest.Server, funilID uuid.UUID, nome string) uuid.UUID {
 	t.Helper()
 
@@ -163,7 +144,6 @@ func criarEtapa(t *testing.T, servidor *httptest.Server, funilID uuid.UUID, nome
 	return decodificarEnvelope[leaddto.EtapaResponse](t, resposta).Dados.EtapaID
 }
 
-// criarLead cria um lead pela API e devolve o id.
 func criarLead(t *testing.T, servidor *httptest.Server, etapaID uuid.UUID, nome string) uuid.UUID {
 	t.Helper()
 

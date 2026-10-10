@@ -20,13 +20,6 @@ import (
 
 const segredoDoTeste = "segredo-de-teste-do-e2e"
 
-// NovoServidor monta a aplicação inteira — repositórios, usecases e rotas —
-// e devolve um servidor HTTP de teste.
-//
-// É o mesmo caminho que o main sobe, só apontado para o banco de teste. Por
-// depender da camada HTTP o arquivo fica atrás da tag `e2e`:
-//
-//	go test -tags=e2e ./test/...
 func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 	t.Helper()
 

@@ -1,6 +1,3 @@
-// Package postgres_test cobre os repositórios contra um Postgres de
-// verdade: as queries, as transações e as constraints do schema. É a camada
-// que não dá para testar com mock.
 package postgres_test
 
 import (
@@ -18,8 +15,6 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-// novoLead monta um lead válido para o repositório persistir. Os campos de
-// data são preenchidos aqui porque a tabela os exige com valor.
 func novoLead(etapaID uuid.UUID, nome string) *domainlead.Lead {
 	agora := time.Now().UTC()
 
@@ -36,8 +31,6 @@ func novoLead(etapaID uuid.UUID, nome string) *domainlead.Lead {
 	}
 }
 
-// cenario devolve um repositório, o banco, o id do funil e as duas etapas
-// criadas, já com o banco zerado.
 func cenario(t *testing.T) (*postgres.LeadRepository, *sqlx.DB, uuid.UUID, []uuid.UUID) {
 	t.Helper()
 
@@ -120,9 +113,6 @@ func TestListarAtivosPaginaEExcluiInativos(t *testing.T) {
 		t.Fatalf("segunda página com %d itens, esperado 1", len(segunda))
 	}
 
-	// A ordenação é por criado_em decrescente e o Diego está inativo, então a
-	// primeira página são os dois ativos mais recentes (Carla e Bruno) e a
-	// segunda página é o mais antigo (Ana).
 	if primeira[0].Nome != "Carla Dias" || segunda[0].Nome != "Ana Souza" {
 		t.Errorf("ordem inesperada: %q, %q", primeira[0].Nome, segunda[0].Nome)
 	}
@@ -142,7 +132,6 @@ func TestBuscarPorNomeIgnoraInativos(t *testing.T) {
 	inativo := helpers.CriarLead(t, banco, etapas[0], "Márcio Souza")
 	helpers.DesativarLead(t, banco, inativo)
 
-	// A busca ignora maiúsculas/minúsculas e não devolve inativos.
 	encontrados, err := repo.Search(ctx, "SILVA", domain.PaginacaoFiltro{Page: 1, Size: 20})
 	if err != nil {
 		t.Fatalf("busca falhou: %v", err)
@@ -154,8 +143,6 @@ func TestBuscarPorNomeIgnoraInativos(t *testing.T) {
 		t.Errorf("busca devolveu %s, esperado %s", encontrados[0].ID, ativa)
 	}
 
-	// A fixture não preenche telefone; completa na ativa para exercitar o
-	// ramo de busca por telefone.
 	if _, err := banco.Exec(`UPDATE lead SET telefone = '21988887777' WHERE id = $1`, ativa); err != nil {
 		t.Fatalf("não consegui preencher o telefone do lead: %v", err)
 	}
