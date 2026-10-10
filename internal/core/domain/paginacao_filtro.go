@@ -3,6 +3,7 @@ package domain
 const (
 	TamanhoPaginaPadrao = 20
 	TamanhoPaginaMaximo = 100
+	PaginaMaxima        = 1_000_000
 )
 
 type PaginacaoFiltro struct {
@@ -14,6 +15,9 @@ func (p PaginacaoFiltro) Normalizada() PaginacaoFiltro {
 	page := p.Page
 	if page < 1 {
 		page = 1
+	}
+	if page > PaginaMaxima {
+		page = PaginaMaxima
 	}
 
 	size := p.Size

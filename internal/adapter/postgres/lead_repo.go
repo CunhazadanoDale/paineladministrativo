@@ -97,7 +97,7 @@ func (l *LeadRepository) ListAtivos(ctx context.Context, paginacao domain.Pagina
 		SELECT id, nome, email, telefone, ativo, origem, criado_em, atualizado_em, etapa_id
 		FROM lead
 		WHERE ativo = TRUE
-		ORDER BY criado_em DESC
+		ORDER BY criado_em DESC, id DESC
 		LIMIT $1 OFFSET $2
 	`
 
@@ -113,7 +113,7 @@ func (l *LeadRepository) ListByEtapa(ctx context.Context, etapaID uuid.UUID) ([]
 		SELECT id, nome, email, telefone, ativo, origem, criado_em, atualizado_em, etapa_id
 		FROM lead
 		WHERE etapa_id = $1
-		ORDER BY atualizado_em DESC
+		ORDER BY atualizado_em DESC, id DESC
 	`
 
 	var itens []*lead.Lead
@@ -129,7 +129,7 @@ func (l *LeadRepository) ListByFunil(ctx context.Context, funilID uuid.UUID) ([]
 		FROM lead l
 		JOIN etapa e ON e.etapa_id = l.etapa_id
 		WHERE e.funil_id = $1
-		ORDER BY l.atualizado_em DESC
+		ORDER BY l.atualizado_em DESC, l.id DESC
 	`
 
 	var itens []*lead.Lead
@@ -149,7 +149,7 @@ func (l *LeadRepository) Search(ctx context.Context, query string, paginacao dom
 			OR LOWER(email) LIKE '%' || LOWER($1) || '%'
 			OR telefone LIKE '%' || $1 || '%'
 		  )
-		ORDER BY criado_em DESC
+		ORDER BY criado_em DESC, id DESC
 		LIMIT $2 OFFSET $3
 	`
 

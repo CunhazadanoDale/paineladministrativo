@@ -2,6 +2,7 @@ package estoque_test
 
 import (
 	"context"
+	"io"
 	"sort"
 	"strings"
 	"time"
@@ -174,11 +175,28 @@ func (r *repositorioProdutos) Listar(_ context.Context, filtro portsout.ProdutoF
 		if filtro.Busca != "" && !bateBusca(produto, filtro.Busca) {
 			continue
 		}
+		if filtro.NaVitrine && !categoriaNaVitrine(r.categorias, produto.CategoriaID) {
+			continue
+		}
 		copia := *produto
 		itens = append(itens, &copia)
 	}
 
 	return itens, nil
+}
+
+func categoriaNaVitrine(categorias *repositorioCategorias, categoriaID uuid.UUID) bool {
+	categoria, ok := categorias.itens[categoriaID]
+	if !ok || !categoria.Ativo {
+		return false
+	}
+	if categoria.CategoriaPaiID == nil {
+		return true
+	}
+
+	pai, ok := categorias.itens[*categoria.CategoriaPaiID]
+
+	return ok && pai.Ativo
 }
 
 func bateCategoria(categorias *repositorioCategorias, categoriaProduto, categoriaFiltro uuid.UUID) bool {
@@ -531,6 +549,16 @@ func (r *repositorioImagens) Remover(_ context.Context, id uuid.UUID) (bool, err
 	return true, nil
 }
 
+func (r *repositorioImagens) ArquivoEmUso(_ context.Context, arquivoID uuid.UUID) (bool, error) {
+	for _, imagem := range r.itens {
+		if imagem.ArquivoID == arquivoID {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 func (r *repositorioImagens) listar(pertence func(*domainestoque.Imagem) bool) []*domainestoque.Imagem {
 	itens := make([]*domainestoque.Imagem, 0, len(r.itens))
 	for _, imagem := range r.itens {
@@ -557,11 +585,12 @@ func (r *repositorioImagens) listar(pertence func(*domainestoque.Imagem) bool) [
 }
 
 type repositorioArquivos struct {
-	itens map[uuid.UUID]*domainsolicitacao.Arquivo
+	itens      map[uuid.UUID]*domainsolicitacao.Arquivo
+	vinculados map[uuid.UUID]bool
 }
 
 func novoRepositorioArquivos() *repositorioArquivos {
-	return &repositorioArquivos{itens: map[uuid.UUID]*domainsolicitacao.Arquivo{}}
+	return &repositorioArquivos{itens: map[uuid.UUID]*domainsolicitacao.Arquivo{}, vinculados: map[uuid.UUID]bool{}}
 }
 
 func (r *repositorioArquivos) Criar(_ context.Context, arquivo *domainsolicitacao.Arquivo) (uuid.UUID, error) {
@@ -585,8 +614,8 @@ func (r *repositorioArquivos) ListarPorProprietario(_ context.Context, _ uuid.UU
 	return nil, nil
 }
 
-func (r *repositorioArquivos) VinculadoASolicitacao(_ context.Context, _ uuid.UUID) (bool, error) {
-	return false, nil
+func (r *repositorioArquivos) VinculadoASolicitacao(_ context.Context, id uuid.UUID) (bool, error) {
+	return r.vinculados[id], nil
 }
 
 func (r *repositorioArquivos) SolicitacaoDoArquivo(_ context.Context, _ uuid.UUID) (*uuid.UUID, error) {
@@ -595,6 +624,24 @@ func (r *repositorioArquivos) SolicitacaoDoArquivo(_ context.Context, _ uuid.UUI
 
 func (r *repositorioArquivos) Remover(_ context.Context, id uuid.UUID) error {
 	delete(r.itens, id)
+
+	return nil
+}
+
+type storageEmMemoria struct {
+	removidas []string
+}
+
+func (s *storageEmMemoria) Enviar(_ context.Context, _ string, _ io.Reader, _ string) error {
+	return nil
+}
+
+func (s *storageEmMemoria) Baixar(_ context.Context, _ string) (io.ReadCloser, error) {
+	return io.NopCloser(strings.NewReader("")), nil
+}
+
+func (s *storageEmMemoria) Remover(_ context.Context, chave string) error {
+	s.removidas = append(s.removidas, chave)
 
 	return nil
 }

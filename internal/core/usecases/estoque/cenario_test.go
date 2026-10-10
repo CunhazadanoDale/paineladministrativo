@@ -25,6 +25,7 @@ type cenario struct {
 	produtosRepo   *repositorioProdutos
 	imagensRepo    *repositorioImagens
 	arquivosRepo   *repositorioArquivos
+	storage        *storageEmMemoria
 	usuarioID      uuid.UUID
 	visitanteID    uuid.UUID
 }
@@ -39,6 +40,7 @@ func novoCenario(t *testing.T) *cenario {
 	movimentos := novoRepositorioMovimentos(produtos)
 	imagens := novoRepositorioImagens()
 	arquivos := novoRepositorioArquivos()
+	armazenamento := &storageEmMemoria{}
 
 	adminID := criarUsuario(t, usuarios, cargos, "Ana Souza", "ana.souza@exemplo.com", true)
 	visitanteID := criarUsuario(t, usuarios, cargos, "Bruno Lima", "bruno.lima@exemplo.com", false)
@@ -49,12 +51,13 @@ func novoCenario(t *testing.T) *cenario {
 		produto:        estoqueusecases.NewProdutoUsecase(produtos, categorias, imagens, usuarios, cargos),
 		movimento:      estoqueusecases.NewMovimentoUsecase(produtos, movimentos, usuarios, cargos),
 		resumo:         estoqueusecases.NewResumoUsecase(produtos, movimentos),
-		imagem:         estoqueusecases.NewImagemUsecase(imagens, produtos, arquivos, usuarios, cargos),
+		imagem:         estoqueusecases.NewImagemUsecase(imagens, produtos, categorias, arquivos, armazenamento, usuarios, cargos),
 		publico:        estoqueusecases.NewPublicoUsecase(categorias, produtos, imagens),
 		categoriasRepo: categorias,
 		produtosRepo:   produtos,
 		imagensRepo:    imagens,
 		arquivosRepo:   arquivos,
+		storage:        armazenamento,
 		usuarioID:      adminID,
 		visitanteID:    visitanteID,
 	}

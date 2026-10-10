@@ -139,3 +139,10 @@ func paraDominioImagem(linha *imagemLinha) *domainestoque.Imagem {
 		CriadoEm:  linha.CriadoEm,
 	}
 }
+
+func (i *ImagemRepository) ArquivoEmUso(ctx context.Context, arquivoID uuid.UUID) (bool, error) {
+	var existe bool
+	err := i.db.GetContext(ctx, &existe, `SELECT EXISTS (SELECT 1 FROM produto_imagem WHERE arquivo_id = $1)`, arquivoID)
+
+	return existe, err
+}

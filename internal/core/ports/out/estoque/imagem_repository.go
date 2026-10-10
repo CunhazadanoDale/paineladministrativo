@@ -13,4 +13,5 @@ type ImagemRepository interface {
 	ListarPorProduto(ctx context.Context, produtoID uuid.UUID) ([]*domainestoque.Imagem, error)
 	ListarPorProdutos(ctx context.Context, produtoIDs []uuid.UUID) ([]*domainestoque.Imagem, error)
 	Remover(ctx context.Context, id uuid.UUID) (bool, error)
+	ArquivoEmUso(ctx context.Context, arquivoID uuid.UUID) (bool, error)
 }

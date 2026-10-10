@@ -16,6 +16,7 @@ type ProdutoFiltro struct {
 	EstoqueBaixo bool
 	ComSaldo     bool
 	Busca        string
+	NaVitrine    bool
 }
 
 type ProdutoRepository interface {

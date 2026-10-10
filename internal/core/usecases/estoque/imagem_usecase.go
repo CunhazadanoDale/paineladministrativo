@@ -18,23 +18,29 @@ var _ portsin.ImagemUseCase = (*ImagemUsecaseImpl)(nil)
 const prefixoContentTypeImagem = "image/"
 
 type ImagemUsecaseImpl struct {
-	imagens  portsout.ImagemRepository
-	produtos portsout.ProdutoRepository
-	arquivos portsoutsolicitacao.ArquivoRepository
+	imagens    portsout.ImagemRepository
+	produtos   portsout.ProdutoRepository
+	categorias portsout.CategoriaRepository
+	arquivos   portsoutsolicitacao.ArquivoRepository
+	storage    portsoutsolicitacao.Storage
 	permissoes
 }
 
 func NewImagemUsecase(
 	imagens portsout.ImagemRepository,
 	produtos portsout.ProdutoRepository,
+	categorias portsout.CategoriaRepository,
 	arquivos portsoutsolicitacao.ArquivoRepository,
+	storage portsoutsolicitacao.Storage,
 	usuarios portsoutusuarios.UsuarioRepository,
 	cargos portsoutusuarios.CargoRepository,
 ) *ImagemUsecaseImpl {
 	return &ImagemUsecaseImpl{
-		imagens:  imagens,
-		produtos: produtos,
-		arquivos: arquivos,
+		imagens:    imagens,
+		produtos:   produtos,
+		categorias: categorias,
+		arquivos:   arquivos,
+		storage:    storage,
 		permissoes: permissoes{
 			usuarios: usuarios,
 			cargos:   cargos,
@@ -64,6 +70,14 @@ func (u *ImagemUsecaseImpl) Anexar(ctx context.Context, input portsin.AnexarImag
 	}
 	if !strings.HasPrefix(arquivo.ContentType, prefixoContentTypeImagem) {
 		return nil, domain.ErroValidacao("arquivo deve ser uma imagem")
+	}
+
+	vinculado, err := u.arquivos.VinculadoASolicitacao(ctx, arquivo.ID)
+	if err != nil {
+		return nil, err
+	}
+	if vinculado {
+		return nil, domain.ErroValidacao("arquivo de uma solicitação não pode virar imagem pública de produto")
 	}
 
 	anexadas, err := u.imagens.ListarPorProduto(ctx, produto.ID)
@@ -106,9 +120,34 @@ func (u *ImagemUsecaseImpl) Remover(ctx context.Context, usuarioID, produtoID, i
 		return domain.ErroNaoEncontrado("imagem não encontrada")
 	}
 
-	_, err = u.imagens.Remover(ctx, imagem.ID)
+	if _, err := u.imagens.Remover(ctx, imagem.ID); err != nil {
+		return err
+	}
 
-	return err
+	return u.descartarArquivoSemUso(ctx, imagem.ArquivoID)
+}
+
+func (u *ImagemUsecaseImpl) descartarArquivoSemUso(ctx context.Context, arquivoID uuid.UUID) error {
+	emUso, err := u.imagens.ArquivoEmUso(ctx, arquivoID)
+	if err != nil || emUso {
+		return err
+	}
+
+	vinculado, err := u.arquivos.VinculadoASolicitacao(ctx, arquivoID)
+	if err != nil || vinculado {
+		return err
+	}
+
+	arquivo, err := u.arquivos.Obter(ctx, arquivoID)
+	if err != nil || arquivo == nil {
+		return err
+	}
+
+	if err := u.arquivos.Remover(ctx, arquivoID); err != nil {
+		return err
+	}
+
+	return u.storage.Remover(context.WithoutCancel(ctx), arquivo.Chave)
 }
 
 func (u *ImagemUsecaseImpl) ObterPublica(ctx context.Context, imagemID uuid.UUID) (*domainestoque.Imagem, error) {
@@ -124,7 +163,12 @@ func (u *ImagemUsecaseImpl) ObterPublica(ctx context.Context, imagemID uuid.UUID
 	if err != nil {
 		return nil, err
 	}
-	if produto == nil || !produto.Ativo {
+
+	visivel, err := produtoVisivelNaVitrine(ctx, u.categorias, produto)
+	if err != nil {
+		return nil, err
+	}
+	if !visivel {
 		return nil, domain.ErroNaoEncontrado("imagem não encontrada")
 	}
 

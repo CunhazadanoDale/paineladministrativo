@@ -221,3 +221,35 @@ func TestListarDestaquesPublicos(t *testing.T) {
 		t.Errorf("destaque = %s, esperado o produto com estoque", destaques[0].ID)
 	}
 }
+
+func TestVitrineEscondeCategoriaInativaESeusProdutos(t *testing.T) {
+	c := novoCenario(t)
+	raiz := c.novaCategoriaRaiz(t, "Materiais")
+	sub := c.novaSubcategoria(t, "Alvenaria", raiz)
+	produto := c.novoProduto(t, sub, "Cimento CP II 50kg")
+	c.movimentar(t, produto, "entrada", 10)
+
+	c.categoriasRepo.itens[raiz.ID].Ativo = false
+
+	categorias, err := c.publico.ListarCategorias(c.ctx)
+	if err != nil {
+		t.Fatalf("listagem de categorias falhou: %v", err)
+	}
+	for _, categoria := range categorias {
+		if categoria.ID == sub.ID {
+			t.Error("subcategoria de pai inativo apareceu na vitrine")
+		}
+	}
+
+	produtos, err := c.publico.ListarProdutos(c.ctx, portsin.ListarProdutosPublicosInput{})
+	if err != nil {
+		t.Fatalf("listagem de produtos falhou: %v", err)
+	}
+	if len(produtos) != 0 {
+		t.Errorf("%d produtos de categoria inativa na vitrine, esperado nenhum", len(produtos))
+	}
+
+	if _, err := c.publico.ObterProdutoPorSlug(c.ctx, produto.Slug.Valor()); !errors.Is(err, domain.ErrNotFound) {
+		t.Errorf("produto de categoria inativa = %v, esperado não encontrado", err)
+	}
+}

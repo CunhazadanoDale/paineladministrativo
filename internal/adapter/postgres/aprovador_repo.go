@@ -86,7 +86,7 @@ func (a *AprovadorRepository) Listar(ctx context.Context, filtro domain.Paginaca
 	query := `
 		SELECT id, usuario_id, criado_em
 		FROM aprovador
-		ORDER BY criado_em ASC
+		ORDER BY criado_em ASC, id ASC
 		LIMIT $1 OFFSET $2
 	`
 

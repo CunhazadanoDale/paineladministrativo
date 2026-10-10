@@ -133,7 +133,7 @@ func (s *SolicitacaoRepository) Listar(ctx context.Context, filtro portsout.Soli
 	}
 
 	argumentos = append(argumentos, filtro.Size, offset)
-	query += ` ORDER BY criado_em DESC` + limiteOffset(argumentos)
+	query += ` ORDER BY criado_em DESC, id DESC` + limiteOffset(argumentos)
 
 	var linhas []*solicitacaoLinha
 	if err := s.db.SelectContext(ctx, &linhas, query, argumentos...); err != nil {
@@ -227,7 +227,7 @@ func (s *SolicitacaoRepository) ListarArquivos(ctx context.Context, solicitacaoI
 		FROM arquivo a
 		JOIN solicitacao_arquivo sa ON sa.arquivo_id = a.id
 		WHERE sa.solicitacao_id = $1
-		ORDER BY a.criado_em ASC
+		ORDER BY a.criado_em ASC, a.id ASC
 	`
 
 	var itens []*domainsolicitacao.Arquivo
@@ -242,7 +242,7 @@ func (s *SolicitacaoRepository) ListarHistorico(ctx context.Context, solicitacao
 		SELECT id, solicitacao_id, usuario_id, de_status, para_status, descricao, criado_em
 		FROM solicitacao_historico
 		WHERE solicitacao_id = $1
-		ORDER BY criado_em DESC
+		ORDER BY criado_em DESC, id DESC
 	`
 
 	var itens []*domainsolicitacao.Historico

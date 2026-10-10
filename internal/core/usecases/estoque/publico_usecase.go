@@ -47,9 +47,28 @@ func (u *PublicoUsecaseImpl) ListarCategorias(ctx context.Context) ([]*domainest
 		categorias = append(categorias, lote...)
 
 		if len(lote) < domain.TamanhoPaginaMaximo {
-			return categorias, nil
+			return semPaiInativo(categorias), nil
 		}
 	}
+}
+
+func semPaiInativo(categorias []*domainestoque.Categoria) []*domainestoque.Categoria {
+	ativas := make(map[uuid.UUID]struct{}, len(categorias))
+	for _, categoria := range categorias {
+		ativas[categoria.ID] = struct{}{}
+	}
+
+	visiveis := make([]*domainestoque.Categoria, 0, len(categorias))
+	for _, categoria := range categorias {
+		if categoria.CategoriaPaiID != nil {
+			if _, paiAtivo := ativas[*categoria.CategoriaPaiID]; !paiAtivo {
+				continue
+			}
+		}
+		visiveis = append(visiveis, categoria)
+	}
+
+	return visiveis
 }
 
 func (u *PublicoUsecaseImpl) ListarProdutos(ctx context.Context, input portsin.ListarProdutosPublicosInput) ([]*domainestoque.Produto, error) {
@@ -59,6 +78,7 @@ func (u *PublicoUsecaseImpl) ListarProdutos(ctx context.Context, input portsin.L
 		PaginacaoFiltro: input.Filtro.Normalizada(),
 		Ativo:           &ativo,
 		ComSaldo:        true,
+		NaVitrine:       true,
 	}
 
 	if slug := strings.TrimSpace(input.CategoriaSlug); slug != "" {
@@ -66,7 +86,14 @@ func (u *PublicoUsecaseImpl) ListarProdutos(ctx context.Context, input portsin.L
 		if err != nil {
 			return nil, err
 		}
-		if categoria == nil || !categoria.Ativo {
+		if categoria == nil {
+			return nil, domain.ErroNaoEncontrado("categoria não encontrada")
+		}
+		visivel, err := categoriaVisivel(ctx, u.categorias, categoria.ID)
+		if err != nil {
+			return nil, err
+		}
+		if !visivel {
 			return nil, domain.ErroNaoEncontrado("categoria não encontrada")
 		}
 
@@ -90,7 +117,11 @@ func (u *PublicoUsecaseImpl) ObterProdutoPorSlug(ctx context.Context, slug strin
 	if err != nil {
 		return nil, err
 	}
-	if produto == nil || !produto.Ativo || produto.Saldo.Vazio() {
+	visivel, err := produtoVisivelNaVitrine(ctx, u.categorias, produto)
+	if err != nil {
+		return nil, err
+	}
+	if !visivel {
 		return nil, domain.ErroNaoEncontrado("produto não encontrado")
 	}
 
@@ -111,6 +142,7 @@ func (u *PublicoUsecaseImpl) ListarDestaques(ctx context.Context, filtro domain.
 		Ativo:           &ativo,
 		Destaque:        &destacado,
 		ComSaldo:        true,
+		NaVitrine:       true,
 	})
 	if err != nil {
 		return nil, err

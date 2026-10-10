@@ -32,6 +32,7 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 
 	cargoRepository := postgres.NewCargoRepository(banco)
 	usuarioRepository := postgres.NewUsuarioRepository(banco)
+	armazenamento := disco.Novo(t.TempDir())
 	solicitacaoRepository := postgres.NewSolicitacaoRepository(banco)
 	arquivoRepository := postgres.NewArquivoRepository(banco)
 	aprovadorRepository := postgres.NewAprovadorRepository(banco)
@@ -59,7 +60,7 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 		solicitacaousecases.NewArquivoUsecase(
 			arquivoRepository,
 			solicitacaoRepository,
-			disco.Novo(t.TempDir()),
+			armazenamento,
 			usuarioRepository,
 			cargoRepository,
 			aprovadorRepository,
@@ -69,7 +70,7 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 		estoqueusecases.NewProdutoUsecase(produtoRepository, categoriaRepository, imagemRepository, usuarioRepository, cargoRepository),
 		estoqueusecases.NewMovimentoUsecase(produtoRepository, movimentoRepository, usuarioRepository, cargoRepository),
 		estoqueusecases.NewResumoUsecase(produtoRepository, movimentoRepository),
-		estoqueusecases.NewImagemUsecase(imagemRepository, produtoRepository, arquivoRepository, usuarioRepository, cargoRepository),
+		estoqueusecases.NewImagemUsecase(imagemRepository, produtoRepository, categoriaRepository, arquivoRepository, armazenamento, usuarioRepository, cargoRepository),
 		estoqueusecases.NewPublicoUsecase(categoriaRepository, produtoRepository, imagemRepository),
 		autenticacao.NovoTokenService(segredoDoTeste, time.Hour),
 	)

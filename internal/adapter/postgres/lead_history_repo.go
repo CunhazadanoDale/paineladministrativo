@@ -25,7 +25,7 @@ func (l *LeadHistoryRepository) ListByLead(ctx context.Context, leadID uuid.UUID
 		SELECT id, lead_id, etapa_anterior_id, etapa_atual_id, movido_em
 		FROM lead_historico
 		WHERE lead_id = $1
-		ORDER BY movido_em DESC
+		ORDER BY movido_em DESC, id DESC
 		LIMIT $2 OFFSET $3
 	`
 

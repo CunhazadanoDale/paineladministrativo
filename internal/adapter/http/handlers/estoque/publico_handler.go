@@ -123,6 +123,8 @@ func (h *ImagemPublicaHandler) Servir(w http.ResponseWriter, r *http.Request) {
 	defer conteudo.Close()
 
 	w.Header().Set("Content-Type", arquivo.ContentType)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Cache-Control", "public, max-age=300")
 
 	if _, err := io.Copy(w, conteudo); err != nil {
 		middleware.AnotarErro(w, fmt.Errorf("envio da imagem interrompido: %w", err))

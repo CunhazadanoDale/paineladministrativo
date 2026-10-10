@@ -128,6 +128,15 @@ func (p *ProdutoRepository) Listar(ctx context.Context, filtro portsout.ProdutoF
 	if filtro.ComSaldo {
 		condicoes = append(condicoes, "quantidade_atual > 0")
 	}
+	if filtro.NaVitrine {
+		condicoes = append(condicoes, `categoria_id IN (
+			SELECT c.id
+			FROM categoria c
+			LEFT JOIN categoria pai ON pai.id = c.categoria_pai_id
+			WHERE c.ativo = TRUE
+			  AND (c.categoria_pai_id IS NULL OR pai.ativo = TRUE)
+		)`)
+	}
 	if strings.TrimSpace(filtro.Busca) != "" {
 		argumentos = append(argumentos, "%"+escaparBusca(strings.TrimSpace(filtro.Busca))+"%")
 		posicao := len(argumentos)
@@ -139,7 +148,7 @@ func (p *ProdutoRepository) Listar(ctx context.Context, filtro portsout.ProdutoF
 	}
 
 	argumentos = append(argumentos, filtro.Size, offset)
-	query += ` ORDER BY nome ASC` + limiteOffset(argumentos)
+	query += ` ORDER BY nome ASC, id ASC` + limiteOffset(argumentos)
 
 	var linhas []*produtoLinha
 	if err := p.db.SelectContext(ctx, &linhas, query, argumentos...); err != nil {

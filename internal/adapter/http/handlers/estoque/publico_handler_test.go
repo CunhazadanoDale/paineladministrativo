@@ -276,6 +276,9 @@ func TestServirImagemPublicaDevolveConteudo(t *testing.T) {
 	if conteudo := resposta.Header().Get("Content-Type"); conteudo != "image/png" {
 		t.Errorf("content-type %q, esperado image/png", conteudo)
 	}
+	if farejar := resposta.Header().Get("X-Content-Type-Options"); farejar != "nosniff" {
+		t.Errorf("X-Content-Type-Options %q, esperado nosniff", farejar)
+	}
 	if !bytes.Equal(resposta.Body.Bytes(), arquivos.conteudo) {
 		t.Errorf("corpo = %v, esperado os bytes da imagem", resposta.Body.Bytes())
 	}

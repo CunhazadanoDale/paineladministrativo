@@ -116,7 +116,7 @@ func (u *UsuarioRepository) List(ctx context.Context, filtro domain.PaginacaoFil
 	query := `
 		SELECT id, nome, email, senha, cargo_id, ativo, versao_sessao, ultimo_login, criado_em, atualizado_em
 		FROM usuario
-		ORDER BY nome ASC
+		ORDER BY nome ASC, id ASC
 		LIMIT $1 OFFSET $2
 	`
 
@@ -133,7 +133,7 @@ func (u *UsuarioRepository) ListAtivos(ctx context.Context, filtro domain.Pagina
 		SELECT id, nome, email, senha, cargo_id, ativo, versao_sessao, ultimo_login, criado_em, atualizado_em
 		FROM usuario
 		WHERE ativo = TRUE
-		ORDER BY nome ASC
+		ORDER BY nome ASC, id ASC
 		LIMIT $1 OFFSET $2
 	`
 
@@ -151,7 +151,7 @@ func (u *UsuarioRepository) Search(ctx context.Context, termo string, filtro dom
 		FROM usuario
 		WHERE LOWER(nome) LIKE '%' || LOWER($1) || '%'
 		   OR LOWER(email) LIKE '%' || LOWER($1) || '%'
-		ORDER BY nome ASC
+		ORDER BY nome ASC, id ASC
 		LIMIT $2 OFFSET $3
 	`
 

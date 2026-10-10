@@ -96,7 +96,7 @@ func (c *CategoriaRepository) Listar(ctx context.Context, filtro portsout.Catego
 	}
 
 	argumentos = append(argumentos, filtro.Size, offset)
-	query += ` ORDER BY ordem ASC, nome ASC` + limiteOffset(argumentos)
+	query += ` ORDER BY ordem ASC, nome ASC, id ASC` + limiteOffset(argumentos)
 
 	var linhas []*categoriaLinha
 	if err := c.db.SelectContext(ctx, &linhas, query, argumentos...); err != nil {

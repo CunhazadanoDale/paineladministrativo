@@ -78,7 +78,7 @@ func (f *FunilRepo) List(ctx context.Context, filtro domain.PaginacaoFiltro) ([]
 	query := `
 		SELECT funil_id, nome, ativo
 		FROM funil
-		ORDER BY nome ASC
+		ORDER BY nome ASC, funil_id ASC
 		LIMIT $1 OFFSET $2
 	`
 
@@ -95,7 +95,7 @@ func (f *FunilRepo) ListAtivos(ctx context.Context, filtro domain.PaginacaoFiltr
 		SELECT funil_id, nome, ativo
 		FROM funil
 		WHERE ativo = TRUE
-		ORDER BY nome ASC
+		ORDER BY nome ASC, funil_id ASC
 		LIMIT $1 OFFSET $2
 	`
 

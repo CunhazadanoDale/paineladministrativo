@@ -83,7 +83,7 @@ func (c *CargoRepository) List(ctx context.Context, filtro domain.PaginacaoFiltr
 	query := `
 		SELECT id, nome, descricao, ativo, administrador, financeiro, comercial
 		FROM cargo
-		ORDER BY nome ASC
+		ORDER BY nome ASC, id ASC
 		LIMIT $1 OFFSET $2
 	`
 
@@ -100,7 +100,7 @@ func (c *CargoRepository) ListAtivos(ctx context.Context, filtro domain.Paginaca
 		SELECT id, nome, descricao, ativo, administrador, financeiro, comercial
 		FROM cargo
 		WHERE ativo = TRUE
-		ORDER BY nome ASC
+		ORDER BY nome ASC, id ASC
 		LIMIT $1 OFFSET $2
 	`
 

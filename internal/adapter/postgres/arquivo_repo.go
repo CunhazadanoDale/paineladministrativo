@@ -70,7 +70,7 @@ func (a *ArquivoRepository) ListarPorProprietario(ctx context.Context, proprieta
 		SELECT id, proprietario_id, nome, chave, content_type, tamanho, criado_em
 		FROM arquivo
 		WHERE proprietario_id = $1
-		ORDER BY criado_em DESC
+		ORDER BY criado_em DESC, id DESC
 		LIMIT $2 OFFSET $3
 	`
 

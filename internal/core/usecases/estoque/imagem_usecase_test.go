@@ -184,6 +184,7 @@ func TestObterImagemPublicaExigeProdutoAtivo(t *testing.T) {
 	c := novoCenario(t)
 	sub := c.novaSubcategoria(t, "Alvenaria", c.novaCategoriaRaiz(t, "Materiais"))
 	produto := c.novoProduto(t, sub, "Cimento CP II 50kg")
+	c.movimentar(t, produto, "entrada", 10)
 	imagem := c.novaImagem(t, produto, "image/png", 0)
 
 	publica, err := c.imagem.ObterPublica(c.ctx, imagem.ID)
@@ -208,5 +209,80 @@ func TestObterImagemPublicaExigeProdutoAtivo(t *testing.T) {
 
 	if _, err := c.imagem.ObterPublica(c.ctx, uuid.New()); !errors.Is(err, domain.ErrNotFound) {
 		t.Errorf("imagem inexistente = %v, esperado erro não encontrado", err)
+	}
+}
+
+func TestObterImagemPublicaSegueAsRegrasDaVitrine(t *testing.T) {
+	c := novoCenario(t)
+	raiz := c.novaCategoriaRaiz(t, "Materiais")
+	sub := c.novaSubcategoria(t, "Alvenaria", raiz)
+	produto := c.novoProduto(t, sub, "Cimento CP II 50kg")
+	imagem := c.novaImagem(t, produto, "image/png", 0)
+
+	if _, err := c.imagem.ObterPublica(c.ctx, imagem.ID); !errors.Is(err, domain.ErrNotFound) {
+		t.Errorf("imagem de produto sem saldo = %v, esperado não encontrado", err)
+	}
+
+	c.movimentar(t, produto, "entrada", 10)
+	if _, err := c.imagem.ObterPublica(c.ctx, imagem.ID); err != nil {
+		t.Fatalf("imagem de produto visível falhou: %v", err)
+	}
+
+	c.categoriasRepo.itens[raiz.ID].Ativo = false
+	if _, err := c.imagem.ObterPublica(c.ctx, imagem.ID); !errors.Is(err, domain.ErrNotFound) {
+		t.Errorf("imagem de produto com categoria pai inativa = %v, esperado não encontrado", err)
+	}
+}
+
+func TestAnexarImagemRecusaArquivoDeSolicitacao(t *testing.T) {
+	c := novoCenario(t)
+	sub := c.novaSubcategoria(t, "Alvenaria", c.novaCategoriaRaiz(t, "Materiais"))
+	produto := c.novoProduto(t, sub, "Cimento CP II 50kg")
+	arquivo := c.novoArquivo(t, "image/png")
+	c.arquivosRepo.vinculados[arquivo.ID] = true
+
+	if _, err := c.imagem.Anexar(c.ctx, portsin.AnexarImagemInput{
+		UsuarioID: c.usuarioID,
+		ProdutoID: produto.ID,
+		ArquivoID: arquivo.ID,
+	}); !errors.Is(err, domain.ErrValidacao) {
+		t.Errorf("anexo de solicitação como imagem = %v, esperado erro de validação", err)
+	}
+}
+
+func TestRemoverImagemDescartaArquivoSemOutroUso(t *testing.T) {
+	c := novoCenario(t)
+	sub := c.novaSubcategoria(t, "Alvenaria", c.novaCategoriaRaiz(t, "Materiais"))
+	cimento := c.novoProduto(t, sub, "Cimento CP II 50kg")
+	areia := c.novoProduto(t, sub, "Areia média")
+	compartilhada := c.novaImagem(t, cimento, "image/png", 0)
+
+	if _, err := c.imagem.Anexar(c.ctx, portsin.AnexarImagemInput{
+		UsuarioID: c.usuarioID,
+		ProdutoID: areia.ID,
+		ArquivoID: compartilhada.ArquivoID,
+	}); err != nil {
+		t.Fatalf("segundo vínculo falhou: %v", err)
+	}
+
+	if err := c.imagem.Remover(c.ctx, c.usuarioID, cimento.ID, compartilhada.ID); err != nil {
+		t.Fatalf("remoção falhou: %v", err)
+	}
+	if _, existe := c.arquivosRepo.itens[compartilhada.ArquivoID]; !existe || len(c.storage.removidas) != 0 {
+		t.Fatal("arquivo ainda usado por outro produto foi descartado")
+	}
+
+	imagensDaAreia, err := c.imagensRepo.ListarPorProduto(c.ctx, areia.ID)
+	if err != nil || len(imagensDaAreia) != 1 {
+		t.Fatalf("imagens da areia = %v, %v", imagensDaAreia, err)
+	}
+	if err := c.imagem.Remover(c.ctx, c.usuarioID, areia.ID, imagensDaAreia[0].ID); err != nil {
+		t.Fatalf("remoção falhou: %v", err)
+	}
+	if _, existe := c.arquivosRepo.itens[compartilhada.ArquivoID]; existe {
+		t.Error("arquivo sem uso continuou cadastrado")
+	}
+	if len(c.storage.removidas) != 1 {
+		t.Errorf("%d remoções no storage, esperado 1", len(c.storage.removidas))
 	}
 }

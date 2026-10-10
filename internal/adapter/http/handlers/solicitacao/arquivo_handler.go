@@ -91,6 +91,8 @@ func (h *ArquivoHandler) Baixar(w http.ResponseWriter, r *http.Request) {
 	defer conteudo.Close()
 
 	w.Header().Set("Content-Type", arquivo.ContentType)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Cache-Control", "private, no-store")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename*=UTF-8''%s", url.PathEscape(arquivo.Nome)))
 	w.Header().Set("Content-Length", strconv.FormatInt(arquivo.Tamanho, 10))
 
