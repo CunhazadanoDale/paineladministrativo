@@ -128,6 +128,24 @@ func TestCriarSolicitacaoComArquivoJaVinculadoRecebeErroDeValidacao(t *testing.T
 	}
 }
 
+func TestCriarSolicitacaoComArquivoRepetidoRecebeErroDeValidacao(t *testing.T) {
+	c := novoCenario(t)
+	ana := c.novoUsuario("Ana", false, false)
+	arquivo := c.enviarArquivo(t, ana, "nota.pdf", "application/pdf")
+
+	_, err := c.solicitacao.Criar(c.ctx, portsin.CriarSolicitacaoInput{
+		SolicitanteID:  ana,
+		ValorCentavos:  10000,
+		PrazoPagamento: time.Now().UTC().AddDate(0, 0, 1),
+		Observacao:     "observação",
+		FormaPagamento: "pix",
+		ArquivoIDs:     []uuid.UUID{arquivo.ID, arquivo.ID},
+	})
+	if !errors.Is(err, domain.ErrValidacao) {
+		t.Errorf("arquivo repetido = %v, esperado erro de validação", err)
+	}
+}
+
 func TestListarPorEscopoMinhasMostraSoAsDoSolicitante(t *testing.T) {
 	c := novoCenario(t)
 	ana := c.novoUsuario("Ana", false, false)

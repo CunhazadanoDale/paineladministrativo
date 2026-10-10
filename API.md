@@ -136,6 +136,18 @@ Observações:
 
 - Campos desconhecidos no corpo rejeitam a requisição (`400` com `json: unknown field`)
 - IDs que não forem UUID devolvem `400` (`parâmetro id inválido`)
+- Quando uma regra do banco barra a gravação antes das validações da aplicação, a resposta
+  continua sendo `400`/`409`, nunca `500`:
+
+  | Situação no banco | Status | Mensagem |
+  | --- | --- | --- |
+  | Referência a registro inexistente (gravação) | `400` | `erro de validação: registro relacionado não encontrado` |
+  | Registro em uso (exclusão) | `400` | `erro de validação: registro em uso por outros dados e não pode ser excluído` |
+  | Chave única repetida | `409` | `já existe um registro com estes dados` |
+  | Regra `CHECK` | `400` | `erro de validação: dados fora das regras do cadastro` |
+  | Texto acima do tamanho da coluna | `400` | `erro de validação: texto maior que o tamanho permitido` |
+  | Número acima do tipo da coluna | `400` | `erro de validação: número fora do intervalo permitido` |
+  | Campo obrigatório nulo | `400` | `erro de validação: campo obrigatório não informado` |
 - Mensagens iniciadas com `erro de validação:` ou `registro não encontrado:` vêm das
   regras de negócio. `403` e `409` devolvem só o detalhe, **sem** o prefixo da
   sentinela (mesmo estilo do middleware: `perfil sem permissão para esta operação`)
@@ -477,6 +489,9 @@ que é quem grava o histórico.
 { "etapas": ["uuid-1", "uuid-2", "uuid-3"] }
 ```
 
+A lista precisa trazer **todas** as etapas do funil, cada uma uma vez; caso contrário a
+resposta é `400` (`a reordenação precisa trazer todas as etapas do funil, sem repetição`).
+
 ```json
 { "etapa_id": "uuid", "nome": "Novo contato", "ordem": 1, "funil_id": "uuid", "ativo": true }
 ```
@@ -583,7 +598,7 @@ devolve `400` (`escopo de listagem inválido`); escopo de outro perfil devolve `
 | `prazo_pagamento` | `AAAA-MM-DD` (ou RFC3339). Obrigatório e não pode ser anterior a hoje |
 | `observacao` | obrigatória, no máximo 1000 caracteres |
 | `forma_pagamento` | `pix`, `cartao` ou `boleto` |
-| `arquivo_ids` | opcional. Cada anexo tem que existir, pertencer ao solicitante e não estar em outra solicitação |
+| `arquivo_ids` | opcional. Cada anexo tem que existir, pertencer ao solicitante, aparecer uma vez só e não estar em outra solicitação |
 
 **Objeto de solicitação:**
 
@@ -614,6 +629,7 @@ devolve `400` (`escopo de listagem inválido`); escopo de outro perfil devolve `
 | Forma diferente das três | `400` | `erro de validação: forma de pagamento deve ser pix, cartao ou boleto` |
 | Anexo de outra pessoa | `403` | `arquivo não pertence ao solicitante` |
 | Anexo já em uso | `400` | `erro de validação: arquivo já vinculado a outra solicitação` |
+| Mesmo anexo duas vezes | `400` | `erro de validação: arquivo repetido na solicitação` |
 
 ### `POST /api/v1/solicitacoes/{id}/aprovar`
 

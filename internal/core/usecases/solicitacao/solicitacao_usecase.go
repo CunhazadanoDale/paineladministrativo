@@ -347,10 +347,15 @@ func (u *SolicitacaoUsecaseImpl) buscarVisivel(ctx context.Context, id, usuarioI
 }
 
 func (u *SolicitacaoUsecaseImpl) validarArquivos(ctx context.Context, proprietarioID uuid.UUID, arquivoIDs []uuid.UUID) error {
+	vistos := make(map[uuid.UUID]struct{}, len(arquivoIDs))
 	for _, arquivoID := range arquivoIDs {
 		if arquivoID == uuid.Nil {
 			return domain.ErroValidacao("arquivo inválido vinculado à solicitação")
 		}
+		if _, repetido := vistos[arquivoID]; repetido {
+			return domain.ErroValidacao("arquivo repetido na solicitação")
+		}
+		vistos[arquivoID] = struct{}{}
 
 		arquivo, err := u.arquivos.Obter(ctx, arquivoID)
 		if err != nil {

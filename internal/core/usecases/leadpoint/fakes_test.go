@@ -132,8 +132,16 @@ func (r *repositorioEtapas) GetByID(_ context.Context, id uuid.UUID) (*lead.Etap
 	return &copia, nil
 }
 
-func (r *repositorioEtapas) ListByFunilID(_ context.Context, _ uuid.UUID) ([]*lead.Etapa, error) {
-	return nil, nil
+func (r *repositorioEtapas) ListByFunilID(_ context.Context, funilID uuid.UUID) ([]*lead.Etapa, error) {
+	var etapas []*lead.Etapa
+	for _, etapa := range r.itens {
+		if etapa.FunilID == funilID {
+			copia := *etapa
+			etapas = append(etapas, &copia)
+		}
+	}
+
+	return etapas, nil
 }
 
 func (r *repositorioEtapas) ListByFunilOrdenado(_ context.Context, _ uuid.UUID) ([]*lead.Etapa, error) {
@@ -144,7 +152,11 @@ func (r *repositorioEtapas) Delete(_ context.Context, _ uuid.UUID) error {
 	return nil
 }
 
-func (r *repositorioEtapas) Reordenar(_ context.Context, _ uuid.UUID, _ []*lead.Etapa) error {
+func (r *repositorioEtapas) Reordenar(_ context.Context, _ uuid.UUID, etapas []*lead.Etapa) error {
+	for i, etapa := range etapas {
+		r.itens[etapa.EtapaID].Ordem = i + 1
+	}
+
 	return nil
 }
 

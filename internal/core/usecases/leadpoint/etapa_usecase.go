@@ -144,6 +144,14 @@ func (e *EtapaUsecaseImpl) Reordenar(ctx context.Context, funilID uuid.UUID, eta
 		}
 	}
 
+	atuais, err := e.repo.ListByFunilID(ctx, funilID)
+	if err != nil {
+		return err
+	}
+	if !mesmasEtapas(atuais, etapas) {
+		return domain.ErroValidacao("a reordenação precisa trazer todas as etapas do funil, sem repetição")
+	}
+
 	return e.repo.Reordenar(ctx, funilID, etapas)
 }
 
@@ -169,4 +177,24 @@ func (e *EtapaUsecaseImpl) ExistsByFunil(ctx context.Context, funilID uuid.UUID)
 	}
 
 	return e.repo.ExistsByFunil(ctx, funilID)
+}
+
+func mesmasEtapas(atuais, informadas []*lead.Etapa) bool {
+	if len(atuais) != len(informadas) {
+		return false
+	}
+
+	pendentes := make(map[uuid.UUID]struct{}, len(atuais))
+	for _, etapa := range atuais {
+		pendentes[etapa.EtapaID] = struct{}{}
+	}
+
+	for _, etapa := range informadas {
+		if _, ok := pendentes[etapa.EtapaID]; !ok {
+			return false
+		}
+		delete(pendentes, etapa.EtapaID)
+	}
+
+	return true
 }
