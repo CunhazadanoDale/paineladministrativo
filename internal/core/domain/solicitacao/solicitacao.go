@@ -61,6 +61,9 @@ func (s *Solicitacao) Aprovar(aprovadorID uuid.UUID, agora time.Time) error {
 	if aprovadorID == uuid.Nil {
 		return domain.ErroValidacao("aprovador da solicitação não informado")
 	}
+	if aprovadorID == s.SolicitanteID {
+		return domain.ErroPermissao("o solicitante não pode aprovar a própria solicitação")
+	}
 	if err := s.transicionarPara(StatusAprovado); err != nil {
 		return err
 	}

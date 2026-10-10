@@ -486,7 +486,7 @@ se outra pessoa mudar primeiro, a segunda recebe `409`
 | `POST` | `/api/v1/solicitacoes` | autenticado | `201` |
 | `GET` | `/api/v1/solicitacoes` | autenticado | `200` lista paginada |
 | `GET` | `/api/v1/solicitacoes/{id}` | quem pode ver | `200` objeto único |
-| `POST` | `/api/v1/solicitacoes/{id}/aprovar` | aprovador ou administrador | `200` |
+| `POST` | `/api/v1/solicitacoes/{id}/aprovar` | aprovador ou administrador, exceto o próprio solicitante | `200` |
 | `POST` | `/api/v1/solicitacoes/{id}/rejeitar` | aprovador ou administrador | `200` |
 | `POST` | `/api/v1/solicitacoes/{id}/cancelar` | solicitante ou administrador | `200` |
 | `POST` | `/api/v1/solicitacoes/{id}/pagamento` | financeiro ou administrador | `201` |
@@ -566,6 +566,17 @@ devolve `400` (`escopo de listagem inválido`); escopo de outro perfil devolve `
 | Forma diferente das três | `400` | `erro de validação: forma de pagamento deve ser pix, cartao ou boleto` |
 | Anexo de outra pessoa | `403` | `arquivo não pertence ao solicitante` |
 | Anexo já em uso | `400` | `erro de validação: arquivo já vinculado a outra solicitação` |
+
+### `POST /api/v1/solicitacoes/{id}/aprovar`
+
+Sem corpo. Ninguém aprova a própria solicitação, nem o administrador: a segregação entre quem
+pede e quem aprova vale para todos os perfis.
+
+| Erro | Status | Mensagem |
+| --- | --- | --- |
+| Sem perfil de aprovador | `403` | `perfil sem permissão para aprovar ou rejeitar solicitações` |
+| Solicitante aprovando a própria | `403` | `o solicitante não pode aprovar a própria solicitação` |
+| Fora de `pendente_aprovacao` | `409` | `não é possível mudar a solicitação de "..." para "aprovado"` |
 
 ### `POST /api/v1/solicitacoes/{id}/rejeitar`
 

@@ -90,6 +90,17 @@ func TestSolicitacaoAprovadaSoAposTransicaoValida(t *testing.T) {
 	}
 }
 
+func TestSolicitanteNaoAprovaAPropriaSolicitacao(t *testing.T) {
+	solicitacao := novaSolicitacaoDeTeste(t)
+
+	if err := solicitacao.Aprovar(solicitacao.SolicitanteID, time.Now().UTC()); !errors.Is(err, domain.ErrPermissao) {
+		t.Errorf("autoaprovação = %v, esperado erro de permissão", err)
+	}
+	if solicitacao.Status != domainsolicitacao.StatusPendenteAprovacao {
+		t.Errorf("status = %q, esperado %q", solicitacao.Status, domainsolicitacao.StatusPendenteAprovacao)
+	}
+}
+
 func TestSolicitacaoRejeitadaExigeMotivoEConflitaDepois(t *testing.T) {
 	solicitacao := novaSolicitacaoDeTeste(t)
 	motivo, err := domainsolicitacao.NovoMotivoRejeicao("orçamento insuficiente")

@@ -262,6 +262,35 @@ func TestAprovarSemSerAprovadorRecebeProibido(t *testing.T) {
 	}
 }
 
+func TestAprovadorNaoAprovaAPropriaSolicitacao(t *testing.T) {
+	c := novoCenario(t)
+	aprovador := c.novoUsuario("Bruno", false, false)
+	c.designar(t, aprovador)
+	id := c.criarSolicitacao(t, aprovador, 10000)
+
+	if err := c.solicitacao.Aprovar(c.ctx, id, aprovador); !errors.Is(err, domain.ErrPermissao) {
+		t.Errorf("autoaprovação = %v, esperado erro de permissão", err)
+	}
+
+	salva, err := c.solicitacao.Obter(c.ctx, id, aprovador)
+	if err != nil {
+		t.Fatalf("consulta falhou: %v", err)
+	}
+	if salva.Status != domainsolicitacao.StatusPendenteAprovacao {
+		t.Errorf("status = %q, esperado %q", salva.Status, domainsolicitacao.StatusPendenteAprovacao)
+	}
+}
+
+func TestAdministradorNaoAprovaAPropriaSolicitacao(t *testing.T) {
+	c := novoCenario(t)
+	admin := c.novoUsuario("Ana", true, false)
+	id := c.criarSolicitacao(t, admin, 10000)
+
+	if err := c.solicitacao.Aprovar(c.ctx, id, admin); !errors.Is(err, domain.ErrPermissao) {
+		t.Errorf("autoaprovação do administrador = %v, esperado erro de permissão", err)
+	}
+}
+
 func TestAprovarComDesignacaoMudaStatusERegistraHistorico(t *testing.T) {
 	c := novoCenario(t)
 	ana := c.novoUsuario("Ana", false, false)
