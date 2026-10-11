@@ -250,7 +250,8 @@ outros módulos precisam saber.
 
 ### M2 — Estoque por local, lote e reserva
 
-Evolução do módulo `estoque` (mesmo pacote, sem módulo novo).
+Evolução do módulo `estoque` (mesmo pacote, sem módulo novo). O escopo fechado e o detalhamento estão
+em `ESTOQUE_LOCAIS.md`; este resumo só aponta o que os outros módulos precisam saber.
 
 - **Local**: `estoque_local` (nome, empresa). Saldo deixa de ser só
   `produto.quantidade_atual` e passa a existir por local em `produto_saldo_local`;
