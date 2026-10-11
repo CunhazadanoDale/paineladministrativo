@@ -180,6 +180,9 @@ func TestListarEObterRespeitamOAcesso(t *testing.T) {
 	if _, err := c.usecase.Obter(c.ctx, uuid.New(), c.administrador); !errors.Is(err, domain.ErrNotFound) {
 		t.Errorf("empresa inexistente = %v, esperado não encontrado", err)
 	}
+	if _, err := c.usecase.Obter(c.ctx, uuid.New(), c.operador); !errors.Is(err, domain.ErrPermissao) {
+		t.Errorf("empresa inexistente para acesso restrito = %v, esperado erro de permissão", err)
+	}
 }
 
 func TestUsuarioSemVinculoNaoListaNenhumaEmpresa(t *testing.T) {

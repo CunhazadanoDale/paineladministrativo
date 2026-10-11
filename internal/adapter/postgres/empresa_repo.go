@@ -144,7 +144,7 @@ func (e *EmpresaRepository) Remover(ctx context.Context, id uuid.UUID) (bool, er
 
 	linhas, err := resultado.RowsAffected()
 	if err != nil {
-		return false, err
+		return false, tratarErro(err)
 	}
 
 	return linhas > 0, nil

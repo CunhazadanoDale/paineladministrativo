@@ -13,25 +13,28 @@ import (
 func TestCriarSolicitacaoExigeEmpresaAtivaEAcessivel(t *testing.T) {
 	c := novoCenario(t)
 	ana := c.novoUsuario("Ana", false, false)
+	bruno := c.novoUsuario("Bruno", false, false)
 	outra := c.novaEmpresa(true)
 	inativa := c.novaEmpresa(false)
 	c.restringirAcesso(ana, c.empresaID, inativa)
 
 	casos := []struct {
-		nome      string
-		empresaID uuid.UUID
-		sentinela error
+		nome        string
+		solicitante uuid.UUID
+		empresaID   uuid.UUID
+		sentinela   error
 	}{
-		{"sem empresa", uuid.Nil, domain.ErrValidacao},
-		{"empresa inexistente", uuid.New(), domain.ErrValidacao},
-		{"empresa fora do acesso", outra, domain.ErrPermissao},
-		{"empresa inativa", inativa, domain.ErrValidacao},
+		{"sem empresa", ana, uuid.Nil, domain.ErrValidacao},
+		{"empresa inexistente com acesso a todas", bruno, uuid.New(), domain.ErrValidacao},
+		{"empresa inexistente com acesso restrito", ana, uuid.New(), domain.ErrPermissao},
+		{"empresa fora do acesso", ana, outra, domain.ErrPermissao},
+		{"empresa inativa", ana, inativa, domain.ErrValidacao},
 	}
 
 	for _, caso := range casos {
 		t.Run(caso.nome, func(t *testing.T) {
 			_, err := c.solicitacao.Criar(c.ctx, portsin.CriarSolicitacaoInput{
-				SolicitanteID:  ana,
+				SolicitanteID:  caso.solicitante,
 				EmpresaID:      caso.empresaID,
 				ValorCentavos:  10000,
 				PrazoPagamento: time.Now().UTC().AddDate(0, 0, 7),
@@ -230,5 +233,100 @@ func TestSolicitanteContinuaVendoAPropriaSolicitacaoSemAcessoAEmpresa(t *testing
 	}
 	if err := c.solicitacao.Cancelar(c.ctx, id, ana); err != nil {
 		t.Errorf("solicitante não cancelou a própria solicitação: %v", err)
+	}
+}
+
+func TestEquipesDeEmpresasDiferentesNaoSeEnxergam(t *testing.T) {
+	c := novoCenario(t)
+	segunda := c.novaEmpresa(true)
+
+	ana := c.novoUsuario("Ana", false, false)
+	bia := c.novoUsuario("Bia", false, false)
+	c.restringirAcesso(ana, c.empresaID)
+	c.restringirAcesso(bia, segunda)
+
+	aprovadorDaPrimeira := c.novoUsuario("Bruno", false, false)
+	aprovadorDaSegunda := c.novoUsuario("Beto", false, false)
+	c.designar(t, aprovadorDaPrimeira)
+	c.designar(t, aprovadorDaSegunda)
+	c.restringirAcesso(aprovadorDaPrimeira, c.empresaID)
+	c.restringirAcesso(aprovadorDaSegunda, segunda)
+
+	daAna := c.criarSolicitacaoNaEmpresa(t, ana, c.empresaID)
+	daBia := c.criarSolicitacaoNaEmpresa(t, bia, segunda)
+
+	casos := []struct {
+		nome      string
+		usuario   uuid.UUID
+		propria   uuid.UUID
+		alheia    uuid.UUID
+		aprovador bool
+	}{
+		{"solicitante da primeira", ana, daAna, daBia, false},
+		{"solicitante da segunda", bia, daBia, daAna, false},
+		{"aprovador da primeira", aprovadorDaPrimeira, daAna, daBia, true},
+		{"aprovador da segunda", aprovadorDaSegunda, daBia, daAna, true},
+	}
+
+	for _, caso := range casos {
+		t.Run(caso.nome, func(t *testing.T) {
+			escopo := portsin.EscopoMinhas
+			if caso.aprovador {
+				escopo = portsin.EscopoAprovacao
+			}
+
+			lista, err := c.solicitacao.Listar(c.ctx, portsin.ListarSolicitacoesInput{UsuarioID: caso.usuario, Escopo: escopo})
+			if err != nil {
+				t.Fatalf("listagem falhou: %v", err)
+			}
+			if len(lista) != 1 || lista[0].ID != caso.propria {
+				t.Errorf("listagem com %d solicitações, esperado só a da própria empresa", len(lista))
+			}
+
+			if _, err := c.solicitacao.Obter(c.ctx, caso.alheia, caso.usuario); !errors.Is(err, domain.ErrPermissao) {
+				t.Errorf("consulta da outra empresa = %v, esperado erro de permissão", err)
+			}
+			if err := c.solicitacao.Aprovar(c.ctx, caso.alheia, caso.usuario); !errors.Is(err, domain.ErrPermissao) {
+				t.Errorf("aprovação da outra empresa = %v, esperado erro de permissão", err)
+			}
+		})
+	}
+}
+
+func TestFilasComAcessoVazioNaoDevolvemNada(t *testing.T) {
+	c := novoCenario(t)
+	ana := c.novoUsuario("Ana", false, false)
+	administrador := c.novoUsuario("Diretoria", true, false)
+	aprovador := c.novoUsuario("Bruno", false, false)
+	financeiro := c.novoUsuario("Caio", false, true)
+	c.designar(t, aprovador)
+	c.restringirAcesso(aprovador)
+	c.restringirAcesso(financeiro)
+
+	c.criarSolicitacaoNaEmpresa(t, ana, c.empresaID)
+	aprovada := c.criarSolicitacaoNaEmpresa(t, ana, c.empresaID)
+	if err := c.solicitacao.Aprovar(c.ctx, aprovada, administrador); err != nil {
+		t.Fatalf("aprovação falhou: %v", err)
+	}
+
+	casos := []struct {
+		nome    string
+		usuario uuid.UUID
+		escopo  string
+	}{
+		{"aprovação", aprovador, portsin.EscopoAprovacao},
+		{"financeiro", financeiro, portsin.EscopoFinanceiro},
+	}
+
+	for _, caso := range casos {
+		t.Run(caso.nome, func(t *testing.T) {
+			fila, err := c.solicitacao.Listar(c.ctx, portsin.ListarSolicitacoesInput{UsuarioID: caso.usuario, Escopo: caso.escopo})
+			if err != nil {
+				t.Fatalf("fila falhou: %v", err)
+			}
+			if len(fila) != 0 {
+				t.Errorf("fila com %d solicitações, esperado vazia para acesso sem empresas", len(fila))
+			}
+		})
 	}
 }

@@ -70,20 +70,15 @@ func (u *EmpresaUsecaseImpl) Criar(ctx context.Context, input portsin.CriarEmpre
 }
 
 func (u *EmpresaUsecaseImpl) Obter(ctx context.Context, empresaID, usuarioID uuid.UUID) (*domainempresa.Empresa, error) {
-	empresa, err := u.buscar(ctx, empresaID)
-	if err != nil {
-		return nil, err
-	}
-
 	acesso, err := u.repo.AcessoDoUsuario(ctx, usuarioID)
 	if err != nil {
 		return nil, err
 	}
-	if !acesso.Permite(empresa.ID) {
+	if !acesso.Permite(empresaID) {
 		return nil, domain.ErroPermissao("perfil sem acesso a esta empresa")
 	}
 
-	return empresa, nil
+	return u.buscar(ctx, empresaID)
 }
 
 func (u *EmpresaUsecaseImpl) Listar(ctx context.Context, input portsin.ListarEmpresasInput) ([]*domainempresa.Empresa, error) {
