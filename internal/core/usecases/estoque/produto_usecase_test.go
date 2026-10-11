@@ -425,7 +425,7 @@ func TestListarMovimentosRegistraHistoricoCompleto(t *testing.T) {
 	c.movimentar(t, produto, "saida", 6)
 
 	produtoID := produto.ID
-	movimentos, err := c.movimento.Listar(c.ctx, portsin.ListarMovimentosInput{ProdutoID: &produtoID})
+	movimentos, err := c.movimento.Listar(c.ctx, portsin.ListarMovimentosInput{UsuarioID: c.usuarioID, ProdutoID: &produtoID})
 	if err != nil {
 		t.Fatalf("listagem falhou: %v", err)
 	}
@@ -450,7 +450,7 @@ func TestListarMovimentosRegistraHistoricoCompleto(t *testing.T) {
 		t.Errorf("quantidade da saída = %d, esperado 6", saida.Quantidade.Valor())
 	}
 
-	saidas, err := c.movimento.Listar(c.ctx, portsin.ListarMovimentosInput{Tipo: "saida"})
+	saidas, err := c.movimento.Listar(c.ctx, portsin.ListarMovimentosInput{UsuarioID: c.usuarioID, Tipo: "saida"})
 	if err != nil {
 		t.Fatalf("listagem por tipo falhou: %v", err)
 	}

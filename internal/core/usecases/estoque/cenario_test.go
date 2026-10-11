@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	domainempresa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/empresa"
 	domainestoque "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/estoque"
 	domainsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/solicitacao"
 	domainusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/usuarios"
@@ -18,11 +19,17 @@ type cenario struct {
 	categoria      portsin.CategoriaUseCase
 	produto        portsin.ProdutoUseCase
 	movimento      portsin.MovimentoUseCase
+	local          portsin.LocalUseCase
 	resumo         portsin.ResumoUseCase
 	imagem         portsin.ImagemUseCase
 	publico        portsin.PublicoUseCase
 	categoriasRepo *repositorioCategorias
 	produtosRepo   *repositorioProdutos
+	locaisRepo     *repositorioLocais
+	estoqueRepo    *repositorioEstoque
+	empresasRepo   *repositorioEmpresas
+	usuariosRepo   *repositorioUsuarios
+	cargosRepo     *repositorioCargos
 	imagensRepo    *repositorioImagens
 	arquivosRepo   *repositorioArquivos
 	storage        *storageEmMemoria
@@ -37,24 +44,36 @@ func novoCenario(t *testing.T) *cenario {
 	cargos := novoRepositorioCargos()
 	categorias := novoRepositorioCategorias()
 	produtos := novoRepositorioProdutos(categorias)
-	movimentos := novoRepositorioMovimentos(produtos)
+	locais := novoRepositorioLocais()
+	estoque := novoRepositorioEstoque(produtos, locais)
+	lotes := &repositorioLotes{estoque: estoque}
+	empresas := novoRepositorioEmpresas()
+	movimentos := novoRepositorioMovimentos(produtos, locais)
 	imagens := novoRepositorioImagens()
 	arquivos := novoRepositorioArquivos()
 	armazenamento := &storageEmMemoria{}
 
 	adminID := criarUsuario(t, usuarios, cargos, "Ana Souza", "ana.souza@exemplo.com", true)
 	visitanteID := criarUsuario(t, usuarios, cargos, "Bruno Lima", "bruno.lima@exemplo.com", false)
+	empresas.acessos[adminID] = domainempresa.AcessoTotal()
+	empresas.acessos[visitanteID] = domainempresa.AcessoTotal()
 
 	return &cenario{
 		ctx:            context.Background(),
 		categoria:      estoqueusecases.NewCategoriaUsecase(categorias, usuarios, cargos),
 		produto:        estoqueusecases.NewProdutoUsecase(produtos, categorias, imagens, usuarios, cargos),
-		movimento:      estoqueusecases.NewMovimentoUsecase(produtos, movimentos, usuarios, cargos),
-		resumo:         estoqueusecases.NewResumoUsecase(produtos, movimentos),
+		movimento:      estoqueusecases.NewMovimentoUsecase(produtos, movimentos, estoque, locais, lotes, usuarios, cargos, empresas),
+		local:          estoqueusecases.NewLocalUsecase(locais, estoque, usuarios, cargos, empresas),
+		resumo:         estoqueusecases.NewResumoUsecase(produtos, movimentos, empresas),
 		imagem:         estoqueusecases.NewImagemUsecase(imagens, produtos, categorias, arquivos, armazenamento, usuarios, cargos),
 		publico:        estoqueusecases.NewPublicoUsecase(categorias, produtos, imagens),
 		categoriasRepo: categorias,
 		produtosRepo:   produtos,
+		locaisRepo:     locais,
+		estoqueRepo:    estoque,
+		empresasRepo:   empresas,
+		usuariosRepo:   usuarios,
+		cargosRepo:     cargos,
 		imagensRepo:    imagens,
 		arquivosRepo:   arquivos,
 		storage:        armazenamento,

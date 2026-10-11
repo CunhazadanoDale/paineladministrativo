@@ -309,8 +309,8 @@ cmd/api/main.go + internal/adapter/http/rotas.go   (registro, só acréscimos)
 |---|---|---|
 | **1** | Migrations 000028–000031 + domínio (local, saldo por local, lote, FIFO, custo, operação de movimento/transferência/implantação) + testes | concluída |
 | **2** | Repositórios (locais, leitura do estado, gravação transacional com guarda, lotes) + testes de integração, inclusive concorrência | concluída |
-| **3** | Usecases (locais, movimento ampliado, transferência, implantação, lotes) + migration 000032 (local obrigatório no movimento novo) + escopo por empresa + testes com fakes e de isolamento | pendente |
-| **4** | Handlers/DTOs + rotas + e2e + `API.md` | pendente |
+| **3** | Usecases de locais, saldo por local, lotes e transferência + escopo por empresa na listagem de movimentos e no resumo + testes com fakes e de isolamento | concluída |
+| **4** | Handlers/DTOs + rotas novas + e2e + `API.md`; depois a virada da movimentação: `local_id` obrigatório (com `implantacao` e custo), migration 000032 e remoção do caminho antigo sem local | pendente |
 | **5** | Reservas (migration 000033, domínio, repo, usecase, rotas, port para o M6) + vitrine pelo disponível | pendente |
 | **6** | Frontend: locais, saldo por local, movimentação com local e custo, transferência, reservas (depois da F0) | pendente |
 
