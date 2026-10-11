@@ -38,6 +38,18 @@ func (f *movimentoUseCaseFalso) Listar(_ context.Context, input portsin.ListarMo
 	return f.itens, nil
 }
 
+func (f *movimentoUseCaseFalso) Transferir(_ context.Context, _ portsin.TransferirEstoqueInput) (*domainestoque.Movimento, error) {
+	return f.movimento, f.erro
+}
+
+func (f *movimentoUseCaseFalso) Saldo(_ context.Context, _, _ uuid.UUID) (*domainestoque.SaldoProduto, error) {
+	return nil, f.erro
+}
+
+func (f *movimentoUseCaseFalso) ListarLotes(_ context.Context, _ portsin.ListarLotesInput) ([]*domainestoque.Lote, error) {
+	return nil, f.erro
+}
+
 var _ portsin.MovimentoUseCase = (*movimentoUseCaseFalso)(nil)
 
 func TestMovimentarRespondeCreatedERepassaInput(t *testing.T) {

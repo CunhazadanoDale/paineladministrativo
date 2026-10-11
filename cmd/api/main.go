@@ -70,6 +70,9 @@ func executar(registrador *slog.Logger) error {
 	movimentoRepository := postgres.NewMovimentoRepository(banco)
 	imagemRepository := postgres.NewImagemRepository(banco)
 	empresaRepository := postgres.NewEmpresaRepository(banco)
+	estoqueRepository := postgres.NewEstoqueRepository(banco)
+	localRepository := postgres.NewLocalRepository(banco)
+	loteRepository := postgres.NewLoteRepository(banco)
 
 	rotas := httpapi.NewRouter(
 		banco,
@@ -100,8 +103,11 @@ func executar(registrador *slog.Logger) error {
 		solicitacaousecases.NewAprovadorUsecase(aprovadorRepository, usuarioRepository),
 		estoqueusecases.NewCategoriaUsecase(categoriaRepository, usuarioRepository, cargoRepository),
 		estoqueusecases.NewProdutoUsecase(produtoRepository, categoriaRepository, imagemRepository, usuarioRepository, cargoRepository),
-		estoqueusecases.NewMovimentoUsecase(produtoRepository, movimentoRepository, usuarioRepository, cargoRepository),
-		estoqueusecases.NewResumoUsecase(produtoRepository, movimentoRepository),
+		estoqueusecases.NewMovimentoUsecase(
+			produtoRepository, movimentoRepository, estoqueRepository, localRepository, loteRepository,
+			usuarioRepository, cargoRepository, empresaRepository,
+		),
+		estoqueusecases.NewResumoUsecase(produtoRepository, movimentoRepository, empresaRepository),
 		estoqueusecases.NewImagemUsecase(imagemRepository, produtoRepository, categoriaRepository, arquivoRepository, storageArquivos, usuarioRepository, cargoRepository),
 		estoqueusecases.NewPublicoUsecase(categoriaRepository, produtoRepository, imagemRepository),
 		empresausecases.NewEmpresaUsecase(empresaRepository, usuarioRepository, cargoRepository),

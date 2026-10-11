@@ -40,7 +40,7 @@ func (h *MovimentoHandler) Movimentar(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *MovimentoHandler) Listar(w http.ResponseWriter, r *http.Request) {
-	id, ok := resposta.ParametroUUID(w, r, "id")
+	usuario, id, ok := resposta.UsuarioEId(w, r)
 	if !ok {
 		return
 	}
@@ -48,6 +48,7 @@ func (h *MovimentoHandler) Listar(w http.ResponseWriter, r *http.Request) {
 	paginacao := resposta.ConsultaPaginacao(r)
 
 	itens, err := h.usecase.Listar(r.Context(), portsin.ListarMovimentosInput{
+		UsuarioID: usuario.ID,
 		ProdutoID: &id,
 		Tipo:      resposta.ConsultaTexto(r, "tipo"),
 		Filtro:    paginacao,

@@ -18,7 +18,18 @@ func NewResumoHandler(usecase portsin.ResumoUseCase) *ResumoHandler {
 }
 
 func (h *ResumoHandler) Consultar(w http.ResponseWriter, r *http.Request) {
-	resumo, err := h.usecase.Resumo(r.Context())
+	usuario, ok := resposta.UsuarioDoContexto(w, r)
+	if !ok {
+		return
+	}
+
+	empresa, err := resposta.ConsultaUUID(r, "empresa")
+	if err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+
+	resumo, err := h.usecase.Resumo(r.Context(), portsin.ResumoInput{UsuarioID: usuario.ID, Empresa: empresa})
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return

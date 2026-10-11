@@ -30,3 +30,9 @@ type SaldoLocalDetalhe struct {
 	ProdutoCodigo *string
 	UnidadeMedida UnidadeMedida
 }
+
+type SaldoProduto struct {
+	Produto    *Produto
+	NaoAlocado int
+	Locais     []*SaldoLocalDetalhe
+}
