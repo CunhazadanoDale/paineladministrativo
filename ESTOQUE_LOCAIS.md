@@ -1,6 +1,6 @@
 # Escopo — M2 Estoque por local, lote e reserva
 
-> **Status:** escopo aprovado — em implementação.
+> **Status:** API concluída (fases 1 a 5); frontend (fase 6) pendente, depois da trilha F0.
 > **Objetivo:** o saldo de cada produto passa a existir por local de estoque, cada local
 > pertence a uma empresa, toda entrada vira lote com custo e toda saída consome lote por
 > FIFO; reservas separam o que já está comprometido do que está disponível.
@@ -159,8 +159,12 @@ PK `(movimento_id, lote_id)`. É de onde o M15 tira o CMV:
   `produto.quantidade_reservada` na mesma transação.
 - Reserva é integral: baixa (saída com `reserva_id`, quantidade igual à reservada) ou
   liberação devolvem o reservado; transição com guarda de status (`409` se já encerrada).
-- Para o M6: port `ReservaRepository` com `Reservar`, `Liberar` e `Baixar`, e consulta de
-  disponível por produto e local.
+- Para o M6: reservar, liberar e baixar são operações do `EstoqueProduto`
+  (`Reservar`, `LiberarReserva`, `Movimentar` com `Reserva`) gravadas por
+  `EstoqueRepository.Gravar` na mesma transação e guarda de versão do resto do estoque. O M6
+  declara em `ports/out/<pedido>/` a porta mínima com `Carregar` e `Gravar` (e `Obter` de
+  `ReservaRepository` para a baixa), acrescenta `pedido_item` ao `CHECK` de
+  `produto_reserva.origem` e passa `Origem`/`OrigemID` no `ReservaInput`.
 
 ---
 
@@ -311,7 +315,7 @@ cmd/api/main.go + internal/adapter/http/rotas.go   (registro, só acréscimos)
 | **2** | Repositórios (locais, leitura do estado, gravação transacional com guarda, lotes) + testes de integração, inclusive concorrência | concluída |
 | **3** | Usecases de locais, saldo por local, lotes e transferência + escopo por empresa na listagem de movimentos e no resumo + testes com fakes e de isolamento | concluída |
 | **4** | Handlers/DTOs + rotas novas + e2e + `API.md`; depois a virada da movimentação: `local_id` obrigatório (com `implantacao` e custo), migration 000032 e remoção do caminho antigo sem local | concluída |
-| **5** | Reservas (migration 000033, domínio, repo, usecase, rotas, port para o M6) + vitrine pelo disponível | pendente |
+| **5** | Reservas (migration 000033, domínio, repo, usecase, rotas, port para o M6) + vitrine pelo disponível | concluída |
 | **6** | Frontend: locais, saldo por local, movimentação com local e custo, transferência, reservas (depois da F0) | pendente |
 
 ---
