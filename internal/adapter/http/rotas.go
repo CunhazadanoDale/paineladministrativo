@@ -42,6 +42,7 @@ func NewRouter(
 	publicoUseCase portsinestoque.PublicoUseCase,
 	empresaUseCase portsinempresa.EmpresaUseCase,
 	localUseCase portsinestoque.LocalUseCase,
+	reservaUseCase portsinestoque.ReservaUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, middleware.ErrosDeRoteamento(novasRotas(
@@ -53,6 +54,7 @@ func NewRouter(
 		imagemUseCase, publicoUseCase,
 		empresaUseCase,
 		localUseCase,
+		reservaUseCase,
 		tokens,
 	)))
 }
@@ -76,6 +78,7 @@ func novasRotas(
 	publicoUseCase portsinestoque.PublicoUseCase,
 	empresaUseCase portsinempresa.EmpresaUseCase,
 	localUseCase portsinestoque.LocalUseCase,
+	reservaUseCase portsinestoque.ReservaUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -234,6 +237,11 @@ func novasRotas(
 	protegido("GET /api/v1/produtos/{id}/saldo", movimentoHandler.Saldo)
 	protegido("GET /api/v1/produtos/{id}/lotes", movimentoHandler.ListarLotes)
 	administrador("POST /api/v1/produtos/{id}/transferencias", movimentoHandler.Transferir)
+
+	reservaHandler := estoque.NewReservaHandler(reservaUseCase)
+	administrador("POST /api/v1/produtos/{id}/reservas", reservaHandler.Reservar)
+	protegido("GET /api/v1/produtos/{id}/reservas", reservaHandler.Listar)
+	administrador("POST /api/v1/reservas/{id}/liberar", reservaHandler.Liberar)
 
 	return mux
 }

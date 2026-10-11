@@ -9,12 +9,13 @@ import (
 )
 
 type MovimentarEstoqueRequest struct {
-	LocalID               uuid.UUID `json:"local_id"`
-	Tipo                  string    `json:"tipo"`
-	Quantidade            int       `json:"quantidade"`
-	CustoUnitarioCentavos *int64    `json:"custo_unitario_centavos"`
-	DocumentoRef          *string   `json:"documento_ref"`
-	Observacao            string    `json:"observacao"`
+	LocalID               uuid.UUID  `json:"local_id"`
+	Tipo                  string     `json:"tipo"`
+	Quantidade            int        `json:"quantidade"`
+	CustoUnitarioCentavos *int64     `json:"custo_unitario_centavos"`
+	ReservaID             *uuid.UUID `json:"reserva_id"`
+	DocumentoRef          *string    `json:"documento_ref"`
+	Observacao            string     `json:"observacao"`
 }
 
 func (r MovimentarEstoqueRequest) ParaInput(usuarioID, produtoID uuid.UUID) portsin.MovimentarEstoqueInput {
@@ -25,6 +26,7 @@ func (r MovimentarEstoqueRequest) ParaInput(usuarioID, produtoID uuid.UUID) port
 		Tipo:          r.Tipo,
 		Quantidade:    r.Quantidade,
 		CustoCentavos: r.CustoUnitarioCentavos,
+		ReservaID:     r.ReservaID,
 		DocumentoRef:  r.DocumentoRef,
 		Observacao:    r.Observacao,
 	}
@@ -59,6 +61,7 @@ type MovimentoResponse struct {
 	LocalID        *uuid.UUID `json:"local_id"`
 	LocalDestinoID *uuid.UUID `json:"local_destino_id"`
 	SaldoLocalApos *int       `json:"saldo_local_apos"`
+	ReservaID      *uuid.UUID `json:"reserva_id"`
 	UsuarioID      uuid.UUID  `json:"usuario_id"`
 	DocumentoRef   *string    `json:"documento_ref"`
 	Observacao     string     `json:"observacao"`
@@ -74,6 +77,7 @@ func NovoMovimentoResponse(item *domainestoque.Movimento) MovimentoResponse {
 		SaldoApos:      item.SaldoApos.Quantidade(),
 		LocalID:        item.LocalID,
 		LocalDestinoID: item.LocalDestinoID,
+		ReservaID:      item.ReservaID,
 		UsuarioID:      item.UsuarioID,
 		DocumentoRef:   item.DocumentoRef,
 		Observacao:     item.Observacao,

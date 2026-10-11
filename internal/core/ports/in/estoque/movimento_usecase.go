@@ -15,6 +15,7 @@ type MovimentarEstoqueInput struct {
 	Tipo          string
 	Quantidade    int
 	CustoCentavos *int64
+	ReservaID     *uuid.UUID
 	DocumentoRef  *string
 	Observacao    string
 }

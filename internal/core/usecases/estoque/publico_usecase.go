@@ -77,7 +77,7 @@ func (u *PublicoUsecaseImpl) ListarProdutos(ctx context.Context, input portsin.L
 	filtro := portsout.ProdutoFiltro{
 		PaginacaoFiltro: input.Filtro.Normalizada(),
 		Ativo:           &ativo,
-		ComSaldo:        true,
+		ComDisponivel:   true,
 		NaVitrine:       true,
 	}
 
@@ -141,7 +141,7 @@ func (u *PublicoUsecaseImpl) ListarDestaques(ctx context.Context, filtro domain.
 		PaginacaoFiltro: filtro.Normalizada(),
 		Ativo:           &ativo,
 		Destaque:        &destacado,
-		ComSaldo:        true,
+		ComDisponivel:   true,
 		NaVitrine:       true,
 	})
 	if err != nil {

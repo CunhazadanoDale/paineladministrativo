@@ -19,6 +19,7 @@ type MovimentoLocalInput struct {
 	Local        *Local
 	Quantidade   Quantidade
 	Custo        *Custo
+	Reserva      *Reserva
 	UsuarioID    uuid.UUID
 	DocumentoRef *string
 	Observacao   string
@@ -36,13 +37,16 @@ type TransferenciaInput struct {
 }
 
 type OperacaoEstoque struct {
-	ProdutoID    uuid.UUID
-	VersaoLida   int64
-	Saldo        Saldo
-	Reservado    Saldo
-	Movimento    *Movimento
-	Saldos       []SaldoLocal
-	LotesCriados []*Lote
+	ProdutoID        uuid.UUID
+	VersaoLida       int64
+	Saldo            Saldo
+	Reservado        Saldo
+	Movimento        *Movimento
+	Saldos           []SaldoLocal
+	LotesCriados     []*Lote
+	ReservaCriada    *Reserva
+	ReservaEncerrada *Reserva
+	AtualizadoEm     time.Time
 }
 
 func (e *EstoqueProduto) NaoAlocado() int {
@@ -62,6 +66,10 @@ func (e *EstoqueProduto) Movimentar(input MovimentoLocalInput) (*OperacaoEstoque
 		return nil, err
 	}
 
+	if err := e.validarReservaDaSaida(input); err != nil {
+		return nil, err
+	}
+
 	efeitoNoLocal := input.Tipo.EfeitoNoLocal(input.Quantidade)
 	if err := e.validarEfeito(input, efeitoNoLocal); err != nil {
 		return nil, err
@@ -73,6 +81,16 @@ func (e *EstoqueProduto) Movimentar(input MovimentoLocalInput) (*OperacaoEstoque
 	}
 
 	saldoLocal := e.SaldoNoLocal(input.Local.ID)
+	reservado := e.Produto.Reservado
+	var baixada *Reserva
+	if input.Reserva != nil {
+		if baixada, err = input.Reserva.encerrar(StatusReservaBaixada, input.Agora); err != nil {
+			return nil, err
+		}
+		if saldoLocal, reservado, err = e.devolverReservado(input.Reserva, input.Agora); err != nil {
+			return nil, err
+		}
+	}
 	saldoLocal.Quantidade += efeitoNoLocal
 	saldoLocal.AtualizadoEm = input.Agora
 
@@ -88,8 +106,13 @@ func (e *EstoqueProduto) Movimentar(input MovimentoLocalInput) (*OperacaoEstoque
 	movimento.LocalID = &input.Local.ID
 	movimento.SaldoLocalApos = &saldoLocalApos
 	movimento.Custo = input.Custo
+	if baixada != nil {
+		movimento.ReservaID = &baixada.ID
+	}
 
 	operacao := e.novaOperacao(saldoTotal, movimento, saldoLocal)
+	operacao.Reservado = reservado
+	operacao.ReservaEncerrada = baixada
 
 	if efeitoNoLocal < 0 {
 		consumos, err := consumirFIFO(e.lotesNoLocal(input.Local.ID), -efeitoNoLocal)
@@ -164,13 +187,32 @@ func (e *EstoqueProduto) Transferir(input TransferenciaInput) (*OperacaoEstoque,
 
 func (e *EstoqueProduto) novaOperacao(saldoTotal Saldo, movimento *Movimento, saldos ...SaldoLocal) *OperacaoEstoque {
 	return &OperacaoEstoque{
-		ProdutoID:  e.Produto.ID,
-		VersaoLida: e.Produto.VersaoEstoque,
-		Saldo:      saldoTotal,
-		Reservado:  e.Produto.Reservado,
-		Movimento:  movimento,
-		Saldos:     saldos,
+		ProdutoID:    e.Produto.ID,
+		VersaoLida:   e.Produto.VersaoEstoque,
+		Saldo:        saldoTotal,
+		Reservado:    e.Produto.Reservado,
+		Movimento:    movimento,
+		Saldos:       saldos,
+		AtualizadoEm: movimento.CriadoEm,
 	}
+}
+
+func (e *EstoqueProduto) validarReservaDaSaida(input MovimentoLocalInput) error {
+	reserva := input.Reserva
+	switch {
+	case reserva == nil:
+		return nil
+	case input.Tipo != TipoMovimentoSaida:
+		return domain.ErroValidacao("só a saída baixa reserva")
+	case reserva.ProdutoID != e.Produto.ID || reserva.LocalID != input.Local.ID:
+		return domain.ErroValidacao("reserva de outro produto ou local")
+	case input.Quantidade.Absoluta() != reserva.Quantidade:
+		return domain.ErroValidacao("saída que baixa reserva deve ter a quantidade da reserva")
+	case !reserva.Ativa():
+		return domain.ErroConflito("reserva já encerrada")
+	}
+
+	return nil
 }
 
 func (e *EstoqueProduto) lotesNoLocal(localID uuid.UUID) []*Lote {
@@ -202,7 +244,11 @@ func (e *EstoqueProduto) validarEfeito(input MovimentoLocalInput, efeitoNoLocal 
 	if input.Custo != nil {
 		return domain.ErroValidacao("custo unitário só é informado em movimento que cria lote")
 	}
-	if -efeitoNoLocal > e.SaldoNoLocal(input.Local.ID).Disponivel() {
+	disponivel := e.SaldoNoLocal(input.Local.ID).Disponivel()
+	if input.Reserva != nil {
+		disponivel += input.Reserva.Quantidade
+	}
+	if -efeitoNoLocal > disponivel {
 		return domain.ErroValidacao("saldo disponível insuficiente no local")
 	}
 

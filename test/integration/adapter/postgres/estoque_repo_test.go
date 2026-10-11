@@ -716,7 +716,7 @@ func TestProdutoListarPorCategoriaRaizIncluiSubcategoriasESemSaldo(t *testing.T)
 		}
 	}
 
-	filtro.ComSaldo = true
+	filtro.ComDisponivel = true
 	comSaldo, err := c.produtos.Listar(ctx, filtro)
 	if err != nil {
 		t.Fatalf("listagem com saldo falhou: %v", err)
@@ -728,7 +728,7 @@ func TestProdutoListarPorCategoriaRaizIncluiSubcategoriasESemSaldo(t *testing.T)
 	subFiltro := portsout.ProdutoFiltro{
 		PaginacaoFiltro: domain.PaginacaoFiltro{Page: 1, Size: 100},
 		CategoriaID:     &naRaizSemSaldo.CategoriaID,
-		ComSaldo:        true,
+		ComDisponivel:   true,
 	}
 	semSaldo, err := c.produtos.Listar(ctx, subFiltro)
 	if err != nil {

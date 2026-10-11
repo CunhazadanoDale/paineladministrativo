@@ -10,13 +10,13 @@ import (
 
 type ProdutoFiltro struct {
 	domain.PaginacaoFiltro
-	CategoriaID  *uuid.UUID
-	Ativo        *bool
-	Destaque     *bool
-	EstoqueBaixo bool
-	ComSaldo     bool
-	Busca        string
-	NaVitrine    bool
+	CategoriaID   *uuid.UUID
+	Ativo         *bool
+	Destaque      *bool
+	EstoqueBaixo  bool
+	ComDisponivel bool
+	Busca         string
+	NaVitrine     bool
 }
 
 type ProdutoRepository interface {

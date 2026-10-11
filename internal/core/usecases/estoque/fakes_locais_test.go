@@ -19,6 +19,7 @@ var (
 	_ portsout.LocalRepository   = (*repositorioLocais)(nil)
 	_ portsout.EstoqueRepository = (*repositorioEstoque)(nil)
 	_ portsout.LoteRepository    = (*repositorioLotes)(nil)
+	_ portsout.ReservaRepository = (*repositorioReservas)(nil)
 )
 
 type repositorioEmpresas struct {
@@ -178,6 +179,7 @@ type repositorioEstoque struct {
 	locais   *repositorioLocais
 	saldos   map[uuid.UUID]map[uuid.UUID]domainestoque.SaldoLocal
 	lotes    []*domainestoque.Lote
+	reservas map[uuid.UUID]*domainestoque.Reserva
 }
 
 func novoRepositorioEstoque(produtos *repositorioProdutos, locais *repositorioLocais) *repositorioEstoque {
@@ -185,6 +187,7 @@ func novoRepositorioEstoque(produtos *repositorioProdutos, locais *repositorioLo
 		produtos: produtos,
 		locais:   locais,
 		saldos:   map[uuid.UUID]map[uuid.UUID]domainestoque.SaldoLocal{},
+		reservas: map[uuid.UUID]*domainestoque.Reserva{},
 	}
 	locais.estoque = estoque
 
@@ -231,9 +234,18 @@ func (r *repositorioEstoque) Gravar(_ context.Context, operacao *domainestoque.O
 			return domain.ErroValidacao("local inativo não recebe entrada de estoque")
 		}
 	}
-	for _, consumo := range operacao.Movimento.Consumos {
+	consumos := []domainestoque.ConsumoLote{}
+	if operacao.Movimento != nil {
+		consumos = operacao.Movimento.Consumos
+	}
+	for _, consumo := range consumos {
 		if lote := r.lote(consumo.LoteID); lote == nil || lote.QuantidadeAtual < consumo.Quantidade {
 			return domain.ErroConflito("lote consumido por outra operação, recarregue e tente novamente")
+		}
+	}
+	if encerrada := operacao.ReservaEncerrada; encerrada != nil {
+		if salva, ok := r.reservas[encerrada.ID]; !ok || !salva.Ativa() {
+			return domain.ErroConflito("reserva já encerrada")
 		}
 	}
 
@@ -247,18 +259,69 @@ func (r *repositorioEstoque) Gravar(_ context.Context, operacao *domainestoque.O
 	for _, saldo := range operacao.Saldos {
 		r.saldos[operacao.ProdutoID][saldo.LocalID] = saldo
 	}
-	for _, consumo := range operacao.Movimento.Consumos {
+	for _, consumo := range consumos {
 		r.lote(consumo.LoteID).QuantidadeAtual -= consumo.Quantidade
 	}
 	for _, lote := range operacao.LotesCriados {
 		copia := *lote
 		r.lotes = append(r.lotes, &copia)
 	}
+	for _, reserva := range []*domainestoque.Reserva{operacao.ReservaCriada, operacao.ReservaEncerrada} {
+		if reserva != nil {
+			copia := *reserva
+			r.reservas[reserva.ID] = &copia
+		}
+	}
 
-	movimento := *operacao.Movimento
-	r.produtos.movimentos[operacao.ProdutoID] = append(r.produtos.movimentos[operacao.ProdutoID], &movimento)
+	if operacao.Movimento != nil {
+		movimento := *operacao.Movimento
+		r.produtos.movimentos[operacao.ProdutoID] = append(r.produtos.movimentos[operacao.ProdutoID], &movimento)
+	}
 
 	return nil
+}
+
+type repositorioReservas struct {
+	estoque *repositorioEstoque
+}
+
+func (r *repositorioReservas) Obter(_ context.Context, id uuid.UUID) (*domainestoque.Reserva, error) {
+	reserva, ok := r.estoque.reservas[id]
+	if !ok {
+		return nil, nil
+	}
+
+	copia := *reserva
+	return &copia, nil
+}
+
+func (r *repositorioReservas) Listar(_ context.Context, filtro portsout.ReservaFiltro) ([]*domainestoque.Reserva, error) {
+	itens := make([]*domainestoque.Reserva, 0)
+	for _, reserva := range r.estoque.reservas {
+		if reserva.ProdutoID != filtro.ProdutoID {
+			continue
+		}
+		if filtro.LocalID != nil && reserva.LocalID != *filtro.LocalID {
+			continue
+		}
+		if filtro.Status != "" && reserva.Status != filtro.Status {
+			continue
+		}
+		if filtro.EmpresaIDs != nil {
+			local, ok := r.estoque.locais.itens[reserva.LocalID]
+			if !ok || !slices.Contains(filtro.EmpresaIDs, local.EmpresaID) {
+				continue
+			}
+		}
+		copia := *reserva
+		itens = append(itens, &copia)
+	}
+
+	slices.SortFunc(itens, func(a, b *domainestoque.Reserva) int {
+		return b.CriadoEm.Compare(a.CriadoEm)
+	})
+
+	return itens, nil
 }
 
 func (r *repositorioEstoque) lote(id uuid.UUID) *domainestoque.Lote {

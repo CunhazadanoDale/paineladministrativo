@@ -16,10 +16,9 @@ var _ portsin.MovimentoUseCase = (*MovimentoUsecaseImpl)(nil)
 type MovimentoUsecaseImpl struct {
 	produtos   portsout.ProdutoRepository
 	movimentos portsout.MovimentoRepository
-	estoque    portsout.EstoqueRepository
-	locais     portsout.LocalRepository
 	lotes      portsout.LoteRepository
-	permissoes
+	reservas   portsout.ReservaRepository
+	operacoesDeEstoque
 }
 
 func NewMovimentoUsecase(
@@ -28,6 +27,7 @@ func NewMovimentoUsecase(
 	estoque portsout.EstoqueRepository,
 	locais portsout.LocalRepository,
 	lotes portsout.LoteRepository,
+	reservas portsout.ReservaRepository,
 	usuarios portsout.UsuarioRepository,
 	cargos portsout.CargoRepository,
 	empresas portsout.EmpresaRepository,
@@ -35,13 +35,16 @@ func NewMovimentoUsecase(
 	return &MovimentoUsecaseImpl{
 		produtos:   produtos,
 		movimentos: movimentos,
-		estoque:    estoque,
-		locais:     locais,
 		lotes:      lotes,
-		permissoes: permissoes{
-			usuarios: usuarios,
-			cargos:   cargos,
-			empresas: empresas,
+		reservas:   reservas,
+		operacoesDeEstoque: operacoesDeEstoque{
+			estoque: estoque,
+			locais:  locais,
+			permissoes: permissoes{
+				usuarios: usuarios,
+				cargos:   cargos,
+				empresas: empresas,
+			},
 		},
 	}
 }
@@ -77,6 +80,11 @@ func (u *MovimentoUsecaseImpl) Movimentar(ctx context.Context, input portsin.Mov
 		return nil, err
 	}
 
+	reserva, err := u.reservaDaSaida(ctx, input.ReservaID)
+	if err != nil {
+		return nil, err
+	}
+
 	estoque, err := u.carregar(ctx, input.ProdutoID, local.ID)
 	if err != nil {
 		return nil, err
@@ -87,6 +95,7 @@ func (u *MovimentoUsecaseImpl) Movimentar(ctx context.Context, input portsin.Mov
 		Local:        local,
 		Quantidade:   quantidade,
 		Custo:        custo,
+		Reserva:      reserva,
 		UsuarioID:    input.UsuarioID,
 		DocumentoRef: input.DocumentoRef,
 		Observacao:   input.Observacao,
@@ -248,7 +257,29 @@ func (u *MovimentoUsecaseImpl) ListarLotes(ctx context.Context, input portsin.Li
 	return u.lotes.Listar(ctx, filtro)
 }
 
-func (u *MovimentoUsecaseImpl) carregar(ctx context.Context, produtoID uuid.UUID, localIDs ...uuid.UUID) (*domainestoque.EstoqueProduto, error) {
+type operacoesDeEstoque struct {
+	estoque portsout.EstoqueRepository
+	locais  portsout.LocalRepository
+	permissoes
+}
+
+func (u *MovimentoUsecaseImpl) reservaDaSaida(ctx context.Context, reservaID *uuid.UUID) (*domainestoque.Reserva, error) {
+	if reservaID == nil {
+		return nil, nil
+	}
+
+	reserva, err := u.reservas.Obter(ctx, *reservaID)
+	if err != nil {
+		return nil, err
+	}
+	if reserva == nil {
+		return nil, domain.ErroValidacao("reserva não encontrada")
+	}
+
+	return reserva, nil
+}
+
+func (u *operacoesDeEstoque) carregar(ctx context.Context, produtoID uuid.UUID, localIDs ...uuid.UUID) (*domainestoque.EstoqueProduto, error) {
 	estoque, err := u.estoque.Carregar(ctx, produtoID, localIDs)
 	if err != nil {
 		return nil, err
@@ -260,7 +291,7 @@ func (u *MovimentoUsecaseImpl) carregar(ctx context.Context, produtoID uuid.UUID
 	return estoque, nil
 }
 
-func (u *MovimentoUsecaseImpl) localInformado(ctx context.Context, localID uuid.UUID, mensagem string) (*domainestoque.Local, error) {
+func (u *operacoesDeEstoque) localInformado(ctx context.Context, localID uuid.UUID, mensagem string) (*domainestoque.Local, error) {
 	if localID == uuid.Nil {
 		return nil, domain.ErroValidacao(mensagem)
 	}
@@ -276,7 +307,7 @@ func (u *MovimentoUsecaseImpl) localInformado(ctx context.Context, localID uuid.
 	return local, nil
 }
 
-func (u *MovimentoUsecaseImpl) localDoFiltro(ctx context.Context, usuarioID, localID uuid.UUID) (*domainestoque.Local, error) {
+func (u *operacoesDeEstoque) localDoFiltro(ctx context.Context, usuarioID, localID uuid.UUID) (*domainestoque.Local, error) {
 	local, err := u.localInformado(ctx, localID, "local do filtro não encontrado")
 	if err != nil {
 		return nil, err

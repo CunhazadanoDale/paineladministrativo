@@ -32,6 +32,7 @@ type movimentoLinha struct {
 	LocalDestinoID *uuid.UUID `db:"local_destino_id"`
 	SaldoLocalApos *int       `db:"saldo_local_apos"`
 	Custo          *int64     `db:"custo_unitario_centavos"`
+	ReservaID      *uuid.UUID `db:"reserva_id"`
 	UsuarioID      uuid.UUID  `db:"usuario_id"`
 	DocumentoRef   *string    `db:"documento_ref"`
 	Observacao     string     `db:"observacao"`
@@ -40,7 +41,7 @@ type movimentoLinha struct {
 
 const colunasMovimento = `
 	id, produto_id, tipo, quantidade, saldo_apos, local_id, local_destino_id, saldo_local_apos,
-	custo_unitario_centavos, usuario_id, documento_ref, observacao, criado_em
+	custo_unitario_centavos, reserva_id, usuario_id, documento_ref, observacao, criado_em
 `
 
 func (m *MovimentoRepository) Listar(ctx context.Context, filtro portsout.MovimentoFiltro) ([]*domainestoque.Movimento, error) {
@@ -123,11 +124,11 @@ func inserirMovimento(ctx context.Context, tx *sqlx.Tx, movimento *domainestoque
 	_, err := tx.NamedExecContext(ctx, `
 		INSERT INTO produto_movimento (
 			id, produto_id, tipo, quantidade, saldo_apos, local_id, local_destino_id, saldo_local_apos,
-			custo_unitario_centavos, usuario_id, documento_ref, observacao, criado_em
+			custo_unitario_centavos, reserva_id, usuario_id, documento_ref, observacao, criado_em
 		)
 		VALUES (
 			:id, :produto_id, :tipo, :quantidade, :saldo_apos, :local_id, :local_destino_id, :saldo_local_apos,
-			:custo_unitario_centavos, :usuario_id, :documento_ref, :observacao, :criado_em
+			:custo_unitario_centavos, :reserva_id, :usuario_id, :documento_ref, :observacao, :criado_em
 		)
 	`, paraLinhaMovimento(movimento))
 
@@ -154,6 +155,7 @@ func paraLinhaMovimento(movimento *domainestoque.Movimento) movimentoLinha {
 		LocalID:        movimento.LocalID,
 		LocalDestinoID: movimento.LocalDestinoID,
 		Custo:          centavosDoCusto(movimento.Custo),
+		ReservaID:      movimento.ReservaID,
 		UsuarioID:      movimento.UsuarioID,
 		DocumentoRef:   movimento.DocumentoRef,
 		Observacao:     movimento.Observacao,
@@ -178,6 +180,7 @@ func paraDominioMovimento(linha *movimentoLinha) *domainestoque.Movimento {
 		LocalID:        linha.LocalID,
 		LocalDestinoID: linha.LocalDestinoID,
 		Custo:          custoDosCentavos(linha.Custo),
+		ReservaID:      linha.ReservaID,
 		UsuarioID:      linha.UsuarioID,
 		DocumentoRef:   linha.DocumentoRef,
 		Observacao:     linha.Observacao,

@@ -915,8 +915,9 @@ Para desfazer uma movimentação registra-se a inversa (`entrada` ↔ `saida`,
 `devolucao` ↔ `perda`); o histórico permanece completo.
 
 O objeto de movimento traz também `local_id`, `local_destino_id` (só na `transferencia`) e
-`saldo_local_apos` (saldo do local, de origem na transferência, depois do movimento);
-movimentos anteriores aos locais vêm com os três em `null`. O custo **não** aparece aqui:
+`saldo_local_apos` (saldo do local, de origem na transferência, depois do movimento), além de
+`reserva_id` na saída que baixou uma reserva; movimentos anteriores aos locais vêm com os três
+primeiros em `null`. Corpo do `POST` aceita também `reserva_id` (ver **Reservas**). O custo **não** aparece aqui:
 ele fica na rota de lotes, restrita a administrador e financeiro.
 
 A listagem mostra só os movimentos de locais das empresas do acesso do usuário, mais os
@@ -1035,8 +1036,9 @@ oculto em detalhe devolve `404`.
 | `/publico/imagens/{id}` | `Content-Type` original, `X-Content-Type-Options: nosniff` e `Cache-Control: public, max-age=300`; imagem de produto fora da vitrine → `404` |
 
 O objeto público **não expõe** `saldo`, `codigo`, `ativo`, `estoque_minimo`, `criado_em`
-nem `atualizado_em`. Sem estoque o produto some da vitrine inteira (lista, destaques e
-detalhe) — não há selo "esgotado". O mesmo vale para produto de categoria inativa ou de
+nem `atualizado_em`. Sem estoque **disponível** (saldo − reservado) o produto some da vitrine
+inteira (lista, destaques e detalhe) — não há selo "esgotado"; produto todo reservado também
+some. O mesmo vale para produto de categoria inativa ou de
 subcategoria cujo pai está inativo. Categoria desconhecida ou oculta em `?categoria=` devolve `404`.
 
 ---
@@ -1149,6 +1151,9 @@ O produto continua do grupo: `saldo` do produto é a soma de todos os locais mai
 | `GET` | `/api/v1/estoque/locais/{id}/saldos` | autenticado | `200` produtos do local, paginado (`?com_saldo=true`) |
 | `GET` | `/api/v1/produtos/{id}/lotes` | administrador ou financeiro | `200` lotes do acesso, paginado (`?local=`, `?com_saldo=true`) |
 | `POST` | `/api/v1/produtos/{id}/transferencias` | **administrador** | `201` movimento `transferencia` |
+| `POST` | `/api/v1/produtos/{id}/reservas` | **administrador** | `201` reserva |
+| `GET` | `/api/v1/produtos/{id}/reservas` | autenticado | `200` reservas dos locais do acesso, mais recentes primeiro (`?status=`, `?local=`) |
+| `POST` | `/api/v1/reservas/{id}/liberar` | **administrador** | `200` reserva liberada |
 
 ### `POST /api/v1/estoque/locais`
 
@@ -1246,6 +1251,37 @@ entrada). Perfil sem administrador nem financeiro responde `403`.
 
 A transferência não muda o saldo total do produto: consome os lotes da origem por FIFO e
 cria no destino lotes com o mesmo custo e a mesma data de entrada.
+
+### Reservas
+
+Reserva separa uma quantidade do **disponível** de um local (disponível = saldo −
+reservado) sem tirar do estoque. Saída, perda, ajuste negativo, transferência e reserva nova
+só usam o disponível; a vitrine pública também.
+
+```json
+{ "local_id": "uuid-do-galpao", "quantidade": 3, "observacao": "pedido 123 da Construtora Alfa" }
+```
+
+Objeto de reserva: `id`, `produto_id`, `local_id`, `quantidade`, `origem` (`manual`; os pedidos
+do M6 usarão `pedido_item` com `origem_id`), `origem_id`, `status`, `usuario_id`,
+`observacao`, `criado_em`, `encerrada_em`.
+
+| Status | Como chega |
+| --- | --- |
+| `ativa` | criada |
+| `baixada` | `POST /produtos/{id}/movimentos` com `tipo: "saida"`, `reserva_id`, o mesmo `local_id` e a mesma `quantidade` da reserva: a saída consome a reserva e os lotes juntos |
+| `liberada` | `POST /reservas/{id}/liberar`: a quantidade volta ao disponível |
+
+| Erro | Status | Mensagem |
+| --- | --- | --- |
+| Acima do disponível no local | `400` | `erro de validação: saldo disponível insuficiente no local para a reserva` |
+| `reserva_id` inexistente na saída | `400` | `erro de validação: reserva não encontrada` |
+| Baixa com outro tipo, local ou quantidade | `400` | `só a saída baixa reserva` / `reserva de outro produto ou local` / `saída que baixa reserva deve ter a quantidade da reserva` |
+| Reserva já baixada ou liberada | `409` | `reserva já encerrada` |
+| Reserva inexistente ao liberar | `404` | `registro não encontrado: reserva não encontrada` |
+| Local fora do acesso | `403` | `perfil sem acesso a esta empresa` |
+
+O movimento da baixa traz `reserva_id`.
 
 ---
 

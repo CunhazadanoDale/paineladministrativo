@@ -136,13 +136,26 @@ func (e *EstoqueRepository) Gravar(ctx context.Context, operacao *domainestoque.
 		}
 	}
 
-	if err := inserirMovimento(ctx, tx, operacao.Movimento); err != nil {
-		return tratarErroDeGravacao(err)
+	if operacao.ReservaCriada != nil {
+		if err := inserirReserva(ctx, tx, operacao.ReservaCriada); err != nil {
+			return tratarErroDeGravacao(err)
+		}
+	}
+	if operacao.ReservaEncerrada != nil {
+		if err := encerrarReserva(ctx, tx, operacao.ReservaEncerrada); err != nil {
+			return err
+		}
 	}
 
-	for _, consumo := range operacao.Movimento.Consumos {
-		if err := consumirLote(ctx, tx, operacao.Movimento.ID, consumo); err != nil {
-			return err
+	if operacao.Movimento != nil {
+		if err := inserirMovimento(ctx, tx, operacao.Movimento); err != nil {
+			return tratarErroDeGravacao(err)
+		}
+
+		for _, consumo := range operacao.Movimento.Consumos {
+			if err := consumirLote(ctx, tx, operacao.Movimento.ID, consumo); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -176,7 +189,7 @@ func avancarVersaoEstoque(ctx context.Context, tx *sqlx.Tx, operacao *domainesto
 	`,
 		operacao.Saldo.Quantidade(),
 		operacao.Reservado.Quantidade(),
-		operacao.Movimento.CriadoEm,
+		operacao.AtualizadoEm,
 		operacao.ProdutoID,
 		operacao.VersaoLida,
 	)

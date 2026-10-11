@@ -126,8 +126,8 @@ func (p *ProdutoRepository) Listar(ctx context.Context, filtro portsout.ProdutoF
 	if filtro.EstoqueBaixo {
 		condicoes = append(condicoes, "estoque_minimo IS NOT NULL AND estoque_minimo > 0 AND quantidade_atual <= estoque_minimo")
 	}
-	if filtro.ComSaldo {
-		condicoes = append(condicoes, "quantidade_atual > 0")
+	if filtro.ComDisponivel {
+		condicoes = append(condicoes, "quantidade_atual - quantidade_reservada > 0")
 	}
 	if filtro.NaVitrine {
 		condicoes = append(condicoes, `categoria_id IN (

@@ -20,6 +20,7 @@ type cenario struct {
 	produto        portsin.ProdutoUseCase
 	movimento      portsin.MovimentoUseCase
 	local          portsin.LocalUseCase
+	reserva        portsin.ReservaUseCase
 	resumo         portsin.ResumoUseCase
 	imagem         portsin.ImagemUseCase
 	publico        portsin.PublicoUseCase
@@ -48,6 +49,7 @@ func novoCenario(t *testing.T) *cenario {
 	locais := novoRepositorioLocais()
 	estoque := novoRepositorioEstoque(produtos, locais)
 	lotes := &repositorioLotes{estoque: estoque}
+	reservas := &repositorioReservas{estoque: estoque}
 	empresas := novoRepositorioEmpresas()
 	movimentos := novoRepositorioMovimentos(produtos, locais)
 	imagens := novoRepositorioImagens()
@@ -63,8 +65,9 @@ func novoCenario(t *testing.T) *cenario {
 		ctx:            context.Background(),
 		categoria:      estoqueusecases.NewCategoriaUsecase(categorias, usuarios, cargos),
 		produto:        estoqueusecases.NewProdutoUsecase(produtos, categorias, imagens, usuarios, cargos),
-		movimento:      estoqueusecases.NewMovimentoUsecase(produtos, movimentos, estoque, locais, lotes, usuarios, cargos, empresas),
+		movimento:      estoqueusecases.NewMovimentoUsecase(produtos, movimentos, estoque, locais, lotes, reservas, usuarios, cargos, empresas),
 		local:          estoqueusecases.NewLocalUsecase(locais, estoque, usuarios, cargos, empresas),
+		reserva:        estoqueusecases.NewReservaUsecase(produtos, estoque, locais, reservas, usuarios, cargos, empresas),
 		resumo:         estoqueusecases.NewResumoUsecase(produtos, movimentos, empresas),
 		imagem:         estoqueusecases.NewImagemUsecase(imagens, produtos, categorias, arquivos, armazenamento, usuarios, cargos),
 		publico:        estoqueusecases.NewPublicoUsecase(categorias, produtos, imagens),

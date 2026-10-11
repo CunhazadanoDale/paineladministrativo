@@ -22,6 +22,7 @@ type Movimento struct {
 	SaldoLocalApos *Saldo
 	Custo          *Custo
 	Consumos       []ConsumoLote
+	ReservaID      *uuid.UUID
 	UsuarioID      uuid.UUID
 	DocumentoRef   *string
 	Observacao     string

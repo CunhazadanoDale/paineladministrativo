@@ -167,7 +167,7 @@ func (r *repositorioProdutos) Listar(_ context.Context, filtro portsout.ProdutoF
 		if filtro.EstoqueBaixo && !produto.EstoqueBaixo() {
 			continue
 		}
-		if filtro.ComSaldo && produto.Saldo.Vazio() {
+		if filtro.ComDisponivel && produto.Disponivel() <= 0 {
 			continue
 		}
 		if filtro.Busca != "" && !bateBusca(produto, filtro.Busca) {

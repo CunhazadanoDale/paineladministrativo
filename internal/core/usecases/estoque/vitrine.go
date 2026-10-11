@@ -9,7 +9,7 @@ import (
 )
 
 func produtoVisivelNaVitrine(ctx context.Context, categorias portsout.CategoriaRepository, produto *domainestoque.Produto) (bool, error) {
-	if produto == nil || !produto.Ativo || produto.Saldo.Vazio() {
+	if produto == nil || !produto.Ativo || produto.Disponivel() <= 0 {
 		return false, nil
 	}
 
