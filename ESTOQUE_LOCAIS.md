@@ -248,7 +248,15 @@ Toda operação de estoque de um produto (movimento, transferência, implantaç�
    inclusive o `Commit`.
 
 Assim operações simultâneas no mesmo produto nunca gravam sobre um estado velho, e
-produtos diferentes não se bloqueiam.
+produtos diferentes não se bloqueiam. Detalhes:
+
+- a leitura do passo 1 roda numa transação `REPEATABLE READ` somente leitura, para produto,
+  saldos, lotes e total alocado saírem do mesmo instante;
+- cada lote consumido é baixado com `WHERE quantidade_atual >= :consumo` (rede de
+  segurança além da versão) e o consumo vai para `produto_movimento_lote`;
+- os locais que recebem lote são lidos com `FOR SHARE` e precisam estar ativos; a
+  desativação trava o local com `FOR UPDATE` e só desativa se não houver saldo, então uma
+  entrada e uma desativação simultâneas nunca deixam saldo em local inativo.
 
 ---
 
@@ -300,7 +308,7 @@ cmd/api/main.go + internal/adapter/http/rotas.go   (registro, só acréscimos)
 | Fase | Entrega | Estado |
 |---|---|---|
 | **1** | Migrations 000028–000031 + domínio (local, saldo por local, lote, FIFO, custo, operação de movimento/transferência/implantação) + testes | concluída |
-| **2** | Repositórios (locais, leitura do estado, gravação transacional com guarda, lotes) + testes de integração, inclusive concorrência | pendente |
+| **2** | Repositórios (locais, leitura do estado, gravação transacional com guarda, lotes) + testes de integração, inclusive concorrência | concluída |
 | **3** | Usecases (locais, movimento ampliado, transferência, implantação, lotes) + migration 000032 (local obrigatório no movimento novo) + escopo por empresa + testes com fakes e de isolamento | pendente |
 | **4** | Handlers/DTOs + rotas + e2e + `API.md` | pendente |
 | **5** | Reservas (migration 000033, domínio, repo, usecase, rotas, port para o M6) + vitrine pelo disponível | pendente |
