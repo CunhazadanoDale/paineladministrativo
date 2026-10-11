@@ -26,30 +26,61 @@ func (r MovimentarEstoqueRequest) ParaInput(usuarioID, produtoID uuid.UUID) port
 	}
 }
 
+type TransferirEstoqueRequest struct {
+	LocalOrigemID  uuid.UUID `json:"local_origem_id"`
+	LocalDestinoID uuid.UUID `json:"local_destino_id"`
+	Quantidade     int       `json:"quantidade"`
+	DocumentoRef   *string   `json:"documento_ref"`
+	Observacao     string    `json:"observacao"`
+}
+
+func (r TransferirEstoqueRequest) ParaInput(usuarioID, produtoID uuid.UUID) portsin.TransferirEstoqueInput {
+	return portsin.TransferirEstoqueInput{
+		UsuarioID:      usuarioID,
+		ProdutoID:      produtoID,
+		LocalOrigemID:  r.LocalOrigemID,
+		LocalDestinoID: r.LocalDestinoID,
+		Quantidade:     r.Quantidade,
+		DocumentoRef:   r.DocumentoRef,
+		Observacao:     r.Observacao,
+	}
+}
+
 type MovimentoResponse struct {
-	ID           uuid.UUID `json:"id"`
-	ProdutoID    uuid.UUID `json:"produto_id"`
-	Tipo         string    `json:"tipo"`
-	Quantidade   int       `json:"quantidade"`
-	SaldoApos    int       `json:"saldo_apos"`
-	UsuarioID    uuid.UUID `json:"usuario_id"`
-	DocumentoRef *string   `json:"documento_ref"`
-	Observacao   string    `json:"observacao"`
-	CriadoEm     time.Time `json:"criado_em"`
+	ID             uuid.UUID  `json:"id"`
+	ProdutoID      uuid.UUID  `json:"produto_id"`
+	Tipo           string     `json:"tipo"`
+	Quantidade     int        `json:"quantidade"`
+	SaldoApos      int        `json:"saldo_apos"`
+	LocalID        *uuid.UUID `json:"local_id"`
+	LocalDestinoID *uuid.UUID `json:"local_destino_id"`
+	SaldoLocalApos *int       `json:"saldo_local_apos"`
+	UsuarioID      uuid.UUID  `json:"usuario_id"`
+	DocumentoRef   *string    `json:"documento_ref"`
+	Observacao     string     `json:"observacao"`
+	CriadoEm       time.Time  `json:"criado_em"`
 }
 
 func NovoMovimentoResponse(item *domainestoque.Movimento) MovimentoResponse {
-	return MovimentoResponse{
-		ID:           item.ID,
-		ProdutoID:    item.ProdutoID,
-		Tipo:         item.Tipo.String(),
-		Quantidade:   item.Quantidade.Valor(),
-		SaldoApos:    item.SaldoApos.Quantidade(),
-		UsuarioID:    item.UsuarioID,
-		DocumentoRef: item.DocumentoRef,
-		Observacao:   item.Observacao,
-		CriadoEm:     item.CriadoEm,
+	resposta := MovimentoResponse{
+		ID:             item.ID,
+		ProdutoID:      item.ProdutoID,
+		Tipo:           item.Tipo.String(),
+		Quantidade:     item.Quantidade.Valor(),
+		SaldoApos:      item.SaldoApos.Quantidade(),
+		LocalID:        item.LocalID,
+		LocalDestinoID: item.LocalDestinoID,
+		UsuarioID:      item.UsuarioID,
+		DocumentoRef:   item.DocumentoRef,
+		Observacao:     item.Observacao,
+		CriadoEm:       item.CriadoEm,
 	}
+	if item.SaldoLocalApos != nil {
+		saldo := item.SaldoLocalApos.Quantidade()
+		resposta.SaldoLocalApos = &saldo
+	}
+
+	return resposta
 }
 
 func NovoMovimentoResponses(itens []*domainestoque.Movimento) []MovimentoResponse {
@@ -59,16 +90,4 @@ func NovoMovimentoResponses(itens []*domainestoque.Movimento) []MovimentoRespons
 	}
 
 	return respostas
-}
-
-type SaldoResponse struct {
-	ProdutoID uuid.UUID `json:"produto_id"`
-	Saldo     int       `json:"saldo"`
-}
-
-func NovoSaldoResponse(produto *domainestoque.Produto) SaldoResponse {
-	return SaldoResponse{
-		ProdutoID: produto.ID,
-		Saldo:     produto.Saldo.Quantidade(),
-	}
 }

@@ -111,6 +111,7 @@ func executar(registrador *slog.Logger) error {
 		estoqueusecases.NewImagemUsecase(imagemRepository, produtoRepository, categoriaRepository, arquivoRepository, storageArquivos, usuarioRepository, cargoRepository),
 		estoqueusecases.NewPublicoUsecase(categoriaRepository, produtoRepository, imagemRepository),
 		empresausecases.NewEmpresaUsecase(empresaRepository, usuarioRepository, cargoRepository),
+		estoqueusecases.NewLocalUsecase(localRepository, estoqueRepository, usuarioRepository, cargoRepository, empresaRepository),
 		autenticacao.NovoTokenService(cfg.JWTSecret, cfg.JWTExpiracao),
 	)
 

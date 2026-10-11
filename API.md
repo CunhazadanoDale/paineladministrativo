@@ -826,7 +826,7 @@ na edição (preserva as URLs públicas).
 | `POST` | `/api/v1/produtos` | **administrador** | `201` |
 | `GET` | `/api/v1/produtos` | autenticado | `200` lista paginada |
 | `GET` | `/api/v1/produtos/{id}` | autenticado | `200` objeto único |
-| `GET` | `/api/v1/produtos/{id}/saldo` | autenticado | `200` `{"produto_id":"…","saldo":4}` |
+| `GET` | `/api/v1/produtos/{id}/saldo` | autenticado | `200` saldo total e por local (ver **Estoque — locais**) |
 | `PUT` | `/api/v1/produtos/{id}` | **administrador** | `200` |
 | `PATCH` | `/api/v1/produtos/{id}/ativar` | **administrador** | `200` |
 | `PATCH` | `/api/v1/produtos/{id}/desativar` | **administrador** | `200` |
@@ -869,7 +869,7 @@ O objeto devolvido traz `saldo`, `estoque_baixo` (saldo ≤ `estoque_minimo`), `
 | Método | Rota | Perfil | Sucesso |
 | --- | --- | --- | --- |
 | `POST` | `/api/v1/produtos/{id}/movimentos` | **administrador** | `201` |
-| `GET` | `/api/v1/produtos/{id}/movimentos` | autenticado | `200` lista paginada (`?tipo=`) |
+| `GET` | `/api/v1/produtos/{id}/movimentos` | autenticado | `200` lista paginada (`?tipo=`, `?local=`) |
 
 ```json
 { "tipo": "entrada", "quantidade": 10, "documento_ref": "NF-100", "observacao": "reposição do mês" }
@@ -888,13 +888,22 @@ O objeto devolvido traz `saldo`, `estoque_baixo` (saldo ≤ `estoque_minimo`), `
 Para desfazer uma movimentação registra-se a inversa (`entrada` ↔ `saida`,
 `devolucao` ↔ `perda`); o histórico permanece completo.
 
+O objeto de movimento traz também `local_id`, `local_destino_id` (só na `transferencia`) e
+`saldo_local_apos` (saldo do local, de origem na transferência, depois do movimento);
+movimentos anteriores aos locais vêm com os três em `null`. O custo **não** aparece aqui:
+ele fica na rota de lotes, restrita a administrador e financeiro.
+
+A listagem mostra só os movimentos de locais das empresas do acesso do usuário, mais os
+anteriores aos locais. `?local=<uuid>` filtra pela origem ou pelo destino; local
+inexistente responde `400` e local fora do acesso, `403`.
+
 ---
 
 ## Estoque — resumo
 
 | Método | Rota | Perfil | Sucesso |
 | --- | --- | --- | --- |
-| `GET` | `/api/v1/estoque/resumo` | autenticado | `200` |
+| `GET` | `/api/v1/estoque/resumo` | autenticado | `200` (`?empresa=` opcional) |
 
 ```json
 {
@@ -924,7 +933,7 @@ Para desfazer uma movimentação registra-se a inversa (`entrada` ↔ `saida`,
 | `produtos_ativos` | só os com `ativo = true` |
 | `valor_estoque_centavos` | `SUM(preco_cheio × saldo)` dos **ativos** com preço; promoção não conta e "sob consulta" fica de fora |
 | `produtos_estoque_baixo` | ativos com `estoque_minimo > 0` e saldo ≤ mínimo |
-| `ultimos_movimentos` | os 5 mais recentes, com o nome do produto (não expõe `usuario_id` nem observações) |
+| `ultimos_movimentos` | os 5 mais recentes dos locais das empresas do acesso (mais os anteriores aos locais), com o nome do produto (não expõe `usuario_id` nem observações); `?empresa=` restringe a uma empresa do acesso, fora dele `403` |
 
 ---
 
@@ -1092,6 +1101,125 @@ receberam `acesso_todas: true` na migração.
 A rota mostra os vínculos **gravados**, não o acesso efetivo: um usuário com cargo
 `administrador` enxerga todas as empresas mesmo que a rota devolva
 `acesso_todas: false` e `empresa_ids: []`.
+
+---
+
+## Estoque — locais, saldo por local, lotes e transferência
+
+Cada local de estoque pertence a uma empresa; o saldo de cada produto existe por local, e
+o usuário só enxerga os locais das empresas do seu acesso (mesmo escopo das solicitações).
+O produto continua do grupo: `saldo` do produto é a soma de todos os locais mais o saldo
+**não alocado** (o que existia antes dos locais e ainda não foi implantado num local).
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/estoque/locais` | **administrador** | `201` objeto único |
+| `GET` | `/api/v1/estoque/locais` | autenticado | `200` lista paginada do acesso (`?empresa=`, `?ativos=true\|false`) |
+| `GET` | `/api/v1/estoque/locais/{id}` | autenticado | `200` se a empresa do local estiver no acesso, senão `403` |
+| `PUT` | `/api/v1/estoque/locais/{id}` | **administrador** | `200` (só `nome`) |
+| `PATCH` | `/api/v1/estoque/locais/{id}/ativar` | **administrador** | `200` |
+| `PATCH` | `/api/v1/estoque/locais/{id}/desativar` | **administrador** | `200`; `400` se houver saldo |
+| `DELETE` | `/api/v1/estoque/locais/{id}` | **administrador** | `204`; `400` se tiver saldo, lote ou movimento |
+| `GET` | `/api/v1/estoque/locais/{id}/saldos` | autenticado | `200` produtos do local, paginado (`?com_saldo=true`) |
+| `GET` | `/api/v1/produtos/{id}/lotes` | administrador ou financeiro | `200` lotes do acesso, paginado (`?local=`, `?com_saldo=true`) |
+| `POST` | `/api/v1/produtos/{id}/transferencias` | **administrador** | `201` movimento `transferencia` |
+
+### `POST /api/v1/estoque/locais`
+
+```json
+{ "empresa_id": "uuid-da-mia", "nome": "Galpão Cabedelo" }
+```
+
+| Campo | Regra |
+| --- | --- |
+| `empresa_id` | obrigatório; precisa estar no acesso (`403`, inclusive para id inexistente), existir e estar ativa (`400`); não muda depois |
+| `nome` | obrigatório, até 120 caracteres, único por empresa sem diferenciar maiúsculas (`409 já existe um local com este nome na empresa`) |
+
+Local inativo não recebe entrada nem transferência de destino; saídas continuam para
+esvaziá-lo. Objeto de local: `id`, `empresa_id`, `nome`, `ativo`, `criado_em`,
+`atualizado_em`.
+
+### `GET /api/v1/produtos/{id}/saldo`
+
+```json
+{
+  "dados": {
+    "produto_id": "uuid",
+    "saldo": 14,
+    "reservado": 0,
+    "disponivel": 14,
+    "nao_alocado": 4,
+    "locais": [
+      {
+        "produto_id": "uuid",
+        "produto_nome": "Cimento CP II 50",
+        "produto_codigo": "SKU-001",
+        "unidade_medida": "sc",
+        "local_id": "uuid",
+        "local_nome": "Galpão Cabedelo",
+        "empresa_id": "uuid",
+        "quantidade": 10,
+        "reservado": 0,
+        "disponivel": 10,
+        "atualizado_em": "2026-10-11T12:00:00Z"
+      }
+    ]
+  }
+}
+```
+
+`saldo`, `reservado`, `disponivel` e `nao_alocado` são do grupo; `locais` traz só os locais
+das empresas do acesso. `GET /api/v1/estoque/locais/{id}/saldos` devolve itens no mesmo
+formato de `locais`, um por produto.
+
+### `GET /api/v1/produtos/{id}/lotes`
+
+Cada entrada cria um lote com o custo informado; saídas consomem os lotes mais antigos
+primeiro (FIFO). Lista em ordem de entrada:
+
+```json
+{
+  "id": "uuid",
+  "produto_id": "uuid",
+  "local_id": "uuid",
+  "movimento_id": "uuid",
+  "lote_origem_id": null,
+  "custo_unitario_centavos": 2590,
+  "quantidade_inicial": 10,
+  "quantidade_atual": 4,
+  "entrada_em": "2026-10-11T12:00:00Z"
+}
+```
+
+`custo_unitario_centavos: null` é custo desconhecido. `lote_origem_id` aparece no lote que
+nasceu de transferência e aponta para o lote de origem (mesmo custo e mesma data de
+entrada). Perfil sem administrador nem financeiro responde `403`.
+
+### `POST /api/v1/produtos/{id}/transferencias`
+
+```json
+{
+  "local_origem_id": "uuid-do-galpao",
+  "local_destino_id": "uuid-da-loja",
+  "quantidade": 4,
+  "documento_ref": "ROM-12",
+  "observacao": "abastecer a loja"
+}
+```
+
+| Erro | Status | Mensagem |
+| --- | --- | --- |
+| Local inexistente | `400` | `erro de validação: local de origem não encontrado` / `...de destino...` |
+| Mesmo local | `400` | `erro de validação: local de destino deve ser diferente do de origem` |
+| Locais de empresas diferentes | `400` | `erro de validação: transferência só entre locais da mesma empresa` |
+| Destino inativo | `400` | `erro de validação: local inativo não recebe entrada de estoque` |
+| Acima do disponível na origem | `400` | `erro de validação: saldo disponível insuficiente no local de origem` |
+| Local fora do acesso | `403` | `perfil sem acesso a esta empresa` |
+| Produto inexistente | `404` | `registro não encontrado: produto não encontrado` |
+| Estoque alterado por outra operação | `409` | `estoque do produto alterado por outra operação, recarregue e tente novamente` |
+
+A transferência não muda o saldo total do produto: consome os lotes da origem por FIFO e
+cria no destino lotes com o mesmo custo e a mesma data de entrada.
 
 ---
 

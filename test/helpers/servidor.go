@@ -76,6 +76,7 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 		estoqueusecases.NewImagemUsecase(imagemRepository, produtoRepository, categoriaRepository, arquivoRepository, armazenamento, usuarioRepository, cargoRepository),
 		estoqueusecases.NewPublicoUsecase(categoriaRepository, produtoRepository, imagemRepository),
 		empresausecases.NewEmpresaUsecase(empresaRepository, usuarioRepository, cargoRepository),
+		estoqueusecases.NewLocalUsecase(localRepository, estoqueRepository, usuarioRepository, cargoRepository, empresaRepository),
 		autenticacao.NovoTokenService(segredoDoTeste, time.Hour),
 	)
 

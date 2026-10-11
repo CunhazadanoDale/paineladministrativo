@@ -243,28 +243,3 @@ func TestDesativarProdutoDevolveAtivoFalse(t *testing.T) {
 		t.Errorf("saldo devolvido = %d, esperado 10", envelope.Dados.Saldo)
 	}
 }
-
-func TestSaldoDoProdutoDevolveQuantidade(t *testing.T) {
-	produto := novoProdutoDeTeste(t)
-	produto.Saldo = domainestoque.SaldoDe(7)
-	usecase := &produtoUseCaseFalso{produto: produto}
-	id := uuid.New()
-
-	resposta := executaProtegido(t, NewProdutoHandler(usecase).Saldo, http.MethodGet,
-		"/api/v1/produtos/"+id.String()+"/saldo", id.String(), "")
-
-	if resposta.Code != http.StatusOK {
-		t.Fatalf("status %d, esperado %d: %s", resposta.Code, http.StatusOK, resposta.Body.String())
-	}
-
-	var envelope dto.Resposta[estoquedto.SaldoResponse]
-	if err := json.Unmarshal(resposta.Body.Bytes(), &envelope); err != nil {
-		t.Fatalf("corpo não é um envelope válido: %v", err)
-	}
-	if envelope.Dados.Saldo != 7 {
-		t.Errorf("saldo devolvido = %d, esperado 7", envelope.Dados.Saldo)
-	}
-	if envelope.Dados.ProdutoID != produto.ID {
-		t.Errorf("produto devolvido = %s, esperado %s", envelope.Dados.ProdutoID, produto.ID)
-	}
-}

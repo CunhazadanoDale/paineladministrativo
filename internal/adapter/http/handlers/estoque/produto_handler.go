@@ -104,23 +104,6 @@ func (h *ProdutoHandler) Obter(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *ProdutoHandler) Saldo(w http.ResponseWriter, r *http.Request) {
-	id, ok := resposta.ParametroUUID(w, r, "id")
-	if !ok {
-		return
-	}
-
-	item, err := h.usecase.Obter(r.Context(), id)
-	if err != nil {
-		resposta.ResponderErro(w, err)
-		return
-	}
-
-	dto.EscreverJSON(w, http.StatusOK, dto.Resposta[estoquedto.SaldoResponse]{
-		Dados: estoquedto.NovoSaldoResponse(item),
-	})
-}
-
 func (h *ProdutoHandler) Alterar(w http.ResponseWriter, r *http.Request) {
 	usuario, id, ok := resposta.UsuarioEId(w, r)
 	if !ok {

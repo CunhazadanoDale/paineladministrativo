@@ -18,6 +18,10 @@ type movimentoUseCaseFalso struct {
 	itens           []*domainestoque.Movimento
 	inputMovimentar portsin.MovimentarEstoqueInput
 	inputListar     portsin.ListarMovimentosInput
+	inputTransferir portsin.TransferirEstoqueInput
+	inputLotes      portsin.ListarLotesInput
+	saldo           *domainestoque.SaldoProduto
+	lotes           []*domainestoque.Lote
 }
 
 func (f *movimentoUseCaseFalso) Movimentar(_ context.Context, input portsin.MovimentarEstoqueInput) (*domainestoque.Movimento, error) {
@@ -38,16 +42,30 @@ func (f *movimentoUseCaseFalso) Listar(_ context.Context, input portsin.ListarMo
 	return f.itens, nil
 }
 
-func (f *movimentoUseCaseFalso) Transferir(_ context.Context, _ portsin.TransferirEstoqueInput) (*domainestoque.Movimento, error) {
-	return f.movimento, f.erro
+func (f *movimentoUseCaseFalso) Transferir(_ context.Context, input portsin.TransferirEstoqueInput) (*domainestoque.Movimento, error) {
+	if f.erro != nil {
+		return nil, f.erro
+	}
+	f.inputTransferir = input
+
+	return f.movimento, nil
 }
 
 func (f *movimentoUseCaseFalso) Saldo(_ context.Context, _, _ uuid.UUID) (*domainestoque.SaldoProduto, error) {
-	return nil, f.erro
+	if f.erro != nil {
+		return nil, f.erro
+	}
+
+	return f.saldo, nil
 }
 
-func (f *movimentoUseCaseFalso) ListarLotes(_ context.Context, _ portsin.ListarLotesInput) ([]*domainestoque.Lote, error) {
-	return nil, f.erro
+func (f *movimentoUseCaseFalso) ListarLotes(_ context.Context, input portsin.ListarLotesInput) ([]*domainestoque.Lote, error) {
+	if f.erro != nil {
+		return nil, f.erro
+	}
+	f.inputLotes = input
+
+	return f.lotes, nil
 }
 
 var _ portsin.MovimentoUseCase = (*movimentoUseCaseFalso)(nil)
