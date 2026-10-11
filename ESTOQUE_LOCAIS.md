@@ -257,9 +257,10 @@ produtos diferentes não se bloqueiam.
 ```
 migrations/000028_create_tabela_estoque_local
 migrations/000029_create_tabela_produto_saldo_local        (+ produto.quantidade_reservada, produto.versao_estoque)
-migrations/000030_add_local_produto_movimento               (colunas, tipos, CHECK NOT VALID)
+migrations/000030_add_local_produto_movimento               (colunas e tipos)
 migrations/000031_create_tabela_produto_lote                (+ produto_movimento_lote)
-migrations/000032_create_tabela_produto_reserva             (fase 5)
+migrations/000032_add_chk_produto_movimento_local           (CHECK NOT VALID, fase 3)
+migrations/000033_create_tabela_produto_reserva             (fase 5)
 
 internal/core/domain/estoque/        local.go, saldo_local.go, lote.go, custo.go, fifo.go,
                                      operacao.go (cálculo de movimento/transferência), reserva.go
@@ -298,11 +299,11 @@ cmd/api/main.go + internal/adapter/http/rotas.go   (registro, só acréscimos)
 
 | Fase | Entrega | Estado |
 |---|---|---|
-| **1** | Migrations 000028–000031 + domínio (local, saldo por local, lote, FIFO, custo, operação de movimento/transferência/implantação) + testes | pendente |
+| **1** | Migrations 000028–000031 + domínio (local, saldo por local, lote, FIFO, custo, operação de movimento/transferência/implantação) + testes | concluída |
 | **2** | Repositórios (locais, leitura do estado, gravação transacional com guarda, lotes) + testes de integração, inclusive concorrência | pendente |
-| **3** | Usecases (locais, movimento ampliado, transferência, implantação, lotes) + escopo por empresa + testes com fakes e de isolamento | pendente |
+| **3** | Usecases (locais, movimento ampliado, transferência, implantação, lotes) + migration 000032 (local obrigatório no movimento novo) + escopo por empresa + testes com fakes e de isolamento | pendente |
 | **4** | Handlers/DTOs + rotas + e2e + `API.md` | pendente |
-| **5** | Reservas (migration 000032, domínio, repo, usecase, rotas, port para o M6) + vitrine pelo disponível | pendente |
+| **5** | Reservas (migration 000033, domínio, repo, usecase, rotas, port para o M6) + vitrine pelo disponível | pendente |
 | **6** | Frontend: locais, saldo por local, movimentação com local e custo, transferência, reservas (depois da F0) | pendente |
 
 ---

@@ -49,7 +49,7 @@ func TestNovoTipoMovimentoValidaEfeitos(t *testing.T) {
 }
 
 func TestNovoTipoMovimentoRejeitaValorInvalido(t *testing.T) {
-	if _, err := domainestoque.NovoTipoMovimento("transferencia"); !errors.Is(err, domain.ErrValidacao) {
+	if _, err := domainestoque.NovoTipoMovimento("furto"); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("tipo inválido = %v, esperado erro de validação", err)
 	}
 }

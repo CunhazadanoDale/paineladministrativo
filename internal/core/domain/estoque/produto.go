@@ -22,6 +22,8 @@ type Produto struct {
 	Preco            *Preco
 	PrecoPromocional *Preco
 	Saldo            Saldo
+	Reservado        Saldo
+	VersaoEstoque    int64
 	EstoqueMinimo    *EstoqueMinimo
 	Peso             *Peso
 	Destaque         bool
@@ -191,6 +193,10 @@ func (p *Produto) AlternarAtivo(ativo bool, agora time.Time) {
 func (p *Produto) AlternarDestaque(destaque bool, agora time.Time) {
 	p.Destaque = destaque
 	p.AtualizadoEm = agora
+}
+
+func (p *Produto) Disponivel() int {
+	return p.Saldo.Quantidade() - p.Reservado.Quantidade()
 }
 
 func (p *Produto) EstoqueBaixo() bool {
