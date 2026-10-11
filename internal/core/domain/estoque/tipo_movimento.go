@@ -9,11 +9,13 @@ import (
 type TipoMovimento string
 
 const (
-	TipoMovimentoEntrada   TipoMovimento = "entrada"
-	TipoMovimentoSaida     TipoMovimento = "saida"
-	TipoMovimentoAjuste    TipoMovimento = "ajuste"
-	TipoMovimentoPerda     TipoMovimento = "perda"
-	TipoMovimentoDevolucao TipoMovimento = "devolucao"
+	TipoMovimentoEntrada       TipoMovimento = "entrada"
+	TipoMovimentoSaida         TipoMovimento = "saida"
+	TipoMovimentoAjuste        TipoMovimento = "ajuste"
+	TipoMovimentoPerda         TipoMovimento = "perda"
+	TipoMovimentoDevolucao     TipoMovimento = "devolucao"
+	TipoMovimentoImplantacao   TipoMovimento = "implantacao"
+	TipoMovimentoTransferencia TipoMovimento = "transferencia"
 )
 
 var tiposMovimentoValidos = []TipoMovimento{
@@ -22,6 +24,8 @@ var tiposMovimentoValidos = []TipoMovimento{
 	TipoMovimentoAjuste,
 	TipoMovimentoPerda,
 	TipoMovimentoDevolucao,
+	TipoMovimentoImplantacao,
+	TipoMovimentoTransferencia,
 }
 
 func NovoTipoMovimento(valor string) (TipoMovimento, error) {
@@ -49,12 +53,21 @@ func (t TipoMovimento) Validado() error {
 		}
 	}
 
-	return domain.ErroValidacao("tipo de movimento deve ser entrada, saida, ajuste, perda ou devolucao")
+	return domain.ErroValidacao("tipo de movimento deve ser entrada, saida, ajuste, perda, devolucao, implantacao ou transferencia")
 }
 
 func (t TipoMovimento) Efeito(quantidade Quantidade) int {
 	switch t {
-	case TipoMovimentoEntrada, TipoMovimentoDevolucao:
+	case TipoMovimentoImplantacao, TipoMovimentoTransferencia:
+		return 0
+	default:
+		return t.EfeitoNoLocal(quantidade)
+	}
+}
+
+func (t TipoMovimento) EfeitoNoLocal(quantidade Quantidade) int {
+	switch t {
+	case TipoMovimentoEntrada, TipoMovimentoDevolucao, TipoMovimentoImplantacao:
 		return quantidade.Absoluta()
 	case TipoMovimentoAjuste:
 		return quantidade.Valor()

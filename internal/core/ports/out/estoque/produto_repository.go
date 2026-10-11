@@ -10,13 +10,13 @@ import (
 
 type ProdutoFiltro struct {
 	domain.PaginacaoFiltro
-	CategoriaID  *uuid.UUID
-	Ativo        *bool
-	Destaque     *bool
-	EstoqueBaixo bool
-	ComSaldo     bool
-	Busca        string
-	NaVitrine    bool
+	CategoriaID   *uuid.UUID
+	Ativo         *bool
+	Destaque      *bool
+	EstoqueBaixo  bool
+	ComDisponivel bool
+	Busca         string
+	NaVitrine     bool
 }
 
 type ProdutoRepository interface {
@@ -26,5 +26,4 @@ type ProdutoRepository interface {
 	Listar(ctx context.Context, filtro ProdutoFiltro) ([]*domainestoque.Produto, error)
 	Resumo(ctx context.Context) (domainestoque.ResumoProdutos, error)
 	Atualizar(ctx context.Context, produto *domainestoque.Produto) (bool, error)
-	Movimentar(ctx context.Context, produto *domainestoque.Produto, movimento *domainestoque.Movimento) error
 }

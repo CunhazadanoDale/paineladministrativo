@@ -167,7 +167,7 @@ func (r *repositorioProdutos) Listar(_ context.Context, filtro portsout.ProdutoF
 		if filtro.EstoqueBaixo && !produto.EstoqueBaixo() {
 			continue
 		}
-		if filtro.ComSaldo && produto.Saldo.Vazio() {
+		if filtro.ComDisponivel && produto.Disponivel() <= 0 {
 			continue
 		}
 		if filtro.Busca != "" && !bateBusca(produto, filtro.Busca) {
@@ -257,29 +257,13 @@ func (r *repositorioProdutos) Atualizar(_ context.Context, produto *domainestoqu
 	return true, nil
 }
 
-func (r *repositorioProdutos) Movimentar(_ context.Context, produto *domainestoque.Produto, movimento *domainestoque.Movimento) error {
-	salvo, ok := r.itens[produto.ID]
-	if !ok {
-		return domain.ErroNaoEncontrado("produto não encontrado")
-	}
-
-	if salvo.Saldo.Quantidade() != movimento.SaldoApos.Quantidade()-movimento.Tipo.Efeito(movimento.Quantidade) {
-		return domain.ErroConflito("produto com saldo alterado por outra operação, recarregue e tente novamente")
-	}
-
-	copia := *produto
-	r.itens[produto.ID] = &copia
-	r.movimentos[produto.ID] = append(r.movimentos[produto.ID], movimento)
-
-	return nil
-}
-
 type repositorioMovimentos struct {
 	origem *repositorioProdutos
+	locais *repositorioLocais
 }
 
-func novoRepositorioMovimentos(origem *repositorioProdutos) *repositorioMovimentos {
-	return &repositorioMovimentos{origem: origem}
+func novoRepositorioMovimentos(origem *repositorioProdutos, locais *repositorioLocais) *repositorioMovimentos {
+	return &repositorioMovimentos{origem: origem, locais: locais}
 }
 
 func (r *repositorioMovimentos) Listar(_ context.Context, filtro portsout.MovimentoFiltro) ([]*domainestoque.Movimento, error) {
@@ -290,6 +274,9 @@ func (r *repositorioMovimentos) Listar(_ context.Context, filtro portsout.Movime
 				continue
 			}
 			if filtro.Tipo != "" && movimento.Tipo != filtro.Tipo {
+				continue
+			}
+			if !movimentoVisivelPara(r.locais, movimento, filtro) {
 				continue
 			}
 			copia := *movimento
@@ -304,12 +291,12 @@ func (r *repositorioMovimentos) Listar(_ context.Context, filtro portsout.Movime
 	return itens, nil
 }
 
-func (r *repositorioMovimentos) ListarResumo(_ context.Context, limite int) ([]*domainestoque.MovimentoResumo, error) {
+func (r *repositorioMovimentos) ListarResumo(_ context.Context, limite int, empresaIDs []uuid.UUID) ([]*domainestoque.MovimentoResumo, error) {
 	itens := make([]domainestoque.MovimentoResumo, 0)
 	for _, movimentos := range r.origem.movimentos {
 		for _, movimento := range movimentos {
 			produto, ok := r.origem.itens[movimento.ProdutoID]
-			if !ok {
+			if !ok || !movimentoDasEmpresas(r.locais, movimento, empresaIDs) {
 				continue
 			}
 

@@ -41,6 +41,8 @@ func NewRouter(
 	imagemUseCase portsinestoque.ImagemUseCase,
 	publicoUseCase portsinestoque.PublicoUseCase,
 	empresaUseCase portsinempresa.EmpresaUseCase,
+	localUseCase portsinestoque.LocalUseCase,
+	reservaUseCase portsinestoque.ReservaUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, middleware.ErrosDeRoteamento(novasRotas(
@@ -51,6 +53,8 @@ func NewRouter(
 		categoriaUseCase, produtoUseCase, movimentoUseCase, resumoUseCase,
 		imagemUseCase, publicoUseCase,
 		empresaUseCase,
+		localUseCase,
+		reservaUseCase,
 		tokens,
 	)))
 }
@@ -73,6 +77,8 @@ func novasRotas(
 	imagemUseCase portsinestoque.ImagemUseCase,
 	publicoUseCase portsinestoque.PublicoUseCase,
 	empresaUseCase portsinempresa.EmpresaUseCase,
+	localUseCase portsinestoque.LocalUseCase,
+	reservaUseCase portsinestoque.ReservaUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -183,7 +189,6 @@ func novasRotas(
 	administrador("POST /api/v1/produtos", produtoHandler.Criar)
 	protegido("GET /api/v1/produtos", produtoHandler.Listar)
 	protegido("GET /api/v1/produtos/{id}", produtoHandler.Obter)
-	protegido("GET /api/v1/produtos/{id}/saldo", produtoHandler.Saldo)
 	administrador("PUT /api/v1/produtos/{id}", produtoHandler.Alterar)
 	administrador("PATCH /api/v1/produtos/{id}/ativar", produtoHandler.Ativar)
 	administrador("PATCH /api/v1/produtos/{id}/desativar", produtoHandler.Desativar)
@@ -219,6 +224,24 @@ func novasRotas(
 	administrador("DELETE /api/v1/empresas/{id}", empresaHandler.Remover)
 	administrador("GET /api/v1/usuarios/{id}/empresas", empresaHandler.ObterVinculos)
 	administrador("PUT /api/v1/usuarios/{id}/empresas", empresaHandler.DefinirVinculos)
+
+	localHandler := estoque.NewLocalHandler(localUseCase)
+	administrador("POST /api/v1/estoque/locais", localHandler.Criar)
+	protegido("GET /api/v1/estoque/locais", localHandler.Listar)
+	protegido("GET /api/v1/estoque/locais/{id}", localHandler.Obter)
+	administrador("PUT /api/v1/estoque/locais/{id}", localHandler.Renomear)
+	administrador("PATCH /api/v1/estoque/locais/{id}/ativar", localHandler.Ativar)
+	administrador("PATCH /api/v1/estoque/locais/{id}/desativar", localHandler.Desativar)
+	administrador("DELETE /api/v1/estoque/locais/{id}", localHandler.Remover)
+	protegido("GET /api/v1/estoque/locais/{id}/saldos", localHandler.ListarSaldos)
+	protegido("GET /api/v1/produtos/{id}/saldo", movimentoHandler.Saldo)
+	protegido("GET /api/v1/produtos/{id}/lotes", movimentoHandler.ListarLotes)
+	administrador("POST /api/v1/produtos/{id}/transferencias", movimentoHandler.Transferir)
+
+	reservaHandler := estoque.NewReservaHandler(reservaUseCase)
+	administrador("POST /api/v1/produtos/{id}/reservas", reservaHandler.Reservar)
+	protegido("GET /api/v1/produtos/{id}/reservas", reservaHandler.Listar)
+	administrador("POST /api/v1/reservas/{id}/liberar", reservaHandler.Liberar)
 
 	return mux
 }

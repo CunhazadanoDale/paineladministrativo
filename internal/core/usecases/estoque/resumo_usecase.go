@@ -15,25 +15,33 @@ const quantidadeMovimentosResumo = 5
 type ResumoUsecaseImpl struct {
 	produtos   portsout.ProdutoRepository
 	movimentos portsout.MovimentoRepository
+	permissoes
 }
 
 func NewResumoUsecase(
 	produtos portsout.ProdutoRepository,
 	movimentos portsout.MovimentoRepository,
+	empresas portsout.EmpresaRepository,
 ) *ResumoUsecaseImpl {
 	return &ResumoUsecaseImpl{
 		produtos:   produtos,
 		movimentos: movimentos,
+		permissoes: permissoes{empresas: empresas},
 	}
 }
 
-func (u *ResumoUsecaseImpl) Resumo(ctx context.Context) (*domainestoque.ResumoEstoque, error) {
+func (u *ResumoUsecaseImpl) Resumo(ctx context.Context, input portsin.ResumoInput) (*domainestoque.ResumoEstoque, error) {
+	empresaIDs, err := u.empresasVisiveis(ctx, input.UsuarioID, input.Empresa)
+	if err != nil {
+		return nil, err
+	}
+
 	produtos, err := u.produtos.Resumo(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	movimentos, err := u.movimentos.ListarResumo(ctx, quantidadeMovimentosResumo)
+	movimentos, err := u.movimentos.ListarResumo(ctx, quantidadeMovimentosResumo, empresaIDs)
 	if err != nil {
 		return nil, err
 	}

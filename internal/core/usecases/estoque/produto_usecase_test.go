@@ -348,6 +348,7 @@ func TestMovimentarEstoqueBloqueiaSaldoNegativo(t *testing.T) {
 
 	if _, err := c.movimento.Movimentar(c.ctx, portsin.MovimentarEstoqueInput{
 		UsuarioID:  c.usuarioID,
+		LocalID:    c.localPadrao(t).ID,
 		ProdutoID:  produto.ID,
 		Tipo:       "saida",
 		Quantidade: 10,
@@ -371,6 +372,7 @@ func TestMovimentarEstoqueExigeAdministrador(t *testing.T) {
 
 	if _, err := c.movimento.Movimentar(c.ctx, portsin.MovimentarEstoqueInput{
 		UsuarioID:  c.visitanteID,
+		LocalID:    c.localPadrao(t).ID,
 		ProdutoID:  produto.ID,
 		Tipo:       "entrada",
 		Quantidade: 10,
@@ -386,6 +388,7 @@ func TestMovimentarEstoqueValidaTipoEQuantidade(t *testing.T) {
 
 	if _, err := c.movimento.Movimentar(c.ctx, portsin.MovimentarEstoqueInput{
 		UsuarioID:  c.usuarioID,
+		LocalID:    c.localPadrao(t).ID,
 		ProdutoID:  produto.ID,
 		Tipo:       "roubo",
 		Quantidade: 1,
@@ -395,6 +398,7 @@ func TestMovimentarEstoqueValidaTipoEQuantidade(t *testing.T) {
 
 	if _, err := c.movimento.Movimentar(c.ctx, portsin.MovimentarEstoqueInput{
 		UsuarioID:  c.usuarioID,
+		LocalID:    c.localPadrao(t).ID,
 		ProdutoID:  produto.ID,
 		Tipo:       "entrada",
 		Quantidade: 0,
@@ -408,6 +412,7 @@ func TestMovimentarEstoqueValidaProdutoInexistente(t *testing.T) {
 
 	if _, err := c.movimento.Movimentar(c.ctx, portsin.MovimentarEstoqueInput{
 		UsuarioID:  c.usuarioID,
+		LocalID:    c.localPadrao(t).ID,
 		ProdutoID:  uuid.New(),
 		Tipo:       "entrada",
 		Quantidade: 1,
@@ -425,7 +430,7 @@ func TestListarMovimentosRegistraHistoricoCompleto(t *testing.T) {
 	c.movimentar(t, produto, "saida", 6)
 
 	produtoID := produto.ID
-	movimentos, err := c.movimento.Listar(c.ctx, portsin.ListarMovimentosInput{ProdutoID: &produtoID})
+	movimentos, err := c.movimento.Listar(c.ctx, portsin.ListarMovimentosInput{UsuarioID: c.usuarioID, ProdutoID: &produtoID})
 	if err != nil {
 		t.Fatalf("listagem falhou: %v", err)
 	}
@@ -450,7 +455,7 @@ func TestListarMovimentosRegistraHistoricoCompleto(t *testing.T) {
 		t.Errorf("quantidade da saída = %d, esperado 6", saida.Quantidade.Valor())
 	}
 
-	saidas, err := c.movimento.Listar(c.ctx, portsin.ListarMovimentosInput{Tipo: "saida"})
+	saidas, err := c.movimento.Listar(c.ctx, portsin.ListarMovimentosInput{UsuarioID: c.usuarioID, Tipo: "saida"})
 	if err != nil {
 		t.Fatalf("listagem por tipo falhou: %v", err)
 	}

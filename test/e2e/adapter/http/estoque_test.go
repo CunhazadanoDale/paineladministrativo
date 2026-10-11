@@ -139,11 +139,15 @@ func TestFluxoCompletoDeEstoque(t *testing.T) {
 	respostaSemToken := enviaSemToken(t, servidor, http.MethodGet, "/api/v1/produtos", nil)
 	conferirStatus(t, respostaSemToken, http.StatusUnauthorized)
 
+	localID := localDoTeste(t, servidor)
+
 	respostaEntrada := envia(t, servidor, http.MethodPost, caminho+"/movimentos", map[string]any{
-		"tipo":          "entrada",
-		"quantidade":    10,
-		"documento_ref": "NF-100",
-		"observacao":    "reposicao do mes",
+		"local_id":                localID,
+		"tipo":                    "entrada",
+		"quantidade":              10,
+		"custo_unitario_centavos": 1990,
+		"documento_ref":           "NF-100",
+		"observacao":              "reposicao do mes",
 	})
 	conferirStatus(t, respostaEntrada, http.StatusCreated)
 	movimento := decodificarEnvelope[estoquedto.MovimentoResponse](t, respostaEntrada).Dados
@@ -152,12 +156,14 @@ func TestFluxoCompletoDeEstoque(t *testing.T) {
 	}
 
 	respostaSaidaMaior := envia(t, servidor, http.MethodPost, caminho+"/movimentos", map[string]any{
+		"local_id":   localID,
 		"tipo":       "saida",
 		"quantidade": 100,
 	})
 	conferirStatus(t, respostaSaidaMaior, http.StatusBadRequest)
 
 	respostaSaida := envia(t, servidor, http.MethodPost, caminho+"/movimentos", map[string]any{
+		"local_id":   localID,
 		"tipo":       "saida",
 		"quantidade": 6,
 	})
@@ -260,8 +266,10 @@ func TestResumoDeEstoqueConsolidaDados(t *testing.T) {
 	conferirStatus(t, respostaSemToken, http.StatusUnauthorized)
 
 	respostaEntrada := envia(t, servidor, http.MethodPost, "/api/v1/produtos/"+produtoID.String()+"/movimentos", map[string]any{
-		"tipo":       "entrada",
-		"quantidade": 10,
+		"local_id":                localDoTeste(t, servidor),
+		"tipo":                    "entrada",
+		"quantidade":              10,
+		"custo_unitario_centavos": 1990,
 	})
 	conferirStatus(t, respostaEntrada, http.StatusCreated)
 
@@ -319,8 +327,10 @@ func TestEscritaDeEstoqueExigeAdministrador(t *testing.T) {
 
 	respostaMovimentar := enviaComToken(t, servidor, http.MethodPost,
 		"/api/v1/produtos/"+produtoID.String()+"/movimentos", map[string]any{
-			"tipo":       "entrada",
-			"quantidade": 5,
+			"local_id":                localDoTeste(t, servidor),
+			"tipo":                    "entrada",
+			"quantidade":              5,
+			"custo_unitario_centavos": 1990,
 		}, tokenOperador)
 	conferirStatus(t, respostaMovimentar, http.StatusForbidden)
 
@@ -446,11 +456,14 @@ func TestVitrinePublicaDeEstoque(t *testing.T) {
 	outroSubID := criarCategoria(t, servidor, "Tubos", &outroRaizID)
 	foraDaArvoreID := criarProdutoComCodigo(t, servidor, outroSubID, "Tubo PVC 100mm", "SKU-004")
 
+	localID := localDoTeste(t, servidor)
 	for _, produtoID := range []uuid.UUID{comEstoqueID, inativoID, foraDaArvoreID} {
 		respostaEntrada := envia(t, servidor, http.MethodPost,
 			"/api/v1/produtos/"+produtoID.String()+"/movimentos", map[string]any{
-				"tipo":       "entrada",
-				"quantidade": 6,
+				"local_id":                localID,
+				"tipo":                    "entrada",
+				"quantidade":              6,
+				"custo_unitario_centavos": 1990,
 			})
 		conferirStatus(t, respostaEntrada, http.StatusCreated)
 	}

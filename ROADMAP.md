@@ -140,7 +140,7 @@ M6, M7, M9 e M13.
 | T0 | Saneamento | — | — | concluído |
 | F0 | Correções do front | — | — | pendente |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
-| M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | em andamento (feat/m2-estoque-locais) |
+| M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
 | M3 | Clientes e representantes | M1 | Base de clientes | pendente |
 | M4 | Fornecedores | T0 | coluna fornecedor do painel financeiro | pendente |
 | M5 | Contas bancárias e plano de contas | M1 | classificação manual dos extratos | pendente |
@@ -250,7 +250,8 @@ outros módulos precisam saber.
 
 ### M2 — Estoque por local, lote e reserva
 
-Evolução do módulo `estoque` (mesmo pacote, sem módulo novo).
+Evolução do módulo `estoque` (mesmo pacote, sem módulo novo). O escopo fechado e o detalhamento estão
+em `ESTOQUE_LOCAIS.md`; este resumo só aponta o que os outros módulos precisam saber.
 
 - **Local**: `estoque_local` (nome, empresa). Saldo deixa de ser só
   `produto.quantidade_atual` e passa a existir por local em `produto_saldo_local`;
@@ -266,6 +267,22 @@ Evolução do módulo `estoque` (mesmo pacote, sem módulo novo).
   disponibilidade. Rotas públicas mantêm o contrato atual.
 - **Migração de dados**: todo saldo atual vai para um local padrão por empresa, com um
   lote de custo desconhecido marcado como tal.
+
+**Entregue (outubro/2026):** API completa (fases 1 a 5 do `ESTOQUE_LOCAIS.md`); front pendente,
+depois da F0. Para os próximos módulos:
+
+- o saldo antigo **não** foi para um local padrão: virou "não alocado" e o administrador o
+  distribui com movimentos `implantacao` (decisão do usuário, independe das empresas
+  cadastradas no deploy);
+- todo movimento novo exige `local_id` (migration `000032`); entrada exige custo; saídas
+  consomem lotes por FIFO e gravam o custo consumido em `produto_movimento_lote` — é daí que
+  o M15 tira o CMV;
+- operações de estoque são calculadas no domínio (`EstoqueProduto`) e gravadas por
+  `EstoqueRepository.Gravar` com guarda otimista em `produto.versao_estoque`;
+- reserva: `produto_reserva` com `origem` (`manual` hoje; o M6 acrescenta `pedido_item`) e
+  baixa por saída com `reserva_id`; a vitrine usa o disponível (saldo − reservado);
+- transferência só entre locais da mesma empresa; entre CNPJs aguarda a decisão aberta da
+  seção 6.
 
 ### M3 — Clientes e representantes
 

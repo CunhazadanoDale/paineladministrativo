@@ -18,6 +18,10 @@ type movimentoUseCaseFalso struct {
 	itens           []*domainestoque.Movimento
 	inputMovimentar portsin.MovimentarEstoqueInput
 	inputListar     portsin.ListarMovimentosInput
+	inputTransferir portsin.TransferirEstoqueInput
+	inputLotes      portsin.ListarLotesInput
+	saldo           *domainestoque.SaldoProduto
+	lotes           []*domainestoque.Lote
 }
 
 func (f *movimentoUseCaseFalso) Movimentar(_ context.Context, input portsin.MovimentarEstoqueInput) (*domainestoque.Movimento, error) {
@@ -38,18 +42,50 @@ func (f *movimentoUseCaseFalso) Listar(_ context.Context, input portsin.ListarMo
 	return f.itens, nil
 }
 
+func (f *movimentoUseCaseFalso) Transferir(_ context.Context, input portsin.TransferirEstoqueInput) (*domainestoque.Movimento, error) {
+	if f.erro != nil {
+		return nil, f.erro
+	}
+	f.inputTransferir = input
+
+	return f.movimento, nil
+}
+
+func (f *movimentoUseCaseFalso) Saldo(_ context.Context, _, _ uuid.UUID) (*domainestoque.SaldoProduto, error) {
+	if f.erro != nil {
+		return nil, f.erro
+	}
+
+	return f.saldo, nil
+}
+
+func (f *movimentoUseCaseFalso) ListarLotes(_ context.Context, input portsin.ListarLotesInput) ([]*domainestoque.Lote, error) {
+	if f.erro != nil {
+		return nil, f.erro
+	}
+	f.inputLotes = input
+
+	return f.lotes, nil
+}
+
 var _ portsin.MovimentoUseCase = (*movimentoUseCaseFalso)(nil)
 
 func TestMovimentarRespondeCreatedERepassaInput(t *testing.T) {
 	usecase := &movimentoUseCaseFalso{movimento: novoMovimentoDeTeste(t)}
-	id := uuid.New()
+	id, localID := uuid.New(), uuid.New()
 
 	resposta := executaProtegido(t, NewMovimentoHandler(usecase).Movimentar, http.MethodPost,
 		"/api/v1/produtos/"+id.String()+"/movimentos", id.String(),
-		`{"tipo":"entrada","quantidade":10,"documento_ref":"NF-1","observacao":"reposicao"}`)
+		`{"local_id":"`+localID.String()+`","tipo":"entrada","quantidade":10,"custo_unitario_centavos":2590,"documento_ref":"NF-1","observacao":"reposicao"}`)
 
 	if resposta.Code != http.StatusCreated {
 		t.Fatalf("status %d, esperado %d: %s", resposta.Code, http.StatusCreated, resposta.Body.String())
+	}
+	if usecase.inputMovimentar.LocalID != localID {
+		t.Errorf("local enviado = %s, esperado %s", usecase.inputMovimentar.LocalID, localID)
+	}
+	if usecase.inputMovimentar.CustoCentavos == nil || *usecase.inputMovimentar.CustoCentavos != 2590 {
+		t.Errorf("custo enviado = %v, esperado 2590", usecase.inputMovimentar.CustoCentavos)
 	}
 	if usecase.inputMovimentar.ProdutoID != id {
 		t.Errorf("produto enviado = %s, esperado %s", usecase.inputMovimentar.ProdutoID, id)

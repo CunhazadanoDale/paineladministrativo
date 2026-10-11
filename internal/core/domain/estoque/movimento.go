@@ -12,15 +12,21 @@ import (
 const tamanhoMaximoObservacaoMovimento = 1000
 
 type Movimento struct {
-	ID           uuid.UUID
-	ProdutoID    uuid.UUID
-	Tipo         TipoMovimento
-	Quantidade   Quantidade
-	SaldoApos    Saldo
-	UsuarioID    uuid.UUID
-	DocumentoRef *string
-	Observacao   string
-	CriadoEm     time.Time
+	ID             uuid.UUID
+	ProdutoID      uuid.UUID
+	Tipo           TipoMovimento
+	Quantidade     Quantidade
+	SaldoApos      Saldo
+	LocalID        *uuid.UUID
+	LocalDestinoID *uuid.UUID
+	SaldoLocalApos *Saldo
+	Custo          *Custo
+	Consumos       []ConsumoLote
+	ReservaID      *uuid.UUID
+	UsuarioID      uuid.UUID
+	DocumentoRef   *string
+	Observacao     string
+	CriadoEm       time.Time
 }
 
 func NovoMovimento(

@@ -35,6 +35,10 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 	movimentoRepository := postgres.NewMovimentoRepository(banco)
 	imagemRepository := postgres.NewImagemRepository(banco)
 	empresaRepository := postgres.NewEmpresaRepository(banco)
+	estoqueRepository := postgres.NewEstoqueRepository(banco)
+	localRepository := postgres.NewLocalRepository(banco)
+	loteRepository := postgres.NewLoteRepository(banco)
+	reservaRepository := postgres.NewReservaRepository(banco)
 
 	rotas := httpapi.NewRouter(
 		banco,
@@ -65,11 +69,19 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 		solicitacaousecases.NewAprovadorUsecase(aprovadorRepository, usuarioRepository),
 		estoqueusecases.NewCategoriaUsecase(categoriaRepository, usuarioRepository, cargoRepository),
 		estoqueusecases.NewProdutoUsecase(produtoRepository, categoriaRepository, imagemRepository, usuarioRepository, cargoRepository),
-		estoqueusecases.NewMovimentoUsecase(produtoRepository, movimentoRepository, usuarioRepository, cargoRepository),
-		estoqueusecases.NewResumoUsecase(produtoRepository, movimentoRepository),
+		estoqueusecases.NewMovimentoUsecase(
+			produtoRepository, movimentoRepository, estoqueRepository, localRepository, loteRepository,
+			reservaRepository, usuarioRepository, cargoRepository, empresaRepository,
+		),
+		estoqueusecases.NewResumoUsecase(produtoRepository, movimentoRepository, empresaRepository),
 		estoqueusecases.NewImagemUsecase(imagemRepository, produtoRepository, categoriaRepository, arquivoRepository, armazenamento, usuarioRepository, cargoRepository),
 		estoqueusecases.NewPublicoUsecase(categoriaRepository, produtoRepository, imagemRepository),
 		empresausecases.NewEmpresaUsecase(empresaRepository, usuarioRepository, cargoRepository),
+		estoqueusecases.NewLocalUsecase(localRepository, estoqueRepository, usuarioRepository, cargoRepository, empresaRepository),
+		estoqueusecases.NewReservaUsecase(
+			produtoRepository, estoqueRepository, localRepository, reservaRepository,
+			usuarioRepository, cargoRepository, empresaRepository,
+		),
 		autenticacao.NovoTokenService(segredoDoTeste, time.Hour),
 	)
 

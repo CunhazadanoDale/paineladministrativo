@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	domainestoque "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/estoque"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/estoque"
 	"github.com/google/uuid"
@@ -36,6 +35,8 @@ type produtoLinha struct {
 	Preco            *int64    `db:"preco"`
 	PrecoPromocional *int64    `db:"preco_promocional"`
 	QuantidadeAtual  int       `db:"quantidade_atual"`
+	Reservada        int       `db:"quantidade_reservada"`
+	VersaoEstoque    int64     `db:"versao_estoque"`
 	EstoqueMinimo    *int      `db:"estoque_minimo"`
 	PesoKg           *float64  `db:"peso_kg"`
 	Destaque         bool      `db:"destaque"`
@@ -46,8 +47,8 @@ type produtoLinha struct {
 
 const colunasProduto = `
 	id, categoria_id, nome, slug, descricao, codigo, unidade_medida, preco,
-	preco_promocional, quantidade_atual, estoque_minimo, peso_kg, destaque,
-	ativo, criado_em, atualizado_em
+	preco_promocional, quantidade_atual, quantidade_reservada, versao_estoque,
+	estoque_minimo, peso_kg, destaque, ativo, criado_em, atualizado_em
 `
 
 func (p *ProdutoRepository) Criar(ctx context.Context, produto *domainestoque.Produto) (uuid.UUID, error) {
@@ -125,8 +126,8 @@ func (p *ProdutoRepository) Listar(ctx context.Context, filtro portsout.ProdutoF
 	if filtro.EstoqueBaixo {
 		condicoes = append(condicoes, "estoque_minimo IS NOT NULL AND estoque_minimo > 0 AND quantidade_atual <= estoque_minimo")
 	}
-	if filtro.ComSaldo {
-		condicoes = append(condicoes, "quantidade_atual > 0")
+	if filtro.ComDisponivel {
+		condicoes = append(condicoes, "quantidade_atual - quantidade_reservada > 0")
 	}
 	if filtro.NaVitrine {
 		condicoes = append(condicoes, `categoria_id IN (
@@ -249,62 +250,6 @@ func (p *ProdutoRepository) Atualizar(ctx context.Context, produto *domainestoqu
 	return linhas > 0, nil
 }
 
-func (p *ProdutoRepository) Movimentar(ctx context.Context, produto *domainestoque.Produto, movimento *domainestoque.Movimento) error {
-	tx, err := p.db.BeginTxx(ctx, nil)
-	if err != nil {
-		return tratarErroDeGravacao(err)
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	efeito := movimento.Tipo.Efeito(movimento.Quantidade)
-	saldoAnterior := movimento.SaldoApos.Quantidade() - efeito
-
-	atualizado, err := atualizarSaldoComGuarda(ctx, tx, produto.ID, movimento, saldoAnterior)
-	if err != nil {
-		return tratarErroDeGravacao(err)
-	}
-	if !atualizado {
-		return domain.ErroConflito("produto com saldo alterado por outra operação, recarregue e tente novamente")
-	}
-
-	linha := paraLinhaMovimento(movimento)
-	if _, err := tx.NamedExecContext(ctx, `
-		INSERT INTO produto_movimento (id, produto_id, tipo, quantidade, saldo_apos, usuario_id, documento_ref, observacao, criado_em)
-		VALUES (:id, :produto_id, :tipo, :quantidade, :saldo_apos, :usuario_id, :documento_ref, :observacao, :criado_em)
-	`, linha); err != nil {
-		return tratarErroDeGravacao(err)
-	}
-
-	return tratarErroDeGravacao(tx.Commit())
-}
-
-func atualizarSaldoComGuarda(ctx context.Context, tx *sqlx.Tx, produtoID uuid.UUID, movimento *domainestoque.Movimento, saldoAnterior int) (bool, error) {
-	argumentos := map[string]any{
-		"id":             produtoID,
-		"saldo_apos":     movimento.SaldoApos.Quantidade(),
-		"saldo_anterior": saldoAnterior,
-		"atualizado_em":  movimento.CriadoEm,
-	}
-
-	resultado, err := tx.NamedExecContext(ctx, `
-		UPDATE produto
-		SET quantidade_atual = :saldo_apos,
-		    atualizado_em = :atualizado_em
-		WHERE id = :id
-		  AND quantidade_atual = :saldo_anterior
-	`, argumentos)
-	if err != nil {
-		return false, err
-	}
-
-	linhas, err := resultado.RowsAffected()
-	if err != nil {
-		return false, err
-	}
-
-	return linhas > 0, nil
-}
-
 func paraLinhaProduto(produto *domainestoque.Produto) produtoLinha {
 	linha := produtoLinha{
 		ID:              produto.ID,
@@ -351,6 +296,8 @@ func paraDominioProduto(linha *produtoLinha) *domainestoque.Produto {
 		Codigo:        linha.Codigo,
 		UnidadeMedida: domainestoque.UnidadeMedidaDe(linha.UnidadeMedida),
 		Saldo:         domainestoque.SaldoDe(linha.QuantidadeAtual),
+		Reservado:     domainestoque.SaldoDe(linha.Reservada),
+		VersaoEstoque: linha.VersaoEstoque,
 		Destaque:      linha.Destaque,
 		Ativo:         linha.Ativo,
 		CriadoEm:      linha.CriadoEm,

@@ -19,7 +19,7 @@ type resumoUseCaseFalso struct {
 	resumo *domainestoque.ResumoEstoque
 }
 
-func (f *resumoUseCaseFalso) Resumo(_ context.Context) (*domainestoque.ResumoEstoque, error) {
+func (f *resumoUseCaseFalso) Resumo(_ context.Context, _ portsin.ResumoInput) (*domainestoque.ResumoEstoque, error) {
 	if f.erro != nil {
 		return nil, f.erro
 	}

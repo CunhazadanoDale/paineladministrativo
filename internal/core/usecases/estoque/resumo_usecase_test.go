@@ -39,7 +39,7 @@ func TestResumoConsolidaProdutosComPreco(t *testing.T) {
 	c.movimentar(t, comPreco, "entrada", 8)
 	c.movimentar(t, sobConsulta, "entrada", 4)
 
-	resumo, err := c.resumo.Resumo(c.ctx)
+	resumo, err := c.resumo.Resumo(c.ctx, portsin.ResumoInput{UsuarioID: c.usuarioID})
 	if err != nil {
 		t.Fatalf("resumo falhou: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestResumoIgnoraProdutosInativos(t *testing.T) {
 		t.Fatalf("desativação do produto falhou: %v", err)
 	}
 
-	resumo, err := c.resumo.Resumo(c.ctx)
+	resumo, err := c.resumo.Resumo(c.ctx, portsin.ResumoInput{UsuarioID: c.usuarioID})
 	if err != nil {
 		t.Fatalf("resumo falhou: %v", err)
 	}
@@ -133,7 +133,7 @@ func TestResumoIgnoraProdutosInativos(t *testing.T) {
 func TestResumoSemMovimentosDevolveListaVazia(t *testing.T) {
 	c := novoCenario(t)
 
-	resumo, err := c.resumo.Resumo(c.ctx)
+	resumo, err := c.resumo.Resumo(c.ctx, portsin.ResumoInput{UsuarioID: c.usuarioID})
 	if err != nil {
 		t.Fatalf("resumo falhou: %v", err)
 	}

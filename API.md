@@ -826,7 +826,7 @@ na edição (preserva as URLs públicas).
 | `POST` | `/api/v1/produtos` | **administrador** | `201` |
 | `GET` | `/api/v1/produtos` | autenticado | `200` lista paginada |
 | `GET` | `/api/v1/produtos/{id}` | autenticado | `200` objeto único |
-| `GET` | `/api/v1/produtos/{id}/saldo` | autenticado | `200` `{"produto_id":"…","saldo":4}` |
+| `GET` | `/api/v1/produtos/{id}/saldo` | autenticado | `200` saldo total e por local (ver **Estoque — locais**) |
 | `PUT` | `/api/v1/produtos/{id}` | **administrador** | `200` |
 | `PATCH` | `/api/v1/produtos/{id}/ativar` | **administrador** | `200` |
 | `PATCH` | `/api/v1/produtos/{id}/desativar` | **administrador** | `200` |
@@ -869,24 +869,60 @@ O objeto devolvido traz `saldo`, `estoque_baixo` (saldo ≤ `estoque_minimo`), `
 | Método | Rota | Perfil | Sucesso |
 | --- | --- | --- | --- |
 | `POST` | `/api/v1/produtos/{id}/movimentos` | **administrador** | `201` |
-| `GET` | `/api/v1/produtos/{id}/movimentos` | autenticado | `200` lista paginada (`?tipo=`) |
+| `GET` | `/api/v1/produtos/{id}/movimentos` | autenticado | `200` lista paginada (`?tipo=`, `?local=`) |
 
 ```json
-{ "tipo": "entrada", "quantidade": 10, "documento_ref": "NF-100", "observacao": "reposição do mês" }
+{
+  "local_id": "uuid-do-galpao",
+  "tipo": "entrada",
+  "quantidade": 10,
+  "custo_unitario_centavos": 2590,
+  "documento_ref": "NF-100",
+  "observacao": "reposição do mês"
+}
 ```
 
-| Tipo | Efeito no saldo |
-| --- | --- |
-| `entrada` / `devolucao` | `+` |
-| `saida` / `perda` | `−` |
-| `ajuste` | `+`/`−` (`quantidade` é o delta, aceita negativo) |
+Todo movimento acontece num **local de estoque** (`local_id` obrigatório; ver
+**Estoque — locais**). O local precisa estar no acesso do usuário (`403`).
+
+| Tipo | Efeito no local | Custo (`custo_unitario_centavos`) | Lote |
+| --- | --- | --- | --- |
+| `entrada` | `+` | **obrigatório** (zero é aceito) | cria lote |
+| `devolucao` | `+` | opcional (`null` = desconhecido) | cria lote |
+| `ajuste` positivo | `+` | opcional | cria lote |
+| `implantacao` | `+`, sem mudar o total do produto | opcional | cria lote; limitado ao saldo **não alocado** |
+| `ajuste` negativo | `−` (`quantidade` é o delta, aceita negativo) | não aceita | consome FIFO |
+| `saida` / `perda` | `−` | não aceita | consome FIFO |
 
 `quantidade` não pode ser `0`. Movimento é append-only: não edita, não apaga, e o
-`saldo_apos` fica congelado no registro. Estoque que ficaria negativo devolve
-`400 erro de validação: saldo insuficiente para a movimentação`.
+`saldo_apos` (total do produto) e o `saldo_local_apos` ficam congelados no registro.
+Saídas só consomem o **disponível** do local (saldo − reservado). `transferencia` tem rota
+própria.
+
+| Erro | Status | Mensagem |
+| --- | --- | --- |
+| Sem `local_id` ou local inexistente | `400` | `erro de validação: local do movimento não encontrado` |
+| Entrada sem custo | `400` | `erro de validação: custo unitário é obrigatório na entrada` |
+| Custo em saída, perda ou ajuste negativo | `400` | `erro de validação: custo unitário só é informado em movimento que cria lote` |
+| Acima do disponível no local | `400` | `erro de validação: saldo disponível insuficiente no local` |
+| Implantação acima do não alocado | `400` | `erro de validação: quantidade maior que o saldo ainda não alocado do produto` |
+| Entrada em local inativo | `400` | `erro de validação: local inativo não recebe entrada de estoque` |
+| `tipo` = `transferencia` | `400` | `erro de validação: transferência usa a rota de transferências` |
+| Local fora do acesso | `403` | `perfil sem acesso a esta empresa` |
+| Estoque alterado por outra operação | `409` | `estoque do produto alterado por outra operação, recarregue e tente novamente` |
 
 Para desfazer uma movimentação registra-se a inversa (`entrada` ↔ `saida`,
 `devolucao` ↔ `perda`); o histórico permanece completo.
+
+O objeto de movimento traz também `local_id`, `local_destino_id` (só na `transferencia`) e
+`saldo_local_apos` (saldo do local, de origem na transferência, depois do movimento), além de
+`reserva_id` na saída que baixou uma reserva; movimentos anteriores aos locais vêm com os três
+primeiros em `null`. Corpo do `POST` aceita também `reserva_id` (ver **Reservas**). O custo **não** aparece aqui:
+ele fica na rota de lotes, restrita a administrador e financeiro.
+
+A listagem mostra só os movimentos de locais das empresas do acesso do usuário, mais os
+anteriores aos locais. `?local=<uuid>` filtra pela origem ou pelo destino; local
+inexistente responde `400` e local fora do acesso, `403`.
 
 ---
 
@@ -894,7 +930,7 @@ Para desfazer uma movimentação registra-se a inversa (`entrada` ↔ `saida`,
 
 | Método | Rota | Perfil | Sucesso |
 | --- | --- | --- | --- |
-| `GET` | `/api/v1/estoque/resumo` | autenticado | `200` |
+| `GET` | `/api/v1/estoque/resumo` | autenticado | `200` (`?empresa=` opcional) |
 
 ```json
 {
@@ -924,7 +960,7 @@ Para desfazer uma movimentação registra-se a inversa (`entrada` ↔ `saida`,
 | `produtos_ativos` | só os com `ativo = true` |
 | `valor_estoque_centavos` | `SUM(preco_cheio × saldo)` dos **ativos** com preço; promoção não conta e "sob consulta" fica de fora |
 | `produtos_estoque_baixo` | ativos com `estoque_minimo > 0` e saldo ≤ mínimo |
-| `ultimos_movimentos` | os 5 mais recentes, com o nome do produto (não expõe `usuario_id` nem observações) |
+| `ultimos_movimentos` | os 5 mais recentes dos locais das empresas do acesso (mais os anteriores aos locais), com o nome do produto (não expõe `usuario_id` nem observações); `?empresa=` restringe a uma empresa do acesso, fora dele `403` |
 
 ---
 
@@ -1000,8 +1036,9 @@ oculto em detalhe devolve `404`.
 | `/publico/imagens/{id}` | `Content-Type` original, `X-Content-Type-Options: nosniff` e `Cache-Control: public, max-age=300`; imagem de produto fora da vitrine → `404` |
 
 O objeto público **não expõe** `saldo`, `codigo`, `ativo`, `estoque_minimo`, `criado_em`
-nem `atualizado_em`. Sem estoque o produto some da vitrine inteira (lista, destaques e
-detalhe) — não há selo "esgotado". O mesmo vale para produto de categoria inativa ou de
+nem `atualizado_em`. Sem estoque **disponível** (saldo − reservado) o produto some da vitrine
+inteira (lista, destaques e detalhe) — não há selo "esgotado"; produto todo reservado também
+some. O mesmo vale para produto de categoria inativa ou de
 subcategoria cujo pai está inativo. Categoria desconhecida ou oculta em `?categoria=` devolve `404`.
 
 ---
@@ -1092,6 +1129,159 @@ receberam `acesso_todas: true` na migração.
 A rota mostra os vínculos **gravados**, não o acesso efetivo: um usuário com cargo
 `administrador` enxerga todas as empresas mesmo que a rota devolva
 `acesso_todas: false` e `empresa_ids: []`.
+
+---
+
+## Estoque — locais, saldo por local, lotes e transferência
+
+Cada local de estoque pertence a uma empresa; o saldo de cada produto existe por local, e
+o usuário só enxerga os locais das empresas do seu acesso (mesmo escopo das solicitações).
+O produto continua do grupo: `saldo` do produto é a soma de todos os locais mais o saldo
+**não alocado** (o que existia antes dos locais e ainda não foi implantado num local).
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/estoque/locais` | **administrador** | `201` objeto único |
+| `GET` | `/api/v1/estoque/locais` | autenticado | `200` lista paginada do acesso (`?empresa=`, `?ativos=true\|false`) |
+| `GET` | `/api/v1/estoque/locais/{id}` | autenticado | `200` se a empresa do local estiver no acesso, senão `403` |
+| `PUT` | `/api/v1/estoque/locais/{id}` | **administrador** | `200` (só `nome`) |
+| `PATCH` | `/api/v1/estoque/locais/{id}/ativar` | **administrador** | `200` |
+| `PATCH` | `/api/v1/estoque/locais/{id}/desativar` | **administrador** | `200`; `400` se houver saldo |
+| `DELETE` | `/api/v1/estoque/locais/{id}` | **administrador** | `204`; `400` se tiver saldo, lote ou movimento |
+| `GET` | `/api/v1/estoque/locais/{id}/saldos` | autenticado | `200` produtos do local, paginado (`?com_saldo=true`) |
+| `GET` | `/api/v1/produtos/{id}/lotes` | administrador ou financeiro | `200` lotes do acesso, paginado (`?local=`, `?com_saldo=true`) |
+| `POST` | `/api/v1/produtos/{id}/transferencias` | **administrador** | `201` movimento `transferencia` |
+| `POST` | `/api/v1/produtos/{id}/reservas` | **administrador** | `201` reserva |
+| `GET` | `/api/v1/produtos/{id}/reservas` | autenticado | `200` reservas dos locais do acesso, mais recentes primeiro (`?status=`, `?local=`) |
+| `POST` | `/api/v1/reservas/{id}/liberar` | **administrador** | `200` reserva liberada |
+
+### `POST /api/v1/estoque/locais`
+
+```json
+{ "empresa_id": "uuid-da-mia", "nome": "Galpão Cabedelo" }
+```
+
+| Campo | Regra |
+| --- | --- |
+| `empresa_id` | obrigatório; precisa estar no acesso (`403`, inclusive para id inexistente), existir e estar ativa (`400`); não muda depois |
+| `nome` | obrigatório, até 120 caracteres, único por empresa sem diferenciar maiúsculas (`409 já existe um local com este nome na empresa`) |
+
+Local inativo não recebe entrada nem transferência de destino; saídas continuam para
+esvaziá-lo. Objeto de local: `id`, `empresa_id`, `nome`, `ativo`, `criado_em`,
+`atualizado_em`.
+
+### `GET /api/v1/produtos/{id}/saldo`
+
+```json
+{
+  "dados": {
+    "produto_id": "uuid",
+    "saldo": 14,
+    "reservado": 0,
+    "disponivel": 14,
+    "nao_alocado": 4,
+    "locais": [
+      {
+        "produto_id": "uuid",
+        "produto_nome": "Cimento CP II 50",
+        "produto_codigo": "SKU-001",
+        "unidade_medida": "sc",
+        "local_id": "uuid",
+        "local_nome": "Galpão Cabedelo",
+        "empresa_id": "uuid",
+        "quantidade": 10,
+        "reservado": 0,
+        "disponivel": 10,
+        "atualizado_em": "2026-10-11T12:00:00Z"
+      }
+    ]
+  }
+}
+```
+
+`saldo`, `reservado`, `disponivel` e `nao_alocado` são do grupo; `locais` traz só os locais
+das empresas do acesso. `GET /api/v1/estoque/locais/{id}/saldos` devolve itens no mesmo
+formato de `locais`, um por produto.
+
+### `GET /api/v1/produtos/{id}/lotes`
+
+Cada entrada cria um lote com o custo informado; saídas consomem os lotes mais antigos
+primeiro (FIFO). Lista em ordem de entrada:
+
+```json
+{
+  "id": "uuid",
+  "produto_id": "uuid",
+  "local_id": "uuid",
+  "movimento_id": "uuid",
+  "lote_origem_id": null,
+  "custo_unitario_centavos": 2590,
+  "quantidade_inicial": 10,
+  "quantidade_atual": 4,
+  "entrada_em": "2026-10-11T12:00:00Z"
+}
+```
+
+`custo_unitario_centavos: null` é custo desconhecido. `lote_origem_id` aparece no lote que
+nasceu de transferência e aponta para o lote de origem (mesmo custo e mesma data de
+entrada). Perfil sem administrador nem financeiro responde `403`.
+
+### `POST /api/v1/produtos/{id}/transferencias`
+
+```json
+{
+  "local_origem_id": "uuid-do-galpao",
+  "local_destino_id": "uuid-da-loja",
+  "quantidade": 4,
+  "documento_ref": "ROM-12",
+  "observacao": "abastecer a loja"
+}
+```
+
+| Erro | Status | Mensagem |
+| --- | --- | --- |
+| Local inexistente | `400` | `erro de validação: local de origem não encontrado` / `...de destino...` |
+| Mesmo local | `400` | `erro de validação: local de destino deve ser diferente do de origem` |
+| Locais de empresas diferentes | `400` | `erro de validação: transferência só entre locais da mesma empresa` |
+| Destino inativo | `400` | `erro de validação: local inativo não recebe entrada de estoque` |
+| Acima do disponível na origem | `400` | `erro de validação: saldo disponível insuficiente no local de origem` |
+| Local fora do acesso | `403` | `perfil sem acesso a esta empresa` |
+| Produto inexistente | `404` | `registro não encontrado: produto não encontrado` |
+| Estoque alterado por outra operação | `409` | `estoque do produto alterado por outra operação, recarregue e tente novamente` |
+
+A transferência não muda o saldo total do produto: consome os lotes da origem por FIFO e
+cria no destino lotes com o mesmo custo e a mesma data de entrada.
+
+### Reservas
+
+Reserva separa uma quantidade do **disponível** de um local (disponível = saldo −
+reservado) sem tirar do estoque. Saída, perda, ajuste negativo, transferência e reserva nova
+só usam o disponível; a vitrine pública também.
+
+```json
+{ "local_id": "uuid-do-galpao", "quantidade": 3, "observacao": "pedido 123 da Construtora Alfa" }
+```
+
+Objeto de reserva: `id`, `produto_id`, `local_id`, `quantidade`, `origem` (`manual`; os pedidos
+do M6 usarão `pedido_item` com `origem_id`), `origem_id`, `status`, `usuario_id`,
+`observacao`, `criado_em`, `encerrada_em`.
+
+| Status | Como chega |
+| --- | --- |
+| `ativa` | criada |
+| `baixada` | `POST /produtos/{id}/movimentos` com `tipo: "saida"`, `reserva_id`, o mesmo `local_id` e a mesma `quantidade` da reserva: a saída consome a reserva e os lotes juntos |
+| `liberada` | `POST /reservas/{id}/liberar`: a quantidade volta ao disponível |
+
+| Erro | Status | Mensagem |
+| --- | --- | --- |
+| Acima do disponível no local | `400` | `erro de validação: saldo disponível insuficiente no local para a reserva` |
+| `reserva_id` inexistente na saída | `400` | `erro de validação: reserva não encontrada` |
+| Baixa com outro tipo, local ou quantidade | `400` | `só a saída baixa reserva` / `reserva de outro produto ou local` / `saída que baixa reserva deve ter a quantidade da reserva` |
+| Reserva já baixada ou liberada | `409` | `reserva já encerrada` |
+| Reserva inexistente ao liberar | `404` | `registro não encontrado: reserva não encontrada` |
+| Local fora do acesso | `403` | `perfil sem acesso a esta empresa` |
+
+O movimento da baixa traz `reserva_id`.
 
 ---
 

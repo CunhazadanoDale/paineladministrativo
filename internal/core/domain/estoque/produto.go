@@ -22,6 +22,8 @@ type Produto struct {
 	Preco            *Preco
 	PrecoPromocional *Preco
 	Saldo            Saldo
+	Reservado        Saldo
+	VersaoEstoque    int64
 	EstoqueMinimo    *EstoqueMinimo
 	Peso             *Peso
 	Destaque         bool
@@ -144,30 +146,6 @@ func (p *Produto) AlterarDados(input ProdutoInput, agora time.Time) error {
 	return nil
 }
 
-func (p *Produto) Movimentar(tipo TipoMovimento, quantidade Quantidade, usuarioID uuid.UUID, documentoRef *string, observacao string, agora time.Time) (*Movimento, error) {
-	if err := tipo.Validado(); err != nil {
-		return nil, err
-	}
-	if usuarioID == uuid.Nil {
-		return nil, domain.ErroValidacao("usuário da movimentação não informado")
-	}
-
-	novoSaldo, err := p.Saldo.Aplicar(tipo.Efeito(quantidade))
-	if err != nil {
-		return nil, err
-	}
-
-	movimento, err := NovoMovimento(p.ID, tipo, quantidade, novoSaldo, usuarioID, documentoRef, observacao, agora)
-	if err != nil {
-		return nil, err
-	}
-
-	p.Saldo = novoSaldo
-	p.AtualizadoEm = agora
-
-	return movimento, nil
-}
-
 func (p *Produto) AlterarPreco(preco *Preco, precoPromocional *Preco, agora time.Time) error {
 	if precoPromocional != nil && preco == nil {
 		return domain.ErroValidacao("preço promocional exige preço cheio")
@@ -191,6 +169,10 @@ func (p *Produto) AlternarAtivo(ativo bool, agora time.Time) {
 func (p *Produto) AlternarDestaque(destaque bool, agora time.Time) {
 	p.Destaque = destaque
 	p.AtualizadoEm = agora
+}
+
+func (p *Produto) Disponivel() int {
+	return p.Saldo.Quantidade() - p.Reservado.Quantidade()
 }
 
 func (p *Produto) EstoqueBaixo() bool {

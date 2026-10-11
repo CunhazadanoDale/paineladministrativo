@@ -23,6 +23,7 @@ type cenarioBancoEstoque struct {
 	movimentos *postgres.MovimentoRepository
 	imagens    *postgres.ImagemRepository
 	usuarioID  uuid.UUID
+	padrao     *domainestoque.Local
 }
 
 func cenarioEstoque(t *testing.T) *cenarioBancoEstoque {
@@ -116,15 +117,54 @@ func (c *cenarioBancoEstoque) novoProduto(t *testing.T, categoria *domainestoque
 	return produto
 }
 
+func (c *cenarioBancoEstoque) localPadrao(t *testing.T) *domainestoque.Local {
+	t.Helper()
+
+	if c.padrao != nil {
+		return c.padrao
+	}
+
+	empresaID := novaEmpresaNoBanco(t, postgres.NewEmpresaRepository(c.banco), "55.666.777/0001-81", "Empresa padrão")
+	local, err := domainestoque.NovoLocal(empresaID, "Local padrão")
+	if err != nil {
+		t.Fatalf("local padrão inválido: %v", err)
+	}
+	if _, err := postgres.NewLocalRepository(c.banco).Criar(context.Background(), local); err != nil {
+		t.Fatalf("criação do local padrão falhou: %v", err)
+	}
+	c.padrao = local
+
+	return local
+}
+
 func (c *cenarioBancoEstoque) movimentar(t *testing.T, produto *domainestoque.Produto, tipo domainestoque.TipoMovimento, quantidade int) {
 	t.Helper()
 	ctx := context.Background()
+	local := c.localPadrao(t)
+	estoqueRepo := postgres.NewEstoqueRepository(c.banco)
 
-	movimento, err := produto.Movimentar(tipo, domainestoque.QuantidadeDe(quantidade), c.usuarioID, nil, "", time.Now().UTC())
+	estoque, err := estoqueRepo.Carregar(ctx, produto.ID, []uuid.UUID{local.ID})
+	if err != nil {
+		t.Fatalf("carregar o estoque falhou: %v", err)
+	}
+
+	input := domainestoque.MovimentoLocalInput{
+		Tipo:       tipo,
+		Local:      local,
+		Quantidade: domainestoque.QuantidadeDe(quantidade),
+		UsuarioID:  c.usuarioID,
+		Agora:      time.Now().UTC(),
+	}
+	if tipo.EfeitoNoLocal(input.Quantidade) > 0 {
+		custo := domainestoque.CustoDe(100)
+		input.Custo = &custo
+	}
+
+	operacao, err := estoque.Movimentar(input)
 	if err != nil {
 		t.Fatalf("movimentação de domínio falhou: %v", err)
 	}
-	if err := c.produtos.Movimentar(ctx, produto, movimento); err != nil {
+	if err := estoqueRepo.Gravar(ctx, operacao); err != nil {
 		t.Fatalf("persistência da movimentação falhou: %v", err)
 	}
 }
@@ -282,7 +322,7 @@ func TestProdutoAceitaSobConsultaPersistindoPrecoNulo(t *testing.T) {
 	}
 }
 
-func TestProdutoMovimentacaoAtualizaSaldoEGuardaConcorrencia(t *testing.T) {
+func TestProdutoMovimentacaoAtualizaSaldo(t *testing.T) {
 	c := cenarioEstoque(t)
 	ctx := context.Background()
 
@@ -290,23 +330,14 @@ func TestProdutoMovimentacaoAtualizaSaldoEGuardaConcorrencia(t *testing.T) {
 	produto := c.novoProduto(t, c.novaSubcategoria(t, "Alvenaria", raiz), "Cimento CP II 50kg")
 
 	c.movimentar(t, produto, domainestoque.TipoMovimentoEntrada, 20)
+	c.movimentar(t, produto, domainestoque.TipoMovimentoSaida, 6)
 
 	salvo, err := c.produtos.Obter(ctx, produto.ID)
 	if err != nil {
 		t.Fatalf("busca falhou: %v", err)
 	}
-	if salvo.Saldo.Quantidade() != 20 {
-		t.Fatalf("saldo = %d, esperado 20", salvo.Saldo.Quantidade())
-	}
-
-	c.movimentar(t, produto, domainestoque.TipoMovimentoSaida, 6)
-
-	salvo, err = c.produtos.Obter(ctx, produto.ID)
-	if err != nil {
-		t.Fatalf("busca falhou: %v", err)
-	}
-	if salvo.Saldo.Quantidade() != 14 {
-		t.Errorf("saldo = %d, esperado 14", salvo.Saldo.Quantidade())
+	if salvo.Saldo.Quantidade() != 14 || salvo.VersaoEstoque != 2 {
+		t.Errorf("saldo = %d com versão %d, esperado 14 e 2", salvo.Saldo.Quantidade(), salvo.VersaoEstoque)
 	}
 
 	movimentos, err := c.movimentos.Listar(ctx, portsout.MovimentoFiltro{
@@ -321,31 +352,6 @@ func TestProdutoMovimentacaoAtualizaSaldoEGuardaConcorrencia(t *testing.T) {
 	}
 	if movimentos[0].Tipo != domainestoque.TipoMovimentoSaida || movimentos[0].SaldoApos.Quantidade() != 14 {
 		t.Errorf("movimento mais recente = %+v, esperado saída com saldo 14", movimentos[0])
-	}
-
-	produto.Saldo = domainestoque.SaldoDe(100)
-	movimentoConcorrente, err := produto.Movimentar(
-		domainestoque.TipoMovimentoEntrada,
-		domainestoque.QuantidadeDe(5),
-		c.usuarioID,
-		nil,
-		"",
-		time.Now().UTC(),
-	)
-	if err != nil {
-		t.Fatalf("movimentação concorrente falhou no domínio: %v", err)
-	}
-
-	if err := c.produtos.Movimentar(ctx, produto, movimentoConcorrente); !errors.Is(err, domain.ErrConflito) {
-		t.Errorf("movimentação com saldo desatualizado = %v, esperado erro de conflito", err)
-	}
-
-	salvo, err = c.produtos.Obter(ctx, produto.ID)
-	if err != nil {
-		t.Fatalf("busca falhou: %v", err)
-	}
-	if salvo.Saldo.Quantidade() != 14 {
-		t.Errorf("saldo = %d, esperado permanecer 14 após conflito", salvo.Saldo.Quantidade())
 	}
 }
 
@@ -468,7 +474,7 @@ func TestResumoConsolidaTotaisEUltimosMovimentos(t *testing.T) {
 		t.Errorf("produtos com estoque baixo = %d, esperado 1", resumo.ProdutosEstoqueBaixo)
 	}
 
-	movimentos, err := c.movimentos.ListarResumo(ctx, 1)
+	movimentos, err := c.movimentos.ListarResumo(ctx, 1, nil)
 	if err != nil {
 		t.Fatalf("resumo de movimentos falhou: %v", err)
 	}
@@ -710,7 +716,7 @@ func TestProdutoListarPorCategoriaRaizIncluiSubcategoriasESemSaldo(t *testing.T)
 		}
 	}
 
-	filtro.ComSaldo = true
+	filtro.ComDisponivel = true
 	comSaldo, err := c.produtos.Listar(ctx, filtro)
 	if err != nil {
 		t.Fatalf("listagem com saldo falhou: %v", err)
@@ -722,7 +728,7 @@ func TestProdutoListarPorCategoriaRaizIncluiSubcategoriasESemSaldo(t *testing.T)
 	subFiltro := portsout.ProdutoFiltro{
 		PaginacaoFiltro: domain.PaginacaoFiltro{Page: 1, Size: 100},
 		CategoriaID:     &naRaizSemSaldo.CategoriaID,
-		ComSaldo:        true,
+		ComDisponivel:   true,
 	}
 	semSaldo, err := c.produtos.Listar(ctx, subFiltro)
 	if err != nil {

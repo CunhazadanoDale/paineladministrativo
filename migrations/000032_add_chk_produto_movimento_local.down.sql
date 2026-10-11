@@ -1,0 +1,1 @@
+ALTER TABLE produto_movimento DROP CONSTRAINT chk_produto_movimento_local;

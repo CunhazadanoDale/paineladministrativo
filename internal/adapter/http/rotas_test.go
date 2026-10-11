@@ -10,7 +10,7 @@ import (
 func muxDoTeste(t *testing.T) *http.ServeMux {
 	t.Helper()
 
-	return novasRotas(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	return novasRotas(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 }
 
 func TestNewRouterAplicaCORS(t *testing.T) {
@@ -19,7 +19,7 @@ func TestNewRouterAplicaCORS(t *testing.T) {
 	requisicao.Header.Set("Access-Control-Request-Method", "POST")
 	registrador := httptest.NewRecorder()
 
-	NewRouter(nil, []string{"http://localhost:5173"}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).ServeHTTP(registrador, requisicao)
+	NewRouter(nil, []string{"http://localhost:5173"}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).ServeHTTP(registrador, requisicao)
 
 	if registrador.Code != http.StatusNoContent {
 		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusNoContent)
@@ -127,6 +127,19 @@ func TestRotasRegistradasSemConflito(t *testing.T) {
 		{"DELETE /api/v1/empresas/99999999-9999-9999-9999-999999999999", "DELETE /api/v1/empresas/{id}"},
 		{"GET /api/v1/usuarios/44444444-4444-4444-4444-444444444444/empresas", "GET /api/v1/usuarios/{id}/empresas"},
 		{"PUT /api/v1/usuarios/44444444-4444-4444-4444-444444444444/empresas", "PUT /api/v1/usuarios/{id}/empresas"},
+		{"POST /api/v1/estoque/locais", "POST /api/v1/estoque/locais"},
+		{"GET /api/v1/estoque/locais", "GET /api/v1/estoque/locais"},
+		{"GET /api/v1/estoque/locais/88888888-8888-8888-8888-888888888888", "GET /api/v1/estoque/locais/{id}"},
+		{"PUT /api/v1/estoque/locais/88888888-8888-8888-8888-888888888888", "PUT /api/v1/estoque/locais/{id}"},
+		{"PATCH /api/v1/estoque/locais/88888888-8888-8888-8888-888888888888/ativar", "PATCH /api/v1/estoque/locais/{id}/ativar"},
+		{"PATCH /api/v1/estoque/locais/88888888-8888-8888-8888-888888888888/desativar", "PATCH /api/v1/estoque/locais/{id}/desativar"},
+		{"DELETE /api/v1/estoque/locais/88888888-8888-8888-8888-888888888888", "DELETE /api/v1/estoque/locais/{id}"},
+		{"GET /api/v1/estoque/locais/88888888-8888-8888-8888-888888888888/saldos", "GET /api/v1/estoque/locais/{id}/saldos"},
+		{"GET /api/v1/produtos/77777777-7777-7777-7777-777777777777/lotes", "GET /api/v1/produtos/{id}/lotes"},
+		{"POST /api/v1/produtos/77777777-7777-7777-7777-777777777777/transferencias", "POST /api/v1/produtos/{id}/transferencias"},
+		{"POST /api/v1/produtos/77777777-7777-7777-7777-777777777777/reservas", "POST /api/v1/produtos/{id}/reservas"},
+		{"GET /api/v1/produtos/77777777-7777-7777-7777-777777777777/reservas", "GET /api/v1/produtos/{id}/reservas"},
+		{"POST /api/v1/reservas/66666666-6666-6666-6666-666666666666/liberar", "POST /api/v1/reservas/{id}/liberar"},
 	}
 
 	for _, caso := range casos {
@@ -148,7 +161,7 @@ func TestRotasRegistradasSemConflito(t *testing.T) {
 }
 
 func TestRotaNaoAtendidaRespondeNoEnvelopeJSON(t *testing.T) {
-	roteador := NewRouter(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	roteador := NewRouter(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	casos := []struct {
 		metodo string
