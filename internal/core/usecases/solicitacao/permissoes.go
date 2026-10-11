@@ -14,6 +14,19 @@ type permissoes struct {
 	usuarios    portsoutsolicitacao.UsuarioRepository
 	cargos      portsoutsolicitacao.CargoRepository
 	aprovadores portsoutsolicitacao.AprovadorRepository
+	empresas    portsoutsolicitacao.EmpresaRepository
+}
+
+func (p *permissoes) exigeAcessoAEmpresa(ctx context.Context, usuarioID, empresaID uuid.UUID) error {
+	acesso, err := p.empresas.AcessoDoUsuario(ctx, usuarioID)
+	if err != nil {
+		return err
+	}
+	if !acesso.Permite(empresaID) {
+		return domain.ErroPermissao("perfil sem acesso a esta empresa")
+	}
+
+	return nil
 }
 
 func (p *permissoes) ehAdministrador(ctx context.Context, usuarioID uuid.UUID) (bool, error) {
@@ -81,6 +94,14 @@ func podeVerSolicitacao(ctx context.Context, p *permissoes, solicitacao *domains
 	}
 	if administrador {
 		return true, nil
+	}
+
+	acesso, err := p.empresas.AcessoDoUsuario(ctx, usuarioID)
+	if err != nil {
+		return false, err
+	}
+	if !acesso.Permite(solicitacao.EmpresaID) {
+		return false, nil
 	}
 
 	financeiro, err := p.ehFinanceiro(ctx, usuarioID)

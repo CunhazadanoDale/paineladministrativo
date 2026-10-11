@@ -12,6 +12,8 @@ type SolicitacaoFiltro struct {
 	domain.PaginacaoFiltro
 	Status      domainsolicitacao.Status
 	Solicitante *uuid.UUID
+	Empresa     *uuid.UUID
+	EmpresaIDs  []uuid.UUID
 }
 
 type SolicitacaoRepository interface {

@@ -142,3 +142,29 @@ func TestVinculosDeUsuarioInexistenteOuComEmpresaInvalida(t *testing.T) {
 	})
 	conferirStatus(t, resposta, http.StatusBadRequest)
 }
+
+func empresaDoTeste(t *testing.T, servidor *httptest.Server) uuid.UUID {
+	t.Helper()
+
+	resposta := envia(t, servidor, http.MethodGet, "/api/v1/empresas", nil)
+	conferirStatus(t, resposta, http.StatusOK)
+	if existentes := decodificarPagina[empresadto.EmpresaResponse](t, resposta).Dados; len(existentes) > 0 {
+		return existentes[0].ID
+	}
+
+	return criarEmpresa(t, servidor, "77.888.999/0001-81", "Empresa do teste").ID
+}
+
+func criarUsuarioComAcesso(t *testing.T, servidor *httptest.Server, nome, email, senha string, cargoID uuid.UUID) uuid.UUID {
+	t.Helper()
+
+	usuarioID := criarUsuario(t, servidor, nome, email, senha, cargoID)
+
+	resposta := envia(t, servidor, http.MethodPut, "/api/v1/usuarios/"+usuarioID.String()+"/empresas", map[string]any{
+		"acesso_todas": true,
+		"empresa_ids":  []uuid.UUID{},
+	})
+	conferirStatus(t, resposta, http.StatusOK)
+
+	return usuarioID
+}

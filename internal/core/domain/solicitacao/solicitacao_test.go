@@ -31,7 +31,7 @@ func novaSolicitacaoDeTeste(t *testing.T) *domainsolicitacao.Solicitacao {
 		t.Fatalf("forma de pagamento de teste inválida: %v", err)
 	}
 
-	solicitacao, err := domainsolicitacao.NovaSolicitacao(solicitanteID, valor, prazo, observacao, forma, nil)
+	solicitacao, err := domainsolicitacao.NovaSolicitacao(solicitanteID, uuid.New(), valor, prazo, observacao, forma, nil)
 	if err != nil {
 		t.Fatalf("criação da solicitação falhou: %v", err)
 	}
@@ -58,6 +58,7 @@ func TestNovaSolicitacaoRejeitaSolicitanteAusente(t *testing.T) {
 
 	if _, err := domainsolicitacao.NovaSolicitacao(
 		uuid.Nil,
+		solicitacaoValida.EmpresaID,
 		solicitacaoValida.Valor,
 		solicitacaoValida.Prazo,
 		solicitacaoValida.Observacao,
@@ -65,6 +66,22 @@ func TestNovaSolicitacaoRejeitaSolicitanteAusente(t *testing.T) {
 		nil,
 	); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("sem solicitante = %v, esperado erro de validação", err)
+	}
+}
+
+func TestNovaSolicitacaoRejeitaEmpresaAusente(t *testing.T) {
+	solicitacaoValida := novaSolicitacaoDeTeste(t)
+
+	if _, err := domainsolicitacao.NovaSolicitacao(
+		solicitacaoValida.SolicitanteID,
+		uuid.Nil,
+		solicitacaoValida.Valor,
+		solicitacaoValida.Prazo,
+		solicitacaoValida.Observacao,
+		solicitacaoValida.FormaPagamento,
+		nil,
+	); !errors.Is(err, domain.ErrValidacao) {
+		t.Errorf("sem empresa = %v, esperado erro de validação", err)
 	}
 }
 

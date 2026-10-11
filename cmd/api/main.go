@@ -69,6 +69,7 @@ func executar(registrador *slog.Logger) error {
 	produtoRepository := postgres.NewProdutoRepository(banco)
 	movimentoRepository := postgres.NewMovimentoRepository(banco)
 	imagemRepository := postgres.NewImagemRepository(banco)
+	empresaRepository := postgres.NewEmpresaRepository(banco)
 
 	rotas := httpapi.NewRouter(
 		banco,
@@ -85,6 +86,7 @@ func executar(registrador *slog.Logger) error {
 			aprovadorRepository,
 			usuarioRepository,
 			cargoRepository,
+			empresaRepository,
 		),
 		solicitacaousecases.NewArquivoUsecase(
 			arquivoRepository,
@@ -93,6 +95,7 @@ func executar(registrador *slog.Logger) error {
 			usuarioRepository,
 			cargoRepository,
 			aprovadorRepository,
+			empresaRepository,
 		),
 		solicitacaousecases.NewAprovadorUsecase(aprovadorRepository, usuarioRepository),
 		estoqueusecases.NewCategoriaUsecase(categoriaRepository, usuarioRepository, cargoRepository),
@@ -101,7 +104,7 @@ func executar(registrador *slog.Logger) error {
 		estoqueusecases.NewResumoUsecase(produtoRepository, movimentoRepository),
 		estoqueusecases.NewImagemUsecase(imagemRepository, produtoRepository, categoriaRepository, arquivoRepository, storageArquivos, usuarioRepository, cargoRepository),
 		estoqueusecases.NewPublicoUsecase(categoriaRepository, produtoRepository, imagemRepository),
-		empresausecases.NewEmpresaUsecase(postgres.NewEmpresaRepository(banco), usuarioRepository, cargoRepository),
+		empresausecases.NewEmpresaUsecase(empresaRepository, usuarioRepository, cargoRepository),
 		autenticacao.NovoTokenService(cfg.JWTSecret, cfg.JWTExpiracao),
 	)
 

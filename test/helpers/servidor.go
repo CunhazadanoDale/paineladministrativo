@@ -34,6 +34,7 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 	produtoRepository := postgres.NewProdutoRepository(banco)
 	movimentoRepository := postgres.NewMovimentoRepository(banco)
 	imagemRepository := postgres.NewImagemRepository(banco)
+	empresaRepository := postgres.NewEmpresaRepository(banco)
 
 	rotas := httpapi.NewRouter(
 		banco,
@@ -50,6 +51,7 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 			aprovadorRepository,
 			usuarioRepository,
 			cargoRepository,
+			empresaRepository,
 		),
 		solicitacaousecases.NewArquivoUsecase(
 			arquivoRepository,
@@ -58,6 +60,7 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 			usuarioRepository,
 			cargoRepository,
 			aprovadorRepository,
+			empresaRepository,
 		),
 		solicitacaousecases.NewAprovadorUsecase(aprovadorRepository, usuarioRepository),
 		estoqueusecases.NewCategoriaUsecase(categoriaRepository, usuarioRepository, cargoRepository),
@@ -66,7 +69,7 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 		estoqueusecases.NewResumoUsecase(produtoRepository, movimentoRepository),
 		estoqueusecases.NewImagemUsecase(imagemRepository, produtoRepository, categoriaRepository, arquivoRepository, armazenamento, usuarioRepository, cargoRepository),
 		estoqueusecases.NewPublicoUsecase(categoriaRepository, produtoRepository, imagemRepository),
-		empresausecases.NewEmpresaUsecase(postgres.NewEmpresaRepository(banco), usuarioRepository, cargoRepository),
+		empresausecases.NewEmpresaUsecase(empresaRepository, usuarioRepository, cargoRepository),
 		autenticacao.NovoTokenService(segredoDoTeste, time.Hour),
 	)
 

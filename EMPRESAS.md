@@ -130,8 +130,9 @@ O que M2 a M15 copiam para escopo por empresa:
 
 1. A tabela do módulo tem `empresa_id UUID NOT NULL` com FK `RESTRICT` e índice que começa
    por `empresa_id`.
-2. O usecase recebe por porta mínima (`ports/out/<modulo>/acesso_empresa.go`) a função que
-   devolve o `empresa.Acesso` do usuário.
+2. O usecase recebe por porta mínima (`ports/out/<modulo>/empresa_repository.go`, com
+   `Obter` e `AcessoDoUsuario`) o `empresa.Acesso` do usuário; no `main.go` ela é
+   satisfeita pelo `postgres.EmpresaRepository`. Referência: módulo `solicitacao`.
 3. Criar/alterar: `acesso.Permite(empresaID)` senão `403`; empresa inativa → `400`.
 4. Ler um registro: fora do acesso → `403` (mesmo tratamento de "quem pode ver").
 5. Listar: o filtro do repositório recebe `EmpresaIDs` quando o acesso não é `Todas()`;
@@ -155,7 +156,7 @@ internal/core/usecases/empresa/          empresa_usecase.go, permissoes.go (+ te
 internal/adapter/postgres/               empresa_repo.go
 internal/adapter/http/dto/empresa/       empresa.go, vinculos.go
 internal/adapter/http/handlers/empresa/  empresa_handler.go
-internal/core/ports/out/solicitacao/     acesso_empresa.go, empresa_repository.go (portas mínimas)
+internal/core/ports/out/solicitacao/     empresa_repository.go (porta mínima: Obter + AcessoDoUsuario)
 cmd/api/main.go + internal/adapter/http/rotas.go   (registro)
 ```
 
@@ -196,7 +197,7 @@ nova (sem empresa ativa no acesso, `POST /solicitacoes` responde `400`/`403`).
 | **2** | Repositório de empresas e acesso + testes de integração | concluída |
 | **3** | Usecases de empresa e de acesso do usuário + permissões + testes com fakes | concluída |
 | **4** | Handlers/DTOs + rotas + e2e + `API.md` | concluída |
-| **5** | Adoção em `solicitacao`: migration 000027, domínio, usecase, filtro, testes de isolamento, e2e, `API.md` | pendente |
+| **5** | Adoção em `solicitacao`: migration 000027, domínio, usecase, filtro, testes de isolamento, e2e, `API.md` | concluída |
 | **6** | Frontend: cadastro de empresas, acesso por usuário, seletor de empresa na solicitação (depois da F0) | pendente |
 
 ---

@@ -12,6 +12,7 @@ import (
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/solicitacao"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 )
 
 var _ portsout.SolicitacaoRepository = (*SolicitacaoRepository)(nil)
@@ -27,6 +28,7 @@ func NewSolicitacaoRepository(db *sqlx.DB) *SolicitacaoRepository {
 type solicitacaoLinha struct {
 	ID               uuid.UUID  `db:"id"`
 	SolicitanteID    uuid.UUID  `db:"solicitante_id"`
+	EmpresaID        uuid.UUID  `db:"empresa_id"`
 	AprovadorID      *uuid.UUID `db:"aprovador_id"`
 	ValorCentavos    int64      `db:"valor_estimado"`
 	PrazoPagamento   time.Time  `db:"prazo_pagamento"`
@@ -51,7 +53,7 @@ type pagamentoLinha struct {
 }
 
 const colunasSolicitacao = `
-	id, solicitante_id, aprovador_id, valor_estimado, prazo_pagamento, observacao,
+	id, solicitante_id, empresa_id, aprovador_id, valor_estimado, prazo_pagamento, observacao,
 	forma_pagamento, status, rejeitacao_motivo, aprovado_em, rejeitado_em,
 	cancelado_em, criado_em, atualizado_em
 `
@@ -66,11 +68,11 @@ func (s *SolicitacaoRepository) Criar(ctx context.Context, solicitacao *domainso
 	linha := paraLinha(solicitacao)
 	query := `
 		INSERT INTO solicitacao (
-			id, solicitante_id, aprovador_id, valor_estimado, prazo_pagamento, observacao,
+			id, solicitante_id, empresa_id, aprovador_id, valor_estimado, prazo_pagamento, observacao,
 			forma_pagamento, status, rejeitacao_motivo, aprovado_em, rejeitado_em,
 			cancelado_em, criado_em, atualizado_em
 		) VALUES (
-			:id, :solicitante_id, :aprovador_id, :valor_estimado, :prazo_pagamento, :observacao,
+			:id, :solicitante_id, :empresa_id, :aprovador_id, :valor_estimado, :prazo_pagamento, :observacao,
 			:forma_pagamento, :status, :rejeitacao_motivo, :aprovado_em, :rejeitado_em,
 			:cancelado_em, :criado_em, :atualizado_em
 		)
@@ -127,6 +129,14 @@ func (s *SolicitacaoRepository) Listar(ctx context.Context, filtro portsout.Soli
 	if filtro.Status != "" {
 		argumentos = append(argumentos, filtro.Status)
 		condicoes = append(condicoes, condicao("status", len(argumentos)))
+	}
+	if filtro.Empresa != nil {
+		argumentos = append(argumentos, *filtro.Empresa)
+		condicoes = append(condicoes, condicao("empresa_id", len(argumentos)))
+	}
+	if filtro.EmpresaIDs != nil {
+		argumentos = append(argumentos, pq.Array(textosDeIDs(filtro.EmpresaIDs)))
+		condicoes = append(condicoes, "empresa_id = ANY($"+strconv.Itoa(len(argumentos))+"::uuid[])")
 	}
 	if len(condicoes) > 0 {
 		query += " WHERE " + unirCondicoes(condicoes)
@@ -281,6 +291,7 @@ func paraLinha(solicitacao *domainsolicitacao.Solicitacao) solicitacaoLinha {
 	return solicitacaoLinha{
 		ID:               solicitacao.ID,
 		SolicitanteID:    solicitacao.SolicitanteID,
+		EmpresaID:        solicitacao.EmpresaID,
 		AprovadorID:      solicitacao.AprovadorID,
 		ValorCentavos:    solicitacao.Valor.Centavos(),
 		PrazoPagamento:   solicitacao.Prazo.Data(),
@@ -300,6 +311,7 @@ func paraDominio(linha *solicitacaoLinha) *domainsolicitacao.Solicitacao {
 	solicitacao := &domainsolicitacao.Solicitacao{
 		ID:             linha.ID,
 		SolicitanteID:  linha.SolicitanteID,
+		EmpresaID:      linha.EmpresaID,
 		AprovadorID:    linha.AprovadorID,
 		Valor:          domainsolicitacao.ValorDe(linha.ValorCentavos),
 		Prazo:          domainsolicitacao.PrazoPagamentoDe(linha.PrazoPagamento),

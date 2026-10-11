@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
+	domainempresa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/empresa"
 	domainsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/solicitacao"
 	domainusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/usuarios"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/solicitacao"
@@ -20,7 +21,38 @@ var (
 	_ portsout.UsuarioRepository     = (*repositorioUsuarios)(nil)
 	_ portsout.CargoRepository       = (*repositorioCargos)(nil)
 	_ portsout.Storage               = (*storageFalso)(nil)
+	_ portsout.EmpresaRepository     = (*repositorioEmpresas)(nil)
 )
+
+type repositorioEmpresas struct {
+	itens   map[uuid.UUID]*domainempresa.Empresa
+	acessos map[uuid.UUID]domainempresa.Acesso
+}
+
+func novoRepositorioEmpresas() *repositorioEmpresas {
+	return &repositorioEmpresas{
+		itens:   map[uuid.UUID]*domainempresa.Empresa{},
+		acessos: map[uuid.UUID]domainempresa.Acesso{},
+	}
+}
+
+func (r *repositorioEmpresas) Obter(_ context.Context, id uuid.UUID) (*domainempresa.Empresa, error) {
+	empresa, ok := r.itens[id]
+	if !ok {
+		return nil, nil
+	}
+
+	copia := *empresa
+	return &copia, nil
+}
+
+func (r *repositorioEmpresas) AcessoDoUsuario(_ context.Context, usuarioID uuid.UUID) (domainempresa.Acesso, error) {
+	if acesso, ok := r.acessos[usuarioID]; ok {
+		return acesso, nil
+	}
+
+	return domainempresa.AcessoTotal(), nil
+}
 
 type repositorioSolicitacoes struct {
 	itens      map[uuid.UUID]*domainsolicitacao.Solicitacao
@@ -73,6 +105,12 @@ func (r *repositorioSolicitacoes) Listar(_ context.Context, filtro portsout.Soli
 			continue
 		}
 		if filtro.Status != "" && solicitacao.Status != filtro.Status {
+			continue
+		}
+		if filtro.Empresa != nil && solicitacao.EmpresaID != *filtro.Empresa {
+			continue
+		}
+		if filtro.EmpresaIDs != nil && !contemEmpresa(filtro.EmpresaIDs, solicitacao.EmpresaID) {
 			continue
 		}
 		copia := *solicitacao
@@ -360,4 +398,14 @@ func paginar[T any](itens []T, filtro domain.PaginacaoFiltro) []T {
 	}
 
 	return itens[inicio:fim]
+}
+
+func contemEmpresa(empresaIDs []uuid.UUID, empresaID uuid.UUID) bool {
+	for _, id := range empresaIDs {
+		if id == empresaID {
+			return true
+		}
+	}
+
+	return false
 }

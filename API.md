@@ -578,19 +578,25 @@ se outra pessoa mudar primeiro, a segunda recebe `409`
 
 **Quem pode ver** uma solicitação (roteiros `Obter`, `pagamento`, `historico`, `arquivos`):
 o próprio solicitante, um administrador, o aprovador designado e o financeiro (que só enxerga
-solicitações fora de `pendente_aprovacao`). Quem não pode ver recebe `403`
-(`perfil sem permissão para consultar esta solicitação`).
+solicitações fora de `pendente_aprovacao`). Aprovador e financeiro só enxergam solicitações
+de empresas do seu **acesso** (seção "Empresas"); o solicitante sempre vê as próprias. Quem
+não pode ver recebe `403` (`perfil sem permissão para consultar esta solicitação`).
+Aprovar, rejeitar e registrar pagamento de solicitação de empresa fora do acesso também
+respondem `403` (`perfil sem acesso a esta empresa`).
 
 ### Escopos de listagem
 
-`GET /api/v1/solicitacoes` aceita `pagina`, `tamanho`, `escopo` e `status`:
+`GET /api/v1/solicitacoes` aceita `pagina`, `tamanho`, `escopo`, `status` e `empresa`:
 
 | `escopo` | Quem pode | O que lista |
 | --- | --- | --- |
 | vazio ou `minhas` | autenticado | as que ele mesmo criou |
-| `aprovacao` | aprovador designado ou administrador | as `pendente_aprovacao` |
-| `financeiro` | cargo com `"financeiro": true` ou administrador | as `aprovado` |
+| `aprovacao` | aprovador designado ou administrador | as `pendente_aprovacao` das empresas do seu acesso |
+| `financeiro` | cargo com `"financeiro": true` ou administrador | as `aprovado` das empresas do seu acesso |
 | `todas` | administrador | todas |
+
+`empresa=<uuid>` restringe qualquer escopo a uma empresa; empresa fora do acesso devolve
+`403` (`perfil sem acesso a esta empresa`).
 
 `status=` (ex.: `?escopo=todas&status=pago`) filtra dentro do que o escopo já deixa
 enxergar — não serve para furar a definição do escopo. `escopo=aprovacao` só aceita
@@ -603,6 +609,7 @@ devolve `400` (`escopo de listagem inválido`); escopo de outro perfil devolve `
 
 ```json
 {
+  "empresa_id": "uuid-da-empresa",
   "valor_centavos": 150000,
   "prazo_pagamento": "2026-10-20",
   "observacao": "Compra de cimento para a fase 2",
@@ -613,6 +620,7 @@ devolve `400` (`escopo de listagem inválido`); escopo de outro perfil devolve `
 
 | Campo | Regra |
 | --- | --- |
+| `empresa_id` | obrigatório; a empresa precisa existir, estar ativa e estar no acesso do solicitante |
 | `valor_centavos` | inteiro em centavos, maior que zero (`150000` = R$ 1.500,00) |
 | `prazo_pagamento` | `AAAA-MM-DD` (ou RFC3339). Obrigatório e não pode ser anterior a hoje |
 | `observacao` | obrigatória, no máximo 1000 caracteres |
@@ -625,6 +633,7 @@ devolve `400` (`escopo de listagem inválido`); escopo de outro perfil devolve `
 {
   "id": "00000000-0000-4000-8000-000000000001",
   "solicitante_id": "00000000-0000-4000-8000-000000000002",
+  "empresa_id": "00000000-0000-4000-8000-000000000004",
   "aprovador_id": null,
   "valor_centavos": 150000,
   "prazo_pagamento": "2026-10-20T00:00:00Z",
@@ -649,6 +658,10 @@ devolve `400` (`escopo de listagem inválido`); escopo de outro perfil devolve `
 | Anexo de outra pessoa | `403` | `arquivo não pertence ao solicitante` |
 | Anexo já em uso | `400` | `erro de validação: arquivo já vinculado a outra solicitação` |
 | Mesmo anexo duas vezes | `400` | `erro de validação: arquivo repetido na solicitação` |
+| Sem `empresa_id` | `400` | `erro de validação: empresa da solicitação não informada` |
+| Empresa inexistente | `400` | `erro de validação: empresa da solicitação não encontrada` |
+| Empresa fora do acesso | `403` | `perfil sem acesso a esta empresa` |
+| Empresa inativa | `400` | `erro de validação: empresa inativa não recebe solicitação nova` |
 
 ### `POST /api/v1/solicitacoes/{id}/aprovar`
 
