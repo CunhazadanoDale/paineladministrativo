@@ -21,6 +21,7 @@ const (
 
 type CriarSolicitacaoInput struct {
 	SolicitanteID  uuid.UUID
+	EmpresaID      uuid.UUID
 	ValorCentavos  int64
 	PrazoPagamento time.Time
 	Observacao     string
@@ -40,6 +41,7 @@ type ListarSolicitacoesInput struct {
 	UsuarioID uuid.UUID
 	Escopo    string
 	Status    string
+	Empresa   *uuid.UUID
 	Filtro    domain.PaginacaoFiltro
 }
 

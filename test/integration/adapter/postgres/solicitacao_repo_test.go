@@ -8,6 +8,7 @@ import (
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/postgres"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
+	domainempresa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/empresa"
 	domainsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/solicitacao"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/solicitacao"
 	"github.com/CunhazadanoDale/paineladministrativo.git/test/helpers"
@@ -24,6 +25,7 @@ type cenarioBancoSolicitacoes struct {
 	cargos        *postgres.CargoRepository
 	solicitanteID uuid.UUID
 	terceiroID    uuid.UUID
+	empresaID     uuid.UUID
 }
 
 func cenarioSolicitacoes(t *testing.T) *cenarioBancoSolicitacoes {
@@ -42,7 +44,34 @@ func cenarioSolicitacoes(t *testing.T) *cenarioBancoSolicitacoes {
 		cargos:        cargos,
 		solicitanteID: inserirUsuario(t, cargos, usuarios, "Ana Souza", "ana.souza@exemplo.com"),
 		terceiroID:    inserirUsuario(t, cargos, usuarios, "Bruno Lima", "bruno.lima@exemplo.com"),
+		empresaID:     inserirEmpresa(t, banco, "11.222.333/0001-81", "MIA"),
 	}
+}
+
+func inserirEmpresa(t *testing.T, banco *sqlx.DB, cnpj, nomeFantasia string) uuid.UUID {
+	t.Helper()
+
+	documento, err := domainempresa.NovoCNPJ(cnpj)
+	if err != nil {
+		t.Fatalf("CNPJ de teste inválido: %v", err)
+	}
+
+	empresa, err := domainempresa.NovaEmpresa(documento, domainempresa.DadosEmpresa{
+		RazaoSocial:      nomeFantasia + " LTDA",
+		NomeFantasia:     nomeFantasia,
+		UF:               domainempresa.UFDe("PB"),
+		RegimeTributario: domainempresa.RegimePresumido,
+	})
+	if err != nil {
+		t.Fatalf("empresa de teste inválida: %v", err)
+	}
+
+	id, err := postgres.NewEmpresaRepository(banco).Criar(context.Background(), empresa)
+	if err != nil {
+		t.Fatalf("não criei a empresa do cenário: %v", err)
+	}
+
+	return id
 }
 
 func inserirUsuario(t *testing.T, cargos *postgres.CargoRepository, usuarios *postgres.UsuarioRepository, nome, email string) uuid.UUID {
@@ -64,6 +93,12 @@ func inserirUsuario(t *testing.T, cargos *postgres.CargoRepository, usuarios *po
 func (c *cenarioBancoSolicitacoes) novaSolicitacao(t *testing.T) *domainsolicitacao.Solicitacao {
 	t.Helper()
 
+	return c.novaSolicitacaoNaEmpresa(t, c.empresaID)
+}
+
+func (c *cenarioBancoSolicitacoes) novaSolicitacaoNaEmpresa(t *testing.T, empresaID uuid.UUID) *domainsolicitacao.Solicitacao {
+	t.Helper()
+
 	valor, err := domainsolicitacao.NovoValor(150000)
 	if err != nil {
 		t.Fatalf("valor de teste inválido: %v", err)
@@ -81,7 +116,7 @@ func (c *cenarioBancoSolicitacoes) novaSolicitacao(t *testing.T) *domainsolicita
 		t.Fatalf("forma de pagamento de teste inválida: %v", err)
 	}
 
-	solicitacao, err := domainsolicitacao.NovaSolicitacao(c.solicitanteID, valor, prazo, observacao, forma, nil)
+	solicitacao, err := domainsolicitacao.NovaSolicitacao(c.solicitanteID, empresaID, valor, prazo, observacao, forma, nil)
 	if err != nil {
 		t.Fatalf("criação da solicitação de teste falhou: %v", err)
 	}
@@ -461,5 +496,49 @@ func TestAprovadorUnicoPorUsuarioEConsultavelPorId(t *testing.T) {
 	}
 	if aposRemover != nil {
 		t.Errorf("aprovador removido continuou cadastrado: %+v", aposRemover)
+	}
+}
+
+func TestListarSolicitacoesFiltraPorEmpresa(t *testing.T) {
+	c := cenarioSolicitacoes(t)
+	ctx := context.Background()
+	segunda := inserirEmpresa(t, c.banco, "33.400.004/0001-16", "Red Diamond")
+
+	daPrimeira := c.novaSolicitacao(t)
+	daSegunda := c.novaSolicitacaoNaEmpresa(t, segunda)
+	for _, solicitacao := range []*domainsolicitacao.Solicitacao{daPrimeira, daSegunda} {
+		historico := domainsolicitacao.NovoHistorico(solicitacao.ID, c.solicitanteID, nil, solicitacao.Status, "solicitação criada")
+		if _, err := c.solicitacoes.Criar(ctx, solicitacao, nil, historico); err != nil {
+			t.Fatalf("criação falhou: %v", err)
+		}
+	}
+
+	salva, err := c.solicitacoes.Obter(ctx, daSegunda.ID)
+	if err != nil || salva.EmpresaID != segunda {
+		t.Fatalf("solicitação salva %+v (%v), esperado na segunda empresa", salva, err)
+	}
+
+	casos := []struct {
+		nome     string
+		filtro   portsout.SolicitacaoFiltro
+		esperado int
+	}{
+		{"sem filtro", portsout.SolicitacaoFiltro{}, 2},
+		{"uma empresa", portsout.SolicitacaoFiltro{Empresa: &segunda}, 1},
+		{"lista do acesso", portsout.SolicitacaoFiltro{EmpresaIDs: []uuid.UUID{c.empresaID}}, 1},
+		{"acesso vazio", portsout.SolicitacaoFiltro{EmpresaIDs: []uuid.UUID{}}, 0},
+	}
+
+	for _, caso := range casos {
+		t.Run(caso.nome, func(t *testing.T) {
+			caso.filtro.PaginacaoFiltro = domain.PaginacaoFiltro{Page: 1, Size: 10}
+			itens, err := c.solicitacoes.Listar(ctx, caso.filtro)
+			if err != nil {
+				t.Fatalf("listagem falhou: %v", err)
+			}
+			if len(itens) != caso.esperado {
+				t.Errorf("%d solicitações, esperado %d", len(itens), caso.esperado)
+			}
+		})
 	}
 }

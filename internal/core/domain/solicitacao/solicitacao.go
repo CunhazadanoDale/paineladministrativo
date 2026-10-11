@@ -11,6 +11,7 @@ import (
 type Solicitacao struct {
 	ID             uuid.UUID
 	SolicitanteID  uuid.UUID
+	EmpresaID      uuid.UUID
 	AprovadorID    *uuid.UUID
 	Valor          Valor
 	Prazo          PrazoPagamento
@@ -28,6 +29,7 @@ type Solicitacao struct {
 
 func NovaSolicitacao(
 	solicitanteID uuid.UUID,
+	empresaID uuid.UUID,
 	valor Valor,
 	prazo PrazoPagamento,
 	observacao Observacao,
@@ -36,6 +38,9 @@ func NovaSolicitacao(
 ) (*Solicitacao, error) {
 	if solicitanteID == uuid.Nil {
 		return nil, domain.ErroValidacao("solicitante da solicitação não informado")
+	}
+	if empresaID == uuid.Nil {
+		return nil, domain.ErroValidacao("empresa da solicitação não informada")
 	}
 	if err := formaPagamento.Validado(); err != nil {
 		return nil, err
@@ -46,6 +51,7 @@ func NovaSolicitacao(
 	return &Solicitacao{
 		ID:             uuid.New(),
 		SolicitanteID:  solicitanteID,
+		EmpresaID:      empresaID,
 		Valor:          valor,
 		Prazo:          prazo,
 		Observacao:     observacao,

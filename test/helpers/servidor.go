@@ -11,6 +11,7 @@ import (
 	httpapi "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/postgres"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/storage/disco"
+	empresausecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/empresa"
 	estoqueusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/estoque"
 	leadusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/lead"
 	solicitacaousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/solicitacao"
@@ -33,6 +34,7 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 	produtoRepository := postgres.NewProdutoRepository(banco)
 	movimentoRepository := postgres.NewMovimentoRepository(banco)
 	imagemRepository := postgres.NewImagemRepository(banco)
+	empresaRepository := postgres.NewEmpresaRepository(banco)
 
 	rotas := httpapi.NewRouter(
 		banco,
@@ -49,6 +51,7 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 			aprovadorRepository,
 			usuarioRepository,
 			cargoRepository,
+			empresaRepository,
 		),
 		solicitacaousecases.NewArquivoUsecase(
 			arquivoRepository,
@@ -57,6 +60,7 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 			usuarioRepository,
 			cargoRepository,
 			aprovadorRepository,
+			empresaRepository,
 		),
 		solicitacaousecases.NewAprovadorUsecase(aprovadorRepository, usuarioRepository),
 		estoqueusecases.NewCategoriaUsecase(categoriaRepository, usuarioRepository, cargoRepository),
@@ -65,6 +69,7 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 		estoqueusecases.NewResumoUsecase(produtoRepository, movimentoRepository),
 		estoqueusecases.NewImagemUsecase(imagemRepository, produtoRepository, categoriaRepository, arquivoRepository, armazenamento, usuarioRepository, cargoRepository),
 		estoqueusecases.NewPublicoUsecase(categoriaRepository, produtoRepository, imagemRepository),
+		empresausecases.NewEmpresaUsecase(empresaRepository, usuarioRepository, cargoRepository),
 		autenticacao.NovoTokenService(segredoDoTeste, time.Hour),
 	)
 

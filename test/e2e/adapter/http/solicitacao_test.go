@@ -59,9 +59,9 @@ func TestFluxoCompletoDeSolicitacaoDePagamento(t *testing.T) {
 	cargoOperador := criarCargo(t, servidor, "Operador da obra", false)
 	cargoFinanceiro := criarCargoComPerfil(t, servidor, "Setor financeiro", false, true)
 
-	criarUsuario(t, servidor, "Ana Souza", "ana.souza@exemplo.com", "senhaForte123", cargoOperador)
-	criarUsuario(t, servidor, "Bruno Costa", "bruno.costa@exemplo.com", "senhaForte123", cargoFinanceiro)
-	idAprovador := criarUsuario(t, servidor, "Carla Dias", "carla.dias@exemplo.com", "senhaForte123", cargoOperador)
+	criarUsuarioComAcesso(t, servidor, "Ana Souza", "ana.souza@exemplo.com", "senhaForte123", cargoOperador)
+	criarUsuarioComAcesso(t, servidor, "Bruno Costa", "bruno.costa@exemplo.com", "senhaForte123", cargoFinanceiro)
+	idAprovador := criarUsuarioComAcesso(t, servidor, "Carla Dias", "carla.dias@exemplo.com", "senhaForte123", cargoOperador)
 
 	tokenSolicitante := autenticar(t, servidor, "ana.souza@exemplo.com", "senhaForte123").Token
 	tokenFinanceiro := autenticar(t, servidor, "bruno.costa@exemplo.com", "senhaForte123").Token
@@ -77,6 +77,7 @@ func TestFluxoCompletoDeSolicitacaoDePagamento(t *testing.T) {
 
 	prazo := time.Now().UTC().AddDate(0, 0, 10).Format("2006-01-02")
 	respostaCriar := enviaComToken(t, servidor, http.MethodPost, "/api/v1/solicitacoes", map[string]any{
+		"empresa_id":      empresaDoTeste(t, servidor),
 		"valor_centavos":  150000,
 		"prazo_pagamento": prazo,
 		"observacao":      "Compra de cimento para a fase 2",
@@ -223,6 +224,7 @@ func criarSolicitacaoBase(t *testing.T, servidor *httptest.Server, token string)
 	t.Helper()
 
 	resposta := enviaComToken(t, servidor, http.MethodPost, "/api/v1/solicitacoes", map[string]any{
+		"empresa_id":      empresaDoTeste(t, servidor),
 		"valor_centavos":  99000,
 		"prazo_pagamento": time.Now().UTC().AddDate(0, 0, 5).Format("2006-01-02"),
 		"observacao":      "Compra de areia para a alvenaria",
@@ -237,8 +239,8 @@ func usuariosParaSolicitacao(t *testing.T, servidor *httptest.Server, apelido st
 	t.Helper()
 
 	cargo := criarCargo(t, servidor, "Operador "+apelido, false)
-	criarUsuario(t, servidor, "Solicitante "+apelido, "solicitante."+apelido+"@exemplo.com", "senhaForte123", cargo)
-	idAprovador := criarUsuario(t, servidor, "Aprovador "+apelido, "aprovador."+apelido+"@exemplo.com", "senhaForte123", cargo)
+	criarUsuarioComAcesso(t, servidor, "Solicitante "+apelido, "solicitante."+apelido+"@exemplo.com", "senhaForte123", cargo)
+	idAprovador := criarUsuarioComAcesso(t, servidor, "Aprovador "+apelido, "aprovador."+apelido+"@exemplo.com", "senhaForte123", cargo)
 
 	tokenSolicitante := autenticar(t, servidor, "solicitante."+apelido+"@exemplo.com", "senhaForte123").Token
 	tokenAprovador := autenticar(t, servidor, "aprovador."+apelido+"@exemplo.com", "senhaForte123").Token
@@ -255,10 +257,11 @@ func TestCriarSolicitacaoInvalidaERetornoInexistente(t *testing.T) {
 	servidor, _ := servidorDoTeste(t)
 
 	cargo := criarCargo(t, servidor, "Operador de validação", false)
-	criarUsuario(t, servidor, "Fábio Neves", "fabio.neves@exemplo.com", "senhaForte123", cargo)
+	criarUsuarioComAcesso(t, servidor, "Fábio Neves", "fabio.neves@exemplo.com", "senhaForte123", cargo)
 	token := autenticar(t, servidor, "fabio.neves@exemplo.com", "senhaForte123").Token
 
 	respostaPrazo := enviaComToken(t, servidor, http.MethodPost, "/api/v1/solicitacoes", map[string]any{
+		"empresa_id":      empresaDoTeste(t, servidor),
 		"valor_centavos":  1000,
 		"prazo_pagamento": "2001-01-01",
 		"forma_pagamento": "pix",
@@ -269,6 +272,7 @@ func TestCriarSolicitacaoInvalidaERetornoInexistente(t *testing.T) {
 	}
 
 	respostaForma := enviaComToken(t, servidor, http.MethodPost, "/api/v1/solicitacoes", map[string]any{
+		"empresa_id":      empresaDoTeste(t, servidor),
 		"valor_centavos":  1000,
 		"prazo_pagamento": time.Now().UTC().AddDate(0, 0, 5).Format("2006-01-02"),
 		"forma_pagamento": "dinheiro",
@@ -307,7 +311,7 @@ func TestFiltroDeStatusNaoUltrapassaEscopo(t *testing.T) {
 	tokenSolicitante, tokenAprovador := usuariosParaSolicitacao(t, servidor, "escopo")
 
 	cargoFinanceiro := criarCargoComPerfil(t, servidor, "Financeiro do escopo", false, true)
-	criarUsuario(t, servidor, "Iara Lopes", "iara.lopes@exemplo.com", "senhaForte123", cargoFinanceiro)
+	criarUsuarioComAcesso(t, servidor, "Iara Lopes", "iara.lopes@exemplo.com", "senhaForte123", cargoFinanceiro)
 	tokenFinanceiro := autenticar(t, servidor, "iara.lopes@exemplo.com", "senhaForte123").Token
 
 	criarSolicitacaoBase(t, servidor, tokenSolicitante)

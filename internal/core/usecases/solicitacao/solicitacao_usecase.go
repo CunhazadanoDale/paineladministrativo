@@ -25,6 +25,7 @@ func NewSolicitacaoUsecase(
 	aprovadores portsout.AprovadorRepository,
 	usuarios portsout.UsuarioRepository,
 	cargos portsout.CargoRepository,
+	empresas portsout.EmpresaRepository,
 ) *SolicitacaoUsecaseImpl {
 	return &SolicitacaoUsecaseImpl{
 		repo:     repo,
@@ -33,6 +34,7 @@ func NewSolicitacaoUsecase(
 			usuarios:    usuarios,
 			cargos:      cargos,
 			aprovadores: aprovadores,
+			empresas:    empresas,
 		},
 	}
 }
@@ -58,12 +60,16 @@ func (u *SolicitacaoUsecaseImpl) Criar(ctx context.Context, input portsin.CriarS
 		return uuid.Nil, err
 	}
 
+	if err := u.validarEmpresa(ctx, input.SolicitanteID, input.EmpresaID); err != nil {
+		return uuid.Nil, err
+	}
+
 	if err := u.validarArquivos(ctx, input.SolicitanteID, input.ArquivoIDs); err != nil {
 		return uuid.Nil, err
 	}
 
 	solicitacao, err := domainsolicitacao.NovaSolicitacao(
-		input.SolicitanteID, valor, prazo, observacao, formaPagamento, input.ArquivoIDs,
+		input.SolicitanteID, input.EmpresaID, valor, prazo, observacao, formaPagamento, input.ArquivoIDs,
 	)
 	if err != nil {
 		return uuid.Nil, err
@@ -116,6 +122,20 @@ func (u *SolicitacaoUsecaseImpl) Listar(ctx context.Context, input portsin.Lista
 		}
 	default:
 		return nil, domain.ErroValidacao("escopo de listagem inválido")
+	}
+
+	acesso, err := u.empresas.AcessoDoUsuario(ctx, input.UsuarioID)
+	if err != nil {
+		return nil, err
+	}
+	if input.Escopo == portsin.EscopoAprovacao || input.Escopo == portsin.EscopoFinanceiro {
+		filtro.EmpresaIDs = acesso.EmpresaIDs()
+	}
+	if input.Empresa != nil {
+		if filtro.Solicitante == nil && !acesso.Permite(*input.Empresa) {
+			return nil, domain.ErroPermissao("perfil sem acesso a esta empresa")
+		}
+		filtro.Empresa = input.Empresa
 	}
 
 	if input.Status != "" {
@@ -214,6 +234,9 @@ func (u *SolicitacaoUsecaseImpl) RegistrarPagamento(ctx context.Context, input p
 	if err != nil {
 		return err
 	}
+	if err := u.exigeAcessoAEmpresa(ctx, input.UsuarioID, solicitacao.EmpresaID); err != nil {
+		return err
+	}
 
 	if err := u.validarComprovante(ctx, solicitacao.ID, input.UsuarioID, input.ComprovanteArquivoID); err != nil {
 		return err
@@ -291,6 +314,9 @@ func (u *SolicitacaoUsecaseImpl) transicionarPorAprovador(
 	if err != nil {
 		return err
 	}
+	if err := u.exigeAcessoAEmpresa(ctx, aprovadorID, solicitacao.EmpresaID); err != nil {
+		return err
+	}
 
 	historico, err := aplicar(solicitacao, time.Now().UTC())
 	if err != nil {
@@ -343,6 +369,28 @@ func (u *SolicitacaoUsecaseImpl) buscarVisivel(ctx context.Context, id, usuarioI
 	}
 
 	return solicitacao, nil
+}
+
+func (u *SolicitacaoUsecaseImpl) validarEmpresa(ctx context.Context, solicitanteID, empresaID uuid.UUID) error {
+	if empresaID == uuid.Nil {
+		return domain.ErroValidacao("empresa da solicitação não informada")
+	}
+
+	empresa, err := u.empresas.Obter(ctx, empresaID)
+	if err != nil {
+		return err
+	}
+	if empresa == nil {
+		return domain.ErroValidacao("empresa da solicitação não encontrada")
+	}
+	if err := u.exigeAcessoAEmpresa(ctx, solicitanteID, empresaID); err != nil {
+		return err
+	}
+	if !empresa.Ativa {
+		return domain.ErroValidacao("empresa inativa não recebe solicitação nova")
+	}
+
+	return nil
 }
 
 func (u *SolicitacaoUsecaseImpl) validarArquivos(ctx context.Context, proprietarioID uuid.UUID, arquivoIDs []uuid.UUID) error {

@@ -18,6 +18,7 @@ func TestCriarSolicitacaoValidaFicaPendenteComHistorico(t *testing.T) {
 
 	id, err := c.solicitacao.Criar(c.ctx, portsin.CriarSolicitacaoInput{
 		SolicitanteID:  solicitante,
+		EmpresaID:      c.empresaID,
 		ValorCentavos:  150000,
 		PrazoPagamento: time.Now().UTC().AddDate(0, 0, 10),
 		Observacao:     "compra de cimento",
@@ -68,6 +69,7 @@ func TestCriarSolicitacaoRejeitaDadosInvalidos(t *testing.T) {
 	for _, caso := range casos {
 		input := portsin.CriarSolicitacaoInput{
 			SolicitanteID:  solicitante,
+			EmpresaID:      c.empresaID,
 			ValorCentavos:  10000,
 			PrazoPagamento: time.Now().UTC().AddDate(0, 0, 1),
 			Observacao:     "observação",
@@ -97,6 +99,7 @@ func TestCriarSolicitacaoComArquivoDeOutroUsuarioRecebeProibido(t *testing.T) {
 
 	_, err := c.solicitacao.Criar(c.ctx, portsin.CriarSolicitacaoInput{
 		SolicitanteID:  ana,
+		EmpresaID:      c.empresaID,
 		ValorCentavos:  10000,
 		PrazoPagamento: time.Now().UTC().AddDate(0, 0, 1),
 		Observacao:     "observação",
@@ -117,6 +120,7 @@ func TestCriarSolicitacaoComArquivoJaVinculadoRecebeErroDeValidacao(t *testing.T
 
 	_, err := c.solicitacao.Criar(c.ctx, portsin.CriarSolicitacaoInput{
 		SolicitanteID:  ana,
+		EmpresaID:      c.empresaID,
 		ValorCentavos:  10000,
 		PrazoPagamento: time.Now().UTC().AddDate(0, 0, 1),
 		Observacao:     "observação",
@@ -135,6 +139,7 @@ func TestCriarSolicitacaoComArquivoRepetidoRecebeErroDeValidacao(t *testing.T) {
 
 	_, err := c.solicitacao.Criar(c.ctx, portsin.CriarSolicitacaoInput{
 		SolicitanteID:  ana,
+		EmpresaID:      c.empresaID,
 		ValorCentavos:  10000,
 		PrazoPagamento: time.Now().UTC().AddDate(0, 0, 1),
 		Observacao:     "observação",

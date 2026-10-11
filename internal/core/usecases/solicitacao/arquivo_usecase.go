@@ -33,6 +33,7 @@ func NewArquivoUsecase(
 	usuarios portsout.UsuarioRepository,
 	cargos portsout.CargoRepository,
 	aprovadores portsout.AprovadorRepository,
+	empresas portsout.EmpresaRepository,
 ) *ArquivoUsecaseImpl {
 	return &ArquivoUsecaseImpl{
 		repo:         arquivos,
@@ -42,6 +43,7 @@ func NewArquivoUsecase(
 			usuarios:    usuarios,
 			cargos:      cargos,
 			aprovadores: aprovadores,
+			empresas:    empresas,
 		},
 	}
 }

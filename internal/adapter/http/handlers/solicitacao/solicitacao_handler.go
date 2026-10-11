@@ -59,10 +59,17 @@ func (h *SolicitacaoHandler) Listar(w http.ResponseWriter, r *http.Request) {
 
 	paginacao := resposta.ConsultaPaginacao(r)
 
+	empresa, err := resposta.ConsultaUUID(r, "empresa")
+	if err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+
 	itens, err := h.usecase.Listar(r.Context(), portsin.ListarSolicitacoesInput{
 		UsuarioID: usuario.ID,
 		Escopo:    resposta.ConsultaTexto(r, "escopo"),
 		Status:    resposta.ConsultaTexto(r, "status"),
+		Empresa:   empresa,
 		Filtro:    paginacao,
 	})
 	if err != nil {

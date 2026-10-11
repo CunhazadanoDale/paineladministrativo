@@ -13,6 +13,7 @@ import (
 const formatoDataPagamento = "2006-01-02"
 
 type CriarSolicitacaoRequest struct {
+	EmpresaID      uuid.UUID   `json:"empresa_id"`
 	ValorCentavos  int64       `json:"valor_centavos"`
 	PrazoPagamento string      `json:"prazo_pagamento"`
 	Observacao     string      `json:"observacao"`
@@ -28,6 +29,7 @@ func (r CriarSolicitacaoRequest) ParaInput(solicitanteID uuid.UUID) (portsin.Cri
 
 	return portsin.CriarSolicitacaoInput{
 		SolicitanteID:  solicitanteID,
+		EmpresaID:      r.EmpresaID,
 		ValorCentavos:  r.ValorCentavos,
 		PrazoPagamento: prazo,
 		Observacao:     r.Observacao,
@@ -71,6 +73,7 @@ func (r RegistrarPagamentoRequest) ParaInput(solicitacaoID, usuarioID uuid.UUID)
 type SolicitacaoResponse struct {
 	ID             uuid.UUID   `json:"id"`
 	SolicitanteID  uuid.UUID   `json:"solicitante_id"`
+	EmpresaID      uuid.UUID   `json:"empresa_id"`
 	AprovadorID    *uuid.UUID  `json:"aprovador_id"`
 	ValorCentavos  int64       `json:"valor_centavos"`
 	PrazoPagamento time.Time   `json:"prazo_pagamento"`
@@ -90,6 +93,7 @@ func NovaSolicitacaoResponse(item *domainsolicitacao.Solicitacao) SolicitacaoRes
 	resposta := SolicitacaoResponse{
 		ID:             item.ID,
 		SolicitanteID:  item.SolicitanteID,
+		EmpresaID:      item.EmpresaID,
 		AprovadorID:    item.AprovadorID,
 		ValorCentavos:  item.Valor.Centavos(),
 		PrazoPagamento: item.Prazo.Data(),

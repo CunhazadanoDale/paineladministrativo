@@ -578,19 +578,27 @@ se outra pessoa mudar primeiro, a segunda recebe `409`
 
 **Quem pode ver** uma solicitação (roteiros `Obter`, `pagamento`, `historico`, `arquivos`):
 o próprio solicitante, um administrador, o aprovador designado e o financeiro (que só enxerga
-solicitações fora de `pendente_aprovacao`). Quem não pode ver recebe `403`
-(`perfil sem permissão para consultar esta solicitação`).
+solicitações fora de `pendente_aprovacao`). Aprovador e financeiro só enxergam solicitações
+de empresas do seu **acesso** (seção "Empresas"); o solicitante sempre vê as próprias. Quem
+não pode ver recebe `403` (`perfil sem permissão para consultar esta solicitação`).
+Aprovar, rejeitar e registrar pagamento de solicitação de empresa fora do acesso também
+respondem `403` (`perfil sem acesso a esta empresa`).
 
 ### Escopos de listagem
 
-`GET /api/v1/solicitacoes` aceita `pagina`, `tamanho`, `escopo` e `status`:
+`GET /api/v1/solicitacoes` aceita `pagina`, `tamanho`, `escopo`, `status` e `empresa`:
 
 | `escopo` | Quem pode | O que lista |
 | --- | --- | --- |
 | vazio ou `minhas` | autenticado | as que ele mesmo criou |
-| `aprovacao` | aprovador designado ou administrador | as `pendente_aprovacao` |
-| `financeiro` | cargo com `"financeiro": true` ou administrador | as `aprovado` |
+| `aprovacao` | aprovador designado ou administrador | as `pendente_aprovacao` das empresas do seu acesso |
+| `financeiro` | cargo com `"financeiro": true` ou administrador | as `aprovado` das empresas do seu acesso |
 | `todas` | administrador | todas |
+
+`empresa=<uuid>` restringe qualquer escopo a uma empresa. Nas filas (`aprovacao`,
+`financeiro`) e em `todas`, empresa fora do acesso devolve `403` (`perfil sem acesso a esta
+empresa`); em `minhas` o filtro vale mesmo sem acesso, porque o solicitante sempre vê as
+próprias solicitações.
 
 `status=` (ex.: `?escopo=todas&status=pago`) filtra dentro do que o escopo já deixa
 enxergar — não serve para furar a definição do escopo. `escopo=aprovacao` só aceita
@@ -603,6 +611,7 @@ devolve `400` (`escopo de listagem inválido`); escopo de outro perfil devolve `
 
 ```json
 {
+  "empresa_id": "uuid-da-empresa",
   "valor_centavos": 150000,
   "prazo_pagamento": "2026-10-20",
   "observacao": "Compra de cimento para a fase 2",
@@ -613,6 +622,7 @@ devolve `400` (`escopo de listagem inválido`); escopo de outro perfil devolve `
 
 | Campo | Regra |
 | --- | --- |
+| `empresa_id` | obrigatório; a empresa precisa existir, estar ativa e estar no acesso do solicitante |
 | `valor_centavos` | inteiro em centavos, maior que zero (`150000` = R$ 1.500,00) |
 | `prazo_pagamento` | `AAAA-MM-DD` (ou RFC3339). Obrigatório e não pode ser anterior a hoje |
 | `observacao` | obrigatória, no máximo 1000 caracteres |
@@ -625,6 +635,7 @@ devolve `400` (`escopo de listagem inválido`); escopo de outro perfil devolve `
 {
   "id": "00000000-0000-4000-8000-000000000001",
   "solicitante_id": "00000000-0000-4000-8000-000000000002",
+  "empresa_id": "00000000-0000-4000-8000-000000000004",
   "aprovador_id": null,
   "valor_centavos": 150000,
   "prazo_pagamento": "2026-10-20T00:00:00Z",
@@ -649,6 +660,10 @@ devolve `400` (`escopo de listagem inválido`); escopo de outro perfil devolve `
 | Anexo de outra pessoa | `403` | `arquivo não pertence ao solicitante` |
 | Anexo já em uso | `400` | `erro de validação: arquivo já vinculado a outra solicitação` |
 | Mesmo anexo duas vezes | `400` | `erro de validação: arquivo repetido na solicitação` |
+| Sem `empresa_id` | `400` | `erro de validação: empresa da solicitação não informada` |
+| Empresa inexistente | `400` | `erro de validação: empresa da solicitação não encontrada` |
+| Empresa fora do acesso | `403` | `perfil sem acesso a esta empresa` |
+| Empresa inativa | `400` | `erro de validação: empresa inativa não recebe solicitação nova` |
 
 ### `POST /api/v1/solicitacoes/{id}/aprovar`
 
@@ -988,6 +1003,95 @@ O objeto público **não expõe** `saldo`, `codigo`, `ativo`, `estoque_minimo`, 
 nem `atualizado_em`. Sem estoque o produto some da vitrine inteira (lista, destaques e
 detalhe) — não há selo "esgotado". O mesmo vale para produto de categoria inativa ou de
 subcategoria cujo pai está inativo. Categoria desconhecida ou oculta em `?categoria=` devolve `404`.
+
+---
+
+## Empresas — administrador escreve, autenticado lê o próprio acesso
+
+Cada CNPJ do grupo é uma empresa (inclusive filiais). Usuários enxergam só as empresas do
+seu **acesso**: o administrador vê todas; os demais veem as vinculadas a eles ou todas,
+quando `acesso_todas` está ligado.
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/empresas` | **administrador** | `201` objeto único |
+| `GET` | `/api/v1/empresas` | autenticado | `200` lista paginada do acesso (`?ativas=true` filtra) |
+| `GET` | `/api/v1/empresas/{id}` | autenticado | `200` se estiver no acesso, senão `403` |
+| `PUT` | `/api/v1/empresas/{id}` | **administrador** | `200` |
+| `PATCH` | `/api/v1/empresas/{id}/ativar` | **administrador** | `200` |
+| `PATCH` | `/api/v1/empresas/{id}/desativar` | **administrador** | `200` |
+| `DELETE` | `/api/v1/empresas/{id}` | **administrador** | `204` |
+| `GET` | `/api/v1/usuarios/{id}/empresas` | **administrador** | `200` vínculos do usuário |
+| `PUT` | `/api/v1/usuarios/{id}/empresas` | **administrador** | `200` vínculos gravados |
+
+### `POST /api/v1/empresas`
+
+```json
+{
+  "cnpj": "11.222.333/0001-81",
+  "razao_social": "MIA Construtora LTDA",
+  "nome_fantasia": "MIA",
+  "uf": "PB",
+  "regime_tributario": "presumido"
+}
+```
+
+| Campo | Regra |
+| --- | --- |
+| `cnpj` | obrigatório, com ou sem máscara; dígitos verificadores conferidos; aceita o formato alfanumérico (12 caracteres `0-9A-Z` + 2 dígitos); não muda depois de criado |
+| `razao_social` | obrigatório, até 200 caracteres |
+| `nome_fantasia` | obrigatório, até 120 caracteres |
+| `uf` | sigla de um dos 27 estados, maiúscula ou minúscula |
+| `regime_tributario` | `simples`, `presumido` ou `real` |
+
+`PUT /api/v1/empresas/{id}` usa o mesmo corpo **sem** `cnpj`.
+
+| Erro | Status | Mensagem |
+| --- | --- | --- |
+| CNPJ inválido | `400` | `erro de validação: cnpj inválido` |
+| CNPJ já cadastrado | `409` | `já existe uma empresa com este cnpj` |
+| UF fora da lista | `400` | `erro de validação: uf deve ser a sigla de um estado brasileiro` |
+| Regime fora da lista | `400` | `erro de validação: regime tributário deve ser simples, presumido ou real` |
+| Empresa fora do acesso | `403` | `perfil sem acesso a esta empresa` |
+| Excluir empresa com vínculos | `400` | `erro de validação: registro em uso por outros dados e não pode ser excluído` |
+
+**Objeto de empresa:**
+
+```json
+{
+  "id": "uuid",
+  "razao_social": "MIA Construtora LTDA",
+  "nome_fantasia": "MIA",
+  "cnpj": "11222333000181",
+  "cnpj_formatado": "11.222.333/0001-81",
+  "uf": "PB",
+  "regime_tributario": "presumido",
+  "ativa": true,
+  "criado_em": "2026-10-10T14:26:19.854486Z",
+  "atualizado_em": "2026-10-10T14:26:19.854486Z"
+}
+```
+
+O caminho normal para tirar uma empresa de uso é desativar: ela continua no histórico,
+mas não recebe registro novo. A exclusão só funciona para empresa sem nenhum vínculo.
+
+### `PUT /api/v1/usuarios/{id}/empresas`
+
+Substitui o conjunto inteiro de vínculos do usuário:
+
+```json
+{ "acesso_todas": false, "empresa_ids": ["uuid-da-mia", "uuid-da-gigante-ce"] }
+```
+
+Com `acesso_todas: true` o usuário enxerga todas as empresas, inclusive as criadas depois,
+e a lista é guardada para quando o acesso total for desligado. Empresas repetidas são
+ignoradas; empresa inexistente responde `400`. A resposta (e o `GET` da mesma rota) devolve
+o mesmo formato. Usuários criados depois do M1 nascem **sem** acesso; os que existiam antes
+receberam `acesso_todas: true` na migração.
+
+A rota mostra os vínculos **gravados**, não o acesso efetivo: um usuário com cargo
+`administrador` enxerga todas as empresas mesmo que a rota devolva
+`acesso_todas: false` e `empresa_ids: []`.
 
 ---
 

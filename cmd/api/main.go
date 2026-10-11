@@ -19,6 +19,7 @@ import (
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/storage/disco"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/storage/r2"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/solicitacao"
+	empresausecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/empresa"
 	estoqueusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/estoque"
 	leadusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/lead"
 	solicitacaousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/solicitacao"
@@ -68,6 +69,7 @@ func executar(registrador *slog.Logger) error {
 	produtoRepository := postgres.NewProdutoRepository(banco)
 	movimentoRepository := postgres.NewMovimentoRepository(banco)
 	imagemRepository := postgres.NewImagemRepository(banco)
+	empresaRepository := postgres.NewEmpresaRepository(banco)
 
 	rotas := httpapi.NewRouter(
 		banco,
@@ -84,6 +86,7 @@ func executar(registrador *slog.Logger) error {
 			aprovadorRepository,
 			usuarioRepository,
 			cargoRepository,
+			empresaRepository,
 		),
 		solicitacaousecases.NewArquivoUsecase(
 			arquivoRepository,
@@ -92,6 +95,7 @@ func executar(registrador *slog.Logger) error {
 			usuarioRepository,
 			cargoRepository,
 			aprovadorRepository,
+			empresaRepository,
 		),
 		solicitacaousecases.NewAprovadorUsecase(aprovadorRepository, usuarioRepository),
 		estoqueusecases.NewCategoriaUsecase(categoriaRepository, usuarioRepository, cargoRepository),
@@ -100,6 +104,7 @@ func executar(registrador *slog.Logger) error {
 		estoqueusecases.NewResumoUsecase(produtoRepository, movimentoRepository),
 		estoqueusecases.NewImagemUsecase(imagemRepository, produtoRepository, categoriaRepository, arquivoRepository, storageArquivos, usuarioRepository, cargoRepository),
 		estoqueusecases.NewPublicoUsecase(categoriaRepository, produtoRepository, imagemRepository),
+		empresausecases.NewEmpresaUsecase(empresaRepository, usuarioRepository, cargoRepository),
 		autenticacao.NovoTokenService(cfg.JWTSecret, cfg.JWTExpiracao),
 	)
 

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	domainempresa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/empresa"
 	domainsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/solicitacao"
 	domainusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/usuarios"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/solicitacao"
@@ -23,7 +24,9 @@ type cenario struct {
 	arquivosRepo     *repositorioArquivos
 	solicitacoesRepo *repositorioSolicitacoes
 	aprovadoresRepo  *repositorioAprovadores
+	empresasRepo     *repositorioEmpresas
 	storage          *storageFalso
+	empresaID        uuid.UUID
 }
 
 func novoCenario(t *testing.T) *cenario {
@@ -35,19 +38,53 @@ func novoCenario(t *testing.T) *cenario {
 	solicitacoes := novoRepositorioSolicitacoes(arquivos)
 	aprovadores := novoRepositorioAprovadores()
 	storage := novoStorageFalso()
+	empresas := novoRepositorioEmpresas()
 
-	return &cenario{
+	c := &cenario{
 		ctx:              context.Background(),
-		solicitacao:      solicitacaousecases.NewSolicitacaoUsecase(solicitacoes, arquivos, aprovadores, usuarios, cargos),
-		arquivo:          solicitacaousecases.NewArquivoUsecase(arquivos, solicitacoes, storage, usuarios, cargos, aprovadores),
+		solicitacao:      solicitacaousecases.NewSolicitacaoUsecase(solicitacoes, arquivos, aprovadores, usuarios, cargos, empresas),
+		arquivo:          solicitacaousecases.NewArquivoUsecase(arquivos, solicitacoes, storage, usuarios, cargos, aprovadores, empresas),
 		aprovador:        solicitacaousecases.NewAprovadorUsecase(aprovadores, usuarios),
 		usuariosRepo:     usuarios,
 		cargosRepo:       cargos,
 		arquivosRepo:     arquivos,
 		solicitacoesRepo: solicitacoes,
 		aprovadoresRepo:  aprovadores,
+		empresasRepo:     empresas,
 		storage:          storage,
 	}
+	c.empresaID = c.novaEmpresa(true)
+
+	return c
+}
+
+func (c *cenario) novaEmpresa(ativa bool) uuid.UUID {
+	id := uuid.New()
+	c.empresasRepo.itens[id] = &domainempresa.Empresa{ID: id, NomeFantasia: "Empresa " + id.String()[:8], Ativa: ativa}
+
+	return id
+}
+
+func (c *cenario) restringirAcesso(usuarioID uuid.UUID, empresaIDs ...uuid.UUID) {
+	c.empresasRepo.acessos[usuarioID] = domainempresa.AcessoRestrito(empresaIDs)
+}
+
+func (c *cenario) criarSolicitacaoNaEmpresa(t *testing.T, solicitanteID, empresaID uuid.UUID) uuid.UUID {
+	t.Helper()
+
+	id, err := c.solicitacao.Criar(c.ctx, portsin.CriarSolicitacaoInput{
+		SolicitanteID:  solicitanteID,
+		EmpresaID:      empresaID,
+		ValorCentavos:  10000,
+		PrazoPagamento: time.Now().UTC().AddDate(0, 0, 7),
+		Observacao:     "material para a obra",
+		FormaPagamento: "pix",
+	})
+	if err != nil {
+		t.Fatalf("criação da solicitação na empresa falhou: %v", err)
+	}
+
+	return id
 }
 
 func (c *cenario) novoUsuario(nome string, administrador, financeiro bool) uuid.UUID {
@@ -93,6 +130,7 @@ func (c *cenario) criarSolicitacao(t *testing.T, solicitanteID uuid.UUID, valorC
 
 	id, err := c.solicitacao.Criar(c.ctx, portsin.CriarSolicitacaoInput{
 		SolicitanteID:  solicitanteID,
+		EmpresaID:      c.empresaID,
 		ValorCentavos:  valorCentavos,
 		PrazoPagamento: time.Now().UTC().AddDate(0, 0, 7),
 		Observacao:     "material para a obra",
@@ -110,6 +148,7 @@ func (c *cenario) criarSolicitacaoComArquivos(t *testing.T, solicitanteID uuid.U
 
 	id, err := c.solicitacao.Criar(c.ctx, portsin.CriarSolicitacaoInput{
 		SolicitanteID:  solicitanteID,
+		EmpresaID:      c.empresaID,
 		ValorCentavos:  10000,
 		PrazoPagamento: time.Now().UTC().AddDate(0, 0, 7),
 		Observacao:     "material para a obra",
