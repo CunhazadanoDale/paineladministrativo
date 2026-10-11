@@ -139,8 +139,8 @@ M6, M7, M9 e M13.
 |---|---|---|---|---|
 | T0 | Saneamento | — | — | concluído |
 | F0 | Correções do front | — | — | pendente |
-| M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | em andamento (feat/m1-empresas) |
-| M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | pendente |
+| M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
+| M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | em andamento (feat/m2-estoque-locais) |
 | M3 | Clientes e representantes | M1 | Base de clientes | pendente |
 | M4 | Fornecedores | T0 | coluna fornecedor do painel financeiro | pendente |
 | M5 | Contas bancárias e plano de contas | M1 | classificação manual dos extratos | pendente |
