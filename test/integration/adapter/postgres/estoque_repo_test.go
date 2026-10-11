@@ -468,7 +468,7 @@ func TestResumoConsolidaTotaisEUltimosMovimentos(t *testing.T) {
 		t.Errorf("produtos com estoque baixo = %d, esperado 1", resumo.ProdutosEstoqueBaixo)
 	}
 
-	movimentos, err := c.movimentos.ListarResumo(ctx, 1)
+	movimentos, err := c.movimentos.ListarResumo(ctx, 1, nil)
 	if err != nil {
 		t.Fatalf("resumo de movimentos falhou: %v", err)
 	}

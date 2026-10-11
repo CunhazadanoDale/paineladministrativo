@@ -21,3 +21,12 @@ func (s SaldoLocal) Disponivel() int {
 func (s SaldoLocal) Vazio() bool {
 	return s.Quantidade == 0
 }
+
+type SaldoLocalDetalhe struct {
+	SaldoLocal
+	LocalNome     string
+	EmpresaID     uuid.UUID
+	ProdutoNome   string
+	ProdutoCodigo *string
+	UnidadeMedida UnidadeMedida
+}

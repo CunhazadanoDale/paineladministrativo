@@ -33,7 +33,7 @@ func (u *ResumoUsecaseImpl) Resumo(ctx context.Context) (*domainestoque.ResumoEs
 		return nil, err
 	}
 
-	movimentos, err := u.movimentos.ListarResumo(ctx, quantidadeMovimentosResumo)
+	movimentos, err := u.movimentos.ListarResumo(ctx, quantidadeMovimentosResumo, nil)
 	if err != nil {
 		return nil, err
 	}

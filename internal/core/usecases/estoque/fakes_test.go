@@ -304,7 +304,7 @@ func (r *repositorioMovimentos) Listar(_ context.Context, filtro portsout.Movime
 	return itens, nil
 }
 
-func (r *repositorioMovimentos) ListarResumo(_ context.Context, limite int) ([]*domainestoque.MovimentoResumo, error) {
+func (r *repositorioMovimentos) ListarResumo(_ context.Context, limite int, _ []uuid.UUID) ([]*domainestoque.MovimentoResumo, error) {
 	itens := make([]domainestoque.MovimentoResumo, 0)
 	for _, movimentos := range r.origem.movimentos {
 		for _, movimento := range movimentos {

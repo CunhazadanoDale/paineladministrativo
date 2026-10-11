@@ -36,6 +36,8 @@ type produtoLinha struct {
 	Preco            *int64    `db:"preco"`
 	PrecoPromocional *int64    `db:"preco_promocional"`
 	QuantidadeAtual  int       `db:"quantidade_atual"`
+	Reservada        int       `db:"quantidade_reservada"`
+	VersaoEstoque    int64     `db:"versao_estoque"`
 	EstoqueMinimo    *int      `db:"estoque_minimo"`
 	PesoKg           *float64  `db:"peso_kg"`
 	Destaque         bool      `db:"destaque"`
@@ -46,8 +48,8 @@ type produtoLinha struct {
 
 const colunasProduto = `
 	id, categoria_id, nome, slug, descricao, codigo, unidade_medida, preco,
-	preco_promocional, quantidade_atual, estoque_minimo, peso_kg, destaque,
-	ativo, criado_em, atualizado_em
+	preco_promocional, quantidade_atual, quantidade_reservada, versao_estoque,
+	estoque_minimo, peso_kg, destaque, ativo, criado_em, atualizado_em
 `
 
 func (p *ProdutoRepository) Criar(ctx context.Context, produto *domainestoque.Produto) (uuid.UUID, error) {
@@ -267,11 +269,7 @@ func (p *ProdutoRepository) Movimentar(ctx context.Context, produto *domainestoq
 		return domain.ErroConflito("produto com saldo alterado por outra operação, recarregue e tente novamente")
 	}
 
-	linha := paraLinhaMovimento(movimento)
-	if _, err := tx.NamedExecContext(ctx, `
-		INSERT INTO produto_movimento (id, produto_id, tipo, quantidade, saldo_apos, usuario_id, documento_ref, observacao, criado_em)
-		VALUES (:id, :produto_id, :tipo, :quantidade, :saldo_apos, :usuario_id, :documento_ref, :observacao, :criado_em)
-	`, linha); err != nil {
+	if err := inserirMovimento(ctx, tx, movimento); err != nil {
 		return tratarErroDeGravacao(err)
 	}
 
@@ -289,6 +287,7 @@ func atualizarSaldoComGuarda(ctx context.Context, tx *sqlx.Tx, produtoID uuid.UU
 	resultado, err := tx.NamedExecContext(ctx, `
 		UPDATE produto
 		SET quantidade_atual = :saldo_apos,
+		    versao_estoque = versao_estoque + 1,
 		    atualizado_em = :atualizado_em
 		WHERE id = :id
 		  AND quantidade_atual = :saldo_anterior
@@ -351,6 +350,8 @@ func paraDominioProduto(linha *produtoLinha) *domainestoque.Produto {
 		Codigo:        linha.Codigo,
 		UnidadeMedida: domainestoque.UnidadeMedidaDe(linha.UnidadeMedida),
 		Saldo:         domainestoque.SaldoDe(linha.QuantidadeAtual),
+		Reservado:     domainestoque.SaldoDe(linha.Reservada),
+		VersaoEstoque: linha.VersaoEstoque,
 		Destaque:      linha.Destaque,
 		Ativo:         linha.Ativo,
 		CriadoEm:      linha.CriadoEm,
