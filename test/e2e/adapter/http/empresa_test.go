@@ -107,6 +107,12 @@ func TestUsuarioSoEnxergaEmpresasDoSeuAcesso(t *testing.T) {
 	resposta = enviaComToken(t, servidor, http.MethodGet, "/api/v1/empresas/"+red.ID.String(), nil, token)
 	conferirStatus(t, resposta, http.StatusForbidden)
 
+	resposta = enviaComToken(t, servidor, http.MethodGet, "/api/v1/empresas/"+uuid.NewString(), nil, token)
+	conferirStatus(t, resposta, http.StatusForbidden)
+
+	resposta = envia(t, servidor, http.MethodGet, "/api/v1/empresas/"+uuid.NewString(), nil)
+	conferirStatus(t, resposta, http.StatusNotFound)
+
 	resposta = enviaComToken(t, servidor, http.MethodPost, "/api/v1/empresas", map[string]string{
 		"cnpj": "44555666000181", "razao_social": "X", "nome_fantasia": "X", "uf": "CE", "regime_tributario": "simples",
 	}, token)

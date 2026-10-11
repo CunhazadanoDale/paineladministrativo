@@ -376,15 +376,16 @@ func (u *SolicitacaoUsecaseImpl) validarEmpresa(ctx context.Context, solicitante
 		return domain.ErroValidacao("empresa da solicitação não informada")
 	}
 
+	if err := u.exigeAcessoAEmpresa(ctx, solicitanteID, empresaID); err != nil {
+		return err
+	}
+
 	empresa, err := u.empresas.Obter(ctx, empresaID)
 	if err != nil {
 		return err
 	}
 	if empresa == nil {
 		return domain.ErroValidacao("empresa da solicitação não encontrada")
-	}
-	if err := u.exigeAcessoAEmpresa(ctx, solicitanteID, empresaID); err != nil {
-		return err
 	}
 	if !empresa.Ativa {
 		return domain.ErroValidacao("empresa inativa não recebe solicitação nova")

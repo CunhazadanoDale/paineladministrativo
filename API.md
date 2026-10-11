@@ -661,8 +661,8 @@ devolve `400` (`escopo de listagem inválido`); escopo de outro perfil devolve `
 | Anexo já em uso | `400` | `erro de validação: arquivo já vinculado a outra solicitação` |
 | Mesmo anexo duas vezes | `400` | `erro de validação: arquivo repetido na solicitação` |
 | Sem `empresa_id` | `400` | `erro de validação: empresa da solicitação não informada` |
-| Empresa inexistente | `400` | `erro de validação: empresa da solicitação não encontrada` |
-| Empresa fora do acesso | `403` | `perfil sem acesso a esta empresa` |
+| Empresa inexistente (solicitante com acesso a todas) | `400` | `erro de validação: empresa da solicitação não encontrada` |
+| Empresa fora do acesso, inclusive inexistente | `403` | `perfil sem acesso a esta empresa` |
 | Empresa inativa | `400` | `erro de validação: empresa inativa não recebe solicitação nova` |
 
 ### `POST /api/v1/solicitacoes/{id}/aprovar`
@@ -1015,8 +1015,8 @@ quando `acesso_todas` está ligado.
 | Método | Rota | Perfil | Sucesso |
 | --- | --- | --- | --- |
 | `POST` | `/api/v1/empresas` | **administrador** | `201` objeto único |
-| `GET` | `/api/v1/empresas` | autenticado | `200` lista paginada do acesso (`?ativas=true` filtra) |
-| `GET` | `/api/v1/empresas/{id}` | autenticado | `200` se estiver no acesso, senão `403` |
+| `GET` | `/api/v1/empresas` | autenticado | `200` lista paginada do acesso (`?ativas=true` só ativas, `?ativas=false` só inativas) |
+| `GET` | `/api/v1/empresas/{id}` | autenticado | `200` se estiver no acesso, senão `403` (inclusive para id inexistente); `404` só para quem tem acesso a todas |
 | `PUT` | `/api/v1/empresas/{id}` | **administrador** | `200` |
 | `PATCH` | `/api/v1/empresas/{id}/ativar` | **administrador** | `200` |
 | `PATCH` | `/api/v1/empresas/{id}/desativar` | **administrador** | `200` |
@@ -1044,7 +1044,7 @@ quando `acesso_todas` está ligado.
 | `uf` | sigla de um dos 27 estados, maiúscula ou minúscula |
 | `regime_tributario` | `simples`, `presumido` ou `real` |
 
-`PUT /api/v1/empresas/{id}` usa o mesmo corpo **sem** `cnpj`.
+`PUT /api/v1/empresas/{id}` usa o mesmo corpo **sem** `cnpj`; enviar `cnpj` responde `400`.
 
 | Erro | Status | Mensagem |
 | --- | --- | --- |
