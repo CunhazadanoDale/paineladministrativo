@@ -1,6 +1,6 @@
 # Escopo — M1 Empresas e filiais
 
-> **Status:** escopo aprovado — em implementação.
+> **Status:** API concluída (fases 1 a 5); frontend (fase 6) pendente, depois da trilha F0.
 > **Objetivo:** tudo o que é financeiro, fiscal ou de estoque passa a pertencer a uma empresa
 > do grupo, e cada usuário só enxerga as empresas às quais tem acesso.
 > **Nome do módulo:** `empresa`
@@ -36,14 +36,14 @@ Decisões já tomadas com o usuário:
 | `id` | UUID | sim | `gen_random_uuid()` |
 | `razao_social` | VARCHAR(200) | sim | |
 | `nome_fantasia` | VARCHAR(120) | sim | nome curto exibido nas telas |
-| `cnpj` | CHAR(14) | sim | só dígitos, `uq_empresa_cnpj`, dígitos verificadores validados no domínio |
+| `cnpj` | CHAR(14) | sim | sem máscara (12 caracteres `0-9A-Z` + 2 dígitos verificadores), `uq_empresa_cnpj`, dígitos verificadores validados no domínio |
 | `uf` | CHAR(2) | sim | enum fechado das 27 UFs |
 | `regime_tributario` | VARCHAR(10) | sim | `simples`, `presumido`, `real` |
 | `ativa` | BOOLEAN | sim | default `true` |
 | `criado_em` / `atualizado_em` | TIMESTAMPTZ | sim | |
 
 **Regras:**
-- CNPJ aceito com ou sem máscara na entrada, gravado só com dígitos, devolvido nos dois
+- CNPJ aceito com ou sem máscara na entrada, numérico ou alfanumérico, gravado sem máscara, devolvido nos dois
   formatos (`cnpj` e `cnpj_formatado`). CNPJ com todos os dígitos iguais é inválido.
 - CNPJ **não muda** depois de criado (é a identidade fiscal; corrigir = desativar e criar
   outra).
@@ -91,7 +91,8 @@ de empresas e entregue aos outros módulos por porta mínima (regra 6 do ROADMAP
   - o **administrador** vê todas;
   - **aprovador** e **financeiro** só veem solicitações de empresas do seu acesso.
 - Listagem: as filas `aprovacao` e `financeiro` passam a filtrar pelo acesso; todos os
-  escopos aceitam `?empresa=<id>` (empresa fora do acesso → `403`).
+  escopos aceitam `?empresa=<id>`; nas filas, empresa fora do acesso → `403`; em `minhas` o
+  filtro vale sem checar o acesso, porque o solicitante sempre vê as próprias.
 - Aprovar, rejeitar e registrar pagamento exigem acesso à empresa da solicitação.
 
 ---
