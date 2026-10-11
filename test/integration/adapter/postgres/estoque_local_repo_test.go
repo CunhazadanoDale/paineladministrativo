@@ -133,6 +133,26 @@ func (c *cenarioBancoLocais) gravar(t *testing.T, tipo domainestoque.TipoMovimen
 	return operacao
 }
 
+func (c *cenarioBancoLocais) movimentoAnteriorAosLocais(t *testing.T, quantidade int) {
+	t.Helper()
+
+	comandos := []string{
+		`ALTER TABLE produto_movimento DROP CONSTRAINT chk_produto_movimento_local`,
+		`UPDATE produto SET quantidade_atual = quantidade_atual + $1, versao_estoque = versao_estoque + 1 WHERE id = $2`,
+		`INSERT INTO produto_movimento (produto_id, tipo, quantidade, saldo_apos, usuario_id)
+		 SELECT id, 'entrada', $1, quantidade_atual, $3 FROM produto WHERE id = $2`,
+		`ALTER TABLE produto_movimento
+		 ADD CONSTRAINT chk_produto_movimento_local CHECK (local_id IS NOT NULL AND saldo_local_apos IS NOT NULL) NOT VALID`,
+	}
+	argumentos := [][]any{nil, {quantidade, c.produto.ID}, {quantidade, c.produto.ID, c.usuarioID}, nil}
+
+	for i, comando := range comandos {
+		if _, err := c.banco.ExecContext(c.ctx, comando, argumentos[i]...); err != nil {
+			t.Fatalf("simular movimento anterior aos locais falhou: %v", err)
+		}
+	}
+}
+
 func custoEm(centavos int64) *int64 {
 	return &centavos
 }
@@ -305,9 +325,13 @@ func TestTransferenciaPreservaCustoEIdadeNoDestino(t *testing.T) {
 	if err != nil || len(lotesDaLoja) != 1 {
 		t.Fatalf("lotes da loja = %d (%v), esperado 1", len(lotesDaLoja), err)
 	}
+	lotesDoGalpao, err := c.lotes.Listar(c.ctx, portsout.LoteFiltro{PaginacaoFiltro: todasAsPaginas, ProdutoID: c.produto.ID, LocalID: &galpao.ID})
+	if err != nil || len(lotesDoGalpao) != 1 || lotesDoGalpao[0].ID != entrada.LotesCriados[0].ID {
+		t.Fatalf("lotes do galpão = %+v (%v), esperado o da entrada", lotesDoGalpao, err)
+	}
 	lote := lotesDaLoja[0]
-	origem := entrada.LotesCriados[0]
-	if lote.LoteOrigemID == nil || *lote.LoteOrigemID != origem.ID || lote.Custo.Centavos() != 150 || !lote.EntradaEm.Equal(origem.EntradaEm.Round(time.Microsecond)) {
+	origem := lotesDoGalpao[0]
+	if lote.LoteOrigemID == nil || *lote.LoteOrigemID != origem.ID || lote.Custo.Centavos() != 150 || !lote.EntradaEm.Equal(origem.EntradaEm) {
 		t.Errorf("lote da loja = %+v, esperado herdar custo e entrada do lote %s", lote, origem.ID)
 	}
 
@@ -378,7 +402,7 @@ func TestConsultasDeSaldoELotesRespeitamEmpresasELocais(t *testing.T) {
 	galpao := c.novoLocal(t, c.mia, "Galpão")
 	loja := c.novoLocal(t, c.mia, "Loja")
 	daRed := c.novoLocal(t, c.red, "Depósito")
-	c.movimentar(t, c.produto, domainestoque.TipoMovimentoEntrada, 4)
+	c.movimentoAnteriorAosLocais(t, 4)
 	c.gravar(t, domainestoque.TipoMovimentoEntrada, galpao, 3, custoEm(100))
 	c.gravar(t, domainestoque.TipoMovimentoEntrada, daRed, 7, custoEm(300))
 	c.gravar(t, domainestoque.TipoMovimentoEntrada, loja, 1, custoEm(50))
@@ -503,5 +527,17 @@ func TestSaidasSimultaneasMantemSaldoIgualASomaDosLotes(t *testing.T) {
 	if estoque.Produto.Saldo.Quantidade() != esperado || estoque.SaldoNoLocal(galpao.ID).Quantidade != esperado || somaDosLotes != esperado {
 		t.Errorf("total %d, local %d e lotes %d; esperado %d nos três",
 			estoque.Produto.Saldo.Quantidade(), estoque.SaldoNoLocal(galpao.ID).Quantidade, somaDosLotes, esperado)
+	}
+}
+
+func TestBancoRecusaMovimentoNovoSemLocal(t *testing.T) {
+	c := novoCenarioLocais(t)
+
+	_, err := c.banco.ExecContext(c.ctx, `
+		INSERT INTO produto_movimento (produto_id, tipo, quantidade, saldo_apos, usuario_id)
+		VALUES ($1, 'entrada', 1, 1, $2)
+	`, c.produto.ID, c.usuarioID)
+	if err == nil {
+		t.Fatal("movimento novo sem local foi aceito pelo banco")
 	}
 }

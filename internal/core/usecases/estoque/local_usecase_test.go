@@ -258,7 +258,7 @@ func TestSaldoDoProdutoMostraNaoAlocado(t *testing.T) {
 	mia := c.novaEmpresa(true)
 	galpao := c.novoLocal(t, mia, "Galpão")
 	produto := c.produtoDeTeste(t)
-	c.movimentar(t, produto, "entrada", 10)
+	c.movimentoAnteriorAosLocais(t, produto, 10)
 	c.entradaNoLocal(t, produto, galpao, 4, 100)
 
 	saldo, err := c.movimento.Saldo(c.ctx, produto.ID, c.usuarioID)
@@ -303,7 +303,7 @@ func TestEstoqueDeEmpresasDiferentesFicaIsolado(t *testing.T) {
 	galpaoMia := c.novoLocal(t, mia, "Galpão MIA")
 	depositoRed := c.novoLocal(t, red, "Depósito Red")
 	produto := c.produtoDeTeste(t)
-	c.movimentar(t, produto, "entrada", 1)
+	c.movimentoAnteriorAosLocais(t, produto, 1)
 	c.entradaNoLocal(t, produto, galpaoMia, 3, 100)
 	c.entradaNoLocal(t, produto, depositoRed, 7, 200)
 

@@ -9,12 +9,14 @@ import (
 )
 
 type MovimentarEstoqueInput struct {
-	UsuarioID    uuid.UUID
-	ProdutoID    uuid.UUID
-	Tipo         string
-	Quantidade   int
-	DocumentoRef *string
-	Observacao   string
+	UsuarioID     uuid.UUID
+	ProdutoID     uuid.UUID
+	LocalID       uuid.UUID
+	Tipo          string
+	Quantidade    int
+	CustoCentavos *int64
+	DocumentoRef  *string
+	Observacao    string
 }
 
 type ListarMovimentosInput struct {

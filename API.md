@@ -872,18 +872,44 @@ O objeto devolvido traz `saldo`, `estoque_baixo` (saldo ≤ `estoque_minimo`), `
 | `GET` | `/api/v1/produtos/{id}/movimentos` | autenticado | `200` lista paginada (`?tipo=`, `?local=`) |
 
 ```json
-{ "tipo": "entrada", "quantidade": 10, "documento_ref": "NF-100", "observacao": "reposição do mês" }
+{
+  "local_id": "uuid-do-galpao",
+  "tipo": "entrada",
+  "quantidade": 10,
+  "custo_unitario_centavos": 2590,
+  "documento_ref": "NF-100",
+  "observacao": "reposição do mês"
+}
 ```
 
-| Tipo | Efeito no saldo |
-| --- | --- |
-| `entrada` / `devolucao` | `+` |
-| `saida` / `perda` | `−` |
-| `ajuste` | `+`/`−` (`quantidade` é o delta, aceita negativo) |
+Todo movimento acontece num **local de estoque** (`local_id` obrigatório; ver
+**Estoque — locais**). O local precisa estar no acesso do usuário (`403`).
+
+| Tipo | Efeito no local | Custo (`custo_unitario_centavos`) | Lote |
+| --- | --- | --- | --- |
+| `entrada` | `+` | **obrigatório** (zero é aceito) | cria lote |
+| `devolucao` | `+` | opcional (`null` = desconhecido) | cria lote |
+| `ajuste` positivo | `+` | opcional | cria lote |
+| `implantacao` | `+`, sem mudar o total do produto | opcional | cria lote; limitado ao saldo **não alocado** |
+| `ajuste` negativo | `−` (`quantidade` é o delta, aceita negativo) | não aceita | consome FIFO |
+| `saida` / `perda` | `−` | não aceita | consome FIFO |
 
 `quantidade` não pode ser `0`. Movimento é append-only: não edita, não apaga, e o
-`saldo_apos` fica congelado no registro. Estoque que ficaria negativo devolve
-`400 erro de validação: saldo insuficiente para a movimentação`.
+`saldo_apos` (total do produto) e o `saldo_local_apos` ficam congelados no registro.
+Saídas só consomem o **disponível** do local (saldo − reservado). `transferencia` tem rota
+própria.
+
+| Erro | Status | Mensagem |
+| --- | --- | --- |
+| Sem `local_id` ou local inexistente | `400` | `erro de validação: local do movimento não encontrado` |
+| Entrada sem custo | `400` | `erro de validação: custo unitário é obrigatório na entrada` |
+| Custo em saída, perda ou ajuste negativo | `400` | `erro de validação: custo unitário só é informado em movimento que cria lote` |
+| Acima do disponível no local | `400` | `erro de validação: saldo disponível insuficiente no local` |
+| Implantação acima do não alocado | `400` | `erro de validação: quantidade maior que o saldo ainda não alocado do produto` |
+| Entrada em local inativo | `400` | `erro de validação: local inativo não recebe entrada de estoque` |
+| `tipo` = `transferencia` | `400` | `erro de validação: transferência usa a rota de transferências` |
+| Local fora do acesso | `403` | `perfil sem acesso a esta empresa` |
+| Estoque alterado por outra operação | `409` | `estoque do produto alterado por outra operação, recarregue e tente novamente` |
 
 Para desfazer uma movimentação registra-se a inversa (`entrada` ↔ `saida`,
 `devolucao` ↔ `perda`); o histórico permanece completo.

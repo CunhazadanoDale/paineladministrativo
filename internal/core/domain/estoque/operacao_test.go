@@ -480,3 +480,39 @@ func TestEfeitoDosTiposNovos(t *testing.T) {
 		}
 	}
 }
+
+func TestEntradasNoMesmoInstanteSaoConsumidasNaOrdemDeCriacao(t *testing.T) {
+	c := novoCenarioEstoque(t)
+	agora := c.inicio
+
+	for _, custo := range []int64{100, 200, 300} {
+		valor := domainestoque.CustoDe(custo)
+		operacao, err := c.estoque.Movimentar(domainestoque.MovimentoLocalInput{
+			Tipo:       domainestoque.TipoMovimentoEntrada,
+			Local:      c.galpao,
+			Quantidade: domainestoque.QuantidadeDe(1),
+			Custo:      &valor,
+			UsuarioID:  c.usuario,
+			Agora:      agora,
+		})
+		if err != nil {
+			t.Fatalf("entrada falhou: %v", err)
+		}
+		c.estoque.Lotes = append(c.estoque.Lotes, operacao.LotesCriados...)
+		c.estoque.Saldos[c.galpao.ID] = operacao.Saldos[0]
+		c.estoque.Produto.Saldo = operacao.Saldo
+	}
+
+	for i := len(c.estoque.Lotes) - 1; i > 0; i-- {
+		c.estoque.Lotes[i], c.estoque.Lotes[i-1] = c.estoque.Lotes[i-1], c.estoque.Lotes[i]
+	}
+
+	operacao, err := c.movimentar(domainestoque.TipoMovimentoSaida, c.galpao, 2, nil)
+	if err != nil {
+		t.Fatalf("saída falhou: %v", err)
+	}
+	consumos := operacao.Movimento.Consumos
+	if len(consumos) != 2 || consumos[0].Custo.Centavos() != 100 || consumos[1].Custo.Centavos() != 200 {
+		t.Errorf("consumos = %+v, esperado os lotes de custo 100 e 200 na ordem de criação", consumos)
+	}
+}

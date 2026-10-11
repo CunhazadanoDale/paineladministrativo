@@ -32,7 +32,7 @@ Decisões já tomadas por boa prática (detalhe na seção 9):
 | Tema | Decisão |
 |---|---|
 | Concorrência | `produto.versao_estoque` com guarda otimista: toda operação de estoque do produto lê a versão, grava com `WHERE versao_estoque = :lida` e incrementa; zero linhas → `409` |
-| Ordem FIFO | `entrada_em` do lote, desempate pelo `id` |
+| Ordem FIFO | `entrada_em` do lote, desempate pelo `id`, gerado como UUID v7 (ordenado pela criação): entradas no mesmo instante saem na ordem em que entraram |
 | Transferência | não muda o total do produto; leva o custo e a data de entrada do lote de origem |
 | Histórico | `produto_movimento` continua append-only; consumo de lote em `produto_movimento_lote`, também append-only |
 | Movimentos antigos | ficam sem local (`local_id NULL`); a constraint nova vale só para linhas novas (`NOT VALID`) |
@@ -310,7 +310,7 @@ cmd/api/main.go + internal/adapter/http/rotas.go   (registro, só acréscimos)
 | **1** | Migrations 000028–000031 + domínio (local, saldo por local, lote, FIFO, custo, operação de movimento/transferência/implantação) + testes | concluída |
 | **2** | Repositórios (locais, leitura do estado, gravação transacional com guarda, lotes) + testes de integração, inclusive concorrência | concluída |
 | **3** | Usecases de locais, saldo por local, lotes e transferência + escopo por empresa na listagem de movimentos e no resumo + testes com fakes e de isolamento | concluída |
-| **4** | Handlers/DTOs + rotas novas + e2e + `API.md`; depois a virada da movimentação: `local_id` obrigatório (com `implantacao` e custo), migration 000032 e remoção do caminho antigo sem local | pendente |
+| **4** | Handlers/DTOs + rotas novas + e2e + `API.md`; depois a virada da movimentação: `local_id` obrigatório (com `implantacao` e custo), migration 000032 e remoção do caminho antigo sem local | concluída |
 | **5** | Reservas (migration 000033, domínio, repo, usecase, rotas, port para o M6) + vitrine pelo disponível | pendente |
 | **6** | Frontend: locais, saldo por local, movimentação com local e custo, transferência, reservas (depois da F0) | pendente |
 
@@ -322,7 +322,11 @@ cmd/api/main.go + internal/adapter/http/rotas.go   (registro, só acréscimos)
       empresa.
 - [x] **Guarda otimista por produto** (`versao_estoque`), no lugar de comparar cada
       saldo e lote.
-- [x] **FIFO** por `entrada_em`, desempate por `id`; transferência preserva custo e idade.
+- [x] **FIFO** por `entrada_em`, desempate por `id` (UUID v7, ordem de criação);
+      transferência preserva custo e idade.
+- [x] **Custo fora do movimento**: o objeto de movimento (listagem visível a qualquer
+      autenticado) não traz custo nem lotes consumidos; custo só na rota de lotes.
+- [x] **Transferência pela rota de movimentos** → `400`; tem rota própria.
 - [x] **Saída manual respeita o reservado**: `saida`/`perda`/`ajuste` negativo só
       consomem o disponível do local; a saída que baixa reserva informa `reserva_id`.
 - [x] **Transferência só entre locais da mesma empresa**: entre CNPJs é operação fiscal

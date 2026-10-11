@@ -72,14 +72,20 @@ var _ portsin.MovimentoUseCase = (*movimentoUseCaseFalso)(nil)
 
 func TestMovimentarRespondeCreatedERepassaInput(t *testing.T) {
 	usecase := &movimentoUseCaseFalso{movimento: novoMovimentoDeTeste(t)}
-	id := uuid.New()
+	id, localID := uuid.New(), uuid.New()
 
 	resposta := executaProtegido(t, NewMovimentoHandler(usecase).Movimentar, http.MethodPost,
 		"/api/v1/produtos/"+id.String()+"/movimentos", id.String(),
-		`{"tipo":"entrada","quantidade":10,"documento_ref":"NF-1","observacao":"reposicao"}`)
+		`{"local_id":"`+localID.String()+`","tipo":"entrada","quantidade":10,"custo_unitario_centavos":2590,"documento_ref":"NF-1","observacao":"reposicao"}`)
 
 	if resposta.Code != http.StatusCreated {
 		t.Fatalf("status %d, esperado %d: %s", resposta.Code, http.StatusCreated, resposta.Body.String())
+	}
+	if usecase.inputMovimentar.LocalID != localID {
+		t.Errorf("local enviado = %s, esperado %s", usecase.inputMovimentar.LocalID, localID)
+	}
+	if usecase.inputMovimentar.CustoCentavos == nil || *usecase.inputMovimentar.CustoCentavos != 2590 {
+		t.Errorf("custo enviado = %v, esperado 2590", usecase.inputMovimentar.CustoCentavos)
 	}
 	if usecase.inputMovimentar.ProdutoID != id {
 		t.Errorf("produto enviado = %s, esperado %s", usecase.inputMovimentar.ProdutoID, id)

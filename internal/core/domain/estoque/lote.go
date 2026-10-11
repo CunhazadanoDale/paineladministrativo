@@ -27,7 +27,7 @@ type ConsumoLote struct {
 
 func novoLote(produtoID, localID, movimentoID uuid.UUID, loteOrigemID *uuid.UUID, custo *Custo, quantidade int, entradaEm, agora time.Time) *Lote {
 	return &Lote{
-		ID:                uuid.New(),
+		ID:                uuid.Must(uuid.NewV7()),
 		ProdutoID:         produtoID,
 		LocalID:           localID,
 		MovimentoID:       movimentoID,

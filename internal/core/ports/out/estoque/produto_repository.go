@@ -26,5 +26,4 @@ type ProdutoRepository interface {
 	Listar(ctx context.Context, filtro ProdutoFiltro) ([]*domainestoque.Produto, error)
 	Resumo(ctx context.Context) (domainestoque.ResumoProdutos, error)
 	Atualizar(ctx context.Context, produto *domainestoque.Produto) (bool, error)
-	Movimentar(ctx context.Context, produto *domainestoque.Produto, movimento *domainestoque.Movimento) error
 }

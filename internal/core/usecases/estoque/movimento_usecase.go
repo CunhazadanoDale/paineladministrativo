@@ -51,17 +51,12 @@ func (u *MovimentoUsecaseImpl) Movimentar(ctx context.Context, input portsin.Mov
 		return nil, err
 	}
 
-	produto, err := u.produtos.Obter(ctx, input.ProdutoID)
-	if err != nil {
-		return nil, err
-	}
-	if produto == nil {
-		return nil, erroProdutoNaoEncontrado()
-	}
-
 	tipo, err := domainestoque.NovoTipoMovimento(input.Tipo)
 	if err != nil {
 		return nil, err
+	}
+	if tipo == domainestoque.TipoMovimentoTransferencia {
+		return nil, domain.ErroValidacao("transferência usa a rota de transferências")
 	}
 
 	quantidade, err := domainestoque.NovaQuantidade(input.Quantidade)
@@ -69,16 +64,43 @@ func (u *MovimentoUsecaseImpl) Movimentar(ctx context.Context, input portsin.Mov
 		return nil, err
 	}
 
-	movimento, err := produto.Movimentar(tipo, quantidade, input.UsuarioID, input.DocumentoRef, input.Observacao, time.Now().UTC())
+	custo, err := custoInformado(input.CustoCentavos)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := u.produtos.Movimentar(ctx, produto, movimento); err != nil {
+	local, err := u.localInformado(ctx, input.LocalID, "local do movimento não encontrado")
+	if err != nil {
+		return nil, err
+	}
+	if err := u.exigeAcessoAosLocais(ctx, input.UsuarioID, local); err != nil {
 		return nil, err
 	}
 
-	return movimento, nil
+	estoque, err := u.carregar(ctx, input.ProdutoID, local.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	operacao, err := estoque.Movimentar(domainestoque.MovimentoLocalInput{
+		Tipo:         tipo,
+		Local:        local,
+		Quantidade:   quantidade,
+		Custo:        custo,
+		UsuarioID:    input.UsuarioID,
+		DocumentoRef: input.DocumentoRef,
+		Observacao:   input.Observacao,
+		Agora:        time.Now().UTC(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if err := u.estoque.Gravar(ctx, operacao); err != nil {
+		return nil, err
+	}
+
+	return operacao.Movimento, nil
 }
 
 func (u *MovimentoUsecaseImpl) Transferir(ctx context.Context, input portsin.TransferirEstoqueInput) (*domainestoque.Movimento, error) {
@@ -264,6 +286,19 @@ func (u *MovimentoUsecaseImpl) localDoFiltro(ctx context.Context, usuarioID, loc
 	}
 
 	return local, nil
+}
+
+func custoInformado(centavos *int64) (*domainestoque.Custo, error) {
+	if centavos == nil {
+		return nil, nil
+	}
+
+	custo, err := domainestoque.NovoCusto(*centavos)
+	if err != nil {
+		return nil, err
+	}
+
+	return &custo, nil
 }
 
 func erroProdutoNaoEncontrado() error {

@@ -9,20 +9,24 @@ import (
 )
 
 type MovimentarEstoqueRequest struct {
-	Tipo         string  `json:"tipo"`
-	Quantidade   int     `json:"quantidade"`
-	DocumentoRef *string `json:"documento_ref"`
-	Observacao   string  `json:"observacao"`
+	LocalID               uuid.UUID `json:"local_id"`
+	Tipo                  string    `json:"tipo"`
+	Quantidade            int       `json:"quantidade"`
+	CustoUnitarioCentavos *int64    `json:"custo_unitario_centavos"`
+	DocumentoRef          *string   `json:"documento_ref"`
+	Observacao            string    `json:"observacao"`
 }
 
 func (r MovimentarEstoqueRequest) ParaInput(usuarioID, produtoID uuid.UUID) portsin.MovimentarEstoqueInput {
 	return portsin.MovimentarEstoqueInput{
-		UsuarioID:    usuarioID,
-		ProdutoID:    produtoID,
-		Tipo:         r.Tipo,
-		Quantidade:   r.Quantidade,
-		DocumentoRef: r.DocumentoRef,
-		Observacao:   r.Observacao,
+		UsuarioID:     usuarioID,
+		ProdutoID:     produtoID,
+		LocalID:       r.LocalID,
+		Tipo:          r.Tipo,
+		Quantidade:    r.Quantidade,
+		CustoCentavos: r.CustoUnitarioCentavos,
+		DocumentoRef:  r.DocumentoRef,
+		Observacao:    r.Observacao,
 	}
 }
 

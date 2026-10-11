@@ -348,6 +348,7 @@ func TestMovimentarEstoqueBloqueiaSaldoNegativo(t *testing.T) {
 
 	if _, err := c.movimento.Movimentar(c.ctx, portsin.MovimentarEstoqueInput{
 		UsuarioID:  c.usuarioID,
+		LocalID:    c.localPadrao(t).ID,
 		ProdutoID:  produto.ID,
 		Tipo:       "saida",
 		Quantidade: 10,
@@ -371,6 +372,7 @@ func TestMovimentarEstoqueExigeAdministrador(t *testing.T) {
 
 	if _, err := c.movimento.Movimentar(c.ctx, portsin.MovimentarEstoqueInput{
 		UsuarioID:  c.visitanteID,
+		LocalID:    c.localPadrao(t).ID,
 		ProdutoID:  produto.ID,
 		Tipo:       "entrada",
 		Quantidade: 10,
@@ -386,6 +388,7 @@ func TestMovimentarEstoqueValidaTipoEQuantidade(t *testing.T) {
 
 	if _, err := c.movimento.Movimentar(c.ctx, portsin.MovimentarEstoqueInput{
 		UsuarioID:  c.usuarioID,
+		LocalID:    c.localPadrao(t).ID,
 		ProdutoID:  produto.ID,
 		Tipo:       "roubo",
 		Quantidade: 1,
@@ -395,6 +398,7 @@ func TestMovimentarEstoqueValidaTipoEQuantidade(t *testing.T) {
 
 	if _, err := c.movimento.Movimentar(c.ctx, portsin.MovimentarEstoqueInput{
 		UsuarioID:  c.usuarioID,
+		LocalID:    c.localPadrao(t).ID,
 		ProdutoID:  produto.ID,
 		Tipo:       "entrada",
 		Quantidade: 0,
@@ -408,6 +412,7 @@ func TestMovimentarEstoqueValidaProdutoInexistente(t *testing.T) {
 
 	if _, err := c.movimento.Movimentar(c.ctx, portsin.MovimentarEstoqueInput{
 		UsuarioID:  c.usuarioID,
+		LocalID:    c.localPadrao(t).ID,
 		ProdutoID:  uuid.New(),
 		Tipo:       "entrada",
 		Quantidade: 1,

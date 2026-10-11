@@ -257,24 +257,6 @@ func (r *repositorioProdutos) Atualizar(_ context.Context, produto *domainestoqu
 	return true, nil
 }
 
-func (r *repositorioProdutos) Movimentar(_ context.Context, produto *domainestoque.Produto, movimento *domainestoque.Movimento) error {
-	salvo, ok := r.itens[produto.ID]
-	if !ok {
-		return domain.ErroNaoEncontrado("produto não encontrado")
-	}
-
-	if salvo.Saldo.Quantidade() != movimento.SaldoApos.Quantidade()-movimento.Tipo.Efeito(movimento.Quantidade) {
-		return domain.ErroConflito("produto com saldo alterado por outra operação, recarregue e tente novamente")
-	}
-
-	copia := *produto
-	copia.VersaoEstoque = salvo.VersaoEstoque + 1
-	r.itens[produto.ID] = &copia
-	r.movimentos[produto.ID] = append(r.movimentos[produto.ID], movimento)
-
-	return nil
-}
-
 type repositorioMovimentos struct {
 	origem *repositorioProdutos
 	locais *repositorioLocais

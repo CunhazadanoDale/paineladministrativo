@@ -35,6 +35,7 @@ type cenario struct {
 	storage        *storageEmMemoria
 	usuarioID      uuid.UUID
 	visitanteID    uuid.UUID
+	padrao         *domainestoque.Local
 }
 
 func novoCenario(t *testing.T) *cenario {
@@ -169,17 +170,55 @@ func (c *cenario) novoProduto(t *testing.T, categoria *domainestoque.Categoria, 
 	return produto
 }
 
+func (c *cenario) localPadrao(t *testing.T) *domainestoque.Local {
+	t.Helper()
+
+	if c.padrao == nil {
+		c.padrao = c.novoLocal(t, c.novaEmpresa(true), "Local padrão")
+	}
+
+	return c.padrao
+}
+
 func (c *cenario) movimentar(t *testing.T, produto *domainestoque.Produto, tipo string, quantidade int) {
 	t.Helper()
 
-	if _, err := c.movimento.Movimentar(c.ctx, portsin.MovimentarEstoqueInput{
+	input := portsin.MovimentarEstoqueInput{
 		UsuarioID:  c.usuarioID,
 		ProdutoID:  produto.ID,
+		LocalID:    c.localPadrao(t).ID,
 		Tipo:       tipo,
 		Quantidade: quantidade,
-	}); err != nil {
+	}
+	if tipo == "entrada" {
+		custo := int64(100)
+		input.CustoCentavos = &custo
+	}
+
+	if _, err := c.movimento.Movimentar(c.ctx, input); err != nil {
 		t.Fatalf("movimentação falhou: %v", err)
 	}
+}
+
+func (c *cenario) movimentoAnteriorAosLocais(t *testing.T, produto *domainestoque.Produto, quantidade int) {
+	t.Helper()
+
+	salvo := c.produtosRepo.itens[produto.ID]
+	saldo, err := salvo.Saldo.Aplicar(quantidade)
+	if err != nil {
+		t.Fatalf("saldo anterior aos locais inválido: %v", err)
+	}
+	salvo.Saldo = saldo
+	salvo.VersaoEstoque++
+
+	movimento, err := domainestoque.NovoMovimento(
+		produto.ID, domainestoque.TipoMovimentoEntrada, domainestoque.QuantidadeDe(quantidade), saldo,
+		c.usuarioID, nil, "", time.Now().UTC(),
+	)
+	if err != nil {
+		t.Fatalf("movimento anterior aos locais inválido: %v", err)
+	}
+	c.produtosRepo.movimentos[produto.ID] = append(c.produtosRepo.movimentos[produto.ID], movimento)
 }
 
 func (c *cenario) novoArquivo(t *testing.T, contentType string) *domainsolicitacao.Arquivo {

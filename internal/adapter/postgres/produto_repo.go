@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	domainestoque "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/estoque"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/estoque"
 	"github.com/google/uuid"
@@ -246,59 +245,6 @@ func (p *ProdutoRepository) Atualizar(ctx context.Context, produto *domainestoqu
 	linhas, err := resultado.RowsAffected()
 	if err != nil {
 		return false, tratarErroDeGravacao(err)
-	}
-
-	return linhas > 0, nil
-}
-
-func (p *ProdutoRepository) Movimentar(ctx context.Context, produto *domainestoque.Produto, movimento *domainestoque.Movimento) error {
-	tx, err := p.db.BeginTxx(ctx, nil)
-	if err != nil {
-		return tratarErroDeGravacao(err)
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	efeito := movimento.Tipo.Efeito(movimento.Quantidade)
-	saldoAnterior := movimento.SaldoApos.Quantidade() - efeito
-
-	atualizado, err := atualizarSaldoComGuarda(ctx, tx, produto.ID, movimento, saldoAnterior)
-	if err != nil {
-		return tratarErroDeGravacao(err)
-	}
-	if !atualizado {
-		return domain.ErroConflito("produto com saldo alterado por outra operação, recarregue e tente novamente")
-	}
-
-	if err := inserirMovimento(ctx, tx, movimento); err != nil {
-		return tratarErroDeGravacao(err)
-	}
-
-	return tratarErroDeGravacao(tx.Commit())
-}
-
-func atualizarSaldoComGuarda(ctx context.Context, tx *sqlx.Tx, produtoID uuid.UUID, movimento *domainestoque.Movimento, saldoAnterior int) (bool, error) {
-	argumentos := map[string]any{
-		"id":             produtoID,
-		"saldo_apos":     movimento.SaldoApos.Quantidade(),
-		"saldo_anterior": saldoAnterior,
-		"atualizado_em":  movimento.CriadoEm,
-	}
-
-	resultado, err := tx.NamedExecContext(ctx, `
-		UPDATE produto
-		SET quantidade_atual = :saldo_apos,
-		    versao_estoque = versao_estoque + 1,
-		    atualizado_em = :atualizado_em
-		WHERE id = :id
-		  AND quantidade_atual = :saldo_anterior
-	`, argumentos)
-	if err != nil {
-		return false, err
-	}
-
-	linhas, err := resultado.RowsAffected()
-	if err != nil {
-		return false, err
 	}
 
 	return linhas > 0, nil
