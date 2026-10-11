@@ -132,7 +132,7 @@ func (u *SolicitacaoUsecaseImpl) Listar(ctx context.Context, input portsin.Lista
 		filtro.EmpresaIDs = acesso.EmpresaIDs()
 	}
 	if input.Empresa != nil {
-		if !acesso.Permite(*input.Empresa) {
+		if filtro.Solicitante == nil && !acesso.Permite(*input.Empresa) {
 			return nil, domain.ErroPermissao("perfil sem acesso a esta empresa")
 		}
 		filtro.Empresa = input.Empresa

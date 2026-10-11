@@ -128,6 +128,23 @@ func TestCriarEmpresaValidaEntradaEPerfil(t *testing.T) {
 	}
 }
 
+func TestCriarEmpresaEmCorridaPeloMesmoCNPJDevolveAMensagemDoCNPJ(t *testing.T) {
+	c := novoCenario(t)
+	c.repo.conflitoNaCriacao = true
+
+	_, err := c.usecase.Criar(c.ctx, portsin.CriarEmpresaInput{
+		UsuarioID:        c.administrador,
+		CNPJ:             "11.222.333/0001-81",
+		RazaoSocial:      "MIA LTDA",
+		NomeFantasia:     "MIA",
+		UF:               "PB",
+		RegimeTributario: "real",
+	})
+	if !errors.Is(err, domain.ErrConflito) || err.Error() != "operação em conflito com o estado atual: já existe uma empresa com este cnpj" {
+		t.Errorf("erro %v, esperado conflito com a mensagem do CNPJ", err)
+	}
+}
+
 func TestListarEObterRespeitamOAcesso(t *testing.T) {
 	c := novoCenario(t)
 	mia := c.criar(t, "11.222.333/0001-81", "MIA")

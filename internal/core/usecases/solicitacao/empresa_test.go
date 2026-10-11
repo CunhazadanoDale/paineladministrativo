@@ -136,8 +136,84 @@ func TestFiltroDeEmpresaNaListagem(t *testing.T) {
 	}
 
 	c.restringirAcesso(ana, c.empresaID)
-	if _, err := c.solicitacao.Listar(c.ctx, portsin.ListarSolicitacoesInput{UsuarioID: ana, Empresa: &segunda}); !errors.Is(err, domain.ErrPermissao) {
-		t.Errorf("filtro por empresa fora do acesso = %v, esperado erro de permissão", err)
+	proprias, err := c.solicitacao.Listar(c.ctx, portsin.ListarSolicitacoesInput{UsuarioID: ana, Empresa: &segunda})
+	if err != nil || len(proprias) != 1 {
+		t.Errorf("solicitante filtrando as próprias de empresa sem acesso = %d, %v; esperado a própria", len(proprias), err)
+	}
+
+	aprovador := c.novoUsuario("Bruno", false, false)
+	c.designar(t, aprovador)
+	c.restringirAcesso(aprovador, c.empresaID)
+	if _, err := c.solicitacao.Listar(c.ctx, portsin.ListarSolicitacoesInput{
+		UsuarioID: aprovador,
+		Escopo:    portsin.EscopoAprovacao,
+		Empresa:   &segunda,
+	}); !errors.Is(err, domain.ErrPermissao) {
+		t.Errorf("fila filtrada por empresa fora do acesso = %v, esperado erro de permissão", err)
+	}
+}
+
+func TestDetalhesDaSolicitacaoRespeitamOAcessoAEmpresa(t *testing.T) {
+	c := novoCenario(t)
+	segunda := c.novaEmpresa(true)
+	ana := c.novoUsuario("Ana", false, false)
+	administrador := c.novoUsuario("Diretoria", true, false)
+	financeiro := c.novoUsuario("Caio", false, true)
+	c.restringirAcesso(financeiro, c.empresaID)
+
+	anexo := c.enviarArquivo(t, ana, "nota.pdf", "application/pdf")
+	id, err := c.solicitacao.Criar(c.ctx, portsin.CriarSolicitacaoInput{
+		SolicitanteID:  ana,
+		EmpresaID:      segunda,
+		ValorCentavos:  10000,
+		PrazoPagamento: time.Now().UTC().AddDate(0, 0, 7),
+		Observacao:     "material para a obra",
+		FormaPagamento: "pix",
+		ArquivoIDs:     []uuid.UUID{anexo.ID},
+	})
+	if err != nil {
+		t.Fatalf("criação falhou: %v", err)
+	}
+	if err := c.solicitacao.Aprovar(c.ctx, id, administrador); err != nil {
+		t.Fatalf("aprovação falhou: %v", err)
+	}
+	if err := c.solicitacao.RegistrarPagamento(c.ctx, portsin.RegistrarPagamentoInput{
+		SolicitacaoID: id,
+		UsuarioID:     administrador,
+		ValorCentavos: 10000,
+	}); err != nil {
+		t.Fatalf("pagamento falhou: %v", err)
+	}
+
+	consultas := []struct {
+		nome     string
+		executar func() error
+	}{
+		{"histórico", func() error { _, err := c.solicitacao.ListarHistorico(c.ctx, id, financeiro); return err }},
+		{"anexos", func() error { _, err := c.solicitacao.ListarArquivos(c.ctx, id, financeiro); return err }},
+		{"pagamento", func() error { _, err := c.solicitacao.ObterPagamento(c.ctx, id, financeiro); return err }},
+		{"download do anexo", func() error {
+			_, conteudo, err := c.arquivo.Baixar(c.ctx, anexo.ID, financeiro)
+			if conteudo != nil {
+				_ = conteudo.Close()
+			}
+			return err
+		}},
+	}
+
+	for _, consulta := range consultas {
+		t.Run(consulta.nome, func(t *testing.T) {
+			if err := consulta.executar(); !errors.Is(err, domain.ErrPermissao) {
+				t.Errorf("erro %v, esperado erro de permissão", err)
+			}
+		})
+	}
+
+	c.restringirAcesso(financeiro, c.empresaID, segunda)
+	for _, consulta := range consultas {
+		if err := consulta.executar(); err != nil {
+			t.Errorf("%s com acesso à empresa falhou: %v", consulta.nome, err)
+		}
 	}
 }
 

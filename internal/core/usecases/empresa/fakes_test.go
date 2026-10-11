@@ -46,13 +46,18 @@ func (r *repositorioCargos) Obter(_ context.Context, id uuid.UUID) (*domainusuar
 }
 
 type repositorioEmpresas struct {
-	itens    map[uuid.UUID]*domainempresa.Empresa
-	vinculos map[uuid.UUID]domainempresa.Vinculos
-	usuarios *repositorioUsuarios
-	cargos   *repositorioCargos
+	itens             map[uuid.UUID]*domainempresa.Empresa
+	vinculos          map[uuid.UUID]domainempresa.Vinculos
+	usuarios          *repositorioUsuarios
+	cargos            *repositorioCargos
+	conflitoNaCriacao bool
 }
 
 func (r *repositorioEmpresas) Criar(_ context.Context, empresa *domainempresa.Empresa) (uuid.UUID, error) {
+	if r.conflitoNaCriacao {
+		return uuid.Nil, domain.ErroConflito("já existe um registro com estes dados")
+	}
+
 	copia := *empresa
 	r.itens[empresa.ID] = &copia
 

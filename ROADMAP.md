@@ -235,23 +235,18 @@ bloqueiam as telas de dinheiro e data dos módulos novos.
 ### M1 — Empresas e filiais
 
 Fundação: tudo o que é financeiro, fiscal ou de estoque passa a pertencer a uma empresa.
+O escopo fechado e o detalhamento estão em `EMPRESAS.md`; este resumo só aponta o que os
+outros módulos precisam saber.
 
-- **Entidades**: `empresa` (razão social, nome fantasia, CNPJ, UF, regime tributário,
-  ativa). Seed: MIA / Gigante PB, Red Diamond matriz, Gigante CE, Gigante SP.
-- **Value objects**: `CNPJ` (dígitos verificadores), `UF` (enum fechado das 27),
-  `RegimeTributario` (`simples`, `presumido`, `real`).
-- **Adoção em módulos existentes**: `solicitacao.empresa_id`. Migration em três passos
-  seguros: coluna nula → backfill com a matriz → `NOT NULL`. Filtro `?empresa=` nas
-  listagens de solicitação.
-- **Usuário x empresa**: tabela `usuario_empresa` (quais empresas o usuário enxerga);
-  administrador enxerga todas. Regra aplicada no `permissoes.go` de cada módulo.
-- **Endpoints**: CRUD em `/api/v1/empresas` (escrita administrador, leitura protegido).
-- **Modelo de permissões** (decisão da seção 6, fechada no escopo do M1): o cargo já tem
-  três flags (`administrador`, `financeiro`, `comercial`) e os módulos seguintes vão pedir
-  mais (fiscal, cobrança, estoque). Junto com o escopo por empresa, decidir entre continuar
-  com flags no cargo ou migrar para uma tabela de permissões, e fixar o padrão que todos
-  os módulos seguem: onde o filtro por empresa entra na consulta e como o teste de
-  isolamento entre empresas é escrito.
+- **Entidades**: `empresa` (razão social, nome fantasia, CNPJ numérico ou alfanumérico,
+  UF, regime tributário, ativa), `usuario_empresa` e `usuario.acesso_todas_empresas`. Sem
+  seed: o administrador cadastra as empresas pela API.
+- **Adoção em `solicitacao`**: a migration `000027` apaga as solicitações existentes
+  (decisão do usuário) e cria `empresa_id` já `NOT NULL`. Filas, aprovação, pagamento e
+  `?empresa=` respeitam o acesso; o solicitante sempre vê as próprias.
+- **Modelo de permissões** (decidido): flags no cargo continuam; o escopo por empresa é o
+  padrão da seção 4 do `EMPRESAS.md`, que todo módulo seguinte copia, inclusive o teste de
+  isolamento entre empresas.
 
 ### M2 — Estoque por local, lote e reserva
 

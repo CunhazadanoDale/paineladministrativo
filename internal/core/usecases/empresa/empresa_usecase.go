@@ -2,6 +2,7 @@ package empresa
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
@@ -52,7 +53,7 @@ func (u *EmpresaUsecaseImpl) Criar(ctx context.Context, input portsin.CriarEmpre
 		return uuid.Nil, err
 	}
 	if existente != nil {
-		return uuid.Nil, domain.ErroConflito("já existe uma empresa com este cnpj")
+		return uuid.Nil, erroCNPJRepetido()
 	}
 
 	empresa, err := domainempresa.NovaEmpresa(cnpj, dados)
@@ -60,7 +61,12 @@ func (u *EmpresaUsecaseImpl) Criar(ctx context.Context, input portsin.CriarEmpre
 		return uuid.Nil, err
 	}
 
-	return u.repo.Criar(ctx, empresa)
+	id, err := u.repo.Criar(ctx, empresa)
+	if errors.Is(err, domain.ErrConflito) {
+		return uuid.Nil, erroCNPJRepetido()
+	}
+
+	return id, err
 }
 
 func (u *EmpresaUsecaseImpl) Obter(ctx context.Context, empresaID, usuarioID uuid.UUID) (*domainempresa.Empresa, error) {
@@ -223,6 +229,10 @@ func (u *EmpresaUsecaseImpl) gravar(ctx context.Context, empresa *domainempresa.
 	}
 
 	return nil
+}
+
+func erroCNPJRepetido() error {
+	return domain.ErroConflito("já existe uma empresa com este cnpj")
 }
 
 func dadosDaEmpresa(razaoSocial, nomeFantasia, uf, regimeTributario string) (domainempresa.DadosEmpresa, error) {

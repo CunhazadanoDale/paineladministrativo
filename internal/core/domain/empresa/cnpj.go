@@ -61,10 +61,12 @@ func (c CNPJ) Formatado() string {
 func normalizarCNPJ(valor string) (string, bool) {
 	var construtor strings.Builder
 
-	for _, caractere := range strings.ToUpper(valor) {
+	for _, caractere := range valor {
 		switch {
 		case caractere == '.' || caractere == '/' || caractere == '-' || caractere == ' ':
 			continue
+		case caractere >= 'a' && caractere <= 'z':
+			construtor.WriteRune(caractere - 'a' + 'A')
 		case alfanumerico(caractere):
 			construtor.WriteRune(caractere)
 		default:

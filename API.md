@@ -595,8 +595,10 @@ respondem `403` (`perfil sem acesso a esta empresa`).
 | `financeiro` | cargo com `"financeiro": true` ou administrador | as `aprovado` das empresas do seu acesso |
 | `todas` | administrador | todas |
 
-`empresa=<uuid>` restringe qualquer escopo a uma empresa; empresa fora do acesso devolve
-`403` (`perfil sem acesso a esta empresa`).
+`empresa=<uuid>` restringe qualquer escopo a uma empresa. Nas filas (`aprovacao`,
+`financeiro`) e em `todas`, empresa fora do acesso devolve `403` (`perfil sem acesso a esta
+empresa`); em `minhas` o filtro vale mesmo sem acesso, porque o solicitante sempre vê as
+próprias solicitações.
 
 `status=` (ex.: `?escopo=todas&status=pago`) filtra dentro do que o escopo já deixa
 enxergar — não serve para furar a definição do escopo. `escopo=aprovacao` só aceita
@@ -1086,6 +1088,10 @@ e a lista é guardada para quando o acesso total for desligado. Empresas repetid
 ignoradas; empresa inexistente responde `400`. A resposta (e o `GET` da mesma rota) devolve
 o mesmo formato. Usuários criados depois do M1 nascem **sem** acesso; os que existiam antes
 receberam `acesso_todas: true` na migração.
+
+A rota mostra os vínculos **gravados**, não o acesso efetivo: um usuário com cargo
+`administrador` enxerga todas as empresas mesmo que a rota devolva
+`acesso_todas: false` e `empresa_ids: []`.
 
 ---
 
