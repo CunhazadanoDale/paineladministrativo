@@ -170,10 +170,13 @@ documento;nome;nome_fantasia;tipo;grupo;uf;cidade;email_nf;telefone;representant
   de clientes, grupos e obras e conversão de lead; `administrador(...)` para representantes,
   importação e exclusão; `protegido(...)` para leitura de clientes, grupos e obras; leitura de
   representantes em `comercial(...)` (traz contato e percentuais).
-- **Representante com login**: usuário vinculado a um representante ativo, que não seja
-  administrador, só vê e altera os clientes em que é o representante (listagem filtrada,
-  detalhe e obras de outro → `403`) e não troca o representante do cliente. Regras finas em
-  `usecases/cliente/permissoes.go`.
+- **Representante com login**: usuário vinculado a um representante (ativo ou não), que não
+  seja administrador, só vê e altera os clientes em que é o representante (listagem filtrada,
+  detalhe e obras de outro → `403`); cliente que ele cria ou altera fica sempre com ele como
+  representante (informar outro → `403`); em representantes, só vê o próprio cadastro. Regras
+  finas em `usecases/cliente/permissoes.go`.
+- Vínculos do cliente (grupo, representante, empresa de relacionamento) precisam existir; ao
+  atribuir ou trocar, precisam estar ativos — o vínculo inativo já gravado é mantido.
 - Sem escopo por empresa (decisão da seção 1).
 
 ---
@@ -212,7 +215,7 @@ pacote `lead` não muda.
 |---|---|---|
 | **1** | Migrations 000034–000036 + domínio (documento, percentual, tipo, nome de busca, grupo, representante, cliente, obra) + testes | concluída |
 | **2** | Repositórios + testes de integração (unicidade, busca normalizada, filtros) | concluída |
-| **3** | Usecases + permissões (comercial, administrador, representante com login) + testes com fakes | pendente |
+| **3** | Usecases + permissões (comercial, administrador, representante com login) + testes com fakes | concluída |
 | **4** | Handlers/DTOs + rotas + e2e + `API.md` | pendente |
 | **5** | Conversão de lead + importação CSV (com simulação) + testes + `API.md` | pendente |
 | **6** | Frontend: clientes, obras, grupos, representantes, conversão e importação | pendente |
