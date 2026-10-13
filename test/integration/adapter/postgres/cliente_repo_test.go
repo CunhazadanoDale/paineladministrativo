@@ -272,6 +272,7 @@ func TestClientePersisteTodosOsCamposEBuscaNormalizada(t *testing.T) {
 		{"busca por documento mascarado", portsout.ClienteFiltro{Busca: "529.982"}, 1},
 		{"busca por raiz de CNPJ", portsout.ClienteFiltro{Busca: "11222333"}, 1},
 		{"curinga escapado", portsout.ClienteFiltro{Busca: "_"}, 0},
+		{"só pontuação", portsout.ClienteFiltro{Busca: "./-"}, 0},
 		{"grupo", portsout.ClienteFiltro{GrupoID: &grupo.ID}, 1},
 		{"representante", portsout.ClienteFiltro{RepresentanteID: &representante.ID}, 1},
 		{"tipo", portsout.ClienteFiltro{Tipo: domaincliente.TipoClientePF}, 1},
