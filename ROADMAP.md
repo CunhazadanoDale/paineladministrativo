@@ -286,6 +286,9 @@ depois da F0. Para os próximos módulos:
 
 ### M3 — Clientes e representantes
 
+O escopo fechado e o detalhamento estão em `CLIENTES.md`; este resumo só aponta o que os
+outros módulos precisam saber.
+
 - **Entidades**: `cliente_grupo` (grupo econômico/construtora), `cliente` (PF ou PJ,
   documento, nome, grupo, UF, cidade, tipo `construtora`/`loja`/`pf`/`outro`, empresa
   de relacionamento, representante, e-mail para NF, telefone, observações),
