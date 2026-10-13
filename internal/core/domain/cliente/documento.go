@@ -82,6 +82,10 @@ func (d Documento) Formatado() string {
 	return d.valor[0:3] + "." + d.valor[3:6] + "." + d.valor[6:9] + "-" + d.valor[9:11]
 }
 
+func TermoDeDocumento(valor string) string {
+	return strings.ToUpper(semMascara(valor))
+}
+
 func semMascara(valor string) string {
 	return strings.NewReplacer(".", "", "-", "", "/", "", " ", "").Replace(strings.TrimSpace(valor))
 }

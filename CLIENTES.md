@@ -211,7 +211,7 @@ pacote `lead` não muda.
 | Fase | Entrega | Estado |
 |---|---|---|
 | **1** | Migrations 000034–000036 + domínio (documento, percentual, tipo, nome de busca, grupo, representante, cliente, obra) + testes | concluída |
-| **2** | Repositórios + testes de integração (unicidade, busca normalizada, filtros) | pendente |
+| **2** | Repositórios + testes de integração (unicidade, busca normalizada, filtros) | concluída |
 | **3** | Usecases + permissões (comercial, administrador, representante com login) + testes com fakes | pendente |
 | **4** | Handlers/DTOs + rotas + e2e + `API.md` | pendente |
 | **5** | Conversão de lead + importação CSV (com simulação) + testes + `API.md` | pendente |
