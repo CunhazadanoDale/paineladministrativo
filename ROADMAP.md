@@ -304,6 +304,19 @@ outros módulos precisam saber.
 - **Importação inicial**: `POST /api/v1/clientes/importacao` (CSV) para carregar a base
   atual, com relatório de linhas rejeitadas.
 
+**Entregue (outubro/2026):** API completa (fases 1 a 5 do `CLIENTES.md`); front pendente. Para
+os próximos módulos:
+
+- cliente é do **grupo** (sem `empresa_id`), com documento obrigatório e único: o M8 resolve o
+  cliente da NF-e por `ClienteRepository.ObterPorDocumento`;
+- regras comerciais tipadas: `cliente.exige_numero_pedido_na_nf` (M8) e
+  `cliente.proibe_antecipacao` (M9);
+- representante com login (`representante.usuario_id`, não administrador) vê só os próprios
+  clientes; M6 e M10 repetem a regra com `RepresentanteRepository.ObterPorUsuario`;
+- comissão padrão do representante em pontos-base (`comissao_pronta_entrega_bp`,
+  `comissao_importacao_bp`), base do M10;
+- obras (`cliente_obra`) são o endereço de entrega do M6.
+
 ### M4 — Fornecedores
 
 - **Entidades**: `fornecedor` (documento opcional para estrangeiro, nome, país,

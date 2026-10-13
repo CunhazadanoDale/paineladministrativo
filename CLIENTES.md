@@ -1,6 +1,6 @@
 # Escopo — M3 Clientes e representantes
 
-> **Status:** escopo aprovado — em implementação.
+> **Status:** API concluída (fases 1 a 5); frontend (fase 6) pendente.
 > **Objetivo:** tirar a "Base de clientes" da planilha: cadastro único de clientes do grupo,
 > com obras, grupo econômico, regras comerciais tipadas e representante, base para pedidos
 > (M6), NF-e (M8), contas a receber (M9) e comissões (M10).
@@ -160,7 +160,9 @@ documento;nome;nome_fantasia;tipo;grupo;uf;cidade;email_nf;telefone;representant
 - `grupo` pelo nome (criado se não existir); representante pelo documento (precisa existir e
   estar ativo); flags `sim`/`nao`.
 - Resposta: `{ "total": n, "importadas": n, "rejeitadas": [{ "linha": 7, "documento": "…", "motivo": "…" }] }`.
-- Limite de 5 MB e 5.000 linhas por envio; `?simular=true` devolve o mesmo relatório sem gravar.
+- Limite de 5 MB (`413`) e 5.000 linhas (`400`) por envio; `?simular=true` devolve o mesmo
+  relatório sem gravar; grupo inativo e documento repetido no arquivo também rejeitam a linha;
+  o grupo só é criado para linha que passou nas demais validações.
 
 ---
 
@@ -217,7 +219,7 @@ pacote `lead` não muda.
 | **2** | Repositórios + testes de integração (unicidade, busca normalizada, filtros) | concluída |
 | **3** | Usecases + permissões (comercial, administrador, representante com login) + testes com fakes | concluída |
 | **4** | Handlers/DTOs + rotas + e2e + `API.md` | concluída |
-| **5** | Conversão de lead + importação CSV (com simulação) + testes + `API.md` | pendente |
+| **5** | Conversão de lead + importação CSV (com simulação) + testes + `API.md` | concluída |
 | **6** | Frontend: clientes, obras, grupos, representantes, conversão e importação | pendente |
 
 O M3 não tem dinheiro nem data de fato (percentual é pontos-base), então a fase 6 não depende
