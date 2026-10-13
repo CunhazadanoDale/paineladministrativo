@@ -186,8 +186,9 @@ migrations/000035_create_tabela_cliente
 migrations/000036_create_tabela_cliente_obra
 
 internal/core/domain/cliente/         documento.go (CPF + CNPJ de domain/empresa), percentual.go,
-                                      tipo_cliente.go, nome_busca.go, grupo.go, representante.go,
-                                      cliente.go, obra.go, importacao.go (linha e relatório)
+                                      tipo_cliente.go, texto.go (nome de busca, textos e e-mail),
+                                      grupo.go, representante.go, cliente.go, obra.go,
+                                      importacao.go (linha e relatório, fase 5)
 internal/core/ports/out/cliente/      cliente_repository.go, grupo_repository.go, obra_repository.go,
                                       representante_repository.go, lead_repository.go (porta
                                       mínima: Obter), usuario_repository.go, cargo_repository.go
@@ -209,7 +210,7 @@ pacote `lead` não muda.
 
 | Fase | Entrega | Estado |
 |---|---|---|
-| **1** | Migrations 000034–000036 + domínio (documento, percentual, tipo, nome de busca, grupo, representante, cliente, obra) + testes | pendente |
+| **1** | Migrations 000034–000036 + domínio (documento, percentual, tipo, nome de busca, grupo, representante, cliente, obra) + testes | concluída |
 | **2** | Repositórios + testes de integração (unicidade, busca normalizada, filtros) | pendente |
 | **3** | Usecases + permissões (comercial, administrador, representante com login) + testes com fakes | pendente |
 | **4** | Handlers/DTOs + rotas + e2e + `API.md` | pendente |
