@@ -1366,7 +1366,9 @@ Lead convertido não pode ser excluído (`DELETE /api/v1/leads/{id}` → `400 re
 | --- | --- | --- | --- |
 | `POST` | `/api/v1/clientes/importacao` | **administrador** | `200` relatório (`?simular=true` valida sem gravar) |
 
-Corpo: o arquivo CSV cru (`Content-Type: text/csv`), UTF-8 (com ou sem BOM), separador `;`,
+Corpo: o arquivo CSV cru (`Content-Type: text/csv`), **UTF-8** (com ou sem BOM; arquivo em outra
+codificação, como o CSV padrão do Excel em Windows-1252, é recusado inteiro com
+`400 linha N não está em UTF-8; salve o arquivo como CSV UTF-8`), separador `;`,
 campos com `;` entre aspas, até 5 MB (`413` acima) e 5.000 linhas (`400` acima). Cabeçalho
 fixo, nesta ordem:
 
@@ -1379,7 +1381,8 @@ documento;nome;nome_fantasia;tipo;grupo;uf;cidade;email_nf;telefone;representant
   documento já cadastrado ou repetido no arquivo rejeita a linha.
 - `grupo` pelo nome (sem diferenciar acento e maiúscula), criado se não existir; grupo
   inativo rejeita a linha.
-- `representante_documento`: CPF ou CNPJ de um representante cadastrado.
+- `representante_documento`: CPF ou CNPJ de um representante cadastrado e ativo.
+- `?simular=` aceita `true` ou `false`; outro valor (inclusive `sim`) → `400`.
 - Flags `exige_numero_pedido_na_nf` e `proibe_antecipacao`: `sim`/`nao` (vazio = `nao`).
 - Cabeçalho diferente, número de colunas errado ou CSV malformado responde `400` sem gravar
   nada.
@@ -1467,7 +1470,10 @@ Nome único sem diferenciar acento e maiúscula (`409 já existe um grupo de cli
 | `usuario_id` | opcional; usuário precisa existir (`400`) e não estar ligado a outro representante (`409 usuário já vinculado a outro representante`) |
 | `comissao_*_bp` | percentual padrão em pontos-base (`300` = 3,00%), de `0` a `10000` |
 
-Representante inativo não recebe cliente novo.
+Representante inativo não recebe cliente novo. O `PUT` substitui o cadastro inteiro, inclusive o
+vínculo: `PUT` sem `usuario_id` desfaz o vínculo, e esse usuário (se tiver perfil comercial)
+passa a ver todos os clientes. A paginação vale também para o representante com login, que vê
+só o próprio cadastro na primeira página.
 
 ---
 

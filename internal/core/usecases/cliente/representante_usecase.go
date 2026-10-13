@@ -72,6 +72,9 @@ func (u *RepresentanteUsecaseImpl) Listar(ctx context.Context, input portsin.Lis
 		return nil, err
 	}
 	if perfil.restritoAoRepresentante() {
+		if input.Filtro.Normalizada().Page > 1 {
+			return []*domaincliente.Representante{}, nil
+		}
 		proprio, err := u.buscar(ctx, *perfil.representanteID)
 		if err != nil {
 			return nil, err

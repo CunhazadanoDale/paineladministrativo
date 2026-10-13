@@ -31,7 +31,7 @@ Grupo econômico ou construtora que reúne vários CNPJs (ex.: as SPEs de uma co
 | Campo | Tipo | Observações |
 |---|---|---|
 | `id` | UUID | |
-| `nome` | VARCHAR(120) | único sem diferenciar maiúsculas e acentos (`uq_cliente_grupo_nome`) |
+| `nome` | VARCHAR(120) | único sem diferenciar maiúsculas e acentos (`uq_cliente_grupo_nome_busca`) |
 | `ativo` | BOOLEAN | default `true` |
 | `criado_em` / `atualizado_em` | TIMESTAMPTZ | |
 
@@ -161,8 +161,12 @@ documento;nome;nome_fantasia;tipo;grupo;uf;cidade;email_nf;telefone;representant
   estar ativo); flags `sim`/`nao`.
 - Resposta: `{ "total": n, "importadas": n, "rejeitadas": [{ "linha": 7, "documento": "…", "motivo": "…" }] }`.
 - Limite de 5 MB (`413`) e 5.000 linhas (`400`) por envio; `?simular=true` devolve o mesmo
-  relatório sem gravar; grupo inativo e documento repetido no arquivo também rejeitam a linha;
-  o grupo só é criado para linha que passou nas demais validações.
+  relatório sem gravar (`simular` aceita só `true`/`false`; outro valor → `400`); grupo
+  inativo e documento repetido no arquivo também rejeitam a linha; o grupo só é criado para
+  linha que passou nas demais validações (só sobra grupo sem cliente se a gravação perder uma
+  corrida de documento repetido).
+- Arquivo fora de UTF-8 (ex.: salvo pelo Excel em Windows-1252) é recusado inteiro com `400`
+  antes de gravar qualquer linha.
 
 ---
 

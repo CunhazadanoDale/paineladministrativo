@@ -26,6 +26,12 @@ func (h *ImportacaoHandler) Importar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	simular, err := resposta.ConsultaBooleanaOpcional(r, "simular")
+	if err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+
 	linhas, err := clientedto.LerLinhasCSV(http.MaxBytesReader(w, r.Body, tamanhoMaximoImportacao))
 	if err != nil {
 		var erroTamanho *http.MaxBytesError
@@ -40,7 +46,7 @@ func (h *ImportacaoHandler) Importar(w http.ResponseWriter, r *http.Request) {
 	relatorio, err := h.usecase.Importar(r.Context(), portsin.ImportarClientesInput{
 		UsuarioID: usuario.ID,
 		Linhas:    linhas,
-		Simular:   resposta.ConsultaBooleana(r, "simular"),
+		Simular:   simular != nil && *simular,
 	})
 	escreverItem(w, http.StatusOK, relatorio, err, clientedto.NovoRelatorioImportacaoResponse)
 }

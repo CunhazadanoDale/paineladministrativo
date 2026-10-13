@@ -283,7 +283,7 @@ func (r *repositorioClientes) Listar(_ context.Context, filtro portsout.ClienteF
 	documento := domaincliente.TermoDeDocumento(filtro.Busca)
 	itens := make([]*domaincliente.Cliente, 0)
 	for _, cliente := range r.itens {
-		if termo != "" && !strings.Contains(cliente.NomeBusca, termo) && !strings.HasPrefix(cliente.Documento.Valor(), documento) {
+		if termo != "" && !strings.Contains(cliente.NomeBusca, termo) && (documento == "" || !strings.HasPrefix(cliente.Documento.Valor(), documento)) {
 			continue
 		}
 		if filtro.GrupoID != nil && !iguais(cliente.GrupoID, filtro.GrupoID) {

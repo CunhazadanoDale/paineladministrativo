@@ -124,3 +124,37 @@ func TestConverterLeadRepassaLeadEDados(t *testing.T) {
 		t.Errorf("input repassado = %+v", input)
 	}
 }
+
+func TestImportarRecusaArquivoForaDeUTF8SemChegarAoUsecase(t *testing.T) {
+	usecase := &importacaoUseCaseFalso{}
+	corpo := cabecalhoCSV + "\n11222333000181;Construtora Aguia;;construtora;;SP;S\xe3o Paulo;;;;;;\n"
+
+	resposta := executaProtegido(t, NewImportacaoHandler(usecase).Importar, http.MethodPost, "/api/v1/clientes/importacao", "", corpo)
+
+	apoioteste.VerificarEnvelopeDeErro(t, resposta, http.StatusBadRequest)
+	if mensagem := apoioteste.MensagemDoEnvelope(t, resposta); mensagem != "erro de validação: linha 2 não está em UTF-8; salve o arquivo como CSV UTF-8" {
+		t.Errorf("mensagem %q", mensagem)
+	}
+	if usecase.input.Linhas != nil {
+		t.Error("arquivo fora de UTF-8 não pode chegar ao usecase")
+	}
+}
+
+func TestImportarRecusaSimularComValorInvalido(t *testing.T) {
+	for _, valor := range []string{"sim", "talvez"} {
+		usecase := &importacaoUseCaseFalso{}
+		resposta := executaProtegido(t, NewImportacaoHandler(usecase).Importar, http.MethodPost,
+			"/api/v1/clientes/importacao?simular="+valor, "", cabecalhoCSV+"\n")
+
+		apoioteste.VerificarEnvelopeDeErro(t, resposta, http.StatusBadRequest)
+		if usecase.input.Linhas != nil {
+			t.Errorf("simular=%s chegou ao usecase", valor)
+		}
+	}
+
+	usecase := &importacaoUseCaseFalso{}
+	resposta := executaProtegido(t, NewImportacaoHandler(usecase).Importar, http.MethodPost, "/api/v1/clientes/importacao?simular=false", "", cabecalhoCSV+"\n")
+	if resposta.Code != http.StatusOK || usecase.input.Simular {
+		t.Errorf("simular=false: status %d, simular %v", resposta.Code, usecase.input.Simular)
+	}
+}

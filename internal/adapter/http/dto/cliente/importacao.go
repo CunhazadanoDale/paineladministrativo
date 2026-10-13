@@ -8,6 +8,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	domaincliente "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/cliente"
@@ -39,6 +40,9 @@ func LerLinhasCSV(conteudo io.Reader) ([]portsin.LinhaImportacao, error) {
 	if err != nil {
 		return nil, erroDeLeitura(err)
 	}
+	if err := exigirUTF8(csvLeitor, cabecalho); err != nil {
+		return nil, err
+	}
 	for indice, coluna := range cabecalho {
 		if strings.ToLower(strings.TrimSpace(coluna)) != CabecalhoImportacao[indice] {
 			return nil, domain.ErroValidacao("cabeçalho deve ser " + strings.Join(CabecalhoImportacao, ";"))
@@ -53,6 +57,9 @@ func LerLinhasCSV(conteudo io.Reader) ([]portsin.LinhaImportacao, error) {
 		}
 		if err != nil {
 			return nil, erroDeLeitura(err)
+		}
+		if err := exigirUTF8(csvLeitor, campos); err != nil {
+			return nil, err
 		}
 		if len(linhas) == domaincliente.LimiteDeLinhasDaImportacao {
 			return nil, domain.ErroValidacao("arquivo com mais de " + strconv.Itoa(domaincliente.LimiteDeLinhasDaImportacao) + " linhas")
@@ -76,6 +83,17 @@ func LerLinhasCSV(conteudo io.Reader) ([]portsin.LinhaImportacao, error) {
 			Observacoes:            campos[12],
 		})
 	}
+}
+
+func exigirUTF8(csvLeitor *csv.Reader, campos []string) error {
+	for indice, campo := range campos {
+		if !utf8.ValidString(campo) {
+			linha, _ := csvLeitor.FieldPos(indice)
+			return domain.ErroValidacao("linha " + strconv.Itoa(linha) + " não está em UTF-8; salve o arquivo como CSV UTF-8")
+		}
+	}
+
+	return nil
 }
 
 func erroDeLeitura(err error) error {

@@ -150,8 +150,15 @@ func buscaPorNomeOuDocumento(busca string, posicaoAtual int) (string, []any) {
 	}
 
 	nome := "$" + strconv.Itoa(posicaoAtual+1)
+	argumentos := []any{"%" + escaparBusca(termo) + "%"}
+
+	termoDocumento := domaincliente.TermoDeDocumento(busca)
+	if termoDocumento == "" {
+		return "nome_busca LIKE " + nome, argumentos
+	}
+
 	documento := "$" + strconv.Itoa(posicaoAtual+2)
-	argumentos := []any{"%" + escaparBusca(termo) + "%", escaparBusca(domaincliente.TermoDeDocumento(busca)) + "%"}
+	argumentos = append(argumentos, escaparBusca(termoDocumento)+"%")
 
 	return "(nome_busca LIKE " + nome + " OR documento LIKE " + documento + ")", argumentos
 }

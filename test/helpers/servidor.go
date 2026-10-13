@@ -44,6 +44,10 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 	clienteGrupoRepository := postgres.NewClienteGrupoRepository(banco)
 	clienteObraRepository := postgres.NewClienteObraRepository(banco)
 	representanteRepository := postgres.NewRepresentanteRepository(banco)
+	clienteUsecase := clienteusecases.NewClienteUsecase(
+		clienteRepository, clienteGrupoRepository, representanteRepository, empresaRepository,
+		postgres.NewLeadRepository(banco), usuarioRepository, cargoRepository,
+	)
 
 	rotas := httpapi.NewRouter(
 		banco,
@@ -87,17 +91,11 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 			produtoRepository, estoqueRepository, localRepository, reservaRepository,
 			usuarioRepository, cargoRepository, empresaRepository,
 		),
-		clienteusecases.NewClienteUsecase(
-			clienteRepository, clienteGrupoRepository, representanteRepository, empresaRepository,
-			postgres.NewLeadRepository(banco), usuarioRepository, cargoRepository,
-		),
+		clienteUsecase,
 		clienteusecases.NewObraUsecase(clienteObraRepository, clienteRepository, representanteRepository, usuarioRepository, cargoRepository),
 		clienteusecases.NewGrupoUsecase(clienteGrupoRepository, representanteRepository, usuarioRepository, cargoRepository),
 		clienteusecases.NewRepresentanteUsecase(representanteRepository, usuarioRepository, cargoRepository),
-		clienteusecases.NewClienteUsecase(
-			clienteRepository, clienteGrupoRepository, representanteRepository, empresaRepository,
-			postgres.NewLeadRepository(banco), usuarioRepository, cargoRepository,
-		),
+		clienteUsecase,
 		autenticacao.NovoTokenService(segredoDoTeste, time.Hour),
 	)
 
