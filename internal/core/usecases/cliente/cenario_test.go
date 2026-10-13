@@ -6,6 +6,7 @@ import (
 
 	domaincliente "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/cliente"
 	domainempresa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/empresa"
+	domainlead "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/lead"
 	domainusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/usuarios"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/cliente"
 	clienteusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/cliente"
@@ -18,6 +19,9 @@ type cenario struct {
 	obras          portsin.ObraUseCase
 	grupos         portsin.GrupoUseCase
 	representantes portsin.RepresentanteUseCase
+	importacao     portsin.ImportacaoUseCase
+	leadsRepo      *repositorioLeads
+	gruposRepo     *repositorioGrupos
 	usuariosRepo   *repositorioUsuarios
 	cargosRepo     *repositorioCargos
 	empresasRepo   *repositorioEmpresas
@@ -37,10 +41,15 @@ func novoCenario(t *testing.T) *cenario {
 	representantes := &repositorioRepresentantes{itens: map[uuid.UUID]*domaincliente.Representante{}}
 	obras := &repositorioObras{itens: map[uuid.UUID]*domaincliente.Obra{}}
 	clientes := &repositorioClientes{itens: map[uuid.UUID]*domaincliente.Cliente{}, obras: obras}
+	leads := &repositorioLeads{itens: map[uuid.UUID]*domainlead.Lead{}}
+	usecaseDeClientes := clienteusecases.NewClienteUsecase(clientes, grupos, representantes, empresas, leads, usuarios, cargos)
 
 	c := &cenario{
 		ctx:            context.Background(),
-		clientes:       clienteusecases.NewClienteUsecase(clientes, grupos, representantes, empresas, usuarios, cargos),
+		clientes:       usecaseDeClientes,
+		importacao:     usecaseDeClientes,
+		leadsRepo:      leads,
+		gruposRepo:     grupos,
 		obras:          clienteusecases.NewObraUsecase(obras, clientes, representantes, usuarios, cargos),
 		grupos:         clienteusecases.NewGrupoUsecase(grupos, representantes, usuarios, cargos),
 		representantes: clienteusecases.NewRepresentanteUsecase(representantes, usuarios, cargos),

@@ -19,6 +19,7 @@ type ClienteUsecaseImpl struct {
 	clientes portsout.ClienteRepository
 	grupos   portsout.GrupoRepository
 	empresas portsout.EmpresaRepository
+	leads    portsout.LeadRepository
 	permissoes
 }
 
@@ -27,6 +28,7 @@ func NewClienteUsecase(
 	grupos portsout.GrupoRepository,
 	representantes portsout.RepresentanteRepository,
 	empresas portsout.EmpresaRepository,
+	leads portsout.LeadRepository,
 	usuarios portsout.UsuarioRepository,
 	cargos portsout.CargoRepository,
 ) *ClienteUsecaseImpl {
@@ -34,6 +36,7 @@ func NewClienteUsecase(
 		clientes: clientes,
 		grupos:   grupos,
 		empresas: empresas,
+		leads:    leads,
 		permissoes: permissoes{
 			usuarios:       usuarios,
 			cargos:         cargos,

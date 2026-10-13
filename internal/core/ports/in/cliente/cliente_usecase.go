@@ -36,6 +36,13 @@ type AlterarClienteInput struct {
 	Dados     DadosClienteInput
 }
 
+type ConverterLeadInput struct {
+	UsuarioID uuid.UUID
+	LeadID    uuid.UUID
+	Documento string
+	Dados     DadosClienteInput
+}
+
 type ListarClientesInput struct {
 	UsuarioID       uuid.UUID
 	Busca           string
@@ -56,4 +63,5 @@ type ClienteUseCase interface {
 	Ativar(ctx context.Context, clienteID, usuarioID uuid.UUID) (*domaincliente.Cliente, error)
 	Desativar(ctx context.Context, clienteID, usuarioID uuid.UUID) (*domaincliente.Cliente, error)
 	Remover(ctx context.Context, clienteID, usuarioID uuid.UUID) error
+	ConverterLead(ctx context.Context, input ConverterLeadInput) (*domaincliente.Cliente, error)
 }

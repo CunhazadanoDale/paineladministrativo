@@ -124,11 +124,15 @@ func executar(registrador *slog.Logger) error {
 		),
 		clienteusecases.NewClienteUsecase(
 			clienteRepository, clienteGrupoRepository, representanteRepository, empresaRepository,
-			usuarioRepository, cargoRepository,
+			postgres.NewLeadRepository(banco), usuarioRepository, cargoRepository,
 		),
 		clienteusecases.NewObraUsecase(clienteObraRepository, clienteRepository, representanteRepository, usuarioRepository, cargoRepository),
 		clienteusecases.NewGrupoUsecase(clienteGrupoRepository, representanteRepository, usuarioRepository, cargoRepository),
 		clienteusecases.NewRepresentanteUsecase(representanteRepository, usuarioRepository, cargoRepository),
+		clienteusecases.NewClienteUsecase(
+			clienteRepository, clienteGrupoRepository, representanteRepository, empresaRepository,
+			postgres.NewLeadRepository(banco), usuarioRepository, cargoRepository,
+		),
 		autenticacao.NovoTokenService(cfg.JWTSecret, cfg.JWTExpiracao),
 	)
 

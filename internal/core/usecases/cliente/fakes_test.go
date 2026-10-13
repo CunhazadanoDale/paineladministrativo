@@ -8,6 +8,7 @@ import (
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	domaincliente "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/cliente"
 	domainempresa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/empresa"
+	domainlead "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/lead"
 	domainusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/usuarios"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/cliente"
 	"github.com/google/uuid"
@@ -21,7 +22,20 @@ var (
 	_ portsout.RepresentanteRepository = (*repositorioRepresentantes)(nil)
 	_ portsout.ClienteRepository       = (*repositorioClientes)(nil)
 	_ portsout.ObraRepository          = (*repositorioObras)(nil)
+	_ portsout.LeadRepository          = (*repositorioLeads)(nil)
 )
+
+type repositorioLeads struct {
+	itens map[uuid.UUID]*domainlead.Lead
+}
+
+func (r *repositorioLeads) Obter(_ context.Context, id uuid.UUID) (*domainlead.Lead, error) {
+	if lead, ok := r.itens[id]; ok {
+		return copiar(lead), nil
+	}
+
+	return nil, nil
+}
 
 func conflito() error {
 	return domain.ErroConflito("já existe um registro com estes dados")

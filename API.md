@@ -1342,6 +1342,62 @@ máscara (`aguia` acha "Águia"; `529.982` acha o CPF). A resposta traz `documen
 máscara), `documento_formatado`, `tipo_pessoa` (`pf`/`pj`), os ids dos vínculos, `lead_id`,
 `ativo`, `criado_em` e `atualizado_em`.
 
+### Conversão de lead em cliente
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/leads/{id}/converter` | **comercial** | `201` cliente criado |
+
+Corpo igual ao de `POST /api/v1/clientes`; `nome`, `email_nf` e `telefone` vazios são
+preenchidos com os dados do lead. O cliente guarda `lead_id` (`GET /api/v1/clientes?lead=<id>`
+encontra o cliente de um lead). O lead não muda.
+
+| Erro | Status | Mensagem |
+| --- | --- | --- |
+| Lead inexistente | `404` | `registro não encontrado: lead não encontrado` |
+| Lead já convertido | `409` | `lead já convertido em cliente` |
+| Documento já cadastrado | `409` | `já existe um cliente com este documento` |
+
+Lead convertido não pode ser excluído (`DELETE /api/v1/leads/{id}` → `400 registro em uso`).
+
+### Importação de clientes por CSV
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/clientes/importacao` | **administrador** | `200` relatório (`?simular=true` valida sem gravar) |
+
+Corpo: o arquivo CSV cru (`Content-Type: text/csv`), UTF-8 (com ou sem BOM), separador `;`,
+campos com `;` entre aspas, até 5 MB (`413` acima) e 5.000 linhas (`400` acima). Cabeçalho
+fixo, nesta ordem:
+
+```
+documento;nome;nome_fantasia;tipo;grupo;uf;cidade;email_nf;telefone;representante_documento;exige_numero_pedido_na_nf;proibe_antecipacao;observacoes
+```
+
+- Cada linha segue as mesmas regras de `POST /api/v1/clientes`; linha válida é gravada, linha
+  inválida volta no relatório com o número da linha no arquivo e o motivo. Nada é sobrescrito:
+  documento já cadastrado ou repetido no arquivo rejeita a linha.
+- `grupo` pelo nome (sem diferenciar acento e maiúscula), criado se não existir; grupo
+  inativo rejeita a linha.
+- `representante_documento`: CPF ou CNPJ de um representante cadastrado.
+- Flags `exige_numero_pedido_na_nf` e `proibe_antecipacao`: `sim`/`nao` (vazio = `nao`).
+- Cabeçalho diferente, número de colunas errado ou CSV malformado responde `400` sem gravar
+  nada.
+
+```json
+{
+  "dados": {
+    "simulacao": false,
+    "total": 4,
+    "importadas": 2,
+    "rejeitadas": [
+      { "linha": 4, "documento": "11222333000181", "motivo": "documento repetido no arquivo (linha 2)" },
+      { "linha": 5, "documento": "111.444.777-35", "motivo": "cliente do tipo pf exige CPF, e CPF exige o tipo pf" }
+    ]
+  }
+}
+```
+
 ### Obras do cliente
 
 | Método | Rota | Perfil | Sucesso |

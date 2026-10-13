@@ -17,12 +17,13 @@ import (
 )
 
 type clienteUseCaseFalso struct {
-	erro         error
-	cliente      *domaincliente.Cliente
-	inputCriar   portsin.CriarClienteInput
-	inputAlterar portsin.AlterarClienteInput
-	inputListar  portsin.ListarClientesInput
-	removido     uuid.UUID
+	erro           error
+	cliente        *domaincliente.Cliente
+	inputCriar     portsin.CriarClienteInput
+	inputAlterar   portsin.AlterarClienteInput
+	inputListar    portsin.ListarClientesInput
+	removido       uuid.UUID
+	inputConverter portsin.ConverterLeadInput
 }
 
 func (f *clienteUseCaseFalso) Criar(_ context.Context, input portsin.CriarClienteInput) (*domaincliente.Cliente, error) {
@@ -55,6 +56,11 @@ func (f *clienteUseCaseFalso) Desativar(_ context.Context, _, _ uuid.UUID) (*dom
 func (f *clienteUseCaseFalso) Remover(_ context.Context, clienteID, _ uuid.UUID) error {
 	f.removido = clienteID
 	return f.erro
+}
+
+func (f *clienteUseCaseFalso) ConverterLead(_ context.Context, input portsin.ConverterLeadInput) (*domaincliente.Cliente, error) {
+	f.inputConverter = input
+	return f.cliente, f.erro
 }
 
 var _ portsin.ClienteUseCase = (*clienteUseCaseFalso)(nil)

@@ -49,6 +49,7 @@ func NewRouter(
 	obraUseCase portsincliente.ObraUseCase,
 	grupoClienteUseCase portsincliente.GrupoUseCase,
 	representanteUseCase portsincliente.RepresentanteUseCase,
+	importacaoClientesUseCase portsincliente.ImportacaoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, middleware.ErrosDeRoteamento(novasRotas(
@@ -62,6 +63,7 @@ func NewRouter(
 		localUseCase,
 		reservaUseCase,
 		clienteUseCase, obraUseCase, grupoClienteUseCase, representanteUseCase,
+		importacaoClientesUseCase,
 		tokens,
 	)))
 }
@@ -90,6 +92,7 @@ func novasRotas(
 	obraUseCase portsincliente.ObraUseCase,
 	grupoClienteUseCase portsincliente.GrupoUseCase,
 	representanteUseCase portsincliente.RepresentanteUseCase,
+	importacaoClientesUseCase portsincliente.ImportacaoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -286,5 +289,9 @@ func novasRotas(
 	administrador("PUT /api/v1/representantes/{id}", representanteHandler.Alterar)
 	administrador("PATCH /api/v1/representantes/{id}/ativar", representanteHandler.Ativar)
 	administrador("PATCH /api/v1/representantes/{id}/desativar", representanteHandler.Desativar)
+
+	comercial("POST /api/v1/leads/{id}/converter", clienteHandler.ConverterLead)
+	importacaoClientesHandler := clientehandlers.NewImportacaoHandler(importacaoClientesUseCase)
+	administrador("POST /api/v1/clientes/importacao", middleware.EstenderPrazo(prazoDeArquivo, importacaoClientesHandler.Importar))
 	return mux
 }
