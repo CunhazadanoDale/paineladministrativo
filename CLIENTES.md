@@ -107,7 +107,7 @@ Obra ou SPE do cliente, com o endereço de entrega.
 ```
 POST   /api/v1/clientes                       criar (comercial)
 GET    /api/v1/clientes                       ?busca= (nome normalizado ou documento) ?grupo= ?representante= ?tipo= ?uf= ?ativo= ?lead= (autenticado)
-GET    /api/v1/clientes/{id}                  detalhe com grupo e representante (autenticado)
+GET    /api/v1/clientes/{id}                  detalhe, com os ids de grupo e representante (autenticado)
 PUT    /api/v1/clientes/{id}                  alterar, sem documento (comercial)
 PATCH  /api/v1/clientes/{id}/ativar|desativar (comercial)
 DELETE /api/v1/clientes/{id}                  só sem vínculos (administrador)
@@ -216,7 +216,7 @@ pacote `lead` não muda.
 | **1** | Migrations 000034–000036 + domínio (documento, percentual, tipo, nome de busca, grupo, representante, cliente, obra) + testes | concluída |
 | **2** | Repositórios + testes de integração (unicidade, busca normalizada, filtros) | concluída |
 | **3** | Usecases + permissões (comercial, administrador, representante com login) + testes com fakes | concluída |
-| **4** | Handlers/DTOs + rotas + e2e + `API.md` | pendente |
+| **4** | Handlers/DTOs + rotas + e2e + `API.md` | concluída |
 | **5** | Conversão de lead + importação CSV (com simulação) + testes + `API.md` | pendente |
 | **6** | Frontend: clientes, obras, grupos, representantes, conversão e importação | pendente |
 

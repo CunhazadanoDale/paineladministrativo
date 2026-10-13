@@ -11,6 +11,7 @@ import (
 	httpapi "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/postgres"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/storage/disco"
+	clienteusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/cliente"
 	empresausecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/empresa"
 	estoqueusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/estoque"
 	leadusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/lead"
@@ -39,6 +40,10 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 	localRepository := postgres.NewLocalRepository(banco)
 	loteRepository := postgres.NewLoteRepository(banco)
 	reservaRepository := postgres.NewReservaRepository(banco)
+	clienteRepository := postgres.NewClienteRepository(banco)
+	clienteGrupoRepository := postgres.NewClienteGrupoRepository(banco)
+	clienteObraRepository := postgres.NewClienteObraRepository(banco)
+	representanteRepository := postgres.NewRepresentanteRepository(banco)
 
 	rotas := httpapi.NewRouter(
 		banco,
@@ -82,6 +87,13 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 			produtoRepository, estoqueRepository, localRepository, reservaRepository,
 			usuarioRepository, cargoRepository, empresaRepository,
 		),
+		clienteusecases.NewClienteUsecase(
+			clienteRepository, clienteGrupoRepository, representanteRepository, empresaRepository,
+			usuarioRepository, cargoRepository,
+		),
+		clienteusecases.NewObraUsecase(clienteObraRepository, clienteRepository, representanteRepository, usuarioRepository, cargoRepository),
+		clienteusecases.NewGrupoUsecase(clienteGrupoRepository, representanteRepository, usuarioRepository, cargoRepository),
+		clienteusecases.NewRepresentanteUsecase(representanteRepository, usuarioRepository, cargoRepository),
 		autenticacao.NovoTokenService(segredoDoTeste, time.Hour),
 	)
 

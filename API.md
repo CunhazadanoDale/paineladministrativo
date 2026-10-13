@@ -1285,6 +1285,136 @@ O movimento da baixa traz `reserva_id`.
 
 ---
 
+## Clientes, obras, grupos e representantes
+
+Cadastro único de clientes do **grupo** (sem escopo por empresa). Perfis: **comercial** (ou
+administrador) escreve clientes, obras e grupos; **administrador** gerencia representantes e
+exclui clientes; qualquer autenticado lê clientes, obras e grupos; representantes são lidos pelo
+comercial.
+
+**Representante com login**: usuário vinculado a um representante (e que não é administrador)
+só vê e altera os clientes em que é o representante — cliente, obras ou filtro
+`?representante=` de outro → `403` (`cliente de outro representante`); cliente que ele cria ou
+altera fica sempre com ele como representante (informar outro → `403`); em representantes, só
+vê o próprio cadastro.
+
+### Clientes
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/clientes` | **comercial** | `201` |
+| `GET` | `/api/v1/clientes` | autenticado | `200` lista paginada (`?busca=`, `?grupo=`, `?representante=`, `?tipo=`, `?uf=`, `?ativo=`, `?lead=`) |
+| `GET` | `/api/v1/clientes/{id}` | autenticado | `200` |
+| `PUT` | `/api/v1/clientes/{id}` | **comercial** | `200` (mesmo corpo, **sem** `documento`) |
+| `PATCH` | `/api/v1/clientes/{id}/ativar` / `desativar` | **comercial** | `200` |
+| `DELETE` | `/api/v1/clientes/{id}` | **administrador** | `204`; `400 registro em uso` com obra ou outro vínculo |
+
+```json
+{
+  "documento": "11.222.333/0001-81",
+  "nome": "Construtora Águia LTDA",
+  "nome_fantasia": "Águia",
+  "tipo": "construtora",
+  "grupo_id": "uuid-do-grupo",
+  "uf": "PB",
+  "cidade": "João Pessoa",
+  "empresa_relacionamento_id": "uuid-da-empresa",
+  "representante_id": "uuid-do-representante",
+  "email_nf": "nf@aguia.com.br",
+  "telefone": "83 99999-0000",
+  "observacoes": "",
+  "exige_numero_pedido_na_nf": true,
+  "proibe_antecipacao": false
+}
+```
+
+| Campo | Regra |
+| --- | --- |
+| `documento` | obrigatório; CPF ou CNPJ (numérico ou alfanumérico), com ou sem máscara, dígitos conferidos; único (`409 já existe um cliente com este documento`); não muda depois de criado |
+| `tipo` | `construtora`, `loja`, `pf` ou `outro`; `pf` exige CPF e CPF exige `pf` |
+| `nome` / `cidade` / `uf` | obrigatórios (`nome` até 200, `cidade` até 120, `uf` sigla) |
+| `grupo_id`, `representante_id`, `empresa_relacionamento_id` | opcionais; precisam existir (`400`); ao atribuir ou trocar, precisam estar ativos (o vínculo inativo já gravado é mantido) |
+| `email_nf` | um e-mail só, destinatário da NF-e |
+| `exige_numero_pedido_na_nf`, `proibe_antecipacao` | regras comerciais tipadas, usadas pela NF-e e pela antecipação |
+
+`?busca=` procura pelo nome sem diferenciar acento e maiúscula e pelo começo do documento sem
+máscara (`aguia` acha "Águia"; `529.982` acha o CPF). A resposta traz `documento` (sem
+máscara), `documento_formatado`, `tipo_pessoa` (`pf`/`pj`), os ids dos vínculos, `lead_id`,
+`ativo`, `criado_em` e `atualizado_em`.
+
+### Obras do cliente
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/clientes/{id}/obras` | **comercial** | `201` |
+| `GET` | `/api/v1/clientes/{id}/obras` | autenticado | `200` lista paginada (`?ativas=`) |
+| `GET` | `/api/v1/obras/{id}` | autenticado | `200` |
+| `PUT` | `/api/v1/obras/{id}` | **comercial** | `200` |
+| `PATCH` | `/api/v1/obras/{id}/ativar` / `desativar` | **comercial** | `200` |
+
+```json
+{
+  "nome": "Residencial Mar Azul",
+  "cnpj": "33.400.004/0001-16",
+  "logradouro": "Av. Beira Mar",
+  "numero": "100",
+  "complemento": null,
+  "bairro": "Intermares",
+  "cidade": "Cabedelo",
+  "uf": "PB",
+  "cep": "58310-000"
+}
+```
+
+`nome`, `logradouro`, `cidade` e `uf` são obrigatórios; nome único dentro do cliente sem
+diferenciar maiúscula (`409 já existe uma obra com este nome no cliente`); `cnpj` (da SPE) e
+`cep` (8 dígitos) opcionais, devolvidos sem máscara (`cnpj_formatado` também). Cliente inativo
+não recebe obra nova (`400`).
+
+### Grupos de clientes
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/cliente-grupos` | **comercial** | `201` `{ "nome": "Grupo Águia" }` |
+| `GET` | `/api/v1/cliente-grupos` | autenticado | `200` lista paginada (`?busca=`, `?ativos=`) |
+| `GET` | `/api/v1/cliente-grupos/{id}` | autenticado | `200` |
+| `PUT` | `/api/v1/cliente-grupos/{id}` | **comercial** | `200` (renomeia) |
+| `PATCH` | `/api/v1/cliente-grupos/{id}/ativar` / `desativar` | **comercial** | `200` |
+
+Nome único sem diferenciar acento e maiúscula (`409 já existe um grupo de clientes com este nome`).
+
+### Representantes
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/representantes` | **administrador** | `201` |
+| `GET` | `/api/v1/representantes` | comercial | `200` lista paginada (`?busca=` nome ou documento, `?ativos=`) |
+| `GET` | `/api/v1/representantes/{id}` | comercial | `200` |
+| `PUT` | `/api/v1/representantes/{id}` | **administrador** | `200` |
+| `PATCH` | `/api/v1/representantes/{id}/ativar` / `desativar` | **administrador** | `200` |
+
+```json
+{
+  "nome": "José Vendas",
+  "documento": "529.982.247-25",
+  "usuario_id": "uuid-do-usuario",
+  "email": "jose@vendas.com",
+  "telefone": null,
+  "comissao_pronta_entrega_bp": 300,
+  "comissao_importacao_bp": 150
+}
+```
+
+| Campo | Regra |
+| --- | --- |
+| `documento` | opcional; CPF ou CNPJ; único (`409 já existe um representante com este documento`) |
+| `usuario_id` | opcional; usuário precisa existir (`400`) e não estar ligado a outro representante (`409 usuário já vinculado a outro representante`) |
+| `comissao_*_bp` | percentual padrão em pontos-base (`300` = 3,00%), de `0` a `10000` |
+
+Representante inativo não recebe cliente novo.
+
+---
+
 ## Exemplos
 
 ### PowerShell
