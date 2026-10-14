@@ -79,7 +79,7 @@
 |---|---|---|
 | `id` | UUID | |
 | `nome` | VARCHAR(120) | obrigatório; único entre as raízes e entre as filhas do mesmo pai, sem diferenciar maiúsculas |
-| `categoria_pai_id` | UUID NULL | FK `categoria_financeira` `RESTRICT`; só raiz pode ser pai (dois níveis); não muda |
+| `categoria_pai_id` | UUID NULL | FK composta para `categoria_financeira` `RESTRICT` (seção abaixo); só raiz pode ser pai (dois níveis); não muda |
 | `natureza` | VARCHAR(13) | `receita`, `despesa`, `transferencia`; na filha, copiada do pai; não muda |
 | `linha_dre` | VARCHAR(20) | ver tabela abaixo; na filha, copiada do pai; não muda |
 | `codigo` | VARCHAR(20) NULL | código contábil opcional (`^[0-9]+(\.[0-9]+)*$`, ex.: `4.1.03`); único quando informado |
@@ -106,7 +106,10 @@
 **Constraints e índices:** `chk_categoria_financeira_nome`, `chk_categoria_financeira_natureza`,
 `chk_categoria_financeira_linha_dre`, `chk_categoria_financeira_codigo`,
 `chk_categoria_financeira_ordem`, `chk_categoria_financeira_versao`,
-`fk_categoria_financeira_pai`; `uq_categoria_financeira_raiz_nome` em `lower(nome)` parcial
+`chk_categoria_financeira_pai` (não aponta para si mesma), `uq_categoria_financeira_classificacao`
+em `(id, natureza, linha_dre)` e `fk_categoria_financeira_pai` **composta**
+`(categoria_pai_id, natureza, linha_dre)` → `(id, natureza, linha_dre)`: o próprio banco garante
+que a subcategoria tem a mesma classificação do pai; `uq_categoria_financeira_raiz_nome` em `lower(nome)` parcial
 (`WHERE categoria_pai_id IS NULL`), `uq_categoria_financeira_sub_nome` em
 `(categoria_pai_id, lower(nome))` parcial, `uq_categoria_financeira_codigo` parcial
 (`WHERE codigo IS NOT NULL`), `idx_categoria_financeira_pai (categoria_pai_id, ordem, nome, id)`.
@@ -294,7 +297,7 @@ test/helpers/servidor.go + test/integration + test/e2e
 
 | Fase | Entrega | Estado |
 |---|---|---|
-| **1** | Migrations 000038–000039 + domínio (catálogo de bancos, tipo, números bancários, conta, natureza, linha DRE, categoria com herança e versão) + testes | pendente |
+| **1** | Migrations 000038–000039 + domínio (catálogo de bancos, tipo, números bancários, conta, natureza, linha DRE, categoria com herança e versão) + testes | concluída |
 | **2** | Repositórios com guarda de versão e guardas atômicas + testes de integração (unicidade com zeros à esquerda, herança no `INSERT`, desativação com filhas ativas, empresa inativa, filtros, árvore, corrida de versão) | pendente |
 | **3** | Usecases + permissões (financeiro, administrador, escopo por empresa) + testes com fakes, inclusive isolamento entre empresas | pendente |
 | **4** | Handlers/DTOs + rotas + e2e + `API.md` (usa o perfil financeiro do M4; ver seção 5) | pendente |
