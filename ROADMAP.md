@@ -139,7 +139,7 @@ o **F0b** pode correr junto com essas telas.
 | # | Módulo | Depende de | Substitui (controle manual atual) | Status |
 |---|---|---|---|---|
 | T0 | Saneamento | — | — | concluído |
-| F0a | Correções do front — bloqueante | — | — | pendente |
+| F0a | Correções do front — bloqueante | — | — | em andamento (feat/f0a) |
 | F0b | Correções do front — qualidade | F0a | — | pendente |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
