@@ -182,11 +182,23 @@ func (r *repositorioSolicitacoes) AtualizarStatus(_ context.Context, solicitacao
 }
 
 func (r *repositorioSolicitacoes) Classificar(_ context.Context, solicitacao *domainsolicitacao.Solicitacao, versaoLida int, historico *domainsolicitacao.Historico) error {
+	return r.gravarComGuarda(solicitacao, versaoLida, domainsolicitacao.StatusAprovado, historico)
+}
+
+func (r *repositorioSolicitacoes) Editar(_ context.Context, solicitacao *domainsolicitacao.Solicitacao, versaoLida int, historico *domainsolicitacao.Historico) error {
+	return r.gravarComGuarda(solicitacao, versaoLida, domainsolicitacao.StatusPendenteAprovacao, historico)
+}
+
+func (r *repositorioSolicitacoes) Adiar(_ context.Context, solicitacao *domainsolicitacao.Solicitacao, versaoLida int, historico *domainsolicitacao.Historico) error {
+	return r.gravarComGuarda(solicitacao, versaoLida, domainsolicitacao.StatusAprovado, historico)
+}
+
+func (r *repositorioSolicitacoes) gravarComGuarda(solicitacao *domainsolicitacao.Solicitacao, versaoLida int, status domainsolicitacao.Status, historico *domainsolicitacao.Historico) error {
 	salvo, ok := r.itens[solicitacao.ID]
 	if !ok {
 		return domain.ErrNotFound
 	}
-	if salvo.Versao != versaoLida || salvo.Status != domainsolicitacao.StatusAprovado {
+	if salvo.Versao != versaoLida || salvo.Status != status {
 		return domainsolicitacao.ErroSolicitacaoAlterada()
 	}
 

@@ -347,6 +347,133 @@ func (u *SolicitacaoUsecaseImpl) Classificar(ctx context.Context, input portsin.
 	return u.repo.Classificar(ctx, solicitacao, versaoLida, historico)
 }
 
+func (u *SolicitacaoUsecaseImpl) Editar(ctx context.Context, input portsin.EditarSolicitacaoInput) error {
+	solicitacao, err := u.buscar(ctx, input.SolicitacaoID)
+	if err != nil {
+		return err
+	}
+
+	administrador, err := u.ehAdministrador(ctx, input.UsuarioID)
+	if err != nil {
+		return err
+	}
+	if !solicitacao.PodeSerEditadaPor(input.UsuarioID, administrador) {
+		return domain.ErroPermissao("perfil sem permissão para editar esta solicitação")
+	}
+	if err := solicitacao.ConferirVersao(input.Versao); err != nil {
+		return err
+	}
+
+	dados, err := dadosDeEdicao(input)
+	if err != nil {
+		return err
+	}
+
+	versaoLida := solicitacao.Versao
+	alterados, err := solicitacao.Editar(dados, time.Now().UTC())
+	if err != nil {
+		return err
+	}
+	if len(alterados) == 0 {
+		return nil
+	}
+	if err := u.validarClassificacao(ctx, dados.Classificacao); err != nil {
+		return err
+	}
+
+	statusAtual := solicitacao.Status
+	historico := domainsolicitacao.NovoHistorico(
+		solicitacao.ID, input.UsuarioID, &statusAtual, statusAtual, domainsolicitacao.EventoEditada,
+		"solicitação editada: "+strings.Join(alterados, ", "),
+	)
+
+	return u.repo.Editar(ctx, solicitacao, versaoLida, historico)
+}
+
+func dadosDeEdicao(input portsin.EditarSolicitacaoInput) (domainsolicitacao.DadosEdicao, error) {
+	valor, err := domainsolicitacao.NovoValor(input.ValorCentavos)
+	if err != nil {
+		return domainsolicitacao.DadosEdicao{}, err
+	}
+
+	prazo, err := domainsolicitacao.NovoPrazoPagamento(input.PrazoPagamento)
+	if err != nil {
+		return domainsolicitacao.DadosEdicao{}, err
+	}
+
+	observacao, err := domainsolicitacao.NovaObservacao(input.Observacao)
+	if err != nil {
+		return domainsolicitacao.DadosEdicao{}, err
+	}
+
+	formaPagamento, err := domainsolicitacao.NovaFormaPagamento(input.FormaPagamento)
+	if err != nil {
+		return domainsolicitacao.DadosEdicao{}, err
+	}
+
+	competencia, err := competenciaInformada(input.Competencia)
+	if err != nil {
+		return domainsolicitacao.DadosEdicao{}, err
+	}
+
+	return domainsolicitacao.DadosEdicao{
+		Valor:          valor,
+		Prazo:          prazo,
+		Observacao:     observacao,
+		FormaPagamento: formaPagamento,
+		Classificacao: domainsolicitacao.Classificacao{
+			FornecedorID:          input.FornecedorID,
+			CategoriaFinanceiraID: input.CategoriaFinanceiraID,
+			Competencia:           competencia,
+		},
+		Estimado: input.Estimado,
+	}, nil
+}
+
+func (u *SolicitacaoUsecaseImpl) Adiar(ctx context.Context, input portsin.AdiarSolicitacaoInput) error {
+	permissao, err := u.ehFinanceiro(ctx, input.UsuarioID)
+	if err != nil {
+		return err
+	}
+	if !permissao {
+		return domain.ErroPermissao("perfil sem permissão para adiar solicitação")
+	}
+
+	solicitacao, err := u.buscar(ctx, input.SolicitacaoID)
+	if err != nil {
+		return err
+	}
+	if err := u.exigeAcessoAEmpresa(ctx, input.UsuarioID, solicitacao.EmpresaID); err != nil {
+		return err
+	}
+	if err := solicitacao.ConferirVersao(input.Versao); err != nil {
+		return err
+	}
+
+	vencimento, err := domainsolicitacao.NovoPrazoPagamento(input.Vencimento)
+	if err != nil {
+		return err
+	}
+	motivo, err := domainsolicitacao.NovoMotivoAdiamento(input.Motivo)
+	if err != nil {
+		return err
+	}
+
+	versaoLida := solicitacao.Versao
+	anterior, err := solicitacao.Adiar(vencimento, time.Now().UTC())
+	if err != nil {
+		return err
+	}
+
+	statusAtual := solicitacao.Status
+	historico := domainsolicitacao.NovoHistorico(
+		solicitacao.ID, input.UsuarioID, &statusAtual, statusAtual, domainsolicitacao.EventoAdiada,
+		"vencimento adiado de "+anterior.String()+" para "+solicitacao.Prazo.String()+": "+motivo.Texto(),
+	)
+
+	return u.repo.Adiar(ctx, solicitacao, versaoLida, historico)
+}
+
 func (u *SolicitacaoUsecaseImpl) RegistrarPagamento(ctx context.Context, input portsin.RegistrarPagamentoInput) error {
 	permissao, err := u.ehFinanceiro(ctx, input.UsuarioID)
 	if err != nil {

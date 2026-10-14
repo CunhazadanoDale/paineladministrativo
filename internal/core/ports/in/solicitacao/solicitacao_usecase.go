@@ -33,6 +33,28 @@ type CriarSolicitacaoInput struct {
 	ArquivoIDs            []uuid.UUID
 }
 
+type EditarSolicitacaoInput struct {
+	SolicitacaoID         uuid.UUID
+	UsuarioID             uuid.UUID
+	ValorCentavos         int64
+	PrazoPagamento        time.Time
+	Observacao            string
+	FormaPagamento        string
+	FornecedorID          *uuid.UUID
+	CategoriaFinanceiraID *uuid.UUID
+	Competencia           string
+	Estimado              bool
+	Versao                int
+}
+
+type AdiarSolicitacaoInput struct {
+	SolicitacaoID uuid.UUID
+	UsuarioID     uuid.UUID
+	Vencimento    time.Time
+	Motivo        string
+	Versao        int
+}
+
 type ClassificarSolicitacaoInput struct {
 	SolicitacaoID         uuid.UUID
 	UsuarioID             uuid.UUID
@@ -73,6 +95,8 @@ type SolicitacaoUseCase interface {
 	Rejeitar(ctx context.Context, solicitacaoID, aprovadorID uuid.UUID, motivo string) error
 	Cancelar(ctx context.Context, solicitacaoID, usuarioID uuid.UUID) error
 	Classificar(ctx context.Context, input ClassificarSolicitacaoInput) error
+	Editar(ctx context.Context, input EditarSolicitacaoInput) error
+	Adiar(ctx context.Context, input AdiarSolicitacaoInput) error
 	RegistrarPagamento(ctx context.Context, input RegistrarPagamentoInput) error
 	ListarHistorico(ctx context.Context, solicitacaoID, usuarioID uuid.UUID) ([]*domainsolicitacao.Historico, error)
 	ListarArquivos(ctx context.Context, solicitacaoID, usuarioID uuid.UUID) ([]*domainsolicitacao.Arquivo, error)
