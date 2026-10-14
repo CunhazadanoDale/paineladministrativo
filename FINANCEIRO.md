@@ -247,8 +247,9 @@ apontando para o registro → `400 registro em uso`.
   `protegido(...)` para a leitura do plano de contas e do catálogo de bancos;
   `administrador(...)` para excluir.
 - Regras finas em `usecases/financeiro/permissoes.go`: a escrita e a leitura de contas conferem o
-  perfil também no usecase (financeiro **ou** administrador), com portas mínimas
-  `UsuarioRepository` e `CargoRepository` (só `Obter`).
+  perfil também no usecase (financeiro **ou** administrador; sem perfil → `403 perfil sem
+  permissão para o financeiro`), com portas mínimas `UsuarioRepository` e `CargoRepository`
+  (só `Obter`).
 - **Escopo por empresa** só nas contas bancárias, pelos itens 1 a 6 da seção 4 do `EMPRESAS.md`:
   porta mínima `EmpresaRepository` (`Obter` + `AcessoDoUsuario`); criar, ler, alterar, ativar,
   desativar e excluir conta de empresa fora do acesso → `403`; listagem com `EmpresaIDs`, lista
@@ -307,7 +308,7 @@ test/helpers/servidor.go + test/integration + test/e2e
 |---|---|---|
 | **1** | Migrations 000038–000039 + domínio (catálogo de bancos, tipo, números bancários, conta, natureza, linha DRE, categoria com herança e versão) + testes | concluída |
 | **2** | Repositórios com guarda de versão e guardas atômicas + testes de integração (unicidade com zeros à esquerda, herança no `INSERT`, desativação com filhas ativas, empresa inativa, filtros, árvore, corrida de versão) | concluída |
-| **3** | Usecases + permissões (financeiro, administrador, escopo por empresa) + testes com fakes, inclusive isolamento entre empresas | pendente |
+| **3** | Usecases + permissões (financeiro, administrador, escopo por empresa) + testes com fakes, inclusive isolamento entre empresas | concluída |
 | **4** | Handlers/DTOs + rotas + e2e + `API.md` (usa o perfil financeiro do M4; ver seção 5) | pendente |
 | **5** | Frontend: contas bancárias por empresa e plano de contas em árvore | pendente |
 

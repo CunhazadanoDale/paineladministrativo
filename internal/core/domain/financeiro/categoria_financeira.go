@@ -51,7 +51,7 @@ func NovaCategoriaFinanceira(dados DadosCategoriaFinanceira, classificacao *Clas
 		categoria.LinhaDRE = classificacao.LinhaDRE()
 	} else {
 		if classificacao != nil {
-			return nil, domain.ErroValidacao("subcategoria herda natureza e linha da DRE da categoria pai")
+			return nil, ErroSubcategoriaHerdaClassificacao()
 		}
 		if pai.EhSubcategoria() || !pai.Ativa {
 			return nil, ErroPaiDeveSerRaizAtiva()
@@ -67,6 +67,10 @@ func NovaCategoriaFinanceira(dados DadosCategoriaFinanceira, classificacao *Clas
 	}
 
 	return categoria, nil
+}
+
+func ErroSubcategoriaHerdaClassificacao() error {
+	return domain.ErroValidacao("subcategoria herda natureza e linha da DRE da categoria pai")
 }
 
 func ErroPaiDeveSerRaizAtiva() error {
