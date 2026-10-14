@@ -178,7 +178,7 @@ test/helpers/servidor.go + test/integration + test/e2e
 | Fase | Entrega | Estado |
 |---|---|---|
 | **1** | Migration 000037 + domínio (país, moeda, regras de documento por país, versão) + testes | concluída |
-| **2** | Repositório com guarda de versão + testes de integração (unicidade, busca, filtros, corrida de versão) | pendente |
+| **2** | Repositório com guarda de versão + testes de integração (unicidade, busca, filtros, corrida de versão) | concluída |
 | **3** | Perfil financeiro (`TemAcessoFinanceiro`, `ExigirFinanceiro`, campo no login) + testes | pendente |
 | **4** | Usecase + permissões + testes com fakes | pendente |
 | **5** | Handlers/DTOs + rotas + e2e + `API.md` | pendente |
