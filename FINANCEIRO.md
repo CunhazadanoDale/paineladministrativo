@@ -1,7 +1,7 @@
 # Escopo — M5 Contas bancárias e plano de contas
 
-> **Status:** escopo fechado — pronto para implementação. As decisões da seção 1 foram delegadas
-> pelo usuário à sessão (outubro/2026), seguindo a boa prática.
+> **Status:** escopo fechado — API concluída (fases 1 a 4); front pendente. As decisões da
+> seção 1 foram delegadas pelo usuário à sessão (outubro/2026), seguindo a boa prática.
 > **Objetivo:** tirar a "classificação manual dos extratos" da planilha: cadastro das contas
 > bancárias de cada empresa e plano de contas único do grupo, base para contas a pagar (M7),
 > contas a receber (M9), caixa e conciliação (M13), dívidas (M14) e DRE (M15).
@@ -239,10 +239,8 @@ apontando para o registro → `400 registro em uso`.
 ## 5. Permissões
 
 - **Perfil financeiro**: criado pelo M4 (fase 3 do `FORNECEDORES.md`: `TemAcessoFinanceiro`,
-  `ExigirFinanceiro`, wrapper `financeiro(...)`, campo `financeiro` no login). O M5 só o usa.
-  Se a fase 4 do M5 chegar antes de o perfil estar na `main`, as rotas de financeiro entram com
-  `protegido(...)` (o usecase já barra quem não é financeiro) e trocam para `financeiro(...)`
-  num commit próprio assim que a `main` tiver o wrapper.
+  `ExigirFinanceiro`, wrapper `financeiro(...)`, campo `financeiro` no login). O M5 só o usa;
+  a branch foi atualizada com a `main` depois do merge do M4, antes da fase 4.
 - Rotas: `financeiro(...)` para toda a escrita e para a leitura de contas bancárias;
   `protegido(...)` para a leitura do plano de contas e do catálogo de bancos;
   `administrador(...)` para excluir.
@@ -284,21 +282,23 @@ migrations/000039_create_tabela_conta_bancaria
 
 internal/core/domain/financeiro/      banco.go (catálogo), tipo_conta.go, numero_bancario.go
                                       (agência, conta e dígitos), conta_bancaria.go, natureza.go,
-                                      linha_dre.go, categoria_financeira.go (+ testes)
+                                      linha_dre.go (+ Classificacao), categoria_financeira.go,
+                                      plano.go (árvore), texto.go, versao.go (+ testes)
 internal/core/ports/out/financeiro/   conta_bancaria_repository.go, categoria_financeira_repository.go,
                                       empresa_repository.go, usuario_repository.go, cargo_repository.go
 internal/core/ports/in/financeiro/    conta_bancaria_usecase.go, categoria_financeira_usecase.go
 internal/core/usecases/financeiro/    conta_bancaria_usecase.go, categoria_financeira_usecase.go,
                                       permissoes.go (+ testes, cenário e fakes)
-internal/adapter/postgres/            conta_bancaria_repo.go, categoria_financeira_repo.go
+internal/adapter/postgres/            conta_bancaria_repo.go, categoria_financeira_repo.go,
+                                      guarda_versao.go (versão, motivo da falha, unicidade e exclusão)
 internal/adapter/http/dto/financeiro/ + handlers/financeiro/
 cmd/api/main.go + internal/adapter/http/rotas.go   (registro, só acréscimos)
 test/helpers/servidor.go + test/integration + test/e2e
 ```
 
 - O domínio importa só `domain` (erros); a empresa entra pelo usecase, por porta mínima.
-- Numeração: o M4 usa `000037`; o M5 renumera antes do merge se a `main` já tiver avançado
-  (regra 4 da seção 3 do `ROADMAP.md`).
+- Numeração: o M4 entrou na `main` com a `000037`; as `000038` e `000039` do M5 seguem a última
+  da `main` e só mudam se outra migration for mergeada antes (regra 4 da seção 3 do `ROADMAP.md`).
 
 ---
 
@@ -309,7 +309,7 @@ test/helpers/servidor.go + test/integration + test/e2e
 | **1** | Migrations 000038–000039 + domínio (catálogo de bancos, tipo, números bancários, conta, natureza, linha DRE, categoria com herança e versão) + testes | concluída |
 | **2** | Repositórios com guarda de versão e guardas atômicas + testes de integração (unicidade com zeros à esquerda, herança no `INSERT`, desativação com filhas ativas, empresa inativa, filtros, árvore, corrida de versão) | concluída |
 | **3** | Usecases + permissões (financeiro, administrador, escopo por empresa) + testes com fakes, inclusive isolamento entre empresas | concluída |
-| **4** | Handlers/DTOs + rotas + e2e + `API.md` (usa o perfil financeiro do M4; ver seção 5) | pendente |
+| **4** | Handlers/DTOs + rotas + e2e + `API.md` (usa o perfil financeiro do M4; ver seção 5) | concluída |
 | **5** | Frontend: contas bancárias por empresa e plano de contas em árvore | pendente |
 
 O M5 não tem dinheiro nem data de fato (o saldo inicial fica no M13), então a fase 5 não depende
