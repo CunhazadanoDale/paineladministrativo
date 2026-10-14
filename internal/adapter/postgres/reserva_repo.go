@@ -93,6 +93,26 @@ func (r *ReservaRepository) Listar(ctx context.Context, filtro portsout.ReservaF
 	return itens, nil
 }
 
+func (r *ReservaRepository) AtivasPorOrigem(ctx context.Context, origemIDs []uuid.UUID) ([]*domainestoque.Reserva, error) {
+	var linhas []*reservaLinha
+	if err := r.db.SelectContext(ctx, &linhas, `
+		SELECT `+colunasReserva+`
+		FROM produto_reserva
+		WHERE origem_id = ANY($1::uuid[])
+		  AND status = $2
+		ORDER BY criado_em ASC, id ASC
+	`, pq.Array(textosDeIDs(origemIDs)), domainestoque.StatusReservaAtiva); err != nil {
+		return nil, err
+	}
+
+	itens := make([]*domainestoque.Reserva, 0, len(linhas))
+	for _, linha := range linhas {
+		itens = append(itens, paraDominioReserva(linha))
+	}
+
+	return itens, nil
+}
+
 func inserirReserva(ctx context.Context, tx *sqlx.Tx, reserva *domainestoque.Reserva) error {
 	_, err := tx.NamedExecContext(ctx, `
 		INSERT INTO produto_reserva (
