@@ -23,6 +23,8 @@ func TestNovaAgenciaSeparaNumeroEDigito(t *testing.T) {
 		{valor: "0812", numero: "0812", formatado: "0812"},
 		{valor: " 1234-5 ", numero: "1234", esperado: texto("5"), formatado: "1234-5"},
 		{valor: "1.234-x", numero: "1234", esperado: texto("X"), formatado: "1234-X"},
+		{valor: "1234-p", numero: "1234", esperado: texto("P"), formatado: "1234-P"},
+		{valor: "1234", digito: texto("p"), numero: "1234", esperado: texto("P"), formatado: "1234-P"},
 		{valor: "1234", digito: texto(" 7 "), numero: "1234", esperado: texto("7"), formatado: "1234-7"},
 		{valor: "1234", digito: texto("  "), numero: "1234", formatado: "1234"},
 		{valor: "0001", numero: "0001", formatado: "0001"},

@@ -126,6 +126,17 @@ func TestCriarContaBancariaDuplicada(t *testing.T) {
 
 	_, err = c.contas.Criar(c.ctx, entradaDeConta(c.financeiroMIA, c.mia, "999", "MOVIMENTO"))
 	esperarErro(t, err, domain.ErrConflito, "já existe uma conta com este apelido na empresa")
+
+	semHifen := entradaDeConta(c.financeiroMIA, c.mia, "1", "Com dígito")
+	semHifen.Conta = "5432-1"
+	_, err = c.contas.Criar(c.ctx, semHifen)
+	esperarErro(t, err, domain.ErrConflito, "já existe uma conta com este banco, agência e número")
+
+	poupanca := entradaDeConta(c.financeiroMIA, c.mia, "54321", "Poupança")
+	poupanca.Tipo = "poupanca"
+	if _, err := c.contas.Criar(c.ctx, poupanca); err != nil {
+		t.Fatalf("poupança no mesmo número falhou: %v", err)
+	}
 }
 
 func TestContasBancariasIsoladasPorEmpresa(t *testing.T) {

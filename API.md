@@ -1595,14 +1595,16 @@ Corpo do `POST`:
 | `empresa_id` | obrigatório; empresa do acesso (`403 perfil sem acesso a esta empresa`) e ativa (`400 empresa inativa não recebe conta bancária`); não muda |
 | `banco` | código COMPE do catálogo: `001` Banco do Brasil, `033` Santander, `077` Inter, `237` Bradesco, `341` Itaú, `403` Cora, `748` Sicredi; outro → `400 banco não suportado`; não muda |
 | `tipo` | `corrente`, `poupanca`, `pagamento` ou `aplicacao`; não muda |
-| `agencia` / `agencia_digito` | até 5 dígitos, não só zeros; dígito `0-9` ou `X`, junto (`1234-5`) **ou** no campo próprio, nunca nos dois; não muda |
-| `conta` / `conta_digito` | até 20 dígitos, não só zeros; dígito com 1 ou 2 caracteres `0-9`/`X`, junto (`54321-0`) **ou** no campo próprio; pontos e espaços são ignorados; não muda |
+| `agencia` / `agencia_digito` | até 5 dígitos, não só zeros; dígito `0-9`, `X` ou `P`, junto (`1234-5`) **ou** no campo próprio, nunca nos dois; não muda |
+| `conta` / `conta_digito` | até 20 dígitos, não só zeros; dígito com 1 ou 2 caracteres `0-9`/`X`/`P`, junto (`54321-0`) **ou** no campo próprio; pontos e espaços são ignorados; não muda |
 | `apelido` | obrigatório, até 60; único na empresa sem diferenciar maiúsculas (`409 já existe uma conta com este apelido na empresa`); único campo editável |
 
-O dígito verificador não é conferido. A mesma conta (banco, agência e número, ignorando zeros à
-esquerda e o dígito) não existe duas vezes no grupo, nem em empresas diferentes → `409 já existe
-uma conta com este banco, agência e número`. Corrigir banco, agência ou conta = desativar e criar
-outra.
+O dígito verificador não é conferido. A mesma conta não existe duas vezes no grupo, nem em
+empresas diferentes → `409 já existe uma conta com este banco, agência e número`. É a mesma conta
+quando banco, `tipo` e agência coincidem (zeros à esquerda ignorados) e o número coincide sem o
+dígito (`54321-0` × `54321`) ou com o dígito colado (`54321-0` × `543210`). Contas de tipos
+diferentes no mesmo número (corrente e poupança do Banco do Brasil, por exemplo) são aceitas.
+Corrigir banco, tipo, agência ou conta = desativar e criar outra.
 
 A resposta traz `banco` e `banco_nome`, `tipo`, `agencia`, `agencia_digito` e
 `agencia_formatada` (`1234-5`), `conta`, `conta_digito` e `conta_formatada`, `apelido`, `ativa`,

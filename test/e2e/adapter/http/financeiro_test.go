@@ -71,9 +71,23 @@ func TestFinanceiroGerenciaContasBancarias(t *testing.T) {
 		t.Errorf("conta criada = %+v", conta)
 	}
 
-	conferirMensagem(t, enviaComToken(t, servidor, http.MethodPost, "/api/v1/contas-bancarias", map[string]any{
-		"empresa_id": mia.ID, "banco": "748", "tipo": "pagamento", "agencia": "812", "conta": "0054321", "apelido": "Outra",
-	}, tokenMIA), http.StatusConflict, "já existe uma conta com este banco, agência e número")
+	for _, numero := range []string{"0054321", "543210"} {
+		conferirMensagem(t, enviaComToken(t, servidor, http.MethodPost, "/api/v1/contas-bancarias", map[string]any{
+			"empresa_id": mia.ID, "banco": "748", "tipo": "corrente", "agencia": "812", "conta": numero, "apelido": "Outra " + numero,
+		}, tokenMIA), http.StatusConflict, "já existe uma conta com este banco, agência e número")
+	}
+	poupanca := criarContaE2E(t, servidor, map[string]any{
+		"empresa_id": mia.ID, "banco": "748", "tipo": "poupanca", "agencia": "0812", "conta": "54321-0", "apelido": "Sicredi poupança",
+	}, tokenMIA)
+	if poupanca.Tipo != "poupanca" || poupanca.ContaFormatada != "54321-0" {
+		t.Errorf("poupança no mesmo número = %+v", poupanca)
+	}
+	bradesco := criarContaE2E(t, servidor, map[string]any{
+		"empresa_id": mia.ID, "banco": "237", "tipo": "corrente", "agencia": "1234-p", "conta": "98765", "conta_digito": "P", "apelido": "Bradesco",
+	}, tokenMIA)
+	if bradesco.AgenciaFormatada != "1234-P" || bradesco.ContaFormatada != "98765-P" {
+		t.Errorf("dígito P do Bradesco = %+v", bradesco)
+	}
 	conferirMensagem(t, enviaComToken(t, servidor, http.MethodPost, "/api/v1/contas-bancarias", map[string]any{
 		"empresa_id": mia.ID, "banco": "341", "tipo": "corrente", "agencia": "1", "conta": "2", "apelido": "SICREDI MOVIMENTO",
 	}, tokenMIA), http.StatusConflict, "já existe uma conta com este apelido na empresa")

@@ -119,7 +119,7 @@ func (r regraDeNumero) validarDigito(digito string) error {
 	if digito == "" {
 		return nil
 	}
-	if len(digito) > r.maximoDigito || strings.Trim(digito, "0123456789X") != "" {
+	if len(digito) > r.maximoDigito || strings.Trim(digito, "0123456789XP") != "" {
 		return r.erroDigito()
 	}
 

@@ -41,9 +41,9 @@
 | `banco` | CHAR(3) | código COMPE do catálogo (seção 2.3); não muda |
 | `tipo` | VARCHAR(10) | `corrente`, `poupanca`, `pagamento`, `aplicacao`; não muda |
 | `agencia` | VARCHAR(5) | só dígitos (`^[0-9]{1,5}$`), como digitado (zeros à esquerda preservados); não muda |
-| `agencia_digito` | VARCHAR(1) NULL | `^[0-9X]$`; não muda |
+| `agencia_digito` | VARCHAR(1) NULL | `^[0-9XP]$` (`X` do Banco do Brasil, `P` do Bradesco); não muda |
 | `conta` | VARCHAR(20) | só dígitos (`^[0-9]{1,20}$`); não muda |
-| `conta_digito` | VARCHAR(2) NULL | `^[0-9X]{1,2}$`; não muda |
+| `conta_digito` | VARCHAR(2) NULL | `^[0-9XP]{1,2}$`; não muda |
 | `apelido` | VARCHAR(60) | obrigatório; único por empresa sem diferenciar maiúsculas; único campo editável |
 | `ativa` | BOOLEAN | default `true` |
 | `versao` | INT | começa em `1`; avança a cada alteração gravada |
@@ -53,18 +53,26 @@
 `chk_conta_bancaria_agencia`, `chk_conta_bancaria_agencia_digito`, `chk_conta_bancaria_conta`,
 `chk_conta_bancaria_conta_digito`, `chk_conta_bancaria_apelido`, `chk_conta_bancaria_versao`
 (`versao >= 1`), `fk_conta_bancaria_empresa`.
-Índices: `uq_conta_bancaria_numero` em `(banco, ltrim(agencia, '0'), ltrim(conta, '0'))`,
+Índices: `uq_conta_bancaria_numero` em `(banco, tipo, ltrim(agencia, '0'), ltrim(conta, '0'))`,
+`uq_conta_bancaria_numero_com_digito` em
+`(banco, tipo, ltrim(agencia, '0'), ltrim(conta || coalesce(conta_digito, ''), '0'))`,
 `uq_conta_bancaria_empresa_apelido` em `(empresa_id, lower(apelido))` e
 `idx_conta_bancaria_empresa (empresa_id, apelido, id)`.
 
 **Regras:**
 - Entrada aceita com máscara (`1234-5`, `12.345-6`): o domínio separa número e dígito quando o
-  corpo traz o dígito junto e recusa qualquer caractere além de dígitos, `X`, `-`, `.` e espaço.
+  corpo traz o dígito junto e recusa qualquer caractere além de dígitos, `X`/`P` no dígito, `-`,
+  `.` e espaço.
 - Dígito verificador **não é conferido**: cada banco usa um algoritmo, e um DV errado é corrigido
   desativando e criando outra conta.
-- A unicidade ignora zeros à esquerda (`0001`/`1`) e o dígito: a mesma conta não existe duas
-  vezes no grupo, nem em empresas diferentes → `409 já existe uma conta com este banco, agência
-  e número`. Apelido repetido na empresa → `409 já existe uma conta com este apelido na empresa`.
+- A unicidade vale no grupo inteiro, inclusive entre empresas, por banco, **tipo** e agência
+  (zeros à esquerda ignorados), com o número comparado de dois jeitos:
+  - sem o dígito: `54321-0` e `54321` (dígito omitido) são a mesma conta;
+  - com o dígito colado: `54321-0` e `543210` (dígito digitado sem hífen) são a mesma conta.
+  Repetida → `409 já existe uma conta com este banco, agência e número`. O `tipo` entra na chave
+  porque a poupança do Banco do Brasil (variação 51) e outras contas vinculadas usam a mesma
+  agência e número da corrente. Apelido repetido na empresa → `409 já existe uma conta com este
+  apelido na empresa`.
 - Agência e conta só com dígitos permitem ao M13 casar o extrato OFX (`BANKID`, `BRANCHID`,
   `ACCTID`) com a conta sem intervenção.
 - Empresa inativa não recebe conta nova e não tem conta reativada → `400 empresa inativa não

@@ -225,7 +225,7 @@ func exigirEmpresaAtivaParaConta(ctx context.Context, tx *sqlx.Tx, empresaID uui
 
 func conflitoDaContaBancaria(restricao string) error {
 	switch restricao {
-	case "uq_conta_bancaria_numero":
+	case "uq_conta_bancaria_numero", "uq_conta_bancaria_numero_com_digito":
 		return domainfinanceiro.ErroContaDuplicada()
 	case "uq_conta_bancaria_empresa_apelido":
 		return domainfinanceiro.ErroApelidoRepetido()

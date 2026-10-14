@@ -368,3 +368,51 @@ func TestContaBancariaCaractereNuloViraErroDeValidacao(t *testing.T) {
 	conta.Apelido = "a\x00b"
 	esperarErro(t, c.contas.Atualizar(c.ctx, conta), domain.ErrValidacao, "texto com caractere inválido")
 }
+
+func TestContaBancariaMesmoNumeroEmOutroTipo(t *testing.T) {
+	c := novoCenarioContas(t)
+	c.novaConta(t, c.mia, domainfinanceiro.BancoDoBrasil, "1234", "56789-0", "BB corrente")
+
+	poupanca := contaDeDominio(t, c.mia, domainfinanceiro.BancoDoBrasil, "1234", "56789-0", "BB poupança")
+	poupanca.Tipo = domainfinanceiro.TipoContaPoupanca
+	if err := c.contas.Criar(c.ctx, poupanca); err != nil {
+		t.Fatalf("poupança no mesmo número falhou: %v", err)
+	}
+
+	outraPoupanca := contaDeDominio(t, c.red, domainfinanceiro.BancoDoBrasil, "01234", "056789", "Outra poupança")
+	outraPoupanca.Tipo = domainfinanceiro.TipoContaPoupanca
+	esperarErro(t, c.contas.Criar(c.ctx, outraPoupanca), domain.ErrConflito, "já existe uma conta com este banco, agência e número")
+}
+
+func TestContaBancariaDigitoSemHifenNaoDuplicaAConta(t *testing.T) {
+	c := novoCenarioContas(t)
+	c.novaConta(t, c.mia, domainfinanceiro.Itau, "1", "54321-0", "Com hífen")
+	c.novaConta(t, c.mia, domainfinanceiro.Bradesco, "1", "54321", "Sem dígito")
+
+	for _, caso := range []struct {
+		banco  domainfinanceiro.Banco
+		numero string
+	}{
+		{domainfinanceiro.Itau, "543210"},
+		{domainfinanceiro.Itau, "0543210"},
+		{domainfinanceiro.Itau, "54321"},
+		{domainfinanceiro.Bradesco, "5432-1"},
+		{domainfinanceiro.Bradesco, "54321-7"},
+	} {
+		repetida := contaDeDominio(t, c.red, caso.banco, "1", caso.numero, "Repetida "+caso.numero)
+		esperarErro(t, c.contas.Criar(c.ctx, repetida), domain.ErrConflito, "já existe uma conta com este banco, agência e número")
+	}
+
+	c.novaConta(t, c.mia, domainfinanceiro.Itau, "1", "5432-1", "Outro número")
+}
+
+func TestContaBancariaDigitoPDoBradesco(t *testing.T) {
+	c := novoCenarioContas(t)
+
+	conta := c.novaConta(t, c.mia, domainfinanceiro.Bradesco, "1234-p", "12345-P", "Bradesco")
+
+	lida := c.obter(t, conta.ID)
+	if lida.Agencia.Formatado() != "1234-P" || lida.Conta.Formatado() != "12345-P" {
+		t.Errorf("dígitos lidos = %q %q", lida.Agencia.Formatado(), lida.Conta.Formatado())
+	}
+}

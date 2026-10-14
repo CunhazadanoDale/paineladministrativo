@@ -205,9 +205,11 @@ func (r *repositorioContas) conferirUnicidade(conta *domainfinanceiro.ContaBanca
 		if existente.ID == conta.ID {
 			continue
 		}
-		if existente.Banco == conta.Banco &&
-			semZeros(existente.Agencia.Numero()) == semZeros(conta.Agencia.Numero()) &&
-			semZeros(existente.Conta.Numero()) == semZeros(conta.Conta.Numero()) {
+		mesmaAgencia := existente.Banco == conta.Banco && existente.Tipo == conta.Tipo &&
+			semZeros(existente.Agencia.Numero()) == semZeros(conta.Agencia.Numero())
+		mesmoNumero := semZeros(existente.Conta.Numero()) == semZeros(conta.Conta.Numero()) ||
+			semZeros(comDigito(existente.Conta)) == semZeros(comDigito(conta.Conta))
+		if mesmaAgencia && mesmoNumero {
 			return domainfinanceiro.ErroContaDuplicada()
 		}
 		if existente.EmpresaID == conta.EmpresaID && strings.EqualFold(existente.Apelido, conta.Apelido) {
@@ -220,6 +222,14 @@ func (r *repositorioContas) conferirUnicidade(conta *domainfinanceiro.ContaBanca
 
 func semZeros(numero string) string {
 	return strings.TrimLeft(numero, "0")
+}
+
+func comDigito(numero domainfinanceiro.NumeroBancario) string {
+	if digito := numero.Digito(); digito != nil {
+		return numero.Numero() + *digito
+	}
+
+	return numero.Numero()
 }
 
 type repositorioCategorias struct {
