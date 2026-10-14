@@ -43,7 +43,7 @@ func novoItem(pedidoID uuid.UUID, input ItemInput, agora time.Time) (*Item, erro
 	}
 
 	return &Item{
-		ID:            uuid.New(),
+		ID:            uuid.Must(uuid.NewV7()),
 		PedidoID:      pedidoID,
 		ProdutoID:     input.ProdutoID,
 		Quantidade:    input.Quantidade,

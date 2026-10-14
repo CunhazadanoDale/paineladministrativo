@@ -45,7 +45,7 @@ type Historico struct {
 
 func NovoHistorico(pedidoID, usuarioID uuid.UUID, acao Acao, anterior *Status, novo Status, detalhe string, agora time.Time) *Historico {
 	return &Historico{
-		ID:             uuid.New(),
+		ID:             uuid.Must(uuid.NewV7()),
 		PedidoID:       pedidoID,
 		UsuarioID:      usuarioID,
 		Acao:           acao,
