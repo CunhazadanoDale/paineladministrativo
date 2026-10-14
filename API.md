@@ -550,7 +550,12 @@ Fluxo: **solicitante → aprovador designado → financeiro**.
 1. O solicitante sobe os anexos (`POST /api/v1/arquivos`) e cria a solicitação.
 2. O administrador designa quem pode aprovar (`POST /api/v1/aprovadores`).
 3. O aprovador aprova ou rejeita.
-4. O financeiro registra o pagamento — o **valor pago pode ser diferente** do estimado.
+4. O financeiro classifica a conta a pagar (fornecedor, categoria financeira e competência),
+   se o solicitante não o fez.
+5. O financeiro registra o pagamento — o **valor pago pode ser diferente** do estimado.
+
+Desde o M7 a solicitação é a **conta a pagar** do grupo. Os campos de classificação são
+opcionais na criação; o `prazo_pagamento` é o vencimento.
 
 ### Estados
 
@@ -576,6 +581,7 @@ se outra pessoa mudar primeiro, a segunda recebe `409`
 | `POST` | `/api/v1/solicitacoes/{id}/aprovar` | aprovador ou administrador, exceto o próprio solicitante | `200` |
 | `POST` | `/api/v1/solicitacoes/{id}/rejeitar` | aprovador ou administrador | `200` |
 | `POST` | `/api/v1/solicitacoes/{id}/cancelar` | solicitante ou administrador | `200` |
+| `PATCH` | `/api/v1/solicitacoes/{id}/classificacao` | financeiro ou administrador | `200` |
 | `POST` | `/api/v1/solicitacoes/{id}/pagamento` | financeiro ou administrador | `201` |
 | `GET` | `/api/v1/solicitacoes/{id}/pagamento` | quem pode ver | `200` objeto único |
 | `GET` | `/api/v1/solicitacoes/{id}/historico` | quem pode ver | `200` lista |
@@ -591,7 +597,8 @@ respondem `403` (`perfil sem acesso a esta empresa`).
 
 ### Escopos de listagem
 
-`GET /api/v1/solicitacoes` aceita `pagina`, `tamanho`, `escopo`, `status` e `empresa`:
+`GET /api/v1/solicitacoes` aceita `pagina`, `tamanho`, `escopo`, `status`, `empresa` e os filtros
+de conta a pagar da tabela no fim desta seção:
 
 | `escopo` | Quem pode | O que lista |
 | --- | --- | --- |
@@ -612,6 +619,17 @@ enxergar — não serve para furar a definição do escopo. `escopo=aprovacao` s
 (`status não permitido para o escopo de listagem informado`). `escopo` fora da lista
 devolve `400` (`escopo de listagem inválido`); escopo de outro perfil devolve `403`.
 
+Filtros de conta a pagar, combináveis com qualquer escopo (valor inválido → `400`):
+
+| Consulta | Filtra |
+| --- | --- |
+| `fornecedor=<uuid>` | fornecedor da solicitação |
+| `categoria=<uuid>` | categoria financeira |
+| `competencia=AAAA-MM` | competência (`erro de validação: competência deve estar no formato AAAA-MM`) |
+| `origem=manual\|recorrencia` | origem da solicitação |
+| `vencimento_de=AAAA-MM-DD` / `vencimento_ate=AAAA-MM-DD` | intervalo do `prazo_pagamento`, inclusivo (`erro de validação: consulta vencimento_de deve estar no formato AAAA-MM-DD`; final antes do inicial → `400`) |
+| `vencidas=true` | `pendente_aprovacao` ou `aprovado` com vencimento antes de hoje (UTC) |
+
 ### `POST /api/v1/solicitacoes`
 
 ```json
@@ -621,6 +639,10 @@ devolve `400` (`escopo de listagem inválido`); escopo de outro perfil devolve `
   "prazo_pagamento": "2026-10-20",
   "observacao": "Compra de cimento para a fase 2",
   "forma_pagamento": "pix",
+  "fornecedor_id": "uuid-do-fornecedor",
+  "categoria_financeira_id": "uuid-da-subcategoria",
+  "competencia": "2026-10",
+  "estimado": false,
   "arquivo_ids": ["3f1c2a4e-0000-4000-8000-000000000001"]
 }
 ```
@@ -631,7 +653,11 @@ devolve `400` (`escopo de listagem inválido`); escopo de outro perfil devolve `
 | `valor_centavos` | inteiro em centavos, maior que zero (`150000` = R$ 1.500,00) |
 | `prazo_pagamento` | `AAAA-MM-DD` (ou RFC3339). Obrigatório e não pode ser anterior a hoje |
 | `observacao` | obrigatória, no máximo 1000 caracteres |
-| `forma_pagamento` | `pix`, `cartao` ou `boleto` |
+| `forma_pagamento` | `pix`, `cartao`, `boleto`, `transferencia` ou `debito_automatico` |
+| `fornecedor_id` | opcional. Fornecedor existente e ativo |
+| `categoria_financeira_id` | opcional. Subcategoria ativa de natureza `despesa` (plano de contas) |
+| `competencia` | opcional, `AAAA-MM` (de `2000-01` a `2099-12`). Padrão: o mês do `prazo_pagamento` |
+| `estimado` | opcional, padrão `false`. `true` quando o valor é previsão (conta de consumo) |
 | `arquivo_ids` | opcional. Cada anexo tem que existir, pertencer ao solicitante, aparecer uma vez só e não estar em outra solicitação |
 
 **Objeto de solicitação:**
@@ -646,6 +672,14 @@ devolve `400` (`escopo de listagem inválido`); escopo de outro perfil devolve `
   "prazo_pagamento": "2026-10-20T00:00:00Z",
   "observacao": "Compra de cimento para a fase 2",
   "forma_pagamento": "pix",
+  "fornecedor_id": null,
+  "categoria_financeira_id": null,
+  "competencia": "2026-10",
+  "estimado": false,
+  "origem": "manual",
+  "origem_id": null,
+  "vencida": false,
+  "versao": 1,
   "status": "pendente_aprovacao",
   "motivo_rejeicao": null,
   "aprovado_em": null,
@@ -661,7 +695,12 @@ devolve `400` (`escopo de listagem inválido`); escopo de outro perfil devolve `
 | --- | --- | --- |
 | Valor zero ou negativo | `400` | `erro de validação: valor deve ser maior que zero` |
 | Prazo vazio ou anterior a hoje | `400` | `erro de validação: prazo de pagamento é obrigatório` / `...não pode ser anterior a hoje` |
-| Forma diferente das três | `400` | `erro de validação: forma de pagamento deve ser pix, cartao ou boleto` |
+| Forma fora da lista | `400` | `erro de validação: forma de pagamento deve ser pix, cartao, boleto, transferencia ou debito_automatico` |
+| Fornecedor inexistente / inativo | `400` | `erro de validação: fornecedor não encontrado` / `...fornecedor inativo não recebe conta a pagar` |
+| Categoria inexistente | `400` | `erro de validação: categoria financeira não encontrada` |
+| Categoria raiz ou inativa | `400` | `erro de validação: categoria financeira deve ser uma subcategoria ativa` |
+| Categoria de receita ou transferência | `400` | `erro de validação: categoria financeira deve ser de despesa` |
+| Competência fora do formato | `400` | `erro de validação: competência deve estar no formato AAAA-MM` |
 | Anexo de outra pessoa | `403` | `arquivo não pertence ao solicitante` |
 | Anexo já em uso | `400` | `erro de validação: arquivo já vinculado a outra solicitação` |
 | Mesmo anexo duas vezes | `400` | `erro de validação: arquivo repetido na solicitação` |
@@ -669,6 +708,52 @@ devolve `400` (`escopo de listagem inválido`); escopo de outro perfil devolve `
 | Empresa inexistente (solicitante com acesso a todas) | `400` | `erro de validação: empresa da solicitação não encontrada` |
 | Empresa fora do acesso, inclusive inexistente | `403` | `perfil sem acesso a esta empresa` |
 | Empresa inativa | `400` | `erro de validação: empresa inativa não recebe solicitação nova` |
+
+Campos de leitura do objeto:
+
+| Campo | Significado |
+| --- | --- |
+| `competencia` | mês da despesa na DRE, `AAAA-MM` |
+| `origem` / `origem_id` | `manual` (sem id) ou o módulo que gerou a solicitação e o id do registro de origem |
+| `vencida` | `pendente_aprovacao` ou `aprovado` com `prazo_pagamento` antes de hoje (UTC); derivado, nunca gravado |
+| `versao` | começa em `1` e avança em toda gravação, inclusive aprovação, rejeição, cancelamento e pagamento |
+
+O histórico (`GET /{id}/historico`) traz `evento` em cada registro: `criada`, `aprovada`,
+`rejeitada`, `cancelada`, `paga`, `editada`, `classificada`, `adiada` ou `estornada`. Eventos que
+não mudam o status (como `classificada`) gravam `de_status` igual a `para_status`.
+
+### `PATCH /api/v1/solicitacoes/{id}/classificacao`
+
+Financeiro ou administrador, com a empresa da solicitação no acesso. Só em `aprovado`. Substitui a
+classificação inteira: `fornecedor_id` omitido vira `null`.
+
+```json
+{
+  "fornecedor_id": "uuid-do-fornecedor",
+  "categoria_financeira_id": "uuid-da-subcategoria",
+  "competencia": "2026-09",
+  "versao": 2
+}
+```
+
+| Campo | Regra |
+| --- | --- |
+| `fornecedor_id` | opcional; mesmas regras da criação |
+| `categoria_financeira_id` | **obrigatório**; mesmas regras da criação |
+| `competencia` | **obrigatória**, `AAAA-MM` |
+| `versao` | **obrigatória**: a `versao` lida da solicitação |
+
+Responde `200` com o objeto da solicitação (`versao` avançada) e grava o evento `classificada` no
+histórico.
+
+| Erro | Status | Mensagem |
+| --- | --- | --- |
+| Sem perfil de financeiro | `403` | `perfil sem permissão para classificar solicitação` |
+| Empresa fora do acesso | `403` | `perfil sem acesso a esta empresa` |
+| `versao` ausente, zero ou negativa | `400` | `erro de validação: versão da solicitação é obrigatória` |
+| `versao` diferente da atual | `409` | `solicitação alterada por outra operação, recarregue e tente novamente` |
+| Fora de `aprovado` | `409` | `só é possível classificar solicitação aprovada` |
+| Sem categoria / sem competência | `400` | `erro de validação: categoria financeira é obrigatória na classificação` / `...competência é obrigatória na classificação` |
 
 ### `POST /api/v1/solicitacoes/{id}/aprovar`
 

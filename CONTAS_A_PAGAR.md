@@ -1,7 +1,7 @@
 # Escopo — M7 Contas a pagar
 
-> **Status:** escopo fechado — decisões D1 a D6 respondidas pelo usuário (outubro/2026); implementação
-> não iniciada.
+> **Status:** escopo fechado — decisões D1 a D6 respondidas pelo usuário (outubro/2026); fase 1
+> concluída.
 > **Objetivo:** tirar o "painel financeiro (contas a pagar)" da planilha: a solicitação de
 > pagamento passa a ser a conta a pagar do grupo, com fornecedor (M4), categoria financeira e
 > conta bancária (M5), competência, recorrência, adiamento, edição, estorno e visões de
@@ -43,15 +43,20 @@
 |---|---|---|
 | `fornecedor_id` | UUID NULL | FK `fornecedor` `RESTRICT`; fornecedor ativo na gravação |
 | `categoria_financeira_id` | UUID NULL | FK `categoria_financeira` `RESTRICT`; categoria `Lancavel()` e de natureza `despesa` na gravação |
-| `competencia` | DATE NULL | sempre o dia 1 do mês (`chk_solicitacao_competencia`); mês a que a despesa pertence na DRE |
+| `competencia` | DATE | sempre o dia 1 do mês (`chk_solicitacao_competencia`); mês a que a despesa pertence na DRE; omitida no `POST` = mês do `prazo_pagamento` |
 | `estimado` | BOOLEAN | default `false`; valor previsto, não confirmado |
 | `origem` | VARCHAR(20) | default `manual`; `chk_solicitacao_origem` em (`manual`, `recorrencia`) |
 | `origem_id` | UUID NULL | id da recorrência quando `origem = recorrencia`; `chk_solicitacao_origem_id` amarra as duas |
 | `versao` | INT | começa em `1`; avança em toda gravação, inclusive nas transições |
 
 - Solicitações já existentes ficam com `fornecedor_id` e `categoria_financeira_id` nulos;
-  `competencia` é preenchida pela migration com o mês do `prazo_pagamento`. Uma `aprovado` sem
-  categoria precisa ser classificada antes de ser paga (seção 3.2).
+  `competencia` é preenchida pela migration com o mês do `prazo_pagamento` e a coluna é
+  `NOT NULL`. Uma `aprovado` sem categoria precisa ser classificada antes de ser paga
+  (seção 3.2).
+- `idx_solicitacao_categoria` saiu com o nome completo `idx_solicitacao_categoria_financeira`; o
+  `uq_solicitacao_recorrencia` entra com a recorrência (fase 4).
+- A criação também passou a conferir a empresa ativa na transação (`FOR SHARE`), fechando para a
+  solicitação a corrida do item 10 do `PENDENCIAS.md`.
 - Índices: `idx_solicitacao_vencimento (empresa_id, status, prazo_pagamento, id)` para as visões,
   `idx_solicitacao_fornecedor`, `idx_solicitacao_categoria` e
   `uq_solicitacao_recorrencia (origem_id, competencia) WHERE origem = 'recorrencia'`, que é o que
@@ -280,7 +285,7 @@ para a branch estar sempre mergeável.
 
 | Fase | Entrega | Estado |
 |---|---|---|
-| **1** | Classificação: migrations 000040–000041, fornecedor/categoria/competência/estimado/origem/versão, formas `transferencia` e `debito_automatico`, evento no histórico, portas mínimas do M4 e do M5, `PATCH /classificacao`, novos filtros | pendente |
+| **1** | Classificação: migrations 000040–000041, fornecedor/categoria/competência/estimado/origem/versão, formas `transferencia` e `debito_automatico`, evento no histórico, portas mínimas do M4 e do M5, `PATCH /classificacao`, novos filtros | concluída |
 | **2** | Edição (`PUT`) e adiamento, com versão otimista e eventos | pendente |
 | **3** | Pagamento com conta bancária obrigatória e exigência de classificação; estorno e `GET /pagamentos` (migration 000042). Quebra o modal de pagamento do front atual até a fase 6 | pendente |
 | **4** | Despesas recorrentes: CRUD + geração idempotente (migration 000043), isolamento por empresa | pendente |
