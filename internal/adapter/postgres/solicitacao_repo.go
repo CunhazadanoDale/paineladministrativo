@@ -233,17 +233,7 @@ func (s *SolicitacaoRepository) AtualizarStatus(ctx context.Context, solicitacao
 }
 
 func (s *SolicitacaoRepository) Classificar(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, versaoLida int, historico *domainsolicitacao.Historico) error {
-	tx, err := s.db.BeginTxx(ctx, nil)
-	if err != nil {
-		return tratarErroDeGravacao(err)
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	if err := exigirClassificacaoGravavel(ctx, tx, solicitacao); err != nil {
-		return err
-	}
-
-	if _, err := s.guarda.atualizar(ctx, tx, solicitacao.ID, `
+	return s.gravarComGuarda(ctx, solicitacao, historico, true, `
 		UPDATE solicitacao
 		SET fornecedor_id = $3,
 		    categoria_financeira_id = $4,
@@ -253,7 +243,61 @@ func (s *SolicitacaoRepository) Classificar(ctx context.Context, solicitacao *do
 		WHERE id = $1 AND versao = $2 AND status = 'aprovado'
 		RETURNING versao
 	`, solicitacao.ID, versaoLida, solicitacao.FornecedorID, solicitacao.CategoriaFinanceiraID,
-		solicitacao.Competencia.Inicio(), solicitacao.AtualizadoEm); err != nil {
+		solicitacao.Competencia.Inicio(), solicitacao.AtualizadoEm)
+}
+
+func (s *SolicitacaoRepository) Editar(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, versaoLida int, historico *domainsolicitacao.Historico) error {
+	return s.gravarComGuarda(ctx, solicitacao, historico, true, `
+		UPDATE solicitacao
+		SET valor_estimado = $3,
+		    prazo_pagamento = $4,
+		    observacao = $5,
+		    forma_pagamento = $6,
+		    fornecedor_id = $7,
+		    categoria_financeira_id = $8,
+		    competencia = $9,
+		    estimado = $10,
+		    atualizado_em = $11,
+		    versao = versao + 1
+		WHERE id = $1 AND versao = $2 AND status = 'pendente_aprovacao'
+		RETURNING versao
+	`, solicitacao.ID, versaoLida, solicitacao.Valor.Centavos(), solicitacao.Prazo.Data(), solicitacao.Observacao.Texto(),
+		solicitacao.FormaPagamento.String(), solicitacao.FornecedorID, solicitacao.CategoriaFinanceiraID,
+		solicitacao.Competencia.Inicio(), solicitacao.Estimado, solicitacao.AtualizadoEm)
+}
+
+func (s *SolicitacaoRepository) Adiar(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, versaoLida int, historico *domainsolicitacao.Historico) error {
+	return s.gravarComGuarda(ctx, solicitacao, historico, false, `
+		UPDATE solicitacao
+		SET prazo_pagamento = $3,
+		    atualizado_em = $4,
+		    versao = versao + 1
+		WHERE id = $1 AND versao = $2 AND status = 'aprovado'
+		RETURNING versao
+	`, solicitacao.ID, versaoLida, solicitacao.Prazo.Data(), solicitacao.AtualizadoEm)
+}
+
+func (s *SolicitacaoRepository) gravarComGuarda(
+	ctx context.Context,
+	solicitacao *domainsolicitacao.Solicitacao,
+	historico *domainsolicitacao.Historico,
+	conferirClassificacao bool,
+	query string,
+	argumentos ...any,
+) error {
+	tx, err := s.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return tratarErroDeGravacao(err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if conferirClassificacao {
+		if err := exigirClassificacaoGravavel(ctx, tx, solicitacao); err != nil {
+			return err
+		}
+	}
+
+	if _, err := s.guarda.atualizar(ctx, tx, solicitacao.ID, query, argumentos...); err != nil {
 		return err
 	}
 

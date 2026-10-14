@@ -30,6 +30,8 @@ type SolicitacaoRepository interface {
 	Listar(ctx context.Context, filtro SolicitacaoFiltro) ([]*domainsolicitacao.Solicitacao, error)
 	AtualizarStatus(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, historico *domainsolicitacao.Historico) (bool, error)
 	Classificar(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, versaoLida int, historico *domainsolicitacao.Historico) error
+	Editar(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, versaoLida int, historico *domainsolicitacao.Historico) error
+	Adiar(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, versaoLida int, historico *domainsolicitacao.Historico) error
 	CriarPagamento(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, pagamento *domainsolicitacao.Pagamento, historico *domainsolicitacao.Historico) error
 	ListarArquivos(ctx context.Context, solicitacaoID uuid.UUID) ([]*domainsolicitacao.Arquivo, error)
 	ListarHistorico(ctx context.Context, solicitacaoID uuid.UUID) ([]*domainsolicitacao.Historico, error)
