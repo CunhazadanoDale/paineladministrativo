@@ -14,6 +14,7 @@ import (
 	clienteusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/cliente"
 	empresausecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/empresa"
 	estoqueusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/estoque"
+	fornecedorusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/fornecedor"
 	leadusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/lead"
 	solicitacaousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/solicitacao"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/usuarios"
@@ -96,6 +97,7 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 		clienteusecases.NewGrupoUsecase(clienteGrupoRepository, representanteRepository, usuarioRepository, cargoRepository),
 		clienteusecases.NewRepresentanteUsecase(representanteRepository, usuarioRepository, cargoRepository),
 		clienteUsecase,
+		fornecedorusecases.NewFornecedorUsecase(postgres.NewFornecedorRepository(banco), usuarioRepository, cargoRepository),
 		autenticacao.NovoTokenService(segredoDoTeste, time.Hour),
 	)
 

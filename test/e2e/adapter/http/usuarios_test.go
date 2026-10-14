@@ -77,6 +77,9 @@ func TestLoginDevolveTokenDeAdministrador(t *testing.T) {
 	if !sessao.Administrador {
 		t.Error("administrador do seed saiu sem perfil administrador")
 	}
+	if !sessao.Financeiro || !sessao.Comercial {
+		t.Error("administrador do seed deveria sair também como comercial e financeiro")
+	}
 	if sessao.Usuario.Email != emailAdministrador {
 		t.Errorf("usuário %q, esperado %q", sessao.Usuario.Email, emailAdministrador)
 	}
@@ -131,6 +134,9 @@ func TestUsuarioSemAdministracaoRecebeProibido(t *testing.T) {
 	sessao := autenticar(t, servidor, "bruno@exemplo.com", "senhaForte123")
 	if sessao.Administrador {
 		t.Fatal("usuário comum saiu como administrador")
+	}
+	if sessao.Financeiro {
+		t.Fatal("usuário comum saiu como financeiro")
 	}
 
 	resposta := enviaComToken(t, servidor, http.MethodGet, "/api/v1/usuarios", nil, sessao.Token)
@@ -386,5 +392,25 @@ func TestLoginBloqueiaDepoisDeCincoFalhasSeguidas(t *testing.T) {
 	conferirStatus(t, resposta, http.StatusTooManyRequests)
 	if resposta.Header.Get("Retry-After") == "" {
 		t.Error("resposta 429 sem cabeçalho Retry-After")
+	}
+}
+
+func TestLoginDevolvePerfilFinanceiro(t *testing.T) {
+	servidor, _ := servidorDoTeste(t)
+
+	resposta := envia(t, servidor, http.MethodPost, "/api/v1/cargos", map[string]any{
+		"nome":       "Tesouraria",
+		"descricao":  "Cargo financeiro criado no teste",
+		"financeiro": true,
+	})
+	conferirStatus(t, resposta, http.StatusCreated)
+	cargo := decodificarEnvelope[usuariosdto.CargoResponse](t, resposta).Dados
+
+	criarUsuario(t, servidor, "Tânia Caixa", "tania@exemplo.com", "senhaForte123", cargo.ID)
+
+	sessao := autenticar(t, servidor, "tania@exemplo.com", "senhaForte123")
+	if !sessao.Financeiro || sessao.Administrador || sessao.Comercial {
+		t.Errorf("perfis = administrador %v, comercial %v, financeiro %v; esperado só financeiro",
+			sessao.Administrador, sessao.Comercial, sessao.Financeiro)
 	}
 }
