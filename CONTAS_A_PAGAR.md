@@ -1,7 +1,7 @@
 # Escopo — M7 Contas a pagar
 
-> **Status:** escopo fechado — decisões D1 a D6 respondidas pelo usuário (outubro/2026); fase 1
-> concluída.
+> **Status:** escopo fechado — decisões D1 a D6 respondidas pelo usuário (outubro/2026); fases 1
+> e 2 concluídas.
 > **Objetivo:** tirar o "painel financeiro (contas a pagar)" da planilha: a solicitação de
 > pagamento passa a ser a conta a pagar do grupo, com fornecedor (M4), categoria financeira e
 > conta bancária (M5), competência, recorrência, adiamento, edição, estorno e visões de
@@ -132,7 +132,9 @@ conta vencida) e, por isso, não passa pela regra "não anterior a hoje" do `POS
 `PUT /api/v1/solicitacoes/{id}` substitui valor, vencimento, observação, forma, fornecedor,
 categoria, competência e `estimado`, com `versao` no corpo. Só em `pendente_aprovacao`, pelo
 solicitante ou administrador. Anexos continuam pelo fluxo atual. Grava evento `editada` com os
-campos alterados. Depois de aprovada, corrigir = cancelar e criar outra.
+campos alterados. Depois de aprovada, corrigir = cancelar e criar outra. Corpo igual ao gravado
+não avança a versão nem grava histórico; campo omitido volta ao padrão do `POST` (competência =
+mês do vencimento).
 
 ### 3.2 Classificação
 
@@ -286,7 +288,7 @@ para a branch estar sempre mergeável.
 | Fase | Entrega | Estado |
 |---|---|---|
 | **1** | Classificação: migrations 000040–000041, fornecedor/categoria/competência/estimado/origem/versão, formas `transferencia` e `debito_automatico`, evento no histórico, portas mínimas do M4 e do M5, `PATCH /classificacao`, novos filtros | concluída |
-| **2** | Edição (`PUT`) e adiamento, com versão otimista e eventos | pendente |
+| **2** | Edição (`PUT`) e adiamento, com versão otimista e eventos | concluída |
 | **3** | Pagamento com conta bancária obrigatória e exigência de classificação; estorno e `GET /pagamentos` (migration 000042). Quebra o modal de pagamento do front atual até a fase 6 | pendente |
 | **4** | Despesas recorrentes: CRUD + geração idempotente (migration 000043), isolamento por empresa | pendente |
 | **5** | Visões: resumo por semana/empresa e contador de pendências | pendente |

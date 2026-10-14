@@ -564,6 +564,8 @@ opcionais na criação; o `prazo_pagamento` é o vencimento.
 | `pendente_aprovacao` | `aprovado` | `POST /{id}/aprovar` |
 | `pendente_aprovacao` | `rejeitado` | `POST /{id}/rejeitar` |
 | `pendente_aprovacao`, `aprovado` | `cancelado` | `POST /{id}/cancelar` |
+| `pendente_aprovacao` | `pendente_aprovacao` (edição) | `PUT /{id}` |
+| `aprovado` | `aprovado` (classificação ou adiamento) | `PATCH /{id}/classificacao`, `POST /{id}/adiar` |
 | `aprovado` | `pago` | `POST /{id}/pagamento` |
 
 `pago`, `rejeitado` e `cancelado` são estados terminais. Toda transição grava um registro
@@ -582,6 +584,8 @@ se outra pessoa mudar primeiro, a segunda recebe `409`
 | `POST` | `/api/v1/solicitacoes/{id}/rejeitar` | aprovador ou administrador | `200` |
 | `POST` | `/api/v1/solicitacoes/{id}/cancelar` | solicitante ou administrador | `200` |
 | `PATCH` | `/api/v1/solicitacoes/{id}/classificacao` | financeiro ou administrador | `200` |
+| `PUT` | `/api/v1/solicitacoes/{id}` | solicitante ou administrador | `200` |
+| `POST` | `/api/v1/solicitacoes/{id}/adiar` | financeiro ou administrador | `200` |
 | `POST` | `/api/v1/solicitacoes/{id}/pagamento` | financeiro ou administrador | `201` |
 | `GET` | `/api/v1/solicitacoes/{id}/pagamento` | quem pode ver | `200` objeto único |
 | `GET` | `/api/v1/solicitacoes/{id}/historico` | quem pode ver | `200` lista |
@@ -754,6 +758,69 @@ histórico.
 | `versao` diferente da atual | `409` | `solicitação alterada por outra operação, recarregue e tente novamente` |
 | Fora de `aprovado` | `409` | `só é possível classificar solicitação aprovada` |
 | Sem categoria / sem competência | `400` | `erro de validação: categoria financeira é obrigatória na classificação` / `...competência é obrigatória na classificação` |
+
+### `PUT /api/v1/solicitacoes/{id}`
+
+Edição pelo solicitante ou pelo administrador, só em `pendente_aprovacao`. Substitui todos os
+campos editáveis: o que for omitido volta ao padrão (`fornecedor_id` e `categoria_financeira_id`
+viram `null`, `competencia` vira o mês do `prazo_pagamento`, `estimado` vira `false`). Empresa e
+anexos não mudam por esta rota; depois de aprovada, corrigir é cancelar e criar outra.
+
+```json
+{
+  "valor_centavos": 64000,
+  "prazo_pagamento": "2026-10-24",
+  "observacao": "Compra de cimento e areia",
+  "forma_pagamento": "transferencia",
+  "fornecedor_id": null,
+  "categoria_financeira_id": null,
+  "competencia": "2026-10",
+  "estimado": true,
+  "versao": 1
+}
+```
+
+Campos com as mesmas regras do `POST`, mais `versao` obrigatória. Responde `200` com o objeto
+atualizado e grava o evento `editada`, com os campos alterados na descrição
+(`solicitação editada: valor, vencimento`). Corpo igual ao gravado responde `200` sem avançar a
+versão nem gravar histórico.
+
+| Erro | Status | Mensagem |
+| --- | --- | --- |
+| Nem solicitante nem administrador | `403` | `perfil sem permissão para editar esta solicitação` |
+| `versao` ausente, zero ou negativa | `400` | `erro de validação: versão da solicitação é obrigatória` |
+| `versao` diferente da atual | `409` | `solicitação alterada por outra operação, recarregue e tente novamente` |
+| Fora de `pendente_aprovacao` | `409` | `só é possível editar solicitação pendente de aprovação` |
+| Campo inválido | `400` | as mensagens do `POST` |
+
+### `POST /api/v1/solicitacoes/{id}/adiar`
+
+Financeiro ou administrador, com a empresa da solicitação no acesso. Só em `aprovado`. Muda o
+`prazo_pagamento`; a competência e o status não mudam.
+
+```json
+{ "vencimento": "2026-11-13", "motivo": "fornecedor aceitou o novo prazo", "versao": 3 }
+```
+
+| Campo | Regra |
+| --- | --- |
+| `vencimento` | obrigatório, `AAAA-MM-DD`; posterior ao vencimento atual e não anterior a hoje |
+| `motivo` | obrigatório, no máximo 500 caracteres |
+| `versao` | obrigatória |
+
+Responde `200` com o objeto atualizado e grava o evento `adiada` com a descrição
+`vencimento adiado de 2026-10-24 para 2026-11-13: fornecedor aceitou o novo prazo`.
+
+| Erro | Status | Mensagem |
+| --- | --- | --- |
+| Sem perfil de financeiro | `403` | `perfil sem permissão para adiar solicitação` |
+| Empresa fora do acesso | `403` | `perfil sem acesso a esta empresa` |
+| `versao` diferente da atual | `409` | `solicitação alterada por outra operação, recarregue e tente novamente` |
+| Fora de `aprovado` | `409` | `só é possível adiar solicitação aprovada` |
+| Sem vencimento / formato errado | `400` | `erro de validação: vencimento é obrigatório` / `...vencimento deve estar no formato AAAA-MM-DD` |
+| Vencimento no mesmo dia ou antes do atual | `400` | `erro de validação: novo vencimento deve ser posterior ao atual` |
+| Vencimento antes de hoje | `400` | `erro de validação: prazo de pagamento não pode ser anterior a hoje` |
+| Sem motivo / motivo longo | `400` | `erro de validação: motivo do adiamento é obrigatório` / `...deve ter no máximo 500 caracteres` |
 
 ### `POST /api/v1/solicitacoes/{id}/aprovar`
 
