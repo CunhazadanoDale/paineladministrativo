@@ -1,6 +1,6 @@
 # Escopo — M6 Pedidos de venda e entregas
 
-> **Status:** escopo fechado; nenhuma fase iniciada.
+> **Status:** fase 1 concluída (migrations e domínio); fases 2 a 6 pendentes.
 > **Objetivo:** tirar "Vendas futuras", "Entregas de importação" e "Pendências de envio" das
 > planilhas: pedido de venda por empresa, com reserva de estoque, entregas parciais que baixam o
 > estoque e consultas de pendência, prazo e cancelamento. Base para NF-e (M8), comissões (M10),
@@ -58,7 +58,7 @@ Decisões já tomadas com o usuário (outubro/2026):
 | `cancelado_motivo` | VARCHAR(1000) NULL | obrigatório ao cancelar |
 | `valor_a_devolver_centavos` | BIGINT NULL | só no cancelamento com entrada paga |
 | `usuario_id` | UUID | quem criou |
-| `versao` | BIGINT | versão otimista (padrão do M4) |
+| `versao` | INT | versão otimista (padrão do M4) |
 | `criado_em` / `atualizado_em` | TIMESTAMPTZ | |
 
 **Condições por modelo:** value object `Condicao` (modelo, entrada em pontos-base, prazo do
@@ -106,7 +106,7 @@ transação da criação.
 | `previsao` | DATE NULL | |
 | `saiu_em` / `entregue_em` | DATE NULL | data do fato, sem data futura |
 | `usuario_id` | UUID | |
-| `versao` | BIGINT | |
+| `versao` | INT | |
 | `criado_em` / `atualizado_em` | TIMESTAMPTZ | |
 
 | Campo (`entrega_item`) | Tipo | Observações |
@@ -144,12 +144,13 @@ entregue. Item sem nada disponível não bloqueia a confirmação.
 ### 3.3 Entrega
 
 - **Criar** (`pendente`): valida item, local da empresa e quantidade restante; não mexe no estoque.
-- **Saiu**: baixa o estoque na mesma transação, por item:
-  - reserva ativa do item no local cobre exatamente a quantidade → saída com `reserva_id`;
-  - reserva maior que a quantidade → libera a reserva, saída sem reserva, reserva nova com o
-    restante (`origem = 'pedido_item'`);
-  - sem reserva suficiente no local → usa a reserva que houver e completa pelo disponível do
-    local; sem disponível → `400`.
+- **Saiu**: baixa o estoque na mesma transação, com **uma saída por item** da entrega
+  (`PlanejarBaixa`):
+  - uma única reserva ativa do item no local, com a quantidade exata → saída com `reserva_id`;
+  - qualquer outro caso → libera todas as reservas ativas do item no local, dá uma saída sem
+    reserva da quantidade entregue e cria uma reserva nova (`origem = 'pedido_item'`) com o que
+    sobrar delas; o que faltar além do reservado sai do disponível do local, e sem disponível a
+    saída responde `400`.
   - grava `entrega_item.movimento_id`, soma `pedido_item.quantidade_entregue` e avança o pedido.
 - **Entregue**: só registra `entregue_em` (o estoque já saiu em `saiu`).
 - **Cancelar**: só `pendente`; não mexe no estoque.
@@ -236,7 +237,7 @@ cmd/api/main.go + internal/adapter/http/rotas.go   (registro, só acréscimos)
 ```
 
 Numeração de migration definida no merge (regra 4 da seção 3 do `ROADMAP.md`): a `main` está em
-`000039` e o M7 corre em paralelo.
+`000039` e o M7 corre em paralelo com `000040` e `000041`; a branch usa `000042` a `000044`.
 
 ---
 
@@ -244,7 +245,7 @@ Numeração de migration definida no merge (regra 4 da seção 3 do `ROADMAP.md`
 
 | Fase | Entrega | Estado |
 |---|---|---|
-| **1** | Migrations + domínio (condição, status, pedido, item, entrega, frete, cobertura) + ajustes no domínio de estoque (origem `pedido_item`, encadeamento) + testes | pendente |
+| **1** | Migrations + domínio (condição, status, pedido, item, entrega, frete, cobertura) + ajustes no domínio de estoque (origem `pedido_item`, encadeamento) + testes | concluída |
 | **2** | Repositórios (sequência, transições com guarda, entrega com estoque na mesma `tx`, consultas) + testes de integração | pendente |
 | **3** | Usecases + permissões (escopo por empresa, representante com login) + testes com fakes e de isolamento | pendente |
 | **4** | Handlers/DTOs + rotas + e2e + `API.md` | pendente |
