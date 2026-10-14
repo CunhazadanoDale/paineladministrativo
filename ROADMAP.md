@@ -142,7 +142,7 @@ M6, M7, M9 e M13.
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
 | M3 | Clientes e representantes | M1 | Base de clientes | concluído |
-| M4 | Fornecedores | T0 | coluna fornecedor do painel financeiro | pendente |
+| M4 | Fornecedores | T0 | coluna fornecedor do painel financeiro | em andamento (feat/m4-fornecedores) |
 | M5 | Contas bancárias e plano de contas | M1 | classificação manual dos extratos | pendente |
 | M6 | Pedidos de venda e entregas | M1 M2 M3 | Vendas futuras, Entregas de importação, Pendências de envio | pendente |
 | M7 | Contas a pagar | M1 M4 M5 | Painel financeiro (contas a pagar) | pendente |
