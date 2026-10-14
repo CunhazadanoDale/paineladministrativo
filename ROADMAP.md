@@ -84,9 +84,10 @@ Documentos irmãos: `API.md` (contrato), `ESTOQUE.md` (modelo de escopo de módu
    entregue com o commit sugerido ao usuário (regra 4 da seção 1).
 8. **Frontend** fica no repo irmão `D:\PROJETOS\FRONT\painelMiaConstrutora`
    (`src/services/<modulo>.js`, `src/modules/<modulo>/`) e é entregue como fase final de
-   cada módulo, ou por uma sessão própria depois que a API estiver `concluído`. Telas com
-   dinheiro ou data só depois da trilha F0 (seção 5), que corrige a conversão de valores
-   e de fuso.
+   cada módulo, ou por uma sessão própria depois que a API estiver `concluído`. O front de
+   qualquer módulo a partir do M1 só começa depois do F0a (seção 5), que conserta as telas
+   quebradas pelo M1 e pelo M2, a conversão de valores e de fuso, as permissões e os
+   contratos de erro (`409` de versão, `429` do login); o F0b corre em paralelo.
 9. **Banco de dev compartilhado é intocável.** Nenhuma sessão roda `migrate` no banco
    `mia` (porta `5444`): cada uma cria a própria `000NN` e duas aplicações cruzadas deixam
    a `schema_migrations` inconsistente. Para testar a API ou o front ao vivo, use um banco
@@ -132,13 +133,14 @@ Módulos da mesma onda podem ser feitos em paralelo por sessões diferentes (no 
 ao mesmo tempo, regra 10 da seção 3).
 
 A trilha **F0** (correções do front) corre em paralelo às ondas, numa sessão própria no repo
-do front, e precisa estar concluída antes de qualquer tela de dinheiro ou data dos módulos
-M6, M7, M9 e M13.
+do front. O **F0a** precisa estar concluído antes do front de qualquer módulo a partir do M1;
+o **F0b** pode correr junto com essas telas.
 
 | # | Módulo | Depende de | Substitui (controle manual atual) | Status |
 |---|---|---|---|---|
 | T0 | Saneamento | — | — | concluído |
-| F0 | Correções do front | — | — | pendente |
+| F0a | Correções do front — bloqueante | — | — | pendente |
+| F0b | Correções do front — qualidade | F0a | — | pendente |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
 | M3 | Clientes e representantes | M1 | Base de clientes | concluído |
@@ -194,29 +196,63 @@ vazios removidos; ports de `usuarios` e `lead` em português (`Criar`, `Obter`, 
 ### F0 — Correções do front
 
 Sessão própria no repo `D:\PROJETOS\FRONT\painelMiaConstrutora`, saída do diagnóstico de
-outubro/2026. Os dois primeiros itens são bugs que gravam e mostram dados errados hoje e
-bloqueiam as telas de dinheiro e data dos módulos novos.
+outubro/2026, revisado depois do M5 contra o front (commit `1f542b6`) e a `API.md`. Dividida
+em duas etapas:
 
+- **F0a — bloqueante**: telas que pararam de funcionar com o M1 e o M2, bugs que gravam e
+  mostram dados errados e os contratos novos de erro. Bloqueia o front de **todos** os
+  módulos a partir do M1 (regra 8 da seção 3).
+- **F0b — qualidade**: o restante do diagnóstico. Corre em paralelo ao front do M1–M5,
+  depois que o F0a estiver concluído.
+
+#### F0a — bloqueante
+
+- **Solicitação sem empresa**: desde o M1 o `POST /api/v1/solicitacoes` exige `empresa_id`
+  (empresa ativa e no acesso do solicitante), e `criarSolicitacao` não envia o campo: toda
+  criação responde `400`. O formulário ganha o seletor de empresa; a lista e o detalhe
+  mostram a empresa e a fila aceita `?empresa=`.
+- **Movimento sem local**: desde o M2 o `POST /api/v1/produtos/{id}/movimentos` exige
+  `local_id`, e a `entrada` exige `custo_unitario_centavos` (zero aceito); `movimentar` não
+  envia nenhum dos dois: todo movimento responde `400`. O formulário ganha o seletor de local,
+  o custo por tipo de movimento (tabela de `API.md`) e o tipo `implantacao`; `quantidade`
+  negativa só no `ajuste`.
+- **Seletores compartilhados**: seletor de empresa (`GET /api/v1/empresas?ativas=true`, só o
+  acesso do usuário) e seletor de local de estoque, usados pelos dois itens acima e por todas
+  as telas novas do M1–M5.
 - **Valores**: `src/lib/formatar.js` → `paraCentavos("1.500")` vira 150 centavos (R$ 1,50).
   Tratar ponto como separador de milhar quando não houver vírgula e o padrão for de
   milhar; manter `"1234.56"` como decimal. O teste atual consolida o comportamento errado.
 - **Datas sem fuso**: `formatarData` converte `DATE` (`2026-10-15T00:00:00Z`) para o fuso
   local e mostra 14/10 em UTC-3. Campos só-data formatam com `timeZone: 'UTC'`.
+- **Permissões pelo login**: a resposta do login já traz `administrador`, `comercial` e
+  `financeiro` (desde o M4), mas o `AutenticacaoProvider` só grava os dois primeiros e
+  descobre `financeiro` por sondagem. `financeiro` passa a vir do login; só `aprovacao`
+  continua por sondagem (aprovador é designação na tabela `aprovador`, não flag de cargo), e
+  erro de rede/`500` na sondagem passa a ser **negado** (hoje é fail-open).
+- **Versão otimista**: fornecedores, contas bancárias e plano de contas exigem `versao` no
+  `PUT`, `ativar` e `desativar` e respondem `409` quando outra pessoa gravou antes. Tratamento
+  único no front: aviso com a mensagem da API e recarga do registro, sem perder o formulário.
+- **Limite de login**: `POST /usuarios/autenticar` responde `429` com `Retry-After`; a tela
+  de login mostra o tempo de espera em vez de erro genérico.
+- **Testes** para os itens acima, no padrão dos existentes (`vitest` + Testing Library).
+
+#### F0b — qualidade
+
 - **Produtos**: a tela mostra banner de erro e "Nenhum produto encontrado" ao mesmo tempo;
   falhas de categorias e resumo são engolidas; categorias e resumo são buscados de novo a
   cada página. Não mexer no layout (`Produtos.jsx`/`Produtos.css`), já corrigido à parte.
-- **Upload**: `services/arquivos.js` não aplica a checagem de resposta não-JSON que o
-  `requisitar` tem; resposta HTML do fallback do SPA quebra com `TypeError`.
-- **Imagens de produto inativo**: o detalhe usa `/api/v1/publico/imagens/{id}`, que agora
-  só serve imagem de produto visível na vitrine. O painel precisa baixar pela rota
-  autenticada `/api/v1/arquivos/{id}` (via `fetch` com token e `URL.createObjectURL`).
+- **Upload**: `enviarArquivo` em `services/arquivos.js` engole a falha de parse do JSON:
+  resposta HTML do fallback do SPA com status `2xx` resolve como `null` em vez de erro.
+  Aplicar a mesma checagem de resposta não-JSON do `requisitar`.
+- **Imagens de produto inativo**: o detalhe (`ProdutoDetalhe.jsx`) usa
+  `/api/v1/publico/imagens/{id}`, que só serve imagem de produto visível na vitrine. O
+  painel precisa baixar pela rota autenticada `/api/v1/arquivos/{id}` (via `fetch` com token
+  e `URL.createObjectURL`).
 - **Listas cortadas em 100**: aprovadores, categorias, cargos e o mapa de nomes da
-  solicitação não paginam além do máximo da API.
+  solicitação não paginam além do máximo da API. Para o plano de contas usar
+  `GET /categorias-financeiras/arvore`, que não tem o corte.
 - **Upload órfão**: se `anexarImagem` falha depois do upload, apagar o arquivo enviado
   (como o `PagamentoModal` já faz).
-- **Permissões fail-open**: `AutenticacaoProvider` trata erro de rede/500 na sondagem de
-  `aprovacao`/`financeiro` como permitido. Inverter para negado, ou trazer os perfis na
-  resposta do login como já acontece com `administrador` e `comercial`.
 - **Requisições**: nenhum hook passa `AbortController`; busca global em `/leads?q=` não
   volta para a página 1; "recarregar" dos leads busca duas vezes.
 - **Sessão**: login sempre volta para `/` (perde o link de origem); logout não sincroniza
@@ -230,7 +266,18 @@ bloqueiam as telas de dinheiro e data dos módulos novos.
   `assets/hero.png`, `assets/react.svg`, `assets/vite.svg`, `public/icons.svg`); README
   ainda é o template do Vite; `.oxlintrc.json` sem `exhaustive-deps`; comentários no
   código (`lib/api.js`, `vite.config.js`, `services/leads.js`, telas de leads e funis).
-- **Testes** para os itens acima, no padrão dos existentes (`vitest` + Testing Library).
+- **Testes** para os itens acima, no padrão dos existentes.
+
+#### Front do M1–M5 depois do F0a
+
+Ordem sugerida, cada um como sessão própria (regra 8 da seção 3):
+
+1. **M1 Empresas**: cadastro, ativar/desativar e vínculo de usuários às empresas; base do
+   seletor de empresa.
+2. **M4 Fornecedores**: pequeno; modelo da tela com versão otimista.
+3. **M5 Contas bancárias e plano de contas**: árvore de categorias em dois níveis.
+4. **M2 Locais, saldo por local, lotes, transferência e reservas.**
+5. **M3 Clientes, obras, grupos, representantes**, conversão de lead e importação por CSV.
 
 ### M1 — Empresas e filiais
 
@@ -269,7 +316,7 @@ em `ESTOQUE_LOCAIS.md`; este resumo só aponta o que os outros módulos precisam
   lote de custo desconhecido marcado como tal.
 
 **Entregue (outubro/2026):** API completa (fases 1 a 5 do `ESTOQUE_LOCAIS.md`); front pendente,
-depois da F0. Para os próximos módulos:
+depois do F0a. Para os próximos módulos:
 
 - o saldo antigo **não** foi para um local padrão: virou "não alocado" e o administrador o
   distribui com movimentos `implantacao` (decisão do usuário, independe das empresas
