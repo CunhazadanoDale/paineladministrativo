@@ -147,7 +147,7 @@ o **F0b** pode correr junto com essas telas.
 | M4 | Fornecedores | T0 | coluna fornecedor do painel financeiro | concluído |
 | M5 | Contas bancárias e plano de contas | M1 | classificação manual dos extratos | concluído |
 | M6 | Pedidos de venda e entregas | M1 M2 M3 | Vendas futuras, Entregas de importação, Pendências de envio | pendente |
-| M7 | Contas a pagar | M1 M4 M5 | Painel financeiro (contas a pagar) | pendente |
+| M7 | Contas a pagar | M1 M4 M5 | Painel financeiro (contas a pagar) | em andamento (feat/m7-contas-a-pagar) |
 | M8 | NF-e por XML | M2 M3 M6 | Controle de NFs | pendente |
 | M9 | Contas a receber e antecipação | M3 M5 | A receber no banco, títulos do Controle de NFs | pendente |
 | M10 | Comissões | M3 M6 | comissões calculadas à mão | pendente |
