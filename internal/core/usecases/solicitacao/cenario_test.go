@@ -25,6 +25,8 @@ type cenario struct {
 	solicitacoesRepo *repositorioSolicitacoes
 	aprovadoresRepo  *repositorioAprovadores
 	empresasRepo     *repositorioEmpresas
+	fornecedoresRepo *repositorioFornecedores
+	categoriasRepo   *repositorioCategoriasFinanceiras
 	storage          *storageFalso
 	empresaID        uuid.UUID
 }
@@ -39,10 +41,14 @@ func novoCenario(t *testing.T) *cenario {
 	aprovadores := novoRepositorioAprovadores()
 	storage := novoStorageFalso()
 	empresas := novoRepositorioEmpresas()
+	fornecedores := novoRepositorioFornecedores()
+	categorias := novoRepositorioCategoriasFinanceiras()
 
 	c := &cenario{
-		ctx:              context.Background(),
-		solicitacao:      solicitacaousecases.NewSolicitacaoUsecase(solicitacoes, arquivos, aprovadores, usuarios, cargos, empresas),
+		ctx: context.Background(),
+		solicitacao: solicitacaousecases.NewSolicitacaoUsecase(
+			solicitacoes, arquivos, aprovadores, usuarios, cargos, empresas, fornecedores, categorias,
+		),
 		arquivo:          solicitacaousecases.NewArquivoUsecase(arquivos, solicitacoes, storage, usuarios, cargos, aprovadores, empresas),
 		aprovador:        solicitacaousecases.NewAprovadorUsecase(aprovadores, usuarios),
 		usuariosRepo:     usuarios,
@@ -51,6 +57,8 @@ func novoCenario(t *testing.T) *cenario {
 		solicitacoesRepo: solicitacoes,
 		aprovadoresRepo:  aprovadores,
 		empresasRepo:     empresas,
+		fornecedoresRepo: fornecedores,
+		categoriasRepo:   categorias,
 		storage:          storage,
 	}
 	c.empresaID = c.novaEmpresa(true)

@@ -20,13 +20,26 @@ const (
 )
 
 type CriarSolicitacaoInput struct {
-	SolicitanteID  uuid.UUID
-	EmpresaID      uuid.UUID
-	ValorCentavos  int64
-	PrazoPagamento time.Time
-	Observacao     string
-	FormaPagamento string
-	ArquivoIDs     []uuid.UUID
+	SolicitanteID         uuid.UUID
+	EmpresaID             uuid.UUID
+	ValorCentavos         int64
+	PrazoPagamento        time.Time
+	Observacao            string
+	FormaPagamento        string
+	FornecedorID          *uuid.UUID
+	CategoriaFinanceiraID *uuid.UUID
+	Competencia           string
+	Estimado              bool
+	ArquivoIDs            []uuid.UUID
+}
+
+type ClassificarSolicitacaoInput struct {
+	SolicitacaoID         uuid.UUID
+	UsuarioID             uuid.UUID
+	FornecedorID          *uuid.UUID
+	CategoriaFinanceiraID *uuid.UUID
+	Competencia           string
+	Versao                int
 }
 
 type RegistrarPagamentoInput struct {
@@ -38,11 +51,18 @@ type RegistrarPagamentoInput struct {
 }
 
 type ListarSolicitacoesInput struct {
-	UsuarioID uuid.UUID
-	Escopo    string
-	Status    string
-	Empresa   *uuid.UUID
-	Filtro    domain.PaginacaoFiltro
+	UsuarioID   uuid.UUID
+	Escopo      string
+	Status      string
+	Empresa     *uuid.UUID
+	Fornecedor  *uuid.UUID
+	Categoria   *uuid.UUID
+	Competencia string
+	Origem      string
+	VenceDe     *time.Time
+	VenceAte    *time.Time
+	Vencidas    bool
+	Filtro      domain.PaginacaoFiltro
 }
 
 type SolicitacaoUseCase interface {
@@ -52,6 +72,7 @@ type SolicitacaoUseCase interface {
 	Aprovar(ctx context.Context, solicitacaoID, aprovadorID uuid.UUID) error
 	Rejeitar(ctx context.Context, solicitacaoID, aprovadorID uuid.UUID, motivo string) error
 	Cancelar(ctx context.Context, solicitacaoID, usuarioID uuid.UUID) error
+	Classificar(ctx context.Context, input ClassificarSolicitacaoInput) error
 	RegistrarPagamento(ctx context.Context, input RegistrarPagamentoInput) error
 	ListarHistorico(ctx context.Context, solicitacaoID, usuarioID uuid.UUID) ([]*domainsolicitacao.Historico, error)
 	ListarArquivos(ctx context.Context, solicitacaoID, usuarioID uuid.UUID) ([]*domainsolicitacao.Arquivo, error)

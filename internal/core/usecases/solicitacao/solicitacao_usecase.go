@@ -2,9 +2,11 @@ package solicitacao
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
+	domainfinanceiro "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/financeiro"
 	domainsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/solicitacao"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/solicitacao"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/solicitacao"
@@ -14,8 +16,10 @@ import (
 var _ portsin.SolicitacaoUseCase = (*SolicitacaoUsecaseImpl)(nil)
 
 type SolicitacaoUsecaseImpl struct {
-	repo     portsout.SolicitacaoRepository
-	arquivos portsout.ArquivoRepository
+	repo         portsout.SolicitacaoRepository
+	arquivos     portsout.ArquivoRepository
+	fornecedores portsout.FornecedorRepository
+	categorias   portsout.CategoriaFinanceiraRepository
 	permissoes
 }
 
@@ -26,10 +30,14 @@ func NewSolicitacaoUsecase(
 	usuarios portsout.UsuarioRepository,
 	cargos portsout.CargoRepository,
 	empresas portsout.EmpresaRepository,
+	fornecedores portsout.FornecedorRepository,
+	categorias portsout.CategoriaFinanceiraRepository,
 ) *SolicitacaoUsecaseImpl {
 	return &SolicitacaoUsecaseImpl{
-		repo:     repo,
-		arquivos: arquivos,
+		repo:         repo,
+		arquivos:     arquivos,
+		fornecedores: fornecedores,
+		categorias:   categorias,
 		permissoes: permissoes{
 			usuarios:    usuarios,
 			cargos:      cargos,
@@ -60,7 +68,21 @@ func (u *SolicitacaoUsecaseImpl) Criar(ctx context.Context, input portsin.CriarS
 		return uuid.Nil, err
 	}
 
+	competencia, err := competenciaInformada(input.Competencia)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	classificacao := domainsolicitacao.Classificacao{
+		FornecedorID:          input.FornecedorID,
+		CategoriaFinanceiraID: input.CategoriaFinanceiraID,
+		Competencia:           competencia,
+	}
+
 	if err := u.validarEmpresa(ctx, input.SolicitanteID, input.EmpresaID); err != nil {
+		return uuid.Nil, err
+	}
+
+	if err := u.validarClassificacao(ctx, classificacao); err != nil {
 		return uuid.Nil, err
 	}
 
@@ -69,14 +91,15 @@ func (u *SolicitacaoUsecaseImpl) Criar(ctx context.Context, input portsin.CriarS
 	}
 
 	solicitacao, err := domainsolicitacao.NovaSolicitacao(
-		input.SolicitanteID, input.EmpresaID, valor, prazo, observacao, formaPagamento, input.ArquivoIDs,
+		input.SolicitanteID, input.EmpresaID, valor, prazo, observacao, formaPagamento,
+		classificacao, input.Estimado, input.ArquivoIDs,
 	)
 	if err != nil {
 		return uuid.Nil, err
 	}
 
 	historico := domainsolicitacao.NovoHistorico(
-		solicitacao.ID, input.SolicitanteID, nil, solicitacao.Status, "solicitação criada",
+		solicitacao.ID, input.SolicitanteID, nil, solicitacao.Status, domainsolicitacao.EventoCriada, "solicitação criada",
 	)
 
 	return u.repo.Criar(ctx, solicitacao, input.ArquivoIDs, historico)
@@ -138,6 +161,10 @@ func (u *SolicitacaoUsecaseImpl) Listar(ctx context.Context, input portsin.Lista
 		filtro.Empresa = input.Empresa
 	}
 
+	if err := aplicarFiltrosDeContasAPagar(&filtro, input); err != nil {
+		return nil, err
+	}
+
 	if input.Status != "" {
 		status, err := domainsolicitacao.NovoStatus(input.Status)
 		if err != nil {
@@ -150,6 +177,57 @@ func (u *SolicitacaoUsecaseImpl) Listar(ctx context.Context, input portsin.Lista
 	}
 
 	return u.repo.Listar(ctx, filtro)
+}
+
+func aplicarFiltrosDeContasAPagar(filtro *portsout.SolicitacaoFiltro, input portsin.ListarSolicitacoesInput) error {
+	filtro.Fornecedor = input.Fornecedor
+	filtro.Categoria = input.Categoria
+	filtro.VenceDe = input.VenceDe
+	filtro.VenceAte = input.VenceAte
+
+	competencia, err := competenciaInformada(input.Competencia)
+	if err != nil {
+		return err
+	}
+	filtro.Competencia = competencia
+
+	if input.Origem != "" {
+		origem, err := domainsolicitacao.NovaOrigem(input.Origem)
+		if err != nil {
+			return err
+		}
+		filtro.Origem = origem
+	}
+
+	if input.VenceDe != nil && input.VenceAte != nil && input.VenceAte.Before(*input.VenceDe) {
+		return domain.ErroValidacao("vencimento final não pode ser anterior ao inicial")
+	}
+
+	if input.Vencidas {
+		hoje := inicioDoDia(time.Now())
+		filtro.VencidasEm = &hoje
+	}
+
+	return nil
+}
+
+func inicioDoDia(data time.Time) time.Time {
+	ano, mes, dia := data.UTC().Date()
+
+	return time.Date(ano, mes, dia, 0, 0, 0, 0, time.UTC)
+}
+
+func competenciaInformada(texto string) (*domainsolicitacao.Competencia, error) {
+	if strings.TrimSpace(texto) == "" {
+		return nil, nil
+	}
+
+	competencia, err := domainsolicitacao.NovaCompetencia(texto)
+	if err != nil {
+		return nil, err
+	}
+
+	return &competencia, nil
 }
 
 func statusPermitidoNoEscopo(escopo string, status domainsolicitacao.Status) bool {
@@ -171,7 +249,7 @@ func (u *SolicitacaoUsecaseImpl) Aprovar(ctx context.Context, solicitacaoID, apr
 		}
 
 		return domainsolicitacao.NovoHistorico(
-			solicitacao.ID, aprovadorID, &statusAnterior, solicitacao.Status, "solicitação aprovada",
+			solicitacao.ID, aprovadorID, &statusAnterior, solicitacao.Status, domainsolicitacao.EventoAprovada, "solicitação aprovada",
 		), nil
 	})
 }
@@ -189,7 +267,8 @@ func (u *SolicitacaoUsecaseImpl) Rejeitar(ctx context.Context, solicitacaoID, ap
 		}
 
 		return domainsolicitacao.NovoHistorico(
-			solicitacao.ID, aprovadorID, &statusAnterior, solicitacao.Status, "solicitação rejeitada: "+motivoRejeicao.Texto(),
+			solicitacao.ID, aprovadorID, &statusAnterior, solicitacao.Status, domainsolicitacao.EventoRejeitada,
+			"solicitação rejeitada: "+motivoRejeicao.Texto(),
 		), nil
 	})
 }
@@ -215,10 +294,57 @@ func (u *SolicitacaoUsecaseImpl) Cancelar(ctx context.Context, solicitacaoID, us
 	}
 
 	historico := domainsolicitacao.NovoHistorico(
-		solicitacao.ID, usuarioID, &statusAnterior, solicitacao.Status, "solicitação cancelada",
+		solicitacao.ID, usuarioID, &statusAnterior, solicitacao.Status, domainsolicitacao.EventoCancelada, "solicitação cancelada",
 	)
 
 	return u.atualizarStatus(ctx, solicitacao, historico)
+}
+
+func (u *SolicitacaoUsecaseImpl) Classificar(ctx context.Context, input portsin.ClassificarSolicitacaoInput) error {
+	permissao, err := u.ehFinanceiro(ctx, input.UsuarioID)
+	if err != nil {
+		return err
+	}
+	if !permissao {
+		return domain.ErroPermissao("perfil sem permissão para classificar solicitação")
+	}
+
+	solicitacao, err := u.buscar(ctx, input.SolicitacaoID)
+	if err != nil {
+		return err
+	}
+	if err := u.exigeAcessoAEmpresa(ctx, input.UsuarioID, solicitacao.EmpresaID); err != nil {
+		return err
+	}
+	if err := solicitacao.ConferirVersao(input.Versao); err != nil {
+		return err
+	}
+
+	competencia, err := competenciaInformada(input.Competencia)
+	if err != nil {
+		return err
+	}
+	classificacao := domainsolicitacao.Classificacao{
+		FornecedorID:          input.FornecedorID,
+		CategoriaFinanceiraID: input.CategoriaFinanceiraID,
+		Competencia:           competencia,
+	}
+
+	versaoLida := solicitacao.Versao
+	if err := solicitacao.Classificar(classificacao, time.Now().UTC()); err != nil {
+		return err
+	}
+	if err := u.validarClassificacao(ctx, classificacao); err != nil {
+		return err
+	}
+
+	statusAtual := solicitacao.Status
+	historico := domainsolicitacao.NovoHistorico(
+		solicitacao.ID, input.UsuarioID, &statusAtual, statusAtual, domainsolicitacao.EventoClassificada,
+		"solicitação classificada na competência "+solicitacao.Competencia.String(),
+	)
+
+	return u.repo.Classificar(ctx, solicitacao, versaoLida, historico)
 }
 
 func (u *SolicitacaoUsecaseImpl) RegistrarPagamento(ctx context.Context, input portsin.RegistrarPagamentoInput) error {
@@ -259,7 +385,7 @@ func (u *SolicitacaoUsecaseImpl) RegistrarPagamento(ctx context.Context, input p
 	}
 
 	historico := domainsolicitacao.NovoHistorico(
-		solicitacao.ID, input.UsuarioID, &statusAnterior, solicitacao.Status, "pagamento registrado",
+		solicitacao.ID, input.UsuarioID, &statusAnterior, solicitacao.Status, domainsolicitacao.EventoPaga, "pagamento registrado",
 	)
 
 	return u.repo.CriarPagamento(ctx, solicitacao, pagamento, historico)
@@ -385,10 +511,45 @@ func (u *SolicitacaoUsecaseImpl) validarEmpresa(ctx context.Context, solicitante
 		return err
 	}
 	if empresa == nil {
-		return domain.ErroValidacao("empresa da solicitação não encontrada")
+		return domainsolicitacao.ErroEmpresaNaoEncontrada()
 	}
 	if !empresa.Ativa {
-		return domain.ErroValidacao("empresa inativa não recebe solicitação nova")
+		return domainsolicitacao.ErroEmpresaInativa()
+	}
+
+	return nil
+}
+
+func (u *SolicitacaoUsecaseImpl) validarClassificacao(ctx context.Context, classificacao domainsolicitacao.Classificacao) error {
+	if classificacao.FornecedorID != nil {
+		fornecedor, err := u.fornecedores.Obter(ctx, *classificacao.FornecedorID)
+		if err != nil {
+			return err
+		}
+		if fornecedor == nil {
+			return domainsolicitacao.ErroFornecedorNaoEncontrado()
+		}
+		if !fornecedor.Ativo {
+			return domainsolicitacao.ErroFornecedorInativo()
+		}
+	}
+
+	if classificacao.CategoriaFinanceiraID == nil {
+		return nil
+	}
+
+	categoria, err := u.categorias.Obter(ctx, *classificacao.CategoriaFinanceiraID)
+	if err != nil {
+		return err
+	}
+	if categoria == nil {
+		return domainsolicitacao.ErroCategoriaFinanceiraNaoEncontrada()
+	}
+	if !categoria.Lancavel() {
+		return domainsolicitacao.ErroCategoriaFinanceiraNaoLancavel()
+	}
+	if categoria.Natureza != domainfinanceiro.NaturezaDespesa {
+		return domainsolicitacao.ErroCategoriaFinanceiraNaoEhDespesa()
 	}
 
 	return nil
