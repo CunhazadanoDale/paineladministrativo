@@ -777,6 +777,48 @@ func TestUsuarioTemAcessoComercialPeloCargo(t *testing.T) {
 	}
 }
 
+func TestUsuarioTemAcessoFinanceiroPeloCargo(t *testing.T) {
+	c := novoCenario(t)
+	ctx := context.Background()
+
+	casos := []struct {
+		nome     string
+		cargo    domainusuarios.Cargo
+		esperado bool
+	}{
+		{"cargo sem perfil", domainusuarios.Cargo{Nome: "Almoxarife"}, false},
+		{"cargo comercial", domainusuarios.Cargo{Nome: "Vendedor", Comercial: true}, false},
+		{"cargo financeiro", domainusuarios.Cargo{Nome: "Tesoureiro", Financeiro: true}, true},
+		{"cargo administrador", domainusuarios.Cargo{Nome: "Diretor", Administrador: true}, true},
+	}
+
+	for _, caso := range casos {
+		t.Run(caso.nome, func(t *testing.T) {
+			cargo := caso.cargo
+			cargoID, err := c.cargo.Criar(ctx, &cargo)
+			if err != nil {
+				t.Fatalf("criação do cargo falhou: %v", err)
+			}
+
+			usuario := &domainusuarios.Usuario{ID: uuid.New(), CargoID: cargoID}
+			acesso, err := c.usuario.TemAcessoFinanceiro(ctx, usuario)
+			if err != nil {
+				t.Fatalf("consulta falhou: %v", err)
+			}
+			if acesso != caso.esperado {
+				t.Errorf("acesso financeiro = %v, esperado %v", acesso, caso.esperado)
+			}
+		})
+	}
+
+	if acesso, err := c.usuario.TemAcessoFinanceiro(ctx, nil); err != nil || acesso {
+		t.Errorf("usuário nulo = %v, %v; esperado false sem erro", acesso, err)
+	}
+	if acesso, err := c.usuario.TemAcessoFinanceiro(ctx, &domainusuarios.Usuario{ID: uuid.New()}); err != nil || acesso {
+		t.Errorf("usuário sem cargo = %v, %v; esperado false sem erro", acesso, err)
+	}
+}
+
 func (c *cenario) criarAdministrador(t *testing.T, email string) (uuid.UUID, uuid.UUID) {
 	t.Helper()
 

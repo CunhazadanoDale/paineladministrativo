@@ -191,6 +191,12 @@ func (h *UsuarioHandler) Autenticar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	financeiro, err := h.usecase.TemAcessoFinanceiro(r.Context(), usuario)
+	if err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+
 	h.tentativas.RegistrarSucesso(r, requisicao.Email)
 
 	dto.EscreverJSON(w, http.StatusOK, dto.Resposta[usuariosdto.SessaoResponse]{
@@ -199,6 +205,7 @@ func (h *UsuarioHandler) Autenticar(w http.ResponseWriter, r *http.Request) {
 			ExpiraEm:      expiraEm,
 			Administrador: administrador,
 			Comercial:     comercial,
+			Financeiro:    financeiro,
 			Usuario:       usuariosdto.NovaUsuarioResponse(usuario),
 		},
 	})

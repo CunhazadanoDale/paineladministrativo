@@ -52,7 +52,7 @@ cliente deve autenticar de novo.
 | Comercial | Token de um usuário cujo cargo tem `"comercial": true` | Leads (criar, editar, mover, excluir), histórico e **leitura** de funis e etapas |
 | Administrador | Token de um usuário cujo cargo tem `"administrador": true` | Tudo o que os perfis autenticado e comercial podem, **mais** a estrutura de funis e etapas, a gestão de usuários, a escrita de cargos, a designação de aprovadores e `escopo=todas` |
 | Aprovador | Usuário **designado** na tabela `aprovador` pelo administrador | `escopo=aprovacao`, aprovar e rejeitar as solicitações pendentes |
-| Financeiro | Token de um usuário cujo cargo tem `"financeiro": true` | `escopo=financeiro` e o registro de pagamento das solicitações aprovadas |
+| Financeiro | Token de um usuário cujo cargo tem `"financeiro": true` (ou de administrador) | `escopo=financeiro` e o registro de pagamento das solicitações aprovadas |
 
 Os três papéis novos do módulo de solicitações são **cumulativos**: um administrador também
 é tratado como aprovador e como financeiro.
@@ -193,6 +193,7 @@ Resposta `200`:
     "expira_em": "2026-10-07T15:29:42.0670651Z",
     "administrador": true,
     "comercial": true,
+    "financeiro": true,
     "usuario": {
       "id": "00000000-0000-0000-0000-0000000000ad",
       "nome": "Administrador",
@@ -208,6 +209,10 @@ Resposta `200`:
 ```
 
 O login registra o `ultimo_login` e a resposta nunca contém a senha.
+
+`administrador`, `comercial` e `financeiro` dizem quais perfis o usuário tem; os dois últimos
+são cumulativos com o de administrador. O front usa esses campos para mostrar ou esconder as
+telas, sem precisar sondar rotas protegidas.
 
 Proteção contra força bruta: 5 falhas do mesmo e-mail a partir do mesmo IP, ou 50 falhas
 de um mesmo IP, em 15 minutos, bloqueiam novas tentativas por 15 minutos (`429`). Um login
