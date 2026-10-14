@@ -116,6 +116,14 @@ func (e *EstoqueRepository) Gravar(ctx context.Context, operacao *domainestoque.
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	if err := gravarOperacaoEstoque(ctx, tx, operacao); err != nil {
+		return err
+	}
+
+	return tratarErroDeGravacao(tx.Commit())
+}
+
+func gravarOperacaoEstoque(ctx context.Context, tx *sqlx.Tx, operacao *domainestoque.OperacaoEstoque) error {
 	if err := avancarVersaoEstoque(ctx, tx, operacao); err != nil {
 		return err
 	}
@@ -174,7 +182,7 @@ func (e *EstoqueRepository) Gravar(ctx context.Context, operacao *domainestoque.
 		}
 	}
 
-	return tratarErroDeGravacao(tx.Commit())
+	return nil
 }
 
 func avancarVersaoEstoque(ctx context.Context, tx *sqlx.Tx, operacao *domainestoque.OperacaoEstoque) error {
