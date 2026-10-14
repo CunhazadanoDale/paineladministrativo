@@ -65,7 +65,7 @@ func (r *repositorioFornecedores) Criar(_ context.Context, fornecedor *domainfor
 		return uuid.Nil, r.falha
 	}
 	if r.conflitoNaCriacao {
-		return uuid.Nil, domain.ErroConflito("já existe um registro com estes dados")
+		return uuid.Nil, domain.ErroConflito("já existe um fornecedor com este documento")
 	}
 
 	r.itens[fornecedor.ID] = copiaDe(fornecedor)

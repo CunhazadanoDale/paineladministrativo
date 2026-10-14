@@ -2,7 +2,6 @@ package fornecedor
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"time"
 
@@ -68,7 +67,7 @@ func (u *FornecedorUsecaseImpl) Criar(ctx context.Context, input portsin.CriarFo
 	}
 
 	if _, err := u.fornecedores.Criar(ctx, fornecedor); err != nil {
-		return nil, traduzirFornecedorRepetido(err)
+		return nil, err
 	}
 
 	return fornecedor, nil
@@ -253,12 +252,4 @@ func dadosDoFornecedor(input portsin.DadosFornecedorInput) (domainfornecedor.Dad
 
 func erroFornecedorNaoEncontrado() error {
 	return domain.ErroNaoEncontrado("fornecedor não encontrado")
-}
-
-func traduzirFornecedorRepetido(err error) error {
-	if errors.Is(err, domain.ErrConflito) {
-		return domain.ErroConflito("já existe um fornecedor com este documento ou identificação")
-	}
-
-	return err
 }

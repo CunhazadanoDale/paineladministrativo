@@ -230,7 +230,7 @@ func TestCriarFornecedorRecusaDuplicidade(t *testing.T) {
 	c.criar(t, c.financeiro, criarEstrangeiro("US", "ABC123", "Ohio"))
 }
 
-func TestCriarFornecedorTraduzConflitoDaCorrida(t *testing.T) {
+func TestCriarFornecedorRepassaConflitoDaCorrida(t *testing.T) {
 	c := novoCenario()
 	c.fornecedores.conflitoNaCriacao = true
 
@@ -238,7 +238,7 @@ func TestCriarFornecedorTraduzConflitoDaCorrida(t *testing.T) {
 	input.UsuarioID = c.financeiro
 	_, err := c.usecase.Criar(c.ctx, input)
 
-	conferirErro(t, err, domain.ErrConflito, "já existe um fornecedor com este documento ou identificação")
+	conferirErro(t, err, domain.ErrConflito, "já existe um fornecedor com este documento")
 }
 
 func TestCriarFornecedorRepassaFalhaDoBanco(t *testing.T) {

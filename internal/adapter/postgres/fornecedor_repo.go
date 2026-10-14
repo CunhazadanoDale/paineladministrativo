@@ -8,12 +8,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	domaincliente "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/cliente"
 	domainempresa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/empresa"
 	domainfornecedor "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/fornecedor"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/fornecedor"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
+	"github.com/lib/pq/pqerror"
 )
 
 var _ portsout.FornecedorRepository = (*FornecedorRepository)(nil)
@@ -67,7 +70,7 @@ func (r *FornecedorRepository) Criar(ctx context.Context, fornecedor *domainforn
 			:criado_em, :atualizado_em
 		)
 	`, paraLinhaFornecedor(fornecedor)); err != nil {
-		return uuid.Nil, tratarErroDeGravacao(err)
+		return uuid.Nil, erroDeGravacaoDoFornecedor(err)
 	}
 
 	return fornecedor.ID, nil
@@ -180,7 +183,7 @@ func (r *FornecedorRepository) Atualizar(ctx context.Context, fornecedor *domain
 		return r.versaoDivergente(ctx, fornecedor.ID)
 	}
 	if err != nil {
-		return false, tratarErroDeGravacao(err)
+		return false, erroDeGravacaoDoFornecedor(err)
 	}
 
 	fornecedor.Versao = novaVersao
@@ -220,17 +223,37 @@ func buscaDeFornecedor(busca string, posicaoAtual int) (string, []any) {
 		return "", nil
 	}
 
-	nome := "$" + strconv.Itoa(posicaoAtual+1)
-	documento := "$" + strconv.Itoa(posicaoAtual+2)
-	identificacao := "$" + strconv.Itoa(posicaoAtual+3)
-	argumentos := []any{
-		"%" + escaparBusca(termo) + "%",
-		escaparBusca(domaincliente.TermoDeDocumento(busca)) + "%",
-		escaparBusca(strings.ToUpper(strings.TrimSpace(busca))) + "%",
+	colunas := []string{"nome_busca"}
+	argumentos := []any{"%" + escaparBusca(termo) + "%"}
+
+	if termoDocumento := domaincliente.TermoDeDocumento(busca); termoDocumento != "" {
+		colunas = append(colunas, "documento")
+		argumentos = append(argumentos, escaparBusca(termoDocumento)+"%")
 	}
 
-	return "(nome_busca LIKE " + nome + " OR documento LIKE " + documento +
-		" OR identificacao_estrangeira LIKE " + identificacao + ")", argumentos
+	colunas = append(colunas, "identificacao_estrangeira")
+	argumentos = append(argumentos, escaparBusca(strings.ToUpper(strings.TrimSpace(busca)))+"%")
+
+	alternativas := make([]string, 0, len(colunas))
+	for indice, coluna := range colunas {
+		alternativas = append(alternativas, coluna+" LIKE $"+strconv.Itoa(posicaoAtual+indice+1))
+	}
+
+	return "(" + strings.Join(alternativas, " OR ") + ")", argumentos
+}
+
+func erroDeGravacaoDoFornecedor(err error) error {
+	var erroPostgres *pq.Error
+	if errors.As(err, &erroPostgres) && erroPostgres.Code == pqerror.UniqueViolation {
+		switch erroPostgres.Constraint {
+		case "uq_fornecedor_documento":
+			return domain.ErroConflito("já existe um fornecedor com este documento")
+		case "uq_fornecedor_identificacao_estrangeira":
+			return domain.ErroConflito("já existe um fornecedor com esta identificação neste país")
+		}
+	}
+
+	return tratarErroDeGravacao(err)
 }
 
 func paraLinhaFornecedor(fornecedor *domainfornecedor.Fornecedor) fornecedorLinha {

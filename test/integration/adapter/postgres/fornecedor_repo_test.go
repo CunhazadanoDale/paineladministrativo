@@ -191,15 +191,27 @@ func TestFornecedorRespeitaUnicidade(t *testing.T) {
 	c := novoCenarioFornecedores(t)
 
 	c.criar(t, c.nacional(t, "11.222.333/0001-81", "Cerâmica A"))
-	if _, err := c.fornecedores.Criar(c.ctx, c.nacional(t, "11222333000181", "Cerâmica B")); !errors.Is(err, domain.ErrConflito) {
-		t.Errorf("documento repetido: erro = %v, esperado conflito", err)
+	_, err := c.fornecedores.Criar(c.ctx, c.nacional(t, "11222333000181", "Cerâmica B"))
+	if !errors.Is(err, domain.ErrConflito) || !strings.Contains(err.Error(), "já existe um fornecedor com este documento") {
+		t.Errorf("documento repetido: erro = %v, esperado conflito do documento", err)
 	}
 
 	c.criar(t, c.estrangeiro(t, "CN", "ABC123", "Foshan A", domainfornecedor.MoedaDolar))
-	if _, err := c.fornecedores.Criar(c.ctx, c.estrangeiro(t, "CN", "abc123", "Foshan B", domainfornecedor.MoedaDolar)); !errors.Is(err, domain.ErrConflito) {
-		t.Errorf("identificação repetida no país: erro = %v, esperado conflito", err)
+	_, err = c.fornecedores.Criar(c.ctx, c.estrangeiro(t, "CN", "abc123", "Foshan B", domainfornecedor.MoedaDolar))
+	if !errors.Is(err, domain.ErrConflito) || !strings.Contains(err.Error(), "já existe um fornecedor com esta identificação neste país") {
+		t.Errorf("identificação repetida no país: erro = %v, esperado conflito da identificação", err)
 	}
-	c.criar(t, c.estrangeiro(t, "US", "ABC123", "Ohio", domainfornecedor.MoedaDolar))
+	ohio := c.criar(t, c.estrangeiro(t, "CN", "OHIO1", "Ohio", domainfornecedor.MoedaDolar))
+
+	ohio.IdentificacaoEstrangeira = textoDe("ABC123")
+	ok, err := c.fornecedores.Atualizar(c.ctx, ohio)
+	if ok || !errors.Is(err, domain.ErrConflito) || !strings.Contains(err.Error(), "já existe um fornecedor com esta identificação neste país") {
+		t.Errorf("atualizar para identificação repetida = %v, %v; esperado conflito da identificação", ok, err)
+	}
+	if salvo := c.obter(t, ohio.ID); *salvo.IdentificacaoEstrangeira != "OHIO1" || salvo.Versao != 1 {
+		t.Errorf("fornecedor recusado mudou: %+v", salvo)
+	}
+	c.criar(t, c.estrangeiro(t, "US", "ABC123", "Ohio US", domainfornecedor.MoedaDolar))
 
 	c.criar(t, c.estrangeiro(t, "CN", "", "Sem identificação 1", domainfornecedor.MoedaYuanChines))
 	c.criar(t, c.estrangeiro(t, "CN", "", "Sem identificação 2", domainfornecedor.MoedaYuanChines))
@@ -254,6 +266,8 @@ func TestFornecedorListaComBuscaFiltrosEPaginacao(t *testing.T) {
 		{"busca por documento com máscara", portsout.FornecedorFiltro{Busca: "529.982"}, []string{"José Fretes"}},
 		{"busca por identificação estrangeira", portsout.FornecedorFiltro{Busca: "it01"}, []string{"Ceramiche Italia"}},
 		{"busca curinga é texto", portsout.FornecedorFiltro{Busca: "%"}, []string{}},
+		{"busca só com máscara não traz todos", portsout.FornecedorFiltro{Busca: " ./- "}, []string{}},
+		{"busca só com hífen", portsout.FornecedorFiltro{Busca: "-"}, []string{}},
 		{"país", portsout.FornecedorFiltro{Pais: "CN"}, []string{"Foshan Ceramics", "Guangzhou Tiles"}},
 		{"moeda", portsout.FornecedorFiltro{Moeda: domainfornecedor.MoedaReal}, []string{"Cerâmica Paraíba", "José Fretes"}},
 		{"ativos da China", portsout.FornecedorFiltro{Pais: "CN", Ativo: &ativo}, []string{"Foshan Ceramics"}},

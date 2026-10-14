@@ -1,6 +1,6 @@
 # Escopo — M4 Fornecedores
 
-> **Status:** escopo aprovado — pronto para implementação.
+> **Status:** escopo aprovado — API concluída (fases 1 a 5); front pendente.
 > **Objetivo:** tirar a "coluna fornecedor do painel financeiro" do texto livre: cadastro único
 > de fornecedores do grupo, nacionais e estrangeiros, base para contas a pagar (M7),
 > importações (M12) e dívidas (M14).
@@ -66,7 +66,8 @@ como em `cliente`), `chk_fornecedor_documento_pais` (`(pais = 'BR') = (documento
   empresa e cliente). `identificacao_estrangeira` pode ser alterada.
 - Duplicidade: documento repetido → `409 já existe um fornecedor com este documento`;
   identificação estrangeira repetida no mesmo país → `409 já existe um fornecedor com esta
-  identificação neste país`. Nome parecido não bloqueia; a busca por `nome_busca` serve para
+  identificação neste país`. A mesma mensagem vale quando a duplicidade só é pega pelo índice único
+  (dois cadastros simultâneos), na criação e na alteração. Nome parecido não bloqueia; a busca por `nome_busca` serve para
   achar o cadastro antes de criar outro.
 - Fornecedor inativo continua no histórico e não recebe lançamento novo (regra aplicada pelo
   M7, M12 e M14 via porta mínima).
@@ -80,7 +81,8 @@ item 10 do `PENDENCIAS.md` nos outros cadastros.
 
 - Toda resposta de fornecedor traz `versao`.
 - `PUT`, `PATCH .../ativar` e `PATCH .../desativar` exigem `versao` no corpo (inteiro ≥ 1);
-  ausente ou inválida → `400 versão do fornecedor é obrigatória`.
+  ausente ou menor que 1 → `400 versão do fornecedor é obrigatória`; de outro tipo (texto,
+  fração) → `400 corpo da requisição inválido`.
 - O repositório grava com
   `UPDATE ... SET ..., versao = versao + 1 WHERE id = $1 AND versao = $2`
   (mesma ideia do `versao_estoque` em `postgres/estoque_repo.go`). Zero linhas afetadas →
