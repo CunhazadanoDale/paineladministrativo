@@ -51,7 +51,8 @@ Decisões já tomadas com o usuário (outubro/2026):
 
 **Constraints:** `chk_fornecedor_pais`, `chk_fornecedor_documento` (formato por `tipo_pessoa`,
 como em `cliente`), `chk_fornecedor_documento_pais` (`(pais = 'BR') = (documento IS NOT NULL)`),
-`chk_fornecedor_tipo_pessoa` (`(documento IS NULL) = (tipo_pessoa IS NULL)`),
+`chk_fornecedor_tipo_pessoa` (`pf`/`pj`),
+`chk_fornecedor_tipo_pessoa_documento` (`(documento IS NULL) = (tipo_pessoa IS NULL)`),
 `chk_fornecedor_identificacao_estrangeira` (nula quando `pais = 'BR'`),
 `chk_fornecedor_endereco_pais` (`uf` e `cidade` nulas quando `pais <> 'BR'`),
 `chk_fornecedor_moeda_padrao`, `chk_fornecedor_uf`, `chk_fornecedor_nome`,
@@ -176,7 +177,7 @@ test/helpers/servidor.go + test/integration + test/e2e
 
 | Fase | Entrega | Estado |
 |---|---|---|
-| **1** | Migration 000037 + domínio (país, moeda, regras de documento por país, versão) + testes | pendente |
+| **1** | Migration 000037 + domínio (país, moeda, regras de documento por país, versão) + testes | concluída |
 | **2** | Repositório com guarda de versão + testes de integração (unicidade, busca, filtros, corrida de versão) | pendente |
 | **3** | Perfil financeiro (`TemAcessoFinanceiro`, `ExigirFinanceiro`, campo no login) + testes | pendente |
 | **4** | Usecase + permissões + testes com fakes | pendente |
