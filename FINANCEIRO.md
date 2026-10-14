@@ -162,8 +162,10 @@ Mesmo contrato da seção 3 do `FORNECEDORES.md`, aplicado às duas entidades:
 
 - Toda resposta traz `versao`.
 - `PUT`, `PATCH .../ativar` e `PATCH .../desativar` exigem `versao` no corpo (inteiro ≥ 1);
-  ausente ou inválida → `400 versão da conta bancária é obrigatória` /
-  `400 versão da categoria financeira é obrigatória`.
+  ausente, `null`, zero ou negativa → `400 versão da conta bancária é obrigatória` /
+  `400 versão da categoria financeira é obrigatória`. Corpo vazio ou `versao` que não é inteiro
+  (`"3"`, `1.5`) não chega à regra: o leitor do corpo responde `400 corpo da requisição
+  inválido: ...`, como em todos os módulos.
 - Gravação com `UPDATE ... SET ..., versao = versao + 1 WHERE id = $1 AND versao = $2`. Zero
   linhas afetadas → `409 a conta bancária foi alterada por outra pessoa; recarregue e tente de
   novo` (ou `a categoria financeira ...`) se o registro existe, `404` se não.
@@ -227,9 +229,11 @@ DELETE /api/v1/categorias-financeiras/{id}           só sem filhas e sem víncu
 
 - O caminho é `categorias-financeiras` porque `/api/v1/categorias` já é do estoque.
 - `busca` procura no nome (sem diferenciar maiúsculas) e no prefixo do `codigo`.
-- Listagem ordenada por `ordem, lower(nome), id`.
+- Listagem ordenada por `ordem, lower(nome), id` (nome sem diferenciar maiúsculas).
+- `PUT` substitui os campos editáveis inteiros: `codigo` omitido vira `null` e `ordem` omitida
+  vira `0`; o cliente reenvia os valores lidos que quiser manter.
 - A `arvore` existe porque o plano é a lista de seleção do M7 e do M13 e passaria do máximo de
-  100 itens da paginação (item "Listas cortadas em 100" da F0). Raízes por `ordem, nome, id`,
+  100 itens da paginação (item "Listas cortadas em 100" da F0). Raízes por `ordem, lower(nome), id`,
   cada uma com as filhas na mesma ordem, e `lancavel` em cada item.
 - Resposta traz `lancavel` (subcategoria ativa).
 
@@ -270,7 +274,10 @@ Cada consumidor declara a própria porta mínima (regra 6 da seção 3 do `ROADM
 no `main.go` pelos repositórios deste módulo:
 
 - `ContaBancaria` expõe `EmpresaID`, `Banco`, `Agencia`, `Conta`, `Ativa`. Regra dos
-  consumidores: conta ativa e **da mesma empresa** do lançamento.
+  consumidores: conta ativa e **da mesma empresa** do lançamento, e essa empresa ativa. Desativar
+  uma empresa não desativa as contas dela (nem criar ou reativar a conta trava a desativação
+  posterior da empresa), então quem lança confere a empresa pela própria porta mínima, como já
+  faz para criar o lançamento.
 - `CategoriaFinanceira` expõe `Natureza`, `LinhaDRE`, `EhSubcategoria()`, `Ativa` e
   `Lancavel()`. Regras dos consumidores: só categoria lançável; M7 aceita `despesa`, M9 aceita
   `receita`, M13 aceita as três (inclusive `transferencia` para `entre_contas`).

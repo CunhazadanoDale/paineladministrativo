@@ -1611,7 +1611,7 @@ A resposta traz `banco` e `banco_nome`, `tipo`, `agencia`, `agencia_digito` e
 `versao`, `criado_em` e `atualizado_em`. Dígito ausente vem `null`.
 
 Na listagem, usuário sem empresa no acesso recebe lista vazia; `?empresa=` fora do acesso → `403`;
-`?banco=` ou `?tipo=` inválidos → `400`. Ordem: apelido.
+`?banco=` ou `?tipo=` inválidos → `400`. Ordem: apelido, sem diferenciar maiúsculas.
 
 Reativar conta de empresa inativa → `400 empresa inativa não recebe conta bancária`.
 
@@ -1671,8 +1671,12 @@ Regras de situação:
 - ativar subcategoria com o pai inativo → `400 categoria pai está inativa`.
 
 `GET /arvore` devolve as raízes, cada uma com `subcategorias` (lista, vazia quando não houver),
-na ordem `ordem`, nome. `?busca=` procura no nome (sem diferenciar maiúsculas) e no começo do
-código. Listagem ordenada por `ordem`, nome.
+na ordem `ordem`, nome (sem diferenciar maiúsculas). `?busca=` procura no nome (sem diferenciar
+maiúsculas) e no começo do código. Listagem ordenada por `ordem`, nome (sem diferenciar
+maiúsculas).
+
+O `PUT` substitui os campos editáveis inteiros: `codigo` omitido vira `null` e `ordem` omitida
+volta a `0`. Para mudar só o nome, reenvie o `codigo` e a `ordem` lidos.
 
 ### Versão nas contas bancárias e no plano de contas
 
@@ -1681,7 +1685,8 @@ exigem a `versao` lida.
 
 | Situação | Status | Mensagem |
 | --- | --- | --- |
-| `versao` ausente ou menor que 1 | `400` | `erro de validação: versão da conta bancária é obrigatória` / `... da categoria financeira ...` |
+| `versao` ausente, `null` ou menor que 1 | `400` | `erro de validação: versão da conta bancária é obrigatória` / `... da categoria financeira ...` |
+| corpo vazio ou `versao` que não é inteiro (`"3"`, `1.5`) | `400` | `erro de validação: corpo da requisição inválido: ...` |
 | `versao` diferente da atual | `409` | `a conta bancária foi alterada por outra pessoa; recarregue e tente de novo` / `a categoria financeira foi alterada ...` |
 | campo que não muda no corpo do `PUT` (`banco`, `conta`, `natureza`…) | `400` | `erro de validação: corpo da requisição inválido: json: unknown field ...` |
 

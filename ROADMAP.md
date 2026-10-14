@@ -369,8 +369,9 @@ os próximos módulos:
 
 - M7, M9 e M13 apontam para `conta_bancaria.id` e `categoria_financeira.id` com FK `RESTRICT` e
   declaram porta mínima com `Obter`; a conta precisa estar ativa e ser **da mesma empresa** do
-  lançamento; a categoria precisa ser `Lancavel()` (subcategoria ativa) e ter a natureza do
-  lançamento (`despesa` no M7, `receita` no M9, as três no M13);
+  lançamento, e essa empresa precisa estar ativa (desativar a empresa não desativa as contas);
+  a categoria precisa ser `Lancavel()` (subcategoria ativa) e ter a natureza do lançamento
+  (`despesa` no M7, `receita` no M9, as três no M13);
 - o M15 agrupa a DRE por `linha_dre` e deixa de fora `compra_mercadoria` (o CMV vem de
   `produto_movimento_lote`), `fora_dre` (à parte) e `entre_contas`;
 - leitura de contas bancárias é só do financeiro/administrador e respeita o acesso por empresa; o
