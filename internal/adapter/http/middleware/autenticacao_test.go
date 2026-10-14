@@ -46,6 +46,7 @@ type usuariosDeTeste struct {
 	usuario       *domainusuarios.Usuario
 	administrador bool
 	comercial     bool
+	financeiro    bool
 	erro          error
 }
 
@@ -76,6 +77,14 @@ func (u *usuariosDeTeste) TemAcessoComercial(_ context.Context, usuario *domainu
 	}
 
 	return u.comercial, nil
+}
+
+func (u *usuariosDeTeste) TemAcessoFinanceiro(_ context.Context, usuario *domainusuarios.Usuario) (bool, error) {
+	if u.erro != nil {
+		return false, u.erro
+	}
+
+	return u.financeiro, nil
 }
 
 func novoUsuario() *domainusuarios.Usuario {
@@ -311,5 +320,41 @@ func TestExigirComercialRespeitaOPerfil(t *testing.T) {
 				t.Errorf("status %d, esperado %d: %s", registrador.Code, caso.esperado, registrador.Body.String())
 			}
 		})
+	}
+}
+
+func TestExigirFinanceiroRespeitaOPerfil(t *testing.T) {
+	casos := []struct {
+		nome     string
+		usuarios *usuariosDeTeste
+		esperado int
+	}{
+		{"sem acesso financeiro", &usuariosDeTeste{usuario: novoUsuario()}, http.StatusForbidden},
+		{"só comercial", &usuariosDeTeste{usuario: novoUsuario(), comercial: true}, http.StatusForbidden},
+		{"com acesso financeiro", &usuariosDeTeste{usuario: novoUsuario(), financeiro: true}, http.StatusOK},
+		{"falha ao consultar o cargo", &usuariosDeTeste{usuario: novoUsuario(), erro: errors.New("banco fora")}, http.StatusInternalServerError},
+	}
+
+	for _, caso := range casos {
+		t.Run(caso.nome, func(t *testing.T) {
+			registrador := httptest.NewRecorder()
+			requisicao := httptest.NewRequest(http.MethodPost, "/api/v1/fornecedores", nil)
+			requisicao = requisicao.WithContext(context.WithValue(requisicao.Context(), chaveUsuario, caso.usuarios.usuario))
+			ExigirFinanceiro(caso.usuarios, rotaDeTeste).ServeHTTP(registrador, requisicao)
+
+			if registrador.Code != caso.esperado {
+				t.Errorf("status %d, esperado %d: %s", registrador.Code, caso.esperado, registrador.Body.String())
+			}
+		})
+	}
+}
+
+func TestExigirFinanceiroSemUsuarioNoContextoNaoAutentica(t *testing.T) {
+	registrador := httptest.NewRecorder()
+	requisicao := httptest.NewRequest(http.MethodPost, "/api/v1/fornecedores", nil)
+	ExigirFinanceiro(&usuariosDeTeste{financeiro: true}, rotaDeTeste).ServeHTTP(registrador, requisicao)
+
+	if registrador.Code != http.StatusUnauthorized {
+		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusUnauthorized)
 	}
 }

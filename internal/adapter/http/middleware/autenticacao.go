@@ -60,6 +60,12 @@ func ExigirComercial(usuarios portsinusuarios.UsuarioUseCase, proximo http.Handl
 	}, proximo)
 }
 
+func ExigirFinanceiro(usuarios portsinusuarios.UsuarioUseCase, proximo http.HandlerFunc) http.HandlerFunc {
+	return exigirPerfil(func(ctx context.Context, usuario *domainusuarios.Usuario) (bool, error) {
+		return usuarios.TemAcessoFinanceiro(ctx, usuario)
+	}, proximo)
+}
+
 func exigirPerfil(verificar verificacaoDePerfil, proximo http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		usuario, ok := UsuarioDoContexto(r.Context())

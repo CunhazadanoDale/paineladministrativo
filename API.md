@@ -52,7 +52,7 @@ cliente deve autenticar de novo.
 | Comercial | Token de um usuário cujo cargo tem `"comercial": true` | Leads (criar, editar, mover, excluir), histórico e **leitura** de funis e etapas |
 | Administrador | Token de um usuário cujo cargo tem `"administrador": true` | Tudo o que os perfis autenticado e comercial podem, **mais** a estrutura de funis e etapas, a gestão de usuários, a escrita de cargos, a designação de aprovadores e `escopo=todas` |
 | Aprovador | Usuário **designado** na tabela `aprovador` pelo administrador | `escopo=aprovacao`, aprovar e rejeitar as solicitações pendentes |
-| Financeiro | Token de um usuário cujo cargo tem `"financeiro": true` | `escopo=financeiro` e o registro de pagamento das solicitações aprovadas |
+| Financeiro | Token de um usuário cujo cargo tem `"financeiro": true` (ou de administrador) | `escopo=financeiro`, o registro de pagamento das solicitações aprovadas e a escrita de fornecedores |
 
 Os três papéis novos do módulo de solicitações são **cumulativos**: um administrador também
 é tratado como aprovador e como financeiro.
@@ -193,6 +193,7 @@ Resposta `200`:
     "expira_em": "2026-10-07T15:29:42.0670651Z",
     "administrador": true,
     "comercial": true,
+    "financeiro": true,
     "usuario": {
       "id": "00000000-0000-0000-0000-0000000000ad",
       "nome": "Administrador",
@@ -208,6 +209,10 @@ Resposta `200`:
 ```
 
 O login registra o `ultimo_login` e a resposta nunca contém a senha.
+
+`administrador`, `comercial` e `financeiro` dizem quais perfis o usuário tem; os dois últimos
+são cumulativos com o de administrador. O front usa esses campos para mostrar ou esconder as
+telas, sem precisar sondar rotas protegidas.
 
 Proteção contra força bruta: 5 falhas do mesmo e-mail a partir do mesmo IP, ou 50 falhas
 de um mesmo IP, em 15 minutos, bloqueiam novas tentativas por 15 minutos (`429`). Um login
@@ -1474,6 +1479,85 @@ Representante inativo não recebe cliente novo. O `PUT` substitui o cadastro int
 vínculo: `PUT` sem `usuario_id` desfaz o vínculo, e esse usuário (se tiver perfil comercial)
 passa a ver todos os clientes. A paginação vale também para o representante com login, que vê
 só o próprio cadastro na primeira página.
+
+---
+
+## Fornecedores
+
+Cadastro único de fornecedores do **grupo** (sem escopo por empresa), nacionais e estrangeiros.
+Perfis: **financeiro** (ou administrador) cria, altera, ativa e desativa; **administrador**
+exclui; qualquer autenticado lê.
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/fornecedores` | **financeiro** | `201` |
+| `GET` | `/api/v1/fornecedores` | autenticado | `200` lista paginada (`?busca=`, `?pais=`, `?moeda=`, `?ativo=`) |
+| `GET` | `/api/v1/fornecedores/{id}` | autenticado | `200` |
+| `PUT` | `/api/v1/fornecedores/{id}` | **financeiro** | `200`; corpo com `versao`, **sem** `pais` e `documento` |
+| `PATCH` | `/api/v1/fornecedores/{id}/ativar` / `desativar` | **financeiro** | `200`; corpo `{ "versao": n }` |
+| `DELETE` | `/api/v1/fornecedores/{id}` | **administrador** | `204`; `400 registro em uso` quando contas a pagar, importações ou dívidas apontarem para ele |
+
+Corpo do `POST` (fornecedor nacional):
+
+```json
+{
+  "documento": "11.222.333/0001-81",
+  "nome": "Cerâmica Paraíba LTDA",
+  "nome_fantasia": "Cerâmica PB",
+  "moeda_padrao": "BRL",
+  "uf": "PB",
+  "cidade": "João Pessoa",
+  "contato_nome": "Maria",
+  "email": "vendas@ceramicapb.com.br",
+  "telefone": "83 3333-0000",
+  "observacoes": ""
+}
+```
+
+Fornecedor estrangeiro:
+
+```json
+{
+  "pais": "CN",
+  "identificacao_estrangeira": "91330200MA2XXXXX",
+  "nome": "Foshan Ceramics Co., Ltd.",
+  "moeda_padrao": "USD",
+  "contato_nome": "Li Wei",
+  "email": "sales@exemplo.cn"
+}
+```
+
+| Campo | Regra |
+| --- | --- |
+| `pais` | código ISO de duas letras (`BR`, `CN`, `US`…); vazio = `BR`; só o formato é conferido; não muda depois de criado |
+| `documento` | CPF ou CNPJ (numérico ou alfanumérico), com ou sem máscara; **obrigatório** para `BR` e **proibido** para outro país; único (`409 já existe um fornecedor com este documento`); não muda depois de criado |
+| `identificacao_estrangeira` | tax id ou registro do exterior, até 40 caracteres, gravado em maiúsculas; só fora do Brasil; único por país (`409 já existe um fornecedor com esta identificação neste país`) |
+| `nome` | obrigatório, até 200 |
+| `moeda_padrao` | `BRL`, `USD`, `EUR` ou `CNY`; vazio = `BRL` |
+| `uf` / `cidade` | opcionais, só para `BR` (`uf` sigla, `cidade` até 120) |
+| `contato_nome` / `email` / `telefone` / `observacoes` | opcionais (160, um e-mail, 40 e 2000 caracteres) |
+
+A resposta traz `documento` (sem máscara), `documento_formatado` e `tipo_pessoa` (`pf`/`pj`) —
+os três `null` no estrangeiro —, os demais campos, `ativo`, `versao`, `criado_em` e
+`atualizado_em`.
+
+`?busca=` procura pelo nome sem diferenciar acento e maiúscula, pelo começo do documento sem
+máscara e pelo começo da identificação estrangeira. `?pais=` e `?moeda=` inválidos → `400`.
+
+### Versão (edição concorrente)
+
+Todo fornecedor tem `versao`, que começa em `1` e avança a cada alteração gravada. `PUT`,
+`ativar` e `desativar` exigem no corpo a `versao` que o cliente leu:
+
+| Situação | Status | Mensagem |
+| --- | --- | --- |
+| `versao` ausente ou menor que 1 | `400` | `erro de validação: versão do fornecedor é obrigatória` |
+| `versao` diferente da atual (outra pessoa gravou antes) | `409` | `o fornecedor foi alterado por outra pessoa; recarregue e tente de novo` |
+| `pais` ou `documento` no corpo do `PUT` | `400` | `erro de validação: corpo da requisição inválido: json: unknown field ...` |
+
+Ativar um fornecedor já ativo (ou desativar um já inativo) responde `200` sem mudar a versão. O
+`PUT` substitui o cadastro inteiro: campo opcional omitido fica vazio e `moeda_padrao` omitida
+volta a `BRL`.
 
 ---
 

@@ -43,6 +43,7 @@ func paginar[T any](itens []T, filtro domain.PaginacaoFiltro) []T {
 type fakeUsuarioUseCase struct {
 	usuarios      map[uuid.UUID]*domainusuarios.Usuario
 	administrador bool
+	financeiro    bool
 	ultimoLoginID uuid.UUID
 	ultimoLogin   time.Time
 }
@@ -208,6 +209,14 @@ func (f *fakeUsuarioUseCase) EhAdministrador(_ context.Context, usuario *domainu
 
 func (f *fakeUsuarioUseCase) TemAcessoComercial(ctx context.Context, usuario *domainusuarios.Usuario) (bool, error) {
 	return f.EhAdministrador(ctx, usuario)
+}
+
+func (f *fakeUsuarioUseCase) TemAcessoFinanceiro(_ context.Context, usuario *domainusuarios.Usuario) (bool, error) {
+	if usuario == nil {
+		return false, nil
+	}
+
+	return f.financeiro || f.administrador, nil
 }
 
 func (f *fakeUsuarioUseCase) TrocarSenhaPropria(ctx context.Context, id uuid.UUID, senhaAtual string, novaSenha string) error {
@@ -564,6 +573,9 @@ func TestUsuarioHandlerAutenticar(t *testing.T) {
 	if resposta.Dados.Administrador {
 		t.Error("usuário sem cargo administrador saiu como administrador")
 	}
+	if resposta.Dados.Financeiro {
+		t.Error("usuário sem cargo financeiro saiu como financeiro")
+	}
 	if resposta.Dados.Usuario.ID != id {
 		t.Errorf("usuário devolvido %q, esperado %q", resposta.Dados.Usuario.ID, id)
 	}
@@ -602,5 +614,30 @@ func TestUsuarioHandlerAutenticarBloqueiaDepoisDeFalhasSeguidas(t *testing.T) {
 	}
 	if !fake.ultimoLogin.IsZero() {
 		t.Error("login bloqueado chegou a autenticar")
+	}
+}
+
+func TestUsuarioHandlerAutenticarDevolvePerfilFinanceiro(t *testing.T) {
+	fake := novoFakeUsuarios()
+	fake.financeiro = true
+	handler := NewUsuarioHandler(fake, tokensDeTeste{}, middleware.NovoLimitadorDeTentativas())
+
+	semearUsuario(t, fake, "Tânia Caixa", "tania@exemplo.com", "segredo123")
+
+	registrador := apoioteste.ExecutarHandler(handler.Autenticar, http.MethodPost, "/api/v1/usuarios/autenticar", "", `{"email":"tania@exemplo.com","senha":"segredo123"}`)
+	if registrador.Code != http.StatusOK {
+		t.Fatalf("status %d, esperado %d: %s", registrador.Code, http.StatusOK, registrador.Body.String())
+	}
+
+	var resposta dtoRespostaSessao
+	if err := json.Unmarshal(registrador.Body.Bytes(), &resposta); err != nil {
+		t.Fatalf("corpo não é um envelope válido: %v", err)
+	}
+	if !resposta.Dados.Financeiro || resposta.Dados.Administrador || resposta.Dados.Comercial {
+		t.Errorf("perfis = administrador %v, comercial %v, financeiro %v; esperado só financeiro",
+			resposta.Dados.Administrador, resposta.Dados.Comercial, resposta.Dados.Financeiro)
+	}
+	if !strings.Contains(registrador.Body.String(), `"financeiro":true`) {
+		t.Errorf("corpo sem o campo financeiro: %s", registrador.Body.String())
 	}
 }

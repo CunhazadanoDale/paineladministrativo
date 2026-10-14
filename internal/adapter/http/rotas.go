@@ -7,6 +7,7 @@ import (
 	clientehandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/cliente"
 	empresahandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/empresa"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/estoque"
+	fornecedorhandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/fornecedor"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/lead"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/saude"
 	solicitacaohandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/solicitacao"
@@ -16,6 +17,7 @@ import (
 	portsincliente "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/cliente"
 	portsinempresa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/empresa"
 	portsinestoque "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/estoque"
+	portsinfornecedor "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/fornecedor"
 	portsinlead "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/leads"
 	portsinsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/solicitacao"
 	portsinusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/usuarios"
@@ -50,6 +52,7 @@ func NewRouter(
 	grupoClienteUseCase portsincliente.GrupoUseCase,
 	representanteUseCase portsincliente.RepresentanteUseCase,
 	importacaoClientesUseCase portsincliente.ImportacaoUseCase,
+	fornecedorUseCase portsinfornecedor.FornecedorUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, middleware.ErrosDeRoteamento(novasRotas(
@@ -64,6 +67,7 @@ func NewRouter(
 		reservaUseCase,
 		clienteUseCase, obraUseCase, grupoClienteUseCase, representanteUseCase,
 		importacaoClientesUseCase,
+		fornecedorUseCase,
 		tokens,
 	)))
 }
@@ -93,6 +97,7 @@ func novasRotas(
 	grupoClienteUseCase portsincliente.GrupoUseCase,
 	representanteUseCase portsincliente.RepresentanteUseCase,
 	importacaoClientesUseCase portsincliente.ImportacaoUseCase,
+	fornecedorUseCase portsinfornecedor.FornecedorUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -107,6 +112,10 @@ func novasRotas(
 
 	comercial := func(padrao string, proximo http.HandlerFunc) {
 		protegido(padrao, middleware.ExigirComercial(usuarioUseCase, proximo))
+	}
+
+	financeiro := func(padrao string, proximo http.HandlerFunc) {
+		protegido(padrao, middleware.ExigirFinanceiro(usuarioUseCase, proximo))
 	}
 
 	mux.HandleFunc("GET /health", saude.Responder)
@@ -293,5 +302,15 @@ func novasRotas(
 	comercial("POST /api/v1/leads/{id}/converter", clienteHandler.ConverterLead)
 	importacaoClientesHandler := clientehandlers.NewImportacaoHandler(importacaoClientesUseCase)
 	administrador("POST /api/v1/clientes/importacao", middleware.EstenderPrazo(prazoDeArquivo, importacaoClientesHandler.Importar))
+
+	fornecedorHandler := fornecedorhandlers.NewFornecedorHandler(fornecedorUseCase)
+	financeiro("POST /api/v1/fornecedores", fornecedorHandler.Criar)
+	protegido("GET /api/v1/fornecedores", fornecedorHandler.Listar)
+	protegido("GET /api/v1/fornecedores/{id}", fornecedorHandler.Obter)
+	financeiro("PUT /api/v1/fornecedores/{id}", fornecedorHandler.Alterar)
+	financeiro("PATCH /api/v1/fornecedores/{id}/ativar", fornecedorHandler.Ativar)
+	financeiro("PATCH /api/v1/fornecedores/{id}/desativar", fornecedorHandler.Desativar)
+	administrador("DELETE /api/v1/fornecedores/{id}", fornecedorHandler.Remover)
+
 	return mux
 }

@@ -87,6 +87,15 @@ func (u *UsuarioUsecaseImpl) TemAcessoComercial(ctx context.Context, usuario *do
 	return cargo != nil && (cargo.Comercial || cargo.Administrador), nil
 }
 
+func (u *UsuarioUsecaseImpl) TemAcessoFinanceiro(ctx context.Context, usuario *domainusuarios.Usuario) (bool, error) {
+	cargo, err := u.cargoDoUsuario(ctx, usuario)
+	if err != nil {
+		return false, err
+	}
+
+	return cargo != nil && (cargo.Financeiro || cargo.Administrador), nil
+}
+
 func (u *UsuarioUsecaseImpl) cargoDoUsuario(ctx context.Context, usuario *domainusuarios.Usuario) (*domainusuarios.Cargo, error) {
 	if usuario == nil || usuario.CargoID == uuid.Nil {
 		return nil, nil
