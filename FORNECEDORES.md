@@ -1,6 +1,6 @@
 # Escopo — M4 Fornecedores
 
-> **Status:** escopo em revisão — aguardando aprovação do usuário.
+> **Status:** escopo aprovado — pronto para implementação.
 > **Objetivo:** tirar a "coluna fornecedor do painel financeiro" do texto livre: cadastro único
 > de fornecedores do grupo, nacionais e estrangeiros, base para contas a pagar (M7),
 > importações (M12) e dívidas (M14).
@@ -22,6 +22,8 @@ Decisões já tomadas com o usuário (outubro/2026):
 | Tamanho | **Só o CRUD**: sem dados de pagamento (pix, banco) e sem importação CSV. Dados de pagamento ficam como sugestão para o M7 |
 | Concorrência | **Versão otimista** (`fornecedor.versao`): primeiro cadastro a resolver o item 10 do `PENDENCIAS.md`, modelo para os demais |
 | UF e cidade | **Opcionais**, aceitas só para fornecedor do Brasil |
+| Exclusão | **Só administrador**, como no M3 |
+| País | **Validado só pelo formato** ISO 3166-1 alfa-2, sem lista fechada |
 
 ---
 
@@ -197,9 +199,9 @@ F0.
 - [x] **Versão otimista** em `fornecedor.versao`.
 - [x] **UF e cidade opcionais**, só para fornecedor do Brasil.
 
+- [x] **Exclusão só pelo administrador**, como no M3.
+- [x] **País validado só pelo formato** `^[A-Z]{2}$`, sem a lista completa da ISO 3166.
+
 ## 9. Decisões pendentes
 
-- [ ] **Exclusão só pelo administrador?** Proposta acima, por analogia ao M3 (administrador
-      gerencia exclusões). Alternativa: financeiro também exclui.
-- [ ] **País fora do Brasil só por formato?** Proposta: validar só `^[A-Z]{2}$`, sem a lista
-      completa da ISO 3166. Alternativa: lista fechada de países, como a moeda.
+Sem abertos.
