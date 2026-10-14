@@ -328,12 +328,20 @@ os próximos módulos:
 
 ### M5 — Contas bancárias e plano de contas
 
-- **Conta bancária**: `conta_bancaria` (empresa, banco, agência, conta, apelido,
-  ativa). Bancos atuais: Sicredi, Itaú, BB, Santander, Bradesco, Cora, Inter.
+O escopo fechado e o detalhamento estão em `FINANCEIRO.md`; este resumo só aponta o que os
+outros módulos precisam saber.
+
+- **Conta bancária**: `conta_bancaria` (empresa, banco pelo código COMPE, tipo, agência,
+  conta, apelido, ativa). Bancos atuais: Sicredi, Itaú, BB, Santander, Bradesco, Cora, Inter.
+  Escopo por empresa; leitura só para financeiro/administrador.
 - **Plano de contas**: `categoria_financeira` em dois níveis (como `categoria` do
-  estoque) com `natureza` (`receita`, `despesa`) e `grupo_dre` (`operacional`,
-  `fora_dre`, `entre_contas`). É a classificação usada pelo M7, M13 e M15.
-- **Endpoints**: CRUD de ambos; escrita restrita a financeiro/administrador.
+  estoque), do grupo, com `natureza` (`receita`, `despesa`, `transferencia`) e `linha_dre`
+  no lugar do `grupo_dre` previsto antes, que não separava frete, comissões, impostos e
+  custos fixos para o M15. A subcategoria herda natureza e linha; lançamento (M7, M9, M13)
+  só em subcategoria ativa. `compra_mercadoria` fica fora do resultado: o CMV vem dos lotes.
+- **Endpoints**: CRUD de ambos; escrita restrita a financeiro/administrador (perfil
+  `financeiro(...)` criado pelo M4); exclusão só pelo administrador; versão otimista.
+- **Saldo inicial** das contas fica no M13.
 
 ### M6 — Pedidos de venda e entregas
 
