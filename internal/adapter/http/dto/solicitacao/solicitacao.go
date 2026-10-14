@@ -46,6 +46,65 @@ func (r CriarSolicitacaoRequest) ParaInput(solicitanteID uuid.UUID) (portsin.Cri
 	}, nil
 }
 
+type EditarSolicitacaoRequest struct {
+	ValorCentavos         int64      `json:"valor_centavos"`
+	PrazoPagamento        string     `json:"prazo_pagamento"`
+	Observacao            string     `json:"observacao"`
+	FormaPagamento        string     `json:"forma_pagamento"`
+	FornecedorID          *uuid.UUID `json:"fornecedor_id"`
+	CategoriaFinanceiraID *uuid.UUID `json:"categoria_financeira_id"`
+	Competencia           string     `json:"competencia"`
+	Estimado              bool       `json:"estimado"`
+	Versao                int        `json:"versao"`
+}
+
+func (r EditarSolicitacaoRequest) ParaInput(solicitacaoID, usuarioID uuid.UUID) (portsin.EditarSolicitacaoInput, error) {
+	prazo, err := paraPrazoPagamento(r.PrazoPagamento)
+	if err != nil {
+		return portsin.EditarSolicitacaoInput{}, err
+	}
+
+	return portsin.EditarSolicitacaoInput{
+		SolicitacaoID:         solicitacaoID,
+		UsuarioID:             usuarioID,
+		ValorCentavos:         r.ValorCentavos,
+		PrazoPagamento:        prazo,
+		Observacao:            r.Observacao,
+		FormaPagamento:        r.FormaPagamento,
+		FornecedorID:          r.FornecedorID,
+		CategoriaFinanceiraID: r.CategoriaFinanceiraID,
+		Competencia:           r.Competencia,
+		Estimado:              r.Estimado,
+		Versao:                r.Versao,
+	}, nil
+}
+
+type AdiarSolicitacaoRequest struct {
+	Vencimento string `json:"vencimento"`
+	Motivo     string `json:"motivo"`
+	Versao     int    `json:"versao"`
+}
+
+func (r AdiarSolicitacaoRequest) ParaInput(solicitacaoID, usuarioID uuid.UUID) (portsin.AdiarSolicitacaoInput, error) {
+	valor := strings.TrimSpace(r.Vencimento)
+	if valor == "" {
+		return portsin.AdiarSolicitacaoInput{}, domain.ErroValidacao("vencimento é obrigatório")
+	}
+
+	vencimento, err := time.Parse(formatoDataPagamento, valor)
+	if err != nil {
+		return portsin.AdiarSolicitacaoInput{}, domain.ErroValidacao("vencimento deve estar no formato AAAA-MM-DD")
+	}
+
+	return portsin.AdiarSolicitacaoInput{
+		SolicitacaoID: solicitacaoID,
+		UsuarioID:     usuarioID,
+		Vencimento:    vencimento,
+		Motivo:        r.Motivo,
+		Versao:        r.Versao,
+	}, nil
+}
+
 type ClassificarSolicitacaoRequest struct {
 	FornecedorID          *uuid.UUID `json:"fornecedor_id"`
 	CategoriaFinanceiraID *uuid.UUID `json:"categoria_financeira_id"`

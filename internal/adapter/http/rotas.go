@@ -196,6 +196,8 @@ func novasRotas(
 	protegido("GET /api/v1/solicitacoes/{id}/historico", solicitacaoHandler.ListarHistorico)
 	protegido("GET /api/v1/solicitacoes/{id}/arquivos", solicitacaoHandler.ListarArquivos)
 	protegido("PATCH /api/v1/solicitacoes/{id}/classificacao", solicitacaoHandler.Classificar)
+	protegido("PUT /api/v1/solicitacoes/{id}", solicitacaoHandler.Editar)
+	protegido("POST /api/v1/solicitacoes/{id}/adiar", solicitacaoHandler.Adiar)
 
 	arquivoHandler := solicitacaohandlers.NewArquivoHandler(arquivoUseCase)
 	protegido("POST /api/v1/arquivos", middleware.EstenderPrazo(prazoDeArquivo, arquivoHandler.Enviar))

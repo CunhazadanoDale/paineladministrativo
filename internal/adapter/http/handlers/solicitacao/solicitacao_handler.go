@@ -160,6 +160,56 @@ func (h *SolicitacaoHandler) Classificar(w http.ResponseWriter, r *http.Request)
 	h.responderAtualizada(w, r, id, usuario.ID)
 }
 
+func (h *SolicitacaoHandler) Editar(w http.ResponseWriter, r *http.Request) {
+	usuario, id, ok := resposta.UsuarioEId(w, r)
+	if !ok {
+		return
+	}
+
+	var requisicao solicitacaodto.EditarSolicitacaoRequest
+	if !resposta.CorpoJSON(w, r, &requisicao) {
+		return
+	}
+
+	input, err := requisicao.ParaInput(id, usuario.ID)
+	if err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+
+	if err := h.usecase.Editar(r.Context(), input); err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+
+	h.responderAtualizada(w, r, id, usuario.ID)
+}
+
+func (h *SolicitacaoHandler) Adiar(w http.ResponseWriter, r *http.Request) {
+	usuario, id, ok := resposta.UsuarioEId(w, r)
+	if !ok {
+		return
+	}
+
+	var requisicao solicitacaodto.AdiarSolicitacaoRequest
+	if !resposta.CorpoJSON(w, r, &requisicao) {
+		return
+	}
+
+	input, err := requisicao.ParaInput(id, usuario.ID)
+	if err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+
+	if err := h.usecase.Adiar(r.Context(), input); err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+
+	h.responderAtualizada(w, r, id, usuario.ID)
+}
+
 func (h *SolicitacaoHandler) RegistrarPagamento(w http.ResponseWriter, r *http.Request) {
 	usuario, id, ok := resposta.UsuarioEId(w, r)
 	if !ok {

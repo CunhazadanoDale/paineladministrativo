@@ -30,6 +30,8 @@ type solicitacaoUseCaseFalso struct {
 	inputListar      portsin.ListarSolicitacoesInput
 	inputPagamento   portsin.RegistrarPagamentoInput
 	inputClassificar portsin.ClassificarSolicitacaoInput
+	inputEditar      portsin.EditarSolicitacaoInput
+	inputAdiar       portsin.AdiarSolicitacaoInput
 	aprovadoID       uuid.UUID
 	rejeitadoID      uuid.UUID
 	canceladoID      uuid.UUID
@@ -84,6 +86,18 @@ func (f *solicitacaoUseCaseFalso) Cancelar(_ context.Context, solicitacaoID, _ u
 
 func (f *solicitacaoUseCaseFalso) Classificar(_ context.Context, input portsin.ClassificarSolicitacaoInput) error {
 	f.inputClassificar = input
+
+	return f.erro
+}
+
+func (f *solicitacaoUseCaseFalso) Editar(_ context.Context, input portsin.EditarSolicitacaoInput) error {
+	f.inputEditar = input
+
+	return f.erro
+}
+
+func (f *solicitacaoUseCaseFalso) Adiar(_ context.Context, input portsin.AdiarSolicitacaoInput) error {
+	f.inputAdiar = input
 
 	return f.erro
 }
