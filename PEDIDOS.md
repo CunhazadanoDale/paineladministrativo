@@ -1,6 +1,6 @@
 # Escopo — M6 Pedidos de venda e entregas
 
-> **Status:** escopo em revisão; nenhuma fase iniciada.
+> **Status:** escopo fechado; nenhuma fase iniciada.
 > **Objetivo:** tirar "Vendas futuras", "Entregas de importação" e "Pendências de envio" das
 > planilhas: pedido de venda por empresa, com reserva de estoque, entregas parciais que baixam o
 > estoque e consultas de pendência, prazo e cancelamento. Base para NF-e (M8), comissões (M10),
@@ -268,17 +268,15 @@ Numeração de migration definida no merge (regra 4 da seção 3 do `ROADMAP.md`
 - [x] **Frete com tipo e valor.**
 - [x] **Prazo-limite opcional na pronta entrega.**
 - [x] **Cancelamento por comercial e administrador**; representante só a própria proposta.
+- [x] **Momento da baixa**: o estoque sai quando a entrega passa a `saiu`; `entregue` só
+      registra a data.
+- [x] **Condições fixas por modelo**: entrada, prazo do boleto e prazo de entrega gravados no
+      pedido com o padrão do modelo e **não editáveis** no M6; o M11 pode abrir a edição.
+- [x] **Valor a devolver**: informado no cancelamento, padrão igual à entrada paga e nunca maior
+      que ela, mesmo com parte já entregue; o acerto do que foi entregue fica com o financeiro.
+- [x] **Ordem dos locais na confirmação**: maior disponível primeiro, em vez de um local padrão
+      por empresa.
 
 ## 9. Decisões pendentes
 
-Propostas ao escrever o escopo, para o usuário confirmar antes da fase 1:
-
-- [ ] **Momento da baixa**: o estoque sai quando a entrega passa a `saiu` (proposta), não em
-      `entregue`; `entregue` só registra a data.
-- [ ] **Condições fixas por modelo**: entrada, prazo do boleto e prazo de entrega gravados no
-      pedido com o padrão do modelo e **não editáveis** no M6 (proposta); o M11 pode abrir a edição.
-- [ ] **Valor a devolver**: informado no cancelamento, padrão igual à entrada paga e nunca maior
-      que ela (proposta), mesmo com parte já entregue; o acerto do que foi entregue fica com o
-      financeiro.
-- [ ] **Ordem dos locais na confirmação**: maior disponível primeiro (proposta), em vez de um
-      local padrão por empresa.
+Sem abertos.
