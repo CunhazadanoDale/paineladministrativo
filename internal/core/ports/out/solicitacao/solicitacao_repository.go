@@ -2,6 +2,7 @@ package solicitacao
 
 import (
 	"context"
+	"time"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	domainsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/solicitacao"
@@ -14,6 +15,13 @@ type SolicitacaoFiltro struct {
 	Solicitante *uuid.UUID
 	Empresa     *uuid.UUID
 	EmpresaIDs  []uuid.UUID
+	Fornecedor  *uuid.UUID
+	Categoria   *uuid.UUID
+	Competencia *domainsolicitacao.Competencia
+	Origem      domainsolicitacao.Origem
+	VenceDe     *time.Time
+	VenceAte    *time.Time
+	VencidasEm  *time.Time
 }
 
 type SolicitacaoRepository interface {
@@ -21,6 +29,7 @@ type SolicitacaoRepository interface {
 	Obter(ctx context.Context, id uuid.UUID) (*domainsolicitacao.Solicitacao, error)
 	Listar(ctx context.Context, filtro SolicitacaoFiltro) ([]*domainsolicitacao.Solicitacao, error)
 	AtualizarStatus(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, historico *domainsolicitacao.Historico) (bool, error)
+	Classificar(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, versaoLida int, historico *domainsolicitacao.Historico) error
 	CriarPagamento(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, pagamento *domainsolicitacao.Pagamento, historico *domainsolicitacao.Historico) error
 	ListarArquivos(ctx context.Context, solicitacaoID uuid.UUID) ([]*domainsolicitacao.Arquivo, error)
 	ListarHistorico(ctx context.Context, solicitacaoID uuid.UUID) ([]*domainsolicitacao.Historico, error)

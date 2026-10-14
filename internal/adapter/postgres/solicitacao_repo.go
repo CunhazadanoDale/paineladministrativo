@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
+	domainfinanceiro "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/financeiro"
 	domainsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/solicitacao"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/solicitacao"
 	"github.com/google/uuid"
@@ -18,29 +19,44 @@ import (
 var _ portsout.SolicitacaoRepository = (*SolicitacaoRepository)(nil)
 
 type SolicitacaoRepository struct {
-	db *sqlx.DB
+	db     *sqlx.DB
+	guarda guardaDeVersao
 }
 
 func NewSolicitacaoRepository(db *sqlx.DB) *SolicitacaoRepository {
-	return &SolicitacaoRepository{db: db}
+	return &SolicitacaoRepository{
+		db: db,
+		guarda: guardaDeVersao{
+			tabela:        "solicitacao",
+			naoEncontrado: func() error { return domain.ErrNotFound },
+			alterado:      domainsolicitacao.ErroSolicitacaoAlterada,
+		},
+	}
 }
 
 type solicitacaoLinha struct {
-	ID               uuid.UUID  `db:"id"`
-	SolicitanteID    uuid.UUID  `db:"solicitante_id"`
-	EmpresaID        uuid.UUID  `db:"empresa_id"`
-	AprovadorID      *uuid.UUID `db:"aprovador_id"`
-	ValorCentavos    int64      `db:"valor_estimado"`
-	PrazoPagamento   time.Time  `db:"prazo_pagamento"`
-	Observacao       string     `db:"observacao"`
-	FormaPagamento   string     `db:"forma_pagamento"`
-	Status           string     `db:"status"`
-	RejeitacaoMotivo *string    `db:"rejeitacao_motivo"`
-	AprovadoEm       *time.Time `db:"aprovado_em"`
-	RejeitadoEm      *time.Time `db:"rejeitado_em"`
-	CanceladoEm      *time.Time `db:"cancelado_em"`
-	CriadoEm         time.Time  `db:"criado_em"`
-	AtualizadoEm     time.Time  `db:"atualizado_em"`
+	ID                    uuid.UUID  `db:"id"`
+	SolicitanteID         uuid.UUID  `db:"solicitante_id"`
+	EmpresaID             uuid.UUID  `db:"empresa_id"`
+	AprovadorID           *uuid.UUID `db:"aprovador_id"`
+	ValorCentavos         int64      `db:"valor_estimado"`
+	PrazoPagamento        time.Time  `db:"prazo_pagamento"`
+	Observacao            string     `db:"observacao"`
+	FormaPagamento        string     `db:"forma_pagamento"`
+	FornecedorID          *uuid.UUID `db:"fornecedor_id"`
+	CategoriaFinanceiraID *uuid.UUID `db:"categoria_financeira_id"`
+	Competencia           time.Time  `db:"competencia"`
+	Estimado              bool       `db:"estimado"`
+	Origem                string     `db:"origem"`
+	OrigemID              *uuid.UUID `db:"origem_id"`
+	Status                string     `db:"status"`
+	RejeitacaoMotivo      *string    `db:"rejeitacao_motivo"`
+	AprovadoEm            *time.Time `db:"aprovado_em"`
+	RejeitadoEm           *time.Time `db:"rejeitado_em"`
+	CanceladoEm           *time.Time `db:"cancelado_em"`
+	Versao                int        `db:"versao"`
+	CriadoEm              time.Time  `db:"criado_em"`
+	AtualizadoEm          time.Time  `db:"atualizado_em"`
 }
 
 type pagamentoLinha struct {
@@ -54,8 +70,8 @@ type pagamentoLinha struct {
 
 const colunasSolicitacao = `
 	id, solicitante_id, empresa_id, aprovador_id, valor_estimado, prazo_pagamento, observacao,
-	forma_pagamento, status, rejeitacao_motivo, aprovado_em, rejeitado_em,
-	cancelado_em, criado_em, atualizado_em
+	forma_pagamento, fornecedor_id, categoria_financeira_id, competencia, estimado, origem, origem_id,
+	status, rejeitacao_motivo, aprovado_em, rejeitado_em, cancelado_em, versao, criado_em, atualizado_em
 `
 
 func (s *SolicitacaoRepository) Criar(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, arquivoIDs []uuid.UUID, historico *domainsolicitacao.Historico) (uuid.UUID, error) {
@@ -65,16 +81,19 @@ func (s *SolicitacaoRepository) Criar(ctx context.Context, solicitacao *domainso
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	if err := exigirEmpresaAtivaParaSolicitacao(ctx, tx, solicitacao.EmpresaID); err != nil {
+		return uuid.Nil, err
+	}
+	if err := exigirClassificacaoGravavel(ctx, tx, solicitacao); err != nil {
+		return uuid.Nil, err
+	}
+
 	linha := paraLinha(solicitacao)
 	query := `
-		INSERT INTO solicitacao (
-			id, solicitante_id, empresa_id, aprovador_id, valor_estimado, prazo_pagamento, observacao,
-			forma_pagamento, status, rejeitacao_motivo, aprovado_em, rejeitado_em,
-			cancelado_em, criado_em, atualizado_em
-		) VALUES (
+		INSERT INTO solicitacao (` + colunasSolicitacao + `) VALUES (
 			:id, :solicitante_id, :empresa_id, :aprovador_id, :valor_estimado, :prazo_pagamento, :observacao,
-			:forma_pagamento, :status, :rejeitacao_motivo, :aprovado_em, :rejeitado_em,
-			:cancelado_em, :criado_em, :atualizado_em
+			:forma_pagamento, :fornecedor_id, :categoria_financeira_id, :competencia, :estimado, :origem, :origem_id,
+			:status, :rejeitacao_motivo, :aprovado_em, :rejeitado_em, :cancelado_em, :versao, :criado_em, :atualizado_em
 		)
 	`
 
@@ -138,6 +157,35 @@ func (s *SolicitacaoRepository) Listar(ctx context.Context, filtro portsout.Soli
 		argumentos = append(argumentos, pq.Array(textosDeIDs(filtro.EmpresaIDs)))
 		condicoes = append(condicoes, "empresa_id = ANY($"+strconv.Itoa(len(argumentos))+"::uuid[])")
 	}
+	if filtro.Fornecedor != nil {
+		argumentos = append(argumentos, *filtro.Fornecedor)
+		condicoes = append(condicoes, condicao("fornecedor_id", len(argumentos)))
+	}
+	if filtro.Categoria != nil {
+		argumentos = append(argumentos, *filtro.Categoria)
+		condicoes = append(condicoes, condicao("categoria_financeira_id", len(argumentos)))
+	}
+	if filtro.Competencia != nil {
+		argumentos = append(argumentos, filtro.Competencia.Inicio())
+		condicoes = append(condicoes, condicao("competencia", len(argumentos)))
+	}
+	if filtro.Origem != "" {
+		argumentos = append(argumentos, filtro.Origem.String())
+		condicoes = append(condicoes, condicao("origem", len(argumentos)))
+	}
+	if filtro.VenceDe != nil {
+		argumentos = append(argumentos, *filtro.VenceDe)
+		condicoes = append(condicoes, "prazo_pagamento >= $"+strconv.Itoa(len(argumentos)))
+	}
+	if filtro.VenceAte != nil {
+		argumentos = append(argumentos, *filtro.VenceAte)
+		condicoes = append(condicoes, "prazo_pagamento <= $"+strconv.Itoa(len(argumentos)))
+	}
+	if filtro.VencidasEm != nil {
+		argumentos = append(argumentos, *filtro.VencidasEm)
+		condicoes = append(condicoes, "prazo_pagamento < $"+strconv.Itoa(len(argumentos))+
+			" AND status IN ('pendente_aprovacao', 'aprovado')")
+	}
 	if len(condicoes) > 0 {
 		query += " WHERE " + unirCondicoes(condicoes)
 	}
@@ -182,6 +230,38 @@ func (s *SolicitacaoRepository) AtualizarStatus(ctx context.Context, solicitacao
 	}
 
 	return true, nil
+}
+
+func (s *SolicitacaoRepository) Classificar(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, versaoLida int, historico *domainsolicitacao.Historico) error {
+	tx, err := s.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return tratarErroDeGravacao(err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if err := exigirClassificacaoGravavel(ctx, tx, solicitacao); err != nil {
+		return err
+	}
+
+	if _, err := s.guarda.atualizar(ctx, tx, solicitacao.ID, `
+		UPDATE solicitacao
+		SET fornecedor_id = $3,
+		    categoria_financeira_id = $4,
+		    competencia = $5,
+		    atualizado_em = $6,
+		    versao = versao + 1
+		WHERE id = $1 AND versao = $2 AND status = 'aprovado'
+		RETURNING versao
+	`, solicitacao.ID, versaoLida, solicitacao.FornecedorID, solicitacao.CategoriaFinanceiraID,
+		solicitacao.Competencia.Inicio(), solicitacao.AtualizadoEm); err != nil {
+		return err
+	}
+
+	if err := inserirHistorico(ctx, tx, historico); err != nil {
+		return tratarErroDeGravacao(err)
+	}
+
+	return tratarErroDeGravacao(tx.Commit())
 }
 
 func (s *SolicitacaoRepository) CriarPagamento(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, pagamento *domainsolicitacao.Pagamento, historico *domainsolicitacao.Historico) error {
@@ -249,7 +329,7 @@ func (s *SolicitacaoRepository) ListarArquivos(ctx context.Context, solicitacaoI
 
 func (s *SolicitacaoRepository) ListarHistorico(ctx context.Context, solicitacaoID uuid.UUID) ([]*domainsolicitacao.Historico, error) {
 	query := `
-		SELECT id, solicitacao_id, usuario_id, de_status, para_status, descricao, criado_em
+		SELECT id, solicitacao_id, usuario_id, de_status, para_status, evento, descricao, criado_em
 		FROM solicitacao_historico
 		WHERE solicitacao_id = $1
 		ORDER BY criado_em DESC, id DESC
@@ -289,40 +369,54 @@ func (s *SolicitacaoRepository) ObterPagamento(ctx context.Context, solicitacaoI
 
 func paraLinha(solicitacao *domainsolicitacao.Solicitacao) solicitacaoLinha {
 	return solicitacaoLinha{
-		ID:               solicitacao.ID,
-		SolicitanteID:    solicitacao.SolicitanteID,
-		EmpresaID:        solicitacao.EmpresaID,
-		AprovadorID:      solicitacao.AprovadorID,
-		ValorCentavos:    solicitacao.Valor.Centavos(),
-		PrazoPagamento:   solicitacao.Prazo.Data(),
-		Observacao:       solicitacao.Observacao.Texto(),
-		FormaPagamento:   string(solicitacao.FormaPagamento),
-		Status:           string(solicitacao.Status),
-		RejeitacaoMotivo: motivoRejeicao(solicitacao),
-		AprovadoEm:       solicitacao.AprovadoEm,
-		RejeitadoEm:      solicitacao.RejeitadoEm,
-		CanceladoEm:      solicitacao.CanceladoEm,
-		CriadoEm:         solicitacao.CriadoEm,
-		AtualizadoEm:     solicitacao.AtualizadoEm,
+		ID:                    solicitacao.ID,
+		SolicitanteID:         solicitacao.SolicitanteID,
+		EmpresaID:             solicitacao.EmpresaID,
+		AprovadorID:           solicitacao.AprovadorID,
+		ValorCentavos:         solicitacao.Valor.Centavos(),
+		PrazoPagamento:        solicitacao.Prazo.Data(),
+		Observacao:            solicitacao.Observacao.Texto(),
+		FormaPagamento:        string(solicitacao.FormaPagamento),
+		FornecedorID:          solicitacao.FornecedorID,
+		CategoriaFinanceiraID: solicitacao.CategoriaFinanceiraID,
+		Competencia:           solicitacao.Competencia.Inicio(),
+		Estimado:              solicitacao.Estimado,
+		Origem:                solicitacao.Origem.String(),
+		OrigemID:              solicitacao.OrigemID,
+		Status:                string(solicitacao.Status),
+		RejeitacaoMotivo:      motivoRejeicao(solicitacao),
+		AprovadoEm:            solicitacao.AprovadoEm,
+		RejeitadoEm:           solicitacao.RejeitadoEm,
+		CanceladoEm:           solicitacao.CanceladoEm,
+		Versao:                solicitacao.Versao,
+		CriadoEm:              solicitacao.CriadoEm,
+		AtualizadoEm:          solicitacao.AtualizadoEm,
 	}
 }
 
 func paraDominio(linha *solicitacaoLinha) *domainsolicitacao.Solicitacao {
 	solicitacao := &domainsolicitacao.Solicitacao{
-		ID:             linha.ID,
-		SolicitanteID:  linha.SolicitanteID,
-		EmpresaID:      linha.EmpresaID,
-		AprovadorID:    linha.AprovadorID,
-		Valor:          domainsolicitacao.ValorDe(linha.ValorCentavos),
-		Prazo:          domainsolicitacao.PrazoPagamentoDe(linha.PrazoPagamento),
-		Observacao:     domainsolicitacao.ObservacaoDe(linha.Observacao),
-		FormaPagamento: domainsolicitacao.FormaPagamento(linha.FormaPagamento),
-		Status:         domainsolicitacao.StatusDe(linha.Status),
-		AprovadoEm:     linha.AprovadoEm,
-		RejeitadoEm:    linha.RejeitadoEm,
-		CanceladoEm:    linha.CanceladoEm,
-		CriadoEm:       linha.CriadoEm,
-		AtualizadoEm:   linha.AtualizadoEm,
+		ID:                    linha.ID,
+		SolicitanteID:         linha.SolicitanteID,
+		EmpresaID:             linha.EmpresaID,
+		AprovadorID:           linha.AprovadorID,
+		Valor:                 domainsolicitacao.ValorDe(linha.ValorCentavos),
+		Prazo:                 domainsolicitacao.PrazoPagamentoDe(linha.PrazoPagamento),
+		Observacao:            domainsolicitacao.ObservacaoDe(linha.Observacao),
+		FormaPagamento:        domainsolicitacao.FormaPagamento(linha.FormaPagamento),
+		FornecedorID:          linha.FornecedorID,
+		CategoriaFinanceiraID: linha.CategoriaFinanceiraID,
+		Competencia:           domainsolicitacao.CompetenciaDe(linha.Competencia),
+		Estimado:              linha.Estimado,
+		Origem:                domainsolicitacao.OrigemDe(linha.Origem),
+		OrigemID:              linha.OrigemID,
+		Status:                domainsolicitacao.StatusDe(linha.Status),
+		AprovadoEm:            linha.AprovadoEm,
+		RejeitadoEm:           linha.RejeitadoEm,
+		CanceladoEm:           linha.CanceladoEm,
+		Versao:                linha.Versao,
+		CriadoEm:              linha.CriadoEm,
+		AtualizadoEm:          linha.AtualizadoEm,
 	}
 
 	if linha.RejeitacaoMotivo != nil {
@@ -345,8 +439,8 @@ func motivoRejeicao(solicitacao *domainsolicitacao.Solicitacao) *string {
 
 func inserirHistorico(ctx context.Context, tx *sqlx.Tx, historico *domainsolicitacao.Historico) error {
 	_, err := tx.NamedExecContext(ctx, `
-		INSERT INTO solicitacao_historico (id, solicitacao_id, usuario_id, de_status, para_status, descricao, criado_em)
-		VALUES (:id, :solicitacao_id, :usuario_id, :de_status, :para_status, :descricao, :criado_em)
+		INSERT INTO solicitacao_historico (id, solicitacao_id, usuario_id, de_status, para_status, evento, descricao, criado_em)
+		VALUES (:id, :solicitacao_id, :usuario_id, :de_status, :para_status, :evento, :descricao, :criado_em)
 	`, historico)
 
 	return err
@@ -382,7 +476,8 @@ func atualizarStatusComGuarda(ctx context.Context, tx transacional, solicitacao 
 		    aprovado_em = :aprovado_em,
 		    rejeitado_em = :rejeitado_em,
 		    cancelado_em = :cancelado_em,
-		    atualizado_em = :atualizado_em
+		    atualizado_em = :atualizado_em,
+		    versao = versao + 1
 		WHERE id = :id AND status = :status_anterior
 	`
 
@@ -397,6 +492,70 @@ func atualizarStatusComGuarda(ctx context.Context, tx transacional, solicitacao 
 	}
 
 	return linhas > 0, nil
+}
+
+func exigirEmpresaAtivaParaSolicitacao(ctx context.Context, tx *sqlx.Tx, empresaID uuid.UUID) error {
+	var ativa bool
+	err := tx.GetContext(ctx, &ativa, `SELECT ativa FROM empresa WHERE id = $1 FOR SHARE`, empresaID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domainsolicitacao.ErroEmpresaNaoEncontrada()
+	}
+	if err != nil {
+		return tratarErroDeGravacao(err)
+	}
+	if !ativa {
+		return domainsolicitacao.ErroEmpresaInativa()
+	}
+
+	return nil
+}
+
+type categoriaParaLancamento struct {
+	Ativa        bool   `db:"ativa"`
+	Subcategoria bool   `db:"subcategoria"`
+	Natureza     string `db:"natureza"`
+}
+
+func exigirClassificacaoGravavel(ctx context.Context, tx *sqlx.Tx, solicitacao *domainsolicitacao.Solicitacao) error {
+	if solicitacao.FornecedorID != nil {
+		var ativo bool
+		err := tx.GetContext(ctx, &ativo, `SELECT ativo FROM fornecedor WHERE id = $1 FOR SHARE`, *solicitacao.FornecedorID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return domainsolicitacao.ErroFornecedorNaoEncontrado()
+		}
+		if err != nil {
+			return tratarErroDeGravacao(err)
+		}
+		if !ativo {
+			return domainsolicitacao.ErroFornecedorInativo()
+		}
+	}
+
+	if solicitacao.CategoriaFinanceiraID == nil {
+		return nil
+	}
+
+	var categoria categoriaParaLancamento
+	err := tx.GetContext(ctx, &categoria, `
+		SELECT ativa, categoria_pai_id IS NOT NULL AS subcategoria, natureza
+		FROM categoria_financeira
+		WHERE id = $1
+		FOR SHARE
+	`, *solicitacao.CategoriaFinanceiraID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domainsolicitacao.ErroCategoriaFinanceiraNaoEncontrada()
+	}
+	if err != nil {
+		return tratarErroDeGravacao(err)
+	}
+	if !categoria.Ativa || !categoria.Subcategoria {
+		return domainsolicitacao.ErroCategoriaFinanceiraNaoLancavel()
+	}
+	if categoria.Natureza != domainfinanceiro.NaturezaDespesa.String() {
+		return domainsolicitacao.ErroCategoriaFinanceiraNaoEhDespesa()
+	}
+
+	return nil
 }
 
 func condicao(coluna string, posicao int) string {
