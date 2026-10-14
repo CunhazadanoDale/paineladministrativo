@@ -180,7 +180,7 @@ test/helpers/servidor.go + test/integration + test/e2e
 | **1** | Migration 000037 + domínio (país, moeda, regras de documento por país, versão) + testes | concluída |
 | **2** | Repositório com guarda de versão + testes de integração (unicidade, busca, filtros, corrida de versão) | concluída |
 | **3** | Perfil financeiro (`TemAcessoFinanceiro`, `ExigirFinanceiro`, campo no login) + testes; o wrapper `financeiro(...)` entra em `rotas.go` junto da primeira rota que o usa (Go recusa variável local sem uso) | concluída |
-| **4** | Usecase + permissões + testes com fakes | pendente |
+| **4** | Usecase + permissões + testes com fakes | concluída |
 | **5** | Handlers/DTOs + rotas + e2e + `API.md` | pendente |
 | **6** | Frontend: lista, cadastro e edição de fornecedores | pendente |
 
