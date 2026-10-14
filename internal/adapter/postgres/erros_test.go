@@ -23,6 +23,8 @@ func TestTraduzirErroDoPostgres(t *testing.T) {
 		{pqerror.StringDataRightTruncation, domain.ErrValidacao, "texto maior que o tamanho permitido", "texto maior que o tamanho permitido"},
 		{pqerror.NumericValueOutOfRange, domain.ErrValidacao, "número fora do intervalo permitido", "número fora do intervalo permitido"},
 		{pqerror.InvalidTextRepresentation, domain.ErrValidacao, "valor em formato inválido", "valor em formato inválido"},
+		{pqerror.CharacterNotInRepertoire, domain.ErrValidacao, "texto com caractere inválido", "texto com caractere inválido"},
+		{pqerror.UntranslatableCharacter, domain.ErrValidacao, "texto com caractere inválido", "texto com caractere inválido"},
 	}
 
 	for _, caso := range casos {
@@ -60,6 +62,18 @@ func TestTraduzirErroPreservaOutrosErros(t *testing.T) {
 
 	comum := errors.New("conexão recusada")
 	if err := tratarErro(comum); err != comum {
+		t.Errorf("erro %v, esperado o original", err)
+	}
+}
+
+func TestTraduzirErroDeConsultaComCaractereInvalido(t *testing.T) {
+	err := tratarErroDeConsulta(&pq.Error{Code: pqerror.CharacterNotInRepertoire})
+	if !errors.Is(err, domain.ErrValidacao) || err.Error() != "erro de validação: texto com caractere inválido" {
+		t.Errorf("erro %v, esperado validação de caractere inválido", err)
+	}
+
+	comum := errors.New("conexão recusada")
+	if err := tratarErroDeConsulta(comum); err != comum {
 		t.Errorf("erro %v, esperado o original", err)
 	}
 }

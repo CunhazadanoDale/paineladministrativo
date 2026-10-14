@@ -358,3 +358,13 @@ func TestContaBancariaPrendeAEmpresa(t *testing.T) {
 	_, err := postgres.NewEmpresaRepository(c.banco).Remover(c.ctx, c.mia)
 	esperarErro(t, err, domain.ErrValidacao, "registro em uso")
 }
+
+func TestContaBancariaCaractereNuloViraErroDeValidacao(t *testing.T) {
+	c := novoCenarioContas(t)
+	conta := c.novaConta(t, c.mia, domainfinanceiro.Cora, "1", "1", "MIA")
+
+	esperarErro(t, c.contas.Criar(c.ctx, contaDeDominio(t, c.mia, domainfinanceiro.Cora, "1", "2", "a\x00b")), domain.ErrValidacao, "texto com caractere inválido")
+
+	conta.Apelido = "a\x00b"
+	esperarErro(t, c.contas.Atualizar(c.ctx, conta), domain.ErrValidacao, "texto com caractere inválido")
+}

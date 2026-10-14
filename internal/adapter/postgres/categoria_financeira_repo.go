@@ -275,7 +275,7 @@ func (r *CategoriaFinanceiraRepository) trocarAtiva(ctx context.Context, tx *sql
 func (r *CategoriaFinanceiraRepository) selecionar(ctx context.Context, query string, argumentos ...any) ([]*domainfinanceiro.CategoriaFinanceira, error) {
 	var linhas []*categoriaFinanceiraLinha
 	if err := r.db.SelectContext(ctx, &linhas, query, argumentos...); err != nil {
-		return nil, err
+		return nil, tratarErroDeConsulta(err)
 	}
 
 	categorias := make([]*domainfinanceiro.CategoriaFinanceira, 0, len(linhas))

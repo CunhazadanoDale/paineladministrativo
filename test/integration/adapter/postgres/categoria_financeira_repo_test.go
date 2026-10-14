@@ -413,3 +413,13 @@ func TestCategoriaFinanceiraRemover(t *testing.T) {
 	}
 	esperarErro(t, c.categorias.Remover(c.ctx, raiz.ID), domain.ErrNotFound, "categoria financeira não encontrada")
 }
+
+func TestCategoriaFinanceiraCaractereNuloViraErroDeValidacao(t *testing.T) {
+	c := novoCenarioPlano(t)
+	raiz := c.novaRaiz(t, "Despesas", "despesa", "despesa_fixa", 0, nil)
+
+	_, err := c.categorias.Listar(c.ctx, portsout.CategoriaFinanceiraFiltro{Busca: "a\x00b"})
+	esperarErro(t, err, domain.ErrValidacao, "texto com caractere inválido")
+
+	esperarErro(t, c.categorias.Criar(c.ctx, c.subDeDominio(t, raiz, "a\x00b", 0, nil)), domain.ErrValidacao, "texto com caractere inválido")
+}
