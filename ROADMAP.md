@@ -142,7 +142,7 @@ M6, M7, M9 e M13.
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
 | M3 | Clientes e representantes | M1 | Base de clientes | concluído |
-| M4 | Fornecedores | T0 | coluna fornecedor do painel financeiro | em andamento (feat/m4-fornecedores) |
+| M4 | Fornecedores | T0 | coluna fornecedor do painel financeiro | concluído |
 | M5 | Contas bancárias e plano de contas | M1 | classificação manual dos extratos | pendente |
 | M6 | Pedidos de venda e entregas | M1 M2 M3 | Vendas futuras, Entregas de importação, Pendências de envio | pendente |
 | M7 | Contas a pagar | M1 M4 M5 | Painel financeiro (contas a pagar) | pendente |
@@ -328,6 +328,24 @@ outros módulos precisam saber.
 - Pequeno de propósito: destrava M7, M12 e M14.
 - Fornecedor é do grupo, não de uma empresa: por isso não depende do M1 e roda na onda 1.
   Se alguma regra precisar de empresa, ela entra no M7 (a conta a pagar tem empresa).
+
+**Entregue (outubro/2026):** API completa (fases 1 a 5 do `FORNECEDORES.md`); front pendente. Para
+os próximos módulos:
+
+- fornecedor do Brasil tem documento obrigatório (CPF ou CNPJ, validado por
+  `domaincliente.NovoDocumento`); estrangeiro não tem documento e usa
+  `identificacao_estrangeira`, única por país;
+- `domainfornecedor.Moeda` (`BRL`, `USD`, `EUR`, `CNY`) é a moeda que o M12 reaproveita;
+  `moeda_padrao` só sugere, não trava o lançamento;
+- M7, M12 e M14 apontam para `fornecedor.id` com FK `RESTRICT` (a exclusão passa a responder
+  `400 registro em uso`) e recusam fornecedor inativo em lançamento novo, por porta mínima com
+  `Obter`;
+- **perfil financeiro nas rotas**: `UsuarioUseCase.TemAcessoFinanceiro`,
+  `middleware.ExigirFinanceiro`, wrapper `financeiro(...)` em `rotas.go` e campo `financeiro` na
+  resposta do login; o M5 reaproveita;
+- **versão otimista**: `fornecedor.versao` + `UPDATE ... WHERE versao = $n RETURNING versao`, versão
+  exigida no corpo do `PUT`, `ativar` e `desativar` (`409` se divergir). É o modelo para o item 10
+  do `PENDENCIAS.md` nos outros cadastros.
 
 ### M5 — Contas bancárias e plano de contas
 

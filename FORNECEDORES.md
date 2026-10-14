@@ -181,7 +181,7 @@ test/helpers/servidor.go + test/integration + test/e2e
 | **2** | Repositório com guarda de versão + testes de integração (unicidade, busca, filtros, corrida de versão) | concluída |
 | **3** | Perfil financeiro (`TemAcessoFinanceiro`, `ExigirFinanceiro`, campo no login) + testes; o wrapper `financeiro(...)` entra em `rotas.go` junto da primeira rota que o usa (Go recusa variável local sem uso) | concluída |
 | **4** | Usecase + permissões + testes com fakes | concluída |
-| **5** | Handlers/DTOs + rotas + e2e + `API.md` | pendente |
+| **5** | Handlers/DTOs + rotas + e2e + `API.md` | concluída |
 | **6** | Frontend: lista, cadastro e edição de fornecedores | pendente |
 
 O M4 não tem dinheiro nem data de fato (moeda é só um código), então a fase 6 não depende da
