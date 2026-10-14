@@ -26,13 +26,14 @@ type solicitacaoUseCaseFalso struct {
 	itens       []*domainsolicitacao.Solicitacao
 	pagamento   *domainsolicitacao.Pagamento
 
-	inputCriar     portsin.CriarSolicitacaoInput
-	inputListar    portsin.ListarSolicitacoesInput
-	inputPagamento portsin.RegistrarPagamentoInput
-	aprovadoID     uuid.UUID
-	rejeitadoID    uuid.UUID
-	canceladoID    uuid.UUID
-	motivo         string
+	inputCriar       portsin.CriarSolicitacaoInput
+	inputListar      portsin.ListarSolicitacoesInput
+	inputPagamento   portsin.RegistrarPagamentoInput
+	inputClassificar portsin.ClassificarSolicitacaoInput
+	aprovadoID       uuid.UUID
+	rejeitadoID      uuid.UUID
+	canceladoID      uuid.UUID
+	motivo           string
 }
 
 func (f *solicitacaoUseCaseFalso) Criar(_ context.Context, input portsin.CriarSolicitacaoInput) (uuid.UUID, error) {
@@ -77,6 +78,12 @@ func (f *solicitacaoUseCaseFalso) Rejeitar(_ context.Context, solicitacaoID, _ u
 
 func (f *solicitacaoUseCaseFalso) Cancelar(_ context.Context, solicitacaoID, _ uuid.UUID) error {
 	f.canceladoID = solicitacaoID
+
+	return f.erro
+}
+
+func (f *solicitacaoUseCaseFalso) Classificar(_ context.Context, input portsin.ClassificarSolicitacaoInput) error {
+	f.inputClassificar = input
 
 	return f.erro
 }

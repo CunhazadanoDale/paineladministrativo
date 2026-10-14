@@ -87,6 +87,7 @@ func TestRotasRegistradasSemConflito(t *testing.T) {
 		{"GET /api/v1/solicitacoes/66666666-6666-6666-6666-666666666666/pagamento", "GET /api/v1/solicitacoes/{id}/pagamento"},
 		{"GET /api/v1/solicitacoes/66666666-6666-6666-6666-666666666666/historico", "GET /api/v1/solicitacoes/{id}/historico"},
 		{"GET /api/v1/solicitacoes/66666666-6666-6666-6666-666666666666/arquivos", "GET /api/v1/solicitacoes/{id}/arquivos"},
+		{"PATCH /api/v1/solicitacoes/66666666-6666-6666-6666-666666666666/classificacao", "PATCH /api/v1/solicitacoes/{id}/classificacao"},
 		{"POST /api/v1/arquivos", "POST /api/v1/arquivos"},
 		{"GET /api/v1/arquivos", "GET /api/v1/arquivos"},
 		{"GET /api/v1/arquivos/77777777-7777-7777-7777-777777777777", "GET /api/v1/arquivos/{id}"},

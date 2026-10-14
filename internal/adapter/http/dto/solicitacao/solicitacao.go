@@ -13,12 +13,16 @@ import (
 const formatoDataPagamento = "2006-01-02"
 
 type CriarSolicitacaoRequest struct {
-	EmpresaID      uuid.UUID   `json:"empresa_id"`
-	ValorCentavos  int64       `json:"valor_centavos"`
-	PrazoPagamento string      `json:"prazo_pagamento"`
-	Observacao     string      `json:"observacao"`
-	FormaPagamento string      `json:"forma_pagamento"`
-	ArquivoIDs     []uuid.UUID `json:"arquivo_ids"`
+	EmpresaID             uuid.UUID   `json:"empresa_id"`
+	ValorCentavos         int64       `json:"valor_centavos"`
+	PrazoPagamento        string      `json:"prazo_pagamento"`
+	Observacao            string      `json:"observacao"`
+	FormaPagamento        string      `json:"forma_pagamento"`
+	FornecedorID          *uuid.UUID  `json:"fornecedor_id"`
+	CategoriaFinanceiraID *uuid.UUID  `json:"categoria_financeira_id"`
+	Competencia           string      `json:"competencia"`
+	Estimado              bool        `json:"estimado"`
+	ArquivoIDs            []uuid.UUID `json:"arquivo_ids"`
 }
 
 func (r CriarSolicitacaoRequest) ParaInput(solicitanteID uuid.UUID) (portsin.CriarSolicitacaoInput, error) {
@@ -28,14 +32,50 @@ func (r CriarSolicitacaoRequest) ParaInput(solicitanteID uuid.UUID) (portsin.Cri
 	}
 
 	return portsin.CriarSolicitacaoInput{
-		SolicitanteID:  solicitanteID,
-		EmpresaID:      r.EmpresaID,
-		ValorCentavos:  r.ValorCentavos,
-		PrazoPagamento: prazo,
-		Observacao:     r.Observacao,
-		FormaPagamento: r.FormaPagamento,
-		ArquivoIDs:     r.ArquivoIDs,
+		SolicitanteID:         solicitanteID,
+		EmpresaID:             r.EmpresaID,
+		ValorCentavos:         r.ValorCentavos,
+		PrazoPagamento:        prazo,
+		Observacao:            r.Observacao,
+		FormaPagamento:        r.FormaPagamento,
+		FornecedorID:          r.FornecedorID,
+		CategoriaFinanceiraID: r.CategoriaFinanceiraID,
+		Competencia:           r.Competencia,
+		Estimado:              r.Estimado,
+		ArquivoIDs:            r.ArquivoIDs,
 	}, nil
+}
+
+type ClassificarSolicitacaoRequest struct {
+	FornecedorID          *uuid.UUID `json:"fornecedor_id"`
+	CategoriaFinanceiraID *uuid.UUID `json:"categoria_financeira_id"`
+	Competencia           string     `json:"competencia"`
+	Versao                int        `json:"versao"`
+}
+
+func (r ClassificarSolicitacaoRequest) ParaInput(solicitacaoID, usuarioID uuid.UUID) portsin.ClassificarSolicitacaoInput {
+	return portsin.ClassificarSolicitacaoInput{
+		SolicitacaoID:         solicitacaoID,
+		UsuarioID:             usuarioID,
+		FornecedorID:          r.FornecedorID,
+		CategoriaFinanceiraID: r.CategoriaFinanceiraID,
+		Competencia:           r.Competencia,
+		Versao:                r.Versao,
+	}
+}
+
+func DataDeConsulta(valor, nome string) (*time.Time, error) {
+	valor = strings.TrimSpace(valor)
+	if valor == "" {
+		return nil, nil
+	}
+
+	data, err := time.Parse(formatoDataPagamento, valor)
+	if err != nil {
+		return nil, domain.ErroValidacao("consulta " + nome + " deve estar no formato AAAA-MM-DD")
+	}
+
+	return &data, nil
 }
 
 type RejeitarRequest struct {
@@ -71,41 +111,57 @@ func (r RegistrarPagamentoRequest) ParaInput(solicitacaoID, usuarioID uuid.UUID)
 }
 
 type SolicitacaoResponse struct {
-	ID             uuid.UUID   `json:"id"`
-	SolicitanteID  uuid.UUID   `json:"solicitante_id"`
-	EmpresaID      uuid.UUID   `json:"empresa_id"`
-	AprovadorID    *uuid.UUID  `json:"aprovador_id"`
-	ValorCentavos  int64       `json:"valor_centavos"`
-	PrazoPagamento time.Time   `json:"prazo_pagamento"`
-	Observacao     string      `json:"observacao"`
-	FormaPagamento string      `json:"forma_pagamento"`
-	Status         string      `json:"status"`
-	MotivoRejeicao *string     `json:"motivo_rejeicao"`
-	AprovadoEm     *time.Time  `json:"aprovado_em"`
-	RejeitadoEm    *time.Time  `json:"rejeitado_em"`
-	CanceladoEm    *time.Time  `json:"cancelado_em"`
-	CriadoEm       time.Time   `json:"criado_em"`
-	AtualizadoEm   time.Time   `json:"atualizado_em"`
-	ArquivoIDs     []uuid.UUID `json:"arquivo_ids"`
+	ID                    uuid.UUID   `json:"id"`
+	SolicitanteID         uuid.UUID   `json:"solicitante_id"`
+	EmpresaID             uuid.UUID   `json:"empresa_id"`
+	AprovadorID           *uuid.UUID  `json:"aprovador_id"`
+	ValorCentavos         int64       `json:"valor_centavos"`
+	PrazoPagamento        time.Time   `json:"prazo_pagamento"`
+	Observacao            string      `json:"observacao"`
+	FormaPagamento        string      `json:"forma_pagamento"`
+	FornecedorID          *uuid.UUID  `json:"fornecedor_id"`
+	CategoriaFinanceiraID *uuid.UUID  `json:"categoria_financeira_id"`
+	Competencia           string      `json:"competencia"`
+	Estimado              bool        `json:"estimado"`
+	Origem                string      `json:"origem"`
+	OrigemID              *uuid.UUID  `json:"origem_id"`
+	Vencida               bool        `json:"vencida"`
+	Versao                int         `json:"versao"`
+	Status                string      `json:"status"`
+	MotivoRejeicao        *string     `json:"motivo_rejeicao"`
+	AprovadoEm            *time.Time  `json:"aprovado_em"`
+	RejeitadoEm           *time.Time  `json:"rejeitado_em"`
+	CanceladoEm           *time.Time  `json:"cancelado_em"`
+	CriadoEm              time.Time   `json:"criado_em"`
+	AtualizadoEm          time.Time   `json:"atualizado_em"`
+	ArquivoIDs            []uuid.UUID `json:"arquivo_ids"`
 }
 
 func NovaSolicitacaoResponse(item *domainsolicitacao.Solicitacao) SolicitacaoResponse {
 	resposta := SolicitacaoResponse{
-		ID:             item.ID,
-		SolicitanteID:  item.SolicitanteID,
-		EmpresaID:      item.EmpresaID,
-		AprovadorID:    item.AprovadorID,
-		ValorCentavos:  item.Valor.Centavos(),
-		PrazoPagamento: item.Prazo.Data(),
-		Observacao:     item.Observacao.Texto(),
-		FormaPagamento: item.FormaPagamento.String(),
-		Status:         item.Status.String(),
-		AprovadoEm:     item.AprovadoEm,
-		RejeitadoEm:    item.RejeitadoEm,
-		CanceladoEm:    item.CanceladoEm,
-		CriadoEm:       item.CriadoEm,
-		AtualizadoEm:   item.AtualizadoEm,
-		ArquivoIDs:     item.ArquivoIDs,
+		ID:                    item.ID,
+		SolicitanteID:         item.SolicitanteID,
+		EmpresaID:             item.EmpresaID,
+		AprovadorID:           item.AprovadorID,
+		ValorCentavos:         item.Valor.Centavos(),
+		PrazoPagamento:        item.Prazo.Data(),
+		Observacao:            item.Observacao.Texto(),
+		FormaPagamento:        item.FormaPagamento.String(),
+		FornecedorID:          item.FornecedorID,
+		CategoriaFinanceiraID: item.CategoriaFinanceiraID,
+		Competencia:           item.Competencia.String(),
+		Estimado:              item.Estimado,
+		Origem:                item.Origem.String(),
+		OrigemID:              item.OrigemID,
+		Vencida:               item.Vencida(time.Now()),
+		Versao:                item.Versao,
+		Status:                item.Status.String(),
+		AprovadoEm:            item.AprovadoEm,
+		RejeitadoEm:           item.RejeitadoEm,
+		CanceladoEm:           item.CanceladoEm,
+		CriadoEm:              item.CriadoEm,
+		AtualizadoEm:          item.AtualizadoEm,
+		ArquivoIDs:            item.ArquivoIDs,
 	}
 
 	if item.MotivoRejeicao != nil {
@@ -154,6 +210,7 @@ type HistoricoResponse struct {
 	UsuarioID     uuid.UUID `json:"usuario_id"`
 	DeStatus      *string   `json:"de_status"`
 	ParaStatus    string    `json:"para_status"`
+	Evento        string    `json:"evento"`
 	Descricao     string    `json:"descricao"`
 	CriadoEm      time.Time `json:"criado_em"`
 }
@@ -164,6 +221,7 @@ func NovoHistoricoResponse(item *domainsolicitacao.Historico) HistoricoResponse 
 		SolicitacaoID: item.SolicitacaoID,
 		UsuarioID:     item.UsuarioID,
 		ParaStatus:    item.ParaStatus.String(),
+		Evento:        item.Evento.String(),
 		Descricao:     item.Descricao,
 		CriadoEm:      item.CriadoEm,
 	}
