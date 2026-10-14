@@ -7,6 +7,7 @@ import (
 	clientehandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/cliente"
 	empresahandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/empresa"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/estoque"
+	financeirohandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/financeiro"
 	fornecedorhandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/fornecedor"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/lead"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/saude"
@@ -17,6 +18,7 @@ import (
 	portsincliente "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/cliente"
 	portsinempresa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/empresa"
 	portsinestoque "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/estoque"
+	portsinfinanceiro "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/financeiro"
 	portsinfornecedor "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/fornecedor"
 	portsinlead "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/leads"
 	portsinsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/solicitacao"
@@ -53,6 +55,8 @@ func NewRouter(
 	representanteUseCase portsincliente.RepresentanteUseCase,
 	importacaoClientesUseCase portsincliente.ImportacaoUseCase,
 	fornecedorUseCase portsinfornecedor.FornecedorUseCase,
+	contaBancariaUseCase portsinfinanceiro.ContaBancariaUseCase,
+	categoriaFinanceiraUseCase portsinfinanceiro.CategoriaFinanceiraUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, middleware.ErrosDeRoteamento(novasRotas(
@@ -68,6 +72,7 @@ func NewRouter(
 		clienteUseCase, obraUseCase, grupoClienteUseCase, representanteUseCase,
 		importacaoClientesUseCase,
 		fornecedorUseCase,
+		contaBancariaUseCase, categoriaFinanceiraUseCase,
 		tokens,
 	)))
 }
@@ -98,6 +103,8 @@ func novasRotas(
 	representanteUseCase portsincliente.RepresentanteUseCase,
 	importacaoClientesUseCase portsincliente.ImportacaoUseCase,
 	fornecedorUseCase portsinfornecedor.FornecedorUseCase,
+	contaBancariaUseCase portsinfinanceiro.ContaBancariaUseCase,
+	categoriaFinanceiraUseCase portsinfinanceiro.CategoriaFinanceiraUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -311,6 +318,26 @@ func novasRotas(
 	financeiro("PATCH /api/v1/fornecedores/{id}/ativar", fornecedorHandler.Ativar)
 	financeiro("PATCH /api/v1/fornecedores/{id}/desativar", fornecedorHandler.Desativar)
 	administrador("DELETE /api/v1/fornecedores/{id}", fornecedorHandler.Remover)
+
+	contaBancariaHandler := financeirohandlers.NewContaBancariaHandler(contaBancariaUseCase)
+	financeiro("POST /api/v1/contas-bancarias", contaBancariaHandler.Criar)
+	financeiro("GET /api/v1/contas-bancarias", contaBancariaHandler.Listar)
+	financeiro("GET /api/v1/contas-bancarias/{id}", contaBancariaHandler.Obter)
+	financeiro("PUT /api/v1/contas-bancarias/{id}", contaBancariaHandler.Alterar)
+	financeiro("PATCH /api/v1/contas-bancarias/{id}/ativar", contaBancariaHandler.Ativar)
+	financeiro("PATCH /api/v1/contas-bancarias/{id}/desativar", contaBancariaHandler.Desativar)
+	administrador("DELETE /api/v1/contas-bancarias/{id}", contaBancariaHandler.Remover)
+	protegido("GET /api/v1/bancos", contaBancariaHandler.Bancos)
+
+	categoriaFinanceiraHandler := financeirohandlers.NewCategoriaFinanceiraHandler(categoriaFinanceiraUseCase)
+	financeiro("POST /api/v1/categorias-financeiras", categoriaFinanceiraHandler.Criar)
+	protegido("GET /api/v1/categorias-financeiras", categoriaFinanceiraHandler.Listar)
+	protegido("GET /api/v1/categorias-financeiras/arvore", categoriaFinanceiraHandler.Arvore)
+	protegido("GET /api/v1/categorias-financeiras/{id}", categoriaFinanceiraHandler.Obter)
+	financeiro("PUT /api/v1/categorias-financeiras/{id}", categoriaFinanceiraHandler.Alterar)
+	financeiro("PATCH /api/v1/categorias-financeiras/{id}/ativar", categoriaFinanceiraHandler.Ativar)
+	financeiro("PATCH /api/v1/categorias-financeiras/{id}/desativar", categoriaFinanceiraHandler.Desativar)
+	administrador("DELETE /api/v1/categorias-financeiras/{id}", categoriaFinanceiraHandler.Remover)
 
 	return mux
 }

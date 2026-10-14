@@ -10,7 +10,7 @@ import (
 func muxDoTeste(t *testing.T) *http.ServeMux {
 	t.Helper()
 
-	return novasRotas(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	return novasRotas(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 }
 
 func TestNewRouterAplicaCORS(t *testing.T) {
@@ -19,7 +19,7 @@ func TestNewRouterAplicaCORS(t *testing.T) {
 	requisicao.Header.Set("Access-Control-Request-Method", "POST")
 	registrador := httptest.NewRecorder()
 
-	NewRouter(nil, []string{"http://localhost:5173"}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).ServeHTTP(registrador, requisicao)
+	NewRouter(nil, []string{"http://localhost:5173"}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).ServeHTTP(registrador, requisicao)
 
 	if registrador.Code != http.StatusNoContent {
 		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusNoContent)
@@ -174,6 +174,22 @@ func TestRotasRegistradasSemConflito(t *testing.T) {
 		{"PATCH /api/v1/fornecedores/66666666-6666-6666-6666-666666666666/ativar", "PATCH /api/v1/fornecedores/{id}/ativar"},
 		{"PATCH /api/v1/fornecedores/66666666-6666-6666-6666-666666666666/desativar", "PATCH /api/v1/fornecedores/{id}/desativar"},
 		{"DELETE /api/v1/fornecedores/66666666-6666-6666-6666-666666666666", "DELETE /api/v1/fornecedores/{id}"},
+		{"POST /api/v1/contas-bancarias", "POST /api/v1/contas-bancarias"},
+		{"GET /api/v1/contas-bancarias", "GET /api/v1/contas-bancarias"},
+		{"GET /api/v1/contas-bancarias/77777777-7777-7777-7777-777777777777", "GET /api/v1/contas-bancarias/{id}"},
+		{"PUT /api/v1/contas-bancarias/77777777-7777-7777-7777-777777777777", "PUT /api/v1/contas-bancarias/{id}"},
+		{"PATCH /api/v1/contas-bancarias/77777777-7777-7777-7777-777777777777/ativar", "PATCH /api/v1/contas-bancarias/{id}/ativar"},
+		{"PATCH /api/v1/contas-bancarias/77777777-7777-7777-7777-777777777777/desativar", "PATCH /api/v1/contas-bancarias/{id}/desativar"},
+		{"DELETE /api/v1/contas-bancarias/77777777-7777-7777-7777-777777777777", "DELETE /api/v1/contas-bancarias/{id}"},
+		{"GET /api/v1/bancos", "GET /api/v1/bancos"},
+		{"POST /api/v1/categorias-financeiras", "POST /api/v1/categorias-financeiras"},
+		{"GET /api/v1/categorias-financeiras", "GET /api/v1/categorias-financeiras"},
+		{"GET /api/v1/categorias-financeiras/arvore", "GET /api/v1/categorias-financeiras/arvore"},
+		{"GET /api/v1/categorias-financeiras/88888888-8888-8888-8888-888888888888", "GET /api/v1/categorias-financeiras/{id}"},
+		{"PUT /api/v1/categorias-financeiras/88888888-8888-8888-8888-888888888888", "PUT /api/v1/categorias-financeiras/{id}"},
+		{"PATCH /api/v1/categorias-financeiras/88888888-8888-8888-8888-888888888888/ativar", "PATCH /api/v1/categorias-financeiras/{id}/ativar"},
+		{"PATCH /api/v1/categorias-financeiras/88888888-8888-8888-8888-888888888888/desativar", "PATCH /api/v1/categorias-financeiras/{id}/desativar"},
+		{"DELETE /api/v1/categorias-financeiras/88888888-8888-8888-8888-888888888888", "DELETE /api/v1/categorias-financeiras/{id}"},
 	}
 
 	for _, caso := range casos {
@@ -195,7 +211,7 @@ func TestRotasRegistradasSemConflito(t *testing.T) {
 }
 
 func TestRotaNaoAtendidaRespondeNoEnvelopeJSON(t *testing.T) {
-	roteador := NewRouter(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	roteador := NewRouter(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	casos := []struct {
 		metodo string
