@@ -319,6 +319,9 @@ os próximos módulos:
 
 ### M4 — Fornecedores
 
+O escopo fechado e o detalhamento estão em `FORNECEDORES.md`; este resumo só aponta o que os
+outros módulos precisam saber.
+
 - **Entidades**: `fornecedor` (documento opcional para estrangeiro, nome, país,
   moeda padrão, contato, observações).
 - **Endpoints**: CRUD em `/api/v1/fornecedores`.
