@@ -75,6 +75,26 @@ func ErroContaBancariaAlterada() error {
 	return domain.ErroConflito("a conta bancária foi alterada por outra pessoa; recarregue e tente de novo")
 }
 
+func ErroContaBancariaNaoEncontrada() error {
+	return domain.ErroNaoEncontrado("conta bancária não encontrada")
+}
+
+func ErroEmpresaDaContaNaoEncontrada() error {
+	return domain.ErroValidacao("empresa da conta bancária não encontrada")
+}
+
+func ErroEmpresaInativa() error {
+	return domain.ErroValidacao("empresa inativa não recebe conta bancária")
+}
+
+func ErroContaDuplicada() error {
+	return domain.ErroConflito("já existe uma conta com este banco, agência e número")
+}
+
+func ErroApelidoRepetido() error {
+	return domain.ErroConflito("já existe uma conta com este apelido na empresa")
+}
+
 func (c *ContaBancaria) ConferirVersao(informada int) error {
 	return conferirVersao(informada, c.Versao, "da conta bancária", ErroContaBancariaAlterada())
 }

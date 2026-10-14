@@ -85,6 +85,18 @@ func ErroCategoriaFinanceiraAlterada() error {
 	return domain.ErroConflito("a categoria financeira foi alterada por outra pessoa; recarregue e tente de novo")
 }
 
+func ErroCategoriaFinanceiraNaoEncontrada() error {
+	return domain.ErroNaoEncontrado("categoria financeira não encontrada")
+}
+
+func ErroNomeDeCategoriaRepetido() error {
+	return domain.ErroConflito("já existe uma categoria com este nome neste nível")
+}
+
+func ErroCodigoDeCategoriaRepetido() error {
+	return domain.ErroConflito("já existe uma categoria com este código")
+}
+
 func (c *CategoriaFinanceira) EhSubcategoria() bool {
 	return c != nil && c.CategoriaPaiID != nil
 }

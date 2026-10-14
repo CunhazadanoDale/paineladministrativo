@@ -68,8 +68,8 @@
 - Agência e conta só com dígitos permitem ao M13 casar o extrato OFX (`BANKID`, `BRANCHID`,
   `ACCTID`) com a conta sem intervenção.
 - Empresa inativa não recebe conta nova e não tem conta reativada → `400 empresa inativa não
-  recebe conta bancária`. A checagem é feita na própria escrita (`INSERT ... SELECT ... FROM
-  empresa WHERE ativa` e `UPDATE` condicionado), não só antes dela.
+  recebe conta bancária`. A checagem é feita na transação da escrita, com a empresa travada
+  (seção 3), não só antes dela.
 - Conta inativa continua no histórico e não recebe lançamento novo (regra aplicada pelos
   consumidores via porta mínima, seção 6).
 
@@ -117,14 +117,15 @@ que a subcategoria tem a mesma classificação do pai; `uq_categoria_financeira_
 **Regras:**
 - Raiz: `natureza` e `linha_dre` obrigatórios no corpo, combinação validada no domínio.
 - Subcategoria: `natureza` e `linha_dre` **não** vêm no corpo (informados → `400 subcategoria
-  herda natureza e linha da DRE da categoria pai`); o `INSERT` copia os valores do pai na mesma
-  instrução e só grava se o pai for raiz e estiver ativo (`400 categoria pai deve ser uma
-  categoria raiz ativa`).
+  herda natureza e linha da DRE da categoria pai`); o repositório copia os valores do pai lido
+  na mesma transação, com o pai travado, e só grava se ele for raiz e estiver ativo
+  (`400 categoria pai deve ser uma categoria raiz ativa`).
 - **Lançável** = subcategoria ativa. Raiz nunca recebe lançamento, mesmo sem filhas: assim
   acrescentar uma filha depois não deixa lançamentos pendurados num nível intermediário.
 - Desativar raiz só sem filhas **ativas** (`409 categoria possui subcategorias ativas e não pode
-  ser desativada`), conferido no próprio `UPDATE` (`AND NOT EXISTS (...)`).
-- Ativar subcategoria exige o pai ativo (`400 categoria pai está inativa`), também no `UPDATE`.
+  ser desativada`), conferido na transação da escrita com a raiz travada (seção 3).
+- Ativar subcategoria exige o pai ativo (`400 categoria pai está inativa`), também na
+  transação da escrita.
 - Alteráveis: `nome`, `codigo`, `ordem`. Natureza e linha DRE erradas = excluir (sem vínculos)
   ou desativar e criar outra; mudar a classificação reescreveria a DRE de meses fechados.
 - Duplicidade: nome repetido no mesmo nível → `409 já existe uma categoria com este nome neste
@@ -161,9 +162,16 @@ Mesmo contrato da seção 3 do `FORNECEDORES.md`, aplicado às duas entidades:
 - A versão divergente é conferida também no usecase, antes da regra de negócio, para a mensagem
   ser a mesma com ou sem corrida.
 - `ativar` no que já está ativo (e `desativar` no inativo) responde `200` sem avançar a versão.
-- Quando a guarda atômica de outra linha (empresa ativa, pai ativo, filhas ativas) zera o
-  `UPDATE`, o repositório distingue o motivo relendo o registro, e a resposta é a da regra
-  (`400`/`409` das seções 2.1 e 2.2), não a de versão.
+- As regras que dependem de outra linha rodam na mesma transação da escrita, com trava na
+  linha de que dependem (o `NOT EXISTS` sozinho não basta em `READ COMMITTED`):
+  - criar conta e reativar conta: `SELECT ativa FROM empresa ... FOR SHARE`;
+  - criar subcategoria e reativar subcategoria: pai lido com `FOR SHARE` (e, na criação, a
+    natureza e a linha DRE gravadas vêm dessa leitura);
+  - desativar raiz: `SELECT versao ... FOR UPDATE` na raiz e só então a contagem de filhas ativas.
+  A resposta é a da regra (`400`/`409` das seções 2.1 e 2.2); a de versão só sai quando a
+  versão diverge. O teste de integração da corrida entre criar subcategoria e desativar a raiz
+  falha sem as travas.
+- Unicidade violada é traduzida pelo nome da restrição para as mensagens das seções 2.1 e 2.2.
 
 ---
 
@@ -298,7 +306,7 @@ test/helpers/servidor.go + test/integration + test/e2e
 | Fase | Entrega | Estado |
 |---|---|---|
 | **1** | Migrations 000038–000039 + domínio (catálogo de bancos, tipo, números bancários, conta, natureza, linha DRE, categoria com herança e versão) + testes | concluída |
-| **2** | Repositórios com guarda de versão e guardas atômicas + testes de integração (unicidade com zeros à esquerda, herança no `INSERT`, desativação com filhas ativas, empresa inativa, filtros, árvore, corrida de versão) | pendente |
+| **2** | Repositórios com guarda de versão e guardas atômicas + testes de integração (unicidade com zeros à esquerda, herança no `INSERT`, desativação com filhas ativas, empresa inativa, filtros, árvore, corrida de versão) | concluída |
 | **3** | Usecases + permissões (financeiro, administrador, escopo por empresa) + testes com fakes, inclusive isolamento entre empresas | pendente |
 | **4** | Handlers/DTOs + rotas + e2e + `API.md` (usa o perfil financeiro do M4; ver seção 5) | pendente |
 | **5** | Frontend: contas bancárias por empresa e plano de contas em árvore | pendente |
