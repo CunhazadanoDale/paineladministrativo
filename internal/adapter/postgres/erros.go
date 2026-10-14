@@ -16,6 +16,10 @@ func tratarErroDeGravacao(err error) error {
 	return traduzirErro(err, "registro relacionado não encontrado")
 }
 
+func tratarErroDeConsulta(err error) error {
+	return traduzirErro(err, "registro relacionado não encontrado")
+}
+
 func traduzirErro(err error, chaveEstrangeira string) error {
 	if err == nil {
 		return nil
@@ -41,6 +45,8 @@ func traduzirErro(err error, chaveEstrangeira string) error {
 		return domain.ErroValidacao("número fora do intervalo permitido")
 	case pqerror.InvalidTextRepresentation:
 		return domain.ErroValidacao("valor em formato inválido")
+	case pqerror.CharacterNotInRepertoire, pqerror.UntranslatableCharacter:
+		return domain.ErroValidacao("texto com caractere inválido")
 	default:
 		return err
 	}

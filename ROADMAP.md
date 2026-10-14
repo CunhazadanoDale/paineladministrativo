@@ -143,7 +143,7 @@ M6, M7, M9 e M13.
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
 | M3 | Clientes e representantes | M1 | Base de clientes | concluído |
 | M4 | Fornecedores | T0 | coluna fornecedor do painel financeiro | concluído |
-| M5 | Contas bancárias e plano de contas | M1 | classificação manual dos extratos | em andamento (feat/m5-financeiro) |
+| M5 | Contas bancárias e plano de contas | M1 | classificação manual dos extratos | concluído |
 | M6 | Pedidos de venda e entregas | M1 M2 M3 | Vendas futuras, Entregas de importação, Pendências de envio | pendente |
 | M7 | Contas a pagar | M1 M4 M5 | Painel financeiro (contas a pagar) | pendente |
 | M8 | NF-e por XML | M2 M3 M6 | Controle de NFs | pendente |
@@ -349,12 +349,37 @@ os próximos módulos:
 
 ### M5 — Contas bancárias e plano de contas
 
-- **Conta bancária**: `conta_bancaria` (empresa, banco, agência, conta, apelido,
-  ativa). Bancos atuais: Sicredi, Itaú, BB, Santander, Bradesco, Cora, Inter.
+O escopo fechado e o detalhamento estão em `FINANCEIRO.md`; este resumo só aponta o que os
+outros módulos precisam saber.
+
+- **Conta bancária**: `conta_bancaria` (empresa, banco pelo código COMPE, tipo, agência,
+  conta, apelido, ativa). Bancos atuais: Sicredi, Itaú, BB, Santander, Bradesco, Cora, Inter.
+  Escopo por empresa; leitura só para financeiro/administrador.
 - **Plano de contas**: `categoria_financeira` em dois níveis (como `categoria` do
-  estoque) com `natureza` (`receita`, `despesa`) e `grupo_dre` (`operacional`,
-  `fora_dre`, `entre_contas`). É a classificação usada pelo M7, M13 e M15.
-- **Endpoints**: CRUD de ambos; escrita restrita a financeiro/administrador.
+  estoque), do grupo, com `natureza` (`receita`, `despesa`, `transferencia`) e `linha_dre`
+  no lugar do `grupo_dre` previsto antes, que não separava frete, comissões, impostos e
+  custos fixos para o M15. A subcategoria herda natureza e linha; lançamento (M7, M9, M13)
+  só em subcategoria ativa. `compra_mercadoria` fica fora do resultado: o CMV vem dos lotes.
+- **Endpoints**: CRUD de ambos; escrita restrita a financeiro/administrador (perfil
+  `financeiro(...)` criado pelo M4); exclusão só pelo administrador; versão otimista.
+- **Saldo inicial** das contas fica no M13.
+
+**Entregue (outubro/2026):** API completa (fases 1 a 4 do `FINANCEIRO.md`); front pendente. Para
+os próximos módulos:
+
+- M7, M9 e M13 apontam para `conta_bancaria.id` e `categoria_financeira.id` com FK `RESTRICT` e
+  declaram porta mínima com `Obter`; a conta precisa estar ativa e ser **da mesma empresa** do
+  lançamento, e essa empresa precisa estar ativa (desativar a empresa não desativa as contas);
+  a categoria precisa ser `Lancavel()` (subcategoria ativa) e ter a natureza do lançamento
+  (`despesa` no M7, `receita` no M9, as três no M13);
+- o M15 agrupa a DRE por `linha_dre` e deixa de fora `compra_mercadoria` (o CMV vem de
+  `produto_movimento_lote`), `fora_dre` (à parte) e `entre_contas`;
+- leitura de contas bancárias é só do financeiro/administrador e respeita o acesso por empresa; o
+  plano de contas é lido por qualquer autenticado (`GET /categorias-financeiras/arvore` para
+  listas de seleção, sem o corte de 100 da paginação);
+- regras que dependem de outra linha (empresa ativa, pai ativo, filhas ativas) travam essa linha
+  na transação da escrita (`FOR SHARE`/`FOR UPDATE`); `postgres/guarda_versao.go` concentra
+  versão otimista, motivo da falha e tradução de unicidade pelo nome da restrição.
 
 ### M6 — Pedidos de venda e entregas
 

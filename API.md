@@ -52,7 +52,7 @@ cliente deve autenticar de novo.
 | Comercial | Token de um usuário cujo cargo tem `"comercial": true` | Leads (criar, editar, mover, excluir), histórico e **leitura** de funis e etapas |
 | Administrador | Token de um usuário cujo cargo tem `"administrador": true` | Tudo o que os perfis autenticado e comercial podem, **mais** a estrutura de funis e etapas, a gestão de usuários, a escrita de cargos, a designação de aprovadores e `escopo=todas` |
 | Aprovador | Usuário **designado** na tabela `aprovador` pelo administrador | `escopo=aprovacao`, aprovar e rejeitar as solicitações pendentes |
-| Financeiro | Token de um usuário cujo cargo tem `"financeiro": true` (ou de administrador) | `escopo=financeiro`, o registro de pagamento das solicitações aprovadas e a escrita de fornecedores |
+| Financeiro | Token de um usuário cujo cargo tem `"financeiro": true` (ou de administrador) | `escopo=financeiro`, o registro de pagamento das solicitações aprovadas, a escrita de fornecedores e do plano de contas, e as contas bancárias das empresas do seu acesso |
 
 Os três papéis novos do módulo de solicitações são **cumulativos**: um administrador também
 é tratado como aprovador e como financeiro.
@@ -1558,6 +1558,139 @@ Todo fornecedor tem `versao`, que começa em `1` e avança a cada alteração gr
 Ativar um fornecedor já ativo (ou desativar um já inativo) responde `200` sem mudar a versão. O
 `PUT` substitui o cadastro inteiro: campo opcional omitido fica vazio e `moeda_padrao` omitida
 volta a `BRL`.
+
+---
+
+## Contas bancárias
+
+Contas de cada **empresa** do grupo, com escopo por empresa. Perfis: **financeiro** (ou
+administrador) cria, lê, altera, ativa e desativa as contas das empresas do seu acesso;
+**administrador** exclui. Quem não é financeiro não lê contas (`403`).
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/contas-bancarias` | **financeiro** | `201` |
+| `GET` | `/api/v1/contas-bancarias` | **financeiro** | `200` lista paginada das empresas do acesso (`?empresa=`, `?banco=`, `?tipo=`, `?ativa=`) |
+| `GET` | `/api/v1/contas-bancarias/{id}` | **financeiro** | `200` |
+| `PUT` | `/api/v1/contas-bancarias/{id}` | **financeiro** | `200`; corpo `{ "apelido": "...", "versao": n }` |
+| `PATCH` | `/api/v1/contas-bancarias/{id}/ativar` / `desativar` | **financeiro** | `200`; corpo `{ "versao": n }` |
+| `DELETE` | `/api/v1/contas-bancarias/{id}` | **administrador** | `204`; `400 registro em uso` quando lançamentos apontarem para ela |
+| `GET` | `/api/v1/bancos` | autenticado | `200` catálogo `[{ "codigo": "001", "nome": "Banco do Brasil" }, ...]` |
+
+Corpo do `POST`:
+
+```json
+{
+  "empresa_id": "…",
+  "banco": "748",
+  "tipo": "corrente",
+  "agencia": "0812",
+  "conta": "54321-0",
+  "apelido": "Sicredi movimento"
+}
+```
+
+| Campo | Regra |
+| --- | --- |
+| `empresa_id` | obrigatório; empresa do acesso (`403 perfil sem acesso a esta empresa`) e ativa (`400 empresa inativa não recebe conta bancária`); não muda |
+| `banco` | código COMPE do catálogo: `001` Banco do Brasil, `033` Santander, `077` Inter, `237` Bradesco, `341` Itaú, `403` Cora, `748` Sicredi; outro → `400 banco não suportado`; não muda |
+| `tipo` | `corrente`, `poupanca`, `pagamento` ou `aplicacao`; não muda |
+| `agencia` / `agencia_digito` | até 5 dígitos, não só zeros; dígito `0-9`, `X` ou `P`, junto (`1234-5`) **ou** no campo próprio, nunca nos dois; não muda |
+| `conta` / `conta_digito` | até 20 dígitos, não só zeros; dígito com 1 ou 2 caracteres `0-9`/`X`/`P`, junto (`54321-0`) **ou** no campo próprio; pontos e espaços são ignorados; não muda |
+| `apelido` | obrigatório, até 60; único na empresa sem diferenciar maiúsculas (`409 já existe uma conta com este apelido na empresa`); único campo editável |
+
+O dígito verificador não é conferido. A mesma conta não existe duas vezes no grupo, nem em
+empresas diferentes → `409 já existe uma conta com este banco, agência e número`. É a mesma conta
+quando banco, `tipo` e agência coincidem (zeros à esquerda ignorados) e o número coincide sem o
+dígito (`54321-0` × `54321`) ou com o dígito colado (`54321-0` × `543210`). Contas de tipos
+diferentes no mesmo número (corrente e poupança do Banco do Brasil, por exemplo) são aceitas.
+Corrigir banco, tipo, agência ou conta = desativar e criar outra.
+
+A resposta traz `banco` e `banco_nome`, `tipo`, `agencia`, `agencia_digito` e
+`agencia_formatada` (`1234-5`), `conta`, `conta_digito` e `conta_formatada`, `apelido`, `ativa`,
+`versao`, `criado_em` e `atualizado_em`. Dígito ausente vem `null`.
+
+Na listagem, usuário sem empresa no acesso recebe lista vazia; `?empresa=` fora do acesso → `403`;
+`?banco=` ou `?tipo=` inválidos → `400`. Ordem: apelido, sem diferenciar maiúsculas.
+
+Reativar conta de empresa inativa → `400 empresa inativa não recebe conta bancária`.
+
+## Plano de contas
+
+Categorias financeiras do **grupo** em dois níveis (raiz e subcategoria), usadas para classificar
+contas a pagar, títulos e extratos. Perfis: **financeiro** (ou administrador) cria, altera, ativa e
+desativa; **administrador** exclui; qualquer autenticado lê.
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/categorias-financeiras` | **financeiro** | `201` |
+| `GET` | `/api/v1/categorias-financeiras` | autenticado | `200` lista paginada (`?pai=`, `?raiz=true`, `?natureza=`, `?linha_dre=`, `?ativa=`, `?busca=`) |
+| `GET` | `/api/v1/categorias-financeiras/arvore` | autenticado | `200` plano inteiro em dois níveis, **sem paginação**; `?ativas=true` só as ativas |
+| `GET` | `/api/v1/categorias-financeiras/{id}` | autenticado | `200` |
+| `PUT` | `/api/v1/categorias-financeiras/{id}` | **financeiro** | `200`; corpo `{ "nome", "codigo", "ordem", "versao" }` |
+| `PATCH` | `/api/v1/categorias-financeiras/{id}/ativar` / `desativar` | **financeiro** | `200`; corpo `{ "versao": n }` |
+| `DELETE` | `/api/v1/categorias-financeiras/{id}` | **administrador** | `204`; `400 registro em uso` com subcategorias ou lançamentos |
+
+Corpo do `POST` (raiz e subcategoria):
+
+```json
+{ "nome": "Despesas administrativas", "natureza": "despesa", "linha_dre": "despesa_fixa", "codigo": "4.2", "ordem": 3 }
+{ "nome": "Aluguel", "categoria_pai_id": "…", "codigo": "4.2.01" }
+```
+
+| Campo | Regra |
+| --- | --- |
+| `nome` | obrigatório, até 120; único entre as raízes e entre as filhas do mesmo pai, sem diferenciar maiúsculas (`409 já existe uma categoria com este nome neste nível`) |
+| `categoria_pai_id` | opcional; só uma raiz ativa pode ser pai (`400 categoria pai deve ser uma categoria raiz ativa`); não muda |
+| `natureza` / `linha_dre` | **obrigatórias na raiz** (`400 natureza e linha da DRE são obrigatórias na categoria raiz`) e **proibidas na subcategoria**, que herda as do pai (`400 subcategoria herda natureza e linha da DRE da categoria pai`); não mudam |
+| `codigo` | opcional, números separados por ponto (`4.1.03`), até 20; único (`409 já existe uma categoria com este código`) |
+| `ordem` | inteiro `>= 0`, default `0`; ordena a exibição |
+
+Natureza e linha da DRE aceitas juntas:
+
+| `linha_dre` | `natureza` | Uso |
+| --- | --- | --- |
+| `receita_operacional` | `receita` | receita que não vem de NF |
+| `deducao_venda` | `despesa` | impostos sobre a venda, devoluções |
+| `compra_mercadoria` | `despesa` | compra de estoque e importação; **fora do resultado** (o custo entra pelo estoque) |
+| `despesa_variavel` | `despesa` | frete, comissões, taxas de venda |
+| `despesa_fixa` | `despesa` | custos fixos |
+| `resultado_financeiro` | `receita` ou `despesa` | juros, tarifas, rendimentos |
+| `fora_dre` | `receita` ou `despesa` | empréstimo, aporte, distribuição de lucro |
+| `entre_contas` | `transferencia` | transferência entre contas próprias |
+
+Outra combinação → `400 linha da DRE <linha> não aceita natureza <natureza>`.
+
+A resposta traz `categoria_pai_id` (`null` na raiz), `natureza`, `linha_dre`, `codigo`, `ordem`,
+`ativa`, `lancavel`, `versao`, `criado_em` e `atualizado_em`. **`lancavel`** é `true` só em
+subcategoria ativa: é onde contas a pagar, títulos e extratos podem ser classificados.
+
+Regras de situação:
+
+- desativar raiz com subcategoria ativa → `409 categoria possui subcategorias ativas e não pode ser desativada`;
+- ativar subcategoria com o pai inativo → `400 categoria pai está inativa`.
+
+`GET /arvore` devolve as raízes, cada uma com `subcategorias` (lista, vazia quando não houver),
+na ordem `ordem`, nome (sem diferenciar maiúsculas). `?busca=` procura no nome (sem diferenciar
+maiúsculas) e no começo do código. Listagem ordenada por `ordem`, nome (sem diferenciar
+maiúsculas).
+
+O `PUT` substitui os campos editáveis inteiros: `codigo` omitido vira `null` e `ordem` omitida
+volta a `0`. Para mudar só o nome, reenvie o `codigo` e a `ordem` lidos.
+
+### Versão nas contas bancárias e no plano de contas
+
+Mesmo contrato dos fornecedores: toda resposta traz `versao`; `PUT`, `ativar` e `desativar`
+exigem a `versao` lida.
+
+| Situação | Status | Mensagem |
+| --- | --- | --- |
+| `versao` ausente, `null` ou menor que 1 | `400` | `erro de validação: versão da conta bancária é obrigatória` / `... da categoria financeira ...` |
+| corpo vazio ou `versao` que não é inteiro (`"3"`, `1.5`) | `400` | `erro de validação: corpo da requisição inválido: ...` |
+| `versao` diferente da atual | `409` | `a conta bancária foi alterada por outra pessoa; recarregue e tente de novo` / `a categoria financeira foi alterada ...` |
+| campo que não muda no corpo do `PUT` (`banco`, `conta`, `natureza`…) | `400` | `erro de validação: corpo da requisição inválido: json: unknown field ...` |
+
+Ativar o que já está ativo (ou desativar o inativo) responde `200` sem mudar a versão.
 
 ---
 
