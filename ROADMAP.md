@@ -87,7 +87,7 @@ Documentos irmãos: `API.md` (contrato), `ESTOQUE.md` (modelo de escopo de módu
    cada módulo, ou por uma sessão própria depois que a API estiver `concluído`. O front de
    qualquer módulo a partir do M1 só começa depois do F0a (seção 5), que conserta as telas
    quebradas pelo M1 e pelo M2, a conversão de valores e de fuso, as permissões e os
-   contratos de erro (`409` de versão, `429` do login); o F0b corre em paralelo.
+   contratos de erro (`409` de versão); o F0b corre em paralelo.
 9. **Banco de dev compartilhado é intocável.** Nenhuma sessão roda `migrate` no banco
    `mia` (porta `5444`): cada uma cria a própria `000NN` e duas aplicações cruzadas deixam
    a `schema_migrations` inconsistente. Para testar a API ou o front ao vivo, use um banco
@@ -139,7 +139,7 @@ o **F0b** pode correr junto com essas telas.
 | # | Módulo | Depende de | Substitui (controle manual atual) | Status |
 |---|---|---|---|---|
 | T0 | Saneamento | — | — | concluído |
-| F0a | Correções do front — bloqueante | — | — | em andamento (feat/f0a) |
+| F0a | Correções do front — bloqueante | — | — | concluído |
 | F0b | Correções do front — qualidade | F0a | — | pendente |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
@@ -232,11 +232,29 @@ em duas etapas:
 - **Versão otimista**: fornecedores, contas bancárias e plano de contas exigem `versao` no
   `PUT`, `ativar` e `desativar` e respondem `409` quando outra pessoa gravou antes. Tratamento
   único no front: aviso com a mensagem da API e recarga do registro, sem perder o formulário.
-- **Limite de login**: `POST /usuarios/autenticar` responde `429` com `Retry-After`; a tela
-  de login mostra o tempo de espera em vez de erro genérico.
 - **Testes** para os itens acima, no padrão dos existentes (`vitest` + Testing Library).
 
+**Entregue (outubro/2026, branch `feat/f0a` do front):** para as telas do M1–M5:
+
+- `paraCentavos` lê ponto como milhar quando não há vírgula e o padrão é de milhar;
+  `formatarData` é só para campo só-data (formata em UTC) e `formatarDataHora` para instante
+  (fuso local); os testes rodam com `TZ=America/Sao_Paulo` para o erro de fuso aparecer no CI;
+- `useAutenticacao()` expõe `financeiro` (herdado do administrador) lido do login; só
+  `permissoes.aprovacao` vem de sondagem, negada em qualquer erro;
+- `listarTodas(caminho, params)` em `lib/api.js` percorre as páginas de 100 e recusa lista
+  acima de 5000 em vez de cortá-la;
+- `SeletorEmpresa` e `SeletorLocal` (`app/components`) carregam o acesso do usuário, selecionam
+  sozinhos a única opção (`selecionarUnica={false}` em filtros) e limpam valor que saiu da
+  lista; `useNomesEmpresas` (`app/empresas`) traduz `empresa_id` em nome fantasia;
+- `ehConflitoDeConcorrencia(erro)` reconhece o `409` de versão ou de operação concorrente pela
+  mensagem (a API não tem código próprio: todas dizem "recarregue") e `AvisoConflito` mostra
+  a mensagem com "Recarregar dados" sem perder o formulário; o movimento de estoque já usa;
+- o `429` do login já aparece com o tempo de espera, porque a tela mostra a mensagem da API;
+  travar o botão durante o `Retry-After` foi para o F0b.
+
 #### F0b — qualidade
+
+- **Limite de login**: travar o botão de entrar durante o `Retry-After` do `429`.
 
 - **Produtos**: a tela mostra banner de erro e "Nenhum produto encontrado" ao mesmo tempo;
   falhas de categorias e resumo são engolidas; categorias e resumo são buscados de novo a
