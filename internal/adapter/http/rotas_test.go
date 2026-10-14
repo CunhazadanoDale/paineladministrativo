@@ -10,7 +10,7 @@ import (
 func muxDoTeste(t *testing.T) *http.ServeMux {
 	t.Helper()
 
-	return novasRotas(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	return novasRotas(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 }
 
 func TestNewRouterAplicaCORS(t *testing.T) {
@@ -19,7 +19,7 @@ func TestNewRouterAplicaCORS(t *testing.T) {
 	requisicao.Header.Set("Access-Control-Request-Method", "POST")
 	registrador := httptest.NewRecorder()
 
-	NewRouter(nil, []string{"http://localhost:5173"}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).ServeHTTP(registrador, requisicao)
+	NewRouter(nil, []string{"http://localhost:5173"}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).ServeHTTP(registrador, requisicao)
 
 	if registrador.Code != http.StatusNoContent {
 		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusNoContent)
@@ -140,6 +140,33 @@ func TestRotasRegistradasSemConflito(t *testing.T) {
 		{"POST /api/v1/produtos/77777777-7777-7777-7777-777777777777/reservas", "POST /api/v1/produtos/{id}/reservas"},
 		{"GET /api/v1/produtos/77777777-7777-7777-7777-777777777777/reservas", "GET /api/v1/produtos/{id}/reservas"},
 		{"POST /api/v1/reservas/66666666-6666-6666-6666-666666666666/liberar", "POST /api/v1/reservas/{id}/liberar"},
+		{"POST /api/v1/clientes", "POST /api/v1/clientes"},
+		{"GET /api/v1/clientes", "GET /api/v1/clientes"},
+		{"GET /api/v1/clientes/55555555-5555-5555-5555-555555555555", "GET /api/v1/clientes/{id}"},
+		{"PUT /api/v1/clientes/55555555-5555-5555-5555-555555555555", "PUT /api/v1/clientes/{id}"},
+		{"PATCH /api/v1/clientes/55555555-5555-5555-5555-555555555555/ativar", "PATCH /api/v1/clientes/{id}/ativar"},
+		{"PATCH /api/v1/clientes/55555555-5555-5555-5555-555555555555/desativar", "PATCH /api/v1/clientes/{id}/desativar"},
+		{"DELETE /api/v1/clientes/55555555-5555-5555-5555-555555555555", "DELETE /api/v1/clientes/{id}"},
+		{"POST /api/v1/clientes/55555555-5555-5555-5555-555555555555/obras", "POST /api/v1/clientes/{id}/obras"},
+		{"GET /api/v1/clientes/55555555-5555-5555-5555-555555555555/obras", "GET /api/v1/clientes/{id}/obras"},
+		{"GET /api/v1/obras/55555555-5555-5555-5555-555555555555", "GET /api/v1/obras/{id}"},
+		{"PUT /api/v1/obras/55555555-5555-5555-5555-555555555555", "PUT /api/v1/obras/{id}"},
+		{"PATCH /api/v1/obras/55555555-5555-5555-5555-555555555555/ativar", "PATCH /api/v1/obras/{id}/ativar"},
+		{"PATCH /api/v1/obras/55555555-5555-5555-5555-555555555555/desativar", "PATCH /api/v1/obras/{id}/desativar"},
+		{"POST /api/v1/cliente-grupos", "POST /api/v1/cliente-grupos"},
+		{"GET /api/v1/cliente-grupos", "GET /api/v1/cliente-grupos"},
+		{"GET /api/v1/cliente-grupos/55555555-5555-5555-5555-555555555555", "GET /api/v1/cliente-grupos/{id}"},
+		{"PUT /api/v1/cliente-grupos/55555555-5555-5555-5555-555555555555", "PUT /api/v1/cliente-grupos/{id}"},
+		{"PATCH /api/v1/cliente-grupos/55555555-5555-5555-5555-555555555555/ativar", "PATCH /api/v1/cliente-grupos/{id}/ativar"},
+		{"PATCH /api/v1/cliente-grupos/55555555-5555-5555-5555-555555555555/desativar", "PATCH /api/v1/cliente-grupos/{id}/desativar"},
+		{"POST /api/v1/representantes", "POST /api/v1/representantes"},
+		{"GET /api/v1/representantes", "GET /api/v1/representantes"},
+		{"GET /api/v1/representantes/55555555-5555-5555-5555-555555555555", "GET /api/v1/representantes/{id}"},
+		{"PUT /api/v1/representantes/55555555-5555-5555-5555-555555555555", "PUT /api/v1/representantes/{id}"},
+		{"PATCH /api/v1/representantes/55555555-5555-5555-5555-555555555555/ativar", "PATCH /api/v1/representantes/{id}/ativar"},
+		{"PATCH /api/v1/representantes/55555555-5555-5555-5555-555555555555/desativar", "PATCH /api/v1/representantes/{id}/desativar"},
+		{"POST /api/v1/leads/11111111-1111-1111-1111-111111111111/converter", "POST /api/v1/leads/{id}/converter"},
+		{"POST /api/v1/clientes/importacao", "POST /api/v1/clientes/importacao"},
 	}
 
 	for _, caso := range casos {
@@ -161,7 +188,7 @@ func TestRotasRegistradasSemConflito(t *testing.T) {
 }
 
 func TestRotaNaoAtendidaRespondeNoEnvelopeJSON(t *testing.T) {
-	roteador := NewRouter(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	roteador := NewRouter(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	casos := []struct {
 		metodo string

@@ -141,7 +141,7 @@ M6, M7, M9 e M13.
 | F0 | Correções do front | — | — | pendente |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
-| M3 | Clientes e representantes | M1 | Base de clientes | em andamento (feat/m3-clientes) |
+| M3 | Clientes e representantes | M1 | Base de clientes | concluído |
 | M4 | Fornecedores | T0 | coluna fornecedor do painel financeiro | pendente |
 | M5 | Contas bancárias e plano de contas | M1 | classificação manual dos extratos | pendente |
 | M6 | Pedidos de venda e entregas | M1 M2 M3 | Vendas futuras, Entregas de importação, Pendências de envio | pendente |
@@ -286,6 +286,9 @@ depois da F0. Para os próximos módulos:
 
 ### M3 — Clientes e representantes
 
+O escopo fechado e o detalhamento estão em `CLIENTES.md`; este resumo só aponta o que os
+outros módulos precisam saber.
+
 - **Entidades**: `cliente_grupo` (grupo econômico/construtora), `cliente` (PF ou PJ,
   documento, nome, grupo, UF, cidade, tipo `construtora`/`loja`/`pf`/`outro`, empresa
   de relacionamento, representante, e-mail para NF, telefone, observações),
@@ -300,6 +303,19 @@ depois da F0. Para os próximos módulos:
   `cliente.lead_id`; o lead é marcado como convertido no histórico.
 - **Importação inicial**: `POST /api/v1/clientes/importacao` (CSV) para carregar a base
   atual, com relatório de linhas rejeitadas.
+
+**Entregue (outubro/2026):** API completa (fases 1 a 5 do `CLIENTES.md`); front pendente. Para
+os próximos módulos:
+
+- cliente é do **grupo** (sem `empresa_id`), com documento obrigatório e único: o M8 resolve o
+  cliente da NF-e por `ClienteRepository.ObterPorDocumento`;
+- regras comerciais tipadas: `cliente.exige_numero_pedido_na_nf` (M8) e
+  `cliente.proibe_antecipacao` (M9);
+- representante com login (`representante.usuario_id`, não administrador) vê só os próprios
+  clientes; M6 e M10 repetem a regra com `RepresentanteRepository.ObterPorUsuario`;
+- comissão padrão do representante em pontos-base (`comissao_pronta_entrega_bp`,
+  `comissao_importacao_bp`), base do M10;
+- obras (`cliente_obra`) são o endereço de entrega do M6.
 
 ### M4 — Fornecedores
 

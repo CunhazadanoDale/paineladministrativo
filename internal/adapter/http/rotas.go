@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	clientehandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/cliente"
 	empresahandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/empresa"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/estoque"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/lead"
@@ -12,6 +13,7 @@ import (
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/usuarios"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/middleware"
 	portsinautenticacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/autenticacao"
+	portsincliente "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/cliente"
 	portsinempresa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/empresa"
 	portsinestoque "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/estoque"
 	portsinlead "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/leads"
@@ -43,6 +45,11 @@ func NewRouter(
 	empresaUseCase portsinempresa.EmpresaUseCase,
 	localUseCase portsinestoque.LocalUseCase,
 	reservaUseCase portsinestoque.ReservaUseCase,
+	clienteUseCase portsincliente.ClienteUseCase,
+	obraUseCase portsincliente.ObraUseCase,
+	grupoClienteUseCase portsincliente.GrupoUseCase,
+	representanteUseCase portsincliente.RepresentanteUseCase,
+	importacaoClientesUseCase portsincliente.ImportacaoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, middleware.ErrosDeRoteamento(novasRotas(
@@ -55,6 +62,8 @@ func NewRouter(
 		empresaUseCase,
 		localUseCase,
 		reservaUseCase,
+		clienteUseCase, obraUseCase, grupoClienteUseCase, representanteUseCase,
+		importacaoClientesUseCase,
 		tokens,
 	)))
 }
@@ -79,6 +88,11 @@ func novasRotas(
 	empresaUseCase portsinempresa.EmpresaUseCase,
 	localUseCase portsinestoque.LocalUseCase,
 	reservaUseCase portsinestoque.ReservaUseCase,
+	clienteUseCase portsincliente.ClienteUseCase,
+	obraUseCase portsincliente.ObraUseCase,
+	grupoClienteUseCase portsincliente.GrupoUseCase,
+	representanteUseCase portsincliente.RepresentanteUseCase,
+	importacaoClientesUseCase portsincliente.ImportacaoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -243,5 +257,41 @@ func novasRotas(
 	protegido("GET /api/v1/produtos/{id}/reservas", reservaHandler.Listar)
 	administrador("POST /api/v1/reservas/{id}/liberar", reservaHandler.Liberar)
 
+	clienteHandler := clientehandlers.NewClienteHandler(clienteUseCase)
+	comercial("POST /api/v1/clientes", clienteHandler.Criar)
+	protegido("GET /api/v1/clientes", clienteHandler.Listar)
+	protegido("GET /api/v1/clientes/{id}", clienteHandler.Obter)
+	comercial("PUT /api/v1/clientes/{id}", clienteHandler.Alterar)
+	comercial("PATCH /api/v1/clientes/{id}/ativar", clienteHandler.Ativar)
+	comercial("PATCH /api/v1/clientes/{id}/desativar", clienteHandler.Desativar)
+	administrador("DELETE /api/v1/clientes/{id}", clienteHandler.Remover)
+
+	obraHandler := clientehandlers.NewObraHandler(obraUseCase)
+	comercial("POST /api/v1/clientes/{id}/obras", obraHandler.Criar)
+	protegido("GET /api/v1/clientes/{id}/obras", obraHandler.Listar)
+	protegido("GET /api/v1/obras/{id}", obraHandler.Obter)
+	comercial("PUT /api/v1/obras/{id}", obraHandler.Alterar)
+	comercial("PATCH /api/v1/obras/{id}/ativar", obraHandler.Ativar)
+	comercial("PATCH /api/v1/obras/{id}/desativar", obraHandler.Desativar)
+
+	grupoClienteHandler := clientehandlers.NewGrupoHandler(grupoClienteUseCase)
+	comercial("POST /api/v1/cliente-grupos", grupoClienteHandler.Criar)
+	protegido("GET /api/v1/cliente-grupos", grupoClienteHandler.Listar)
+	protegido("GET /api/v1/cliente-grupos/{id}", grupoClienteHandler.Obter)
+	comercial("PUT /api/v1/cliente-grupos/{id}", grupoClienteHandler.Renomear)
+	comercial("PATCH /api/v1/cliente-grupos/{id}/ativar", grupoClienteHandler.Ativar)
+	comercial("PATCH /api/v1/cliente-grupos/{id}/desativar", grupoClienteHandler.Desativar)
+
+	representanteHandler := clientehandlers.NewRepresentanteHandler(representanteUseCase)
+	administrador("POST /api/v1/representantes", representanteHandler.Criar)
+	comercial("GET /api/v1/representantes", representanteHandler.Listar)
+	comercial("GET /api/v1/representantes/{id}", representanteHandler.Obter)
+	administrador("PUT /api/v1/representantes/{id}", representanteHandler.Alterar)
+	administrador("PATCH /api/v1/representantes/{id}/ativar", representanteHandler.Ativar)
+	administrador("PATCH /api/v1/representantes/{id}/desativar", representanteHandler.Desativar)
+
+	comercial("POST /api/v1/leads/{id}/converter", clienteHandler.ConverterLead)
+	importacaoClientesHandler := clientehandlers.NewImportacaoHandler(importacaoClientesUseCase)
+	administrador("POST /api/v1/clientes/importacao", middleware.EstenderPrazo(prazoDeArquivo, importacaoClientesHandler.Importar))
 	return mux
 }
