@@ -151,9 +151,15 @@ entregue. Item sem nada disponível não bloqueia a confirmação.
     reserva da quantidade entregue e cria uma reserva nova (`origem = 'pedido_item'`) com o que
     sobrar delas; o que faltar além do reservado sai do disponível do local, e sem disponível a
     saída responde `400`.
+  - reservas do item em outros locais são reduzidas ao que ainda falta entregar (liberadas e, se
+    for o caso, reservadas de novo com menos): o item nunca fica com mais reservado que restante.
   - grava `entrega_item.movimento_id`, soma `pedido_item.quantidade_entregue` e avança o pedido.
 - **Entregue**: só registra `entregue_em` (o estoque já saiu em `saiu`).
 - **Cancelar**: só `pendente`; não mexe no estoque.
+- **Datas**: "hoje" (data padrão de `saiu`/`entregue`, data no futuro, prazos e período de
+  cancelamento) é o dia no fuso de Brasília (UTC−3, `domainpedido.Hoje`).
+- **Reserva de pedido no estoque**: as rotas do módulo de estoque recusam liberar ou baixar reserva
+  com `origem = 'pedido_item'` (`409`); só o pedido mexe nela.
 
 ### 3.4 Encadeamento de operações de estoque
 
@@ -208,8 +214,9 @@ GET    /api/v1/pedidos/cancelamentos            ?com_devolucao=true ?empresa= ?d
   `empresa.Acesso`; empresa inativa → `400` ao criar; teste de isolamento obrigatório no usecase
   e no e2e.
 - **Representante com login** (não administrador): vê e altera só os pedidos em que é o
-  representante; pedido que ele cria fica sempre com ele (informar outro → `403`); cancela só a
-  própria proposta; regra repetida de `usecases/cliente/permissoes.go` com
+  representante; pedido que ele cria fica sempre com ele (informar outro → `403`); só escolhe
+  cliente da própria carteira (`403 cliente de outro representante`); cancela só a própria
+  proposta; regra repetida de `usecases/cliente/permissoes.go` com
   `RepresentanteRepository.ObterPorUsuario`.
 
 ---

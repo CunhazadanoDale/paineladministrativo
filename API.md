@@ -1285,6 +1285,7 @@ do M6 usarão `pedido_item` com `origem_id`), `origem_id`, `status`, `usuario_id
 | Reserva já baixada ou liberada | `409` | `reserva já encerrada` |
 | Reserva inexistente ao liberar | `404` | `registro não encontrado: reserva não encontrada` |
 | Local fora do acesso | `403` | `perfil sem acesso a esta empresa` |
+| Liberar ou baixar reserva de item de pedido (`origem = pedido_item`) | `409` | `reserva de item de pedido só é liberada ou baixada pelo próprio pedido` |
 
 O movimento da baixa traz `reserva_id`.
 
@@ -1699,7 +1700,8 @@ Pedidos de cada **empresa** vendedora, com escopo por empresa (padrão da seçã
 pendências, cancela e opera entregas; **financeiro** (ou administrador) registra a entrada paga;
 qualquer autenticado lê os pedidos das empresas do seu acesso. **Representante com login** (não
 administrador) vê e altera só os pedidos em que é o representante, cria sempre em nome próprio e
-cancela só a própria proposta.
+só para clientes da própria carteira (`403 cliente de outro representante`), e cancela só a própria
+proposta.
 
 | Método | Rota | Perfil | Sucesso |
 | --- | --- | --- | --- |
@@ -1763,7 +1765,8 @@ A resposta traz `numero` (sequencial por empresa), `status`, `valor_total_centav
 `restante`). No `GET /pedidos/{id}` cada item traz também `reservado` e `falta_cobrir`, e o pedido
 traz `reservas` (mesmo formato de `GET /produtos/{id}/reservas`, com `origem = pedido_item`).
 Datas só-data (`prazo_limite`, `entrada_paga_em`, `previsao`, `saiu_em`, `entregue_em`) chegam como
-meia-noite UTC e são aceitas como `AAAA-MM-DD`.
+meia-noite UTC e são aceitas como `AAAA-MM-DD`. "Hoje" (data padrão, data no futuro, prazos e
+período de cancelamento) é o dia no fuso de Brasília (UTC−3).
 
 ### Estados e efeitos
 
@@ -1802,8 +1805,10 @@ Corpo do `POST /pedidos/{id}/entregas`:
 `saiu` (data padrão: hoje) baixa o estoque na mesma gravação, com **um movimento de saída por
 item** (`itens[].movimento_id`): se o item tem uma única reserva no local com a quantidade exata, a
 saída baixa essa reserva; senão, as reservas do item no local são liberadas, a saída sai do
-disponível e o que sobrar das reservas é reservado de novo. Sem disponível no local → `400 saldo
-disponível insuficiente no local`. `entregue` (data padrão: hoje, não antes de `saiu_em`) só
+disponível e o que sobrar das reservas é reservado de novo. Reservas do item em **outros locais**
+são reduzidas (liberadas e, se for o caso, reservadas de novo com menos) para que o item nunca fique
+com mais reservado que o que falta entregar. Sem disponível no local → `400 saldo disponível
+insuficiente no local`. `entregue` (data padrão: hoje, não antes de `saiu_em`) só
 registra a data.
 
 ### Versão (edição concorrente)
@@ -1842,8 +1847,8 @@ ainda não tem prazo e não aparece.
 
 **`GET /pedidos/cancelamentos`** — pedidos `cancelado`, mais recentes primeiro. `com_devolucao=true`
 traz só os com `valor_a_devolver_centavos > 0`. `de` e `ate` (`AAAA-MM-DD`, inclusivos) filtram pela
-data do cancelamento (`atualizado_em`, que não muda depois do cancelamento); `de` depois de `ate` →
-`400`.
+data do cancelamento no fuso de Brasília (`atualizado_em`, que não muda depois do cancelamento); `de`
+depois de `ate` → `400`.
 
 ---
 
