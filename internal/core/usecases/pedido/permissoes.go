@@ -46,6 +46,24 @@ func (p perfilDoUsuario) conferirVisivel(pedido *domainpedido.Pedido) error {
 	return nil
 }
 
+func (p perfilDoUsuario) escopo(empresa, representanteID *uuid.UUID) (portsout.EscopoFiltro, error) {
+	escopo := portsout.EscopoFiltro{Empresa: empresa, RepresentanteID: representanteID}
+	if empresa != nil && !p.acesso.Permite(*empresa) {
+		return portsout.EscopoFiltro{}, erroSemAcessoAEmpresa()
+	}
+	if !p.acesso.Todas() {
+		escopo.EmpresaIDs = p.acesso.EmpresaIDs()
+	}
+	if p.restritoAoRepresentante() {
+		if representanteID != nil && *representanteID != *p.representanteID {
+			return portsout.EscopoFiltro{}, domain.ErroPermissao("pedido de outro representante")
+		}
+		escopo.RepresentanteID = p.representanteID
+	}
+
+	return escopo, nil
+}
+
 func (p *permissoes) perfil(ctx context.Context, usuarioID uuid.UUID) (perfilDoUsuario, error) {
 	if usuarioID == uuid.Nil {
 		return perfilDoUsuario{}, domain.ErroValidacao("usuário não informado")

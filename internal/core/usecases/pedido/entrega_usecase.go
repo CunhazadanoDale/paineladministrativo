@@ -136,19 +136,17 @@ func (u *EntregaUsecaseImpl) Listar(ctx context.Context, input portsin.ListarEnt
 		return nil, err
 	}
 
+	escopo, err := perfil.escopo(input.Empresa, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	filtro := portsout.EntregaFiltro{
 		PaginacaoFiltro: input.Filtro.Normalizada(),
-		Empresa:         input.Empresa,
+		Empresa:         escopo.Empresa,
+		EmpresaIDs:      escopo.EmpresaIDs,
+		RepresentanteID: escopo.RepresentanteID,
 		PrevisaoAte:     input.PrevisaoAte,
-	}
-	if input.Empresa != nil && !perfil.acesso.Permite(*input.Empresa) {
-		return nil, erroSemAcessoAEmpresa()
-	}
-	if !perfil.acesso.Todas() {
-		filtro.EmpresaIDs = perfil.acesso.EmpresaIDs()
-	}
-	if perfil.restritoAoRepresentante() {
-		filtro.RepresentanteID = perfil.representanteID
 	}
 	if input.Status != "" {
 		if filtro.Status, err = domainpedido.NovoStatusEntrega(input.Status); err != nil {

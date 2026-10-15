@@ -105,25 +105,18 @@ func (u *PedidoUsecaseImpl) Listar(ctx context.Context, input portsin.ListarPedi
 		return nil, err
 	}
 
-	filtro := portsout.PedidoFiltro{
-		PaginacaoFiltro: input.Filtro.Normalizada(),
-		Empresa:         input.Empresa,
-		ClienteID:       input.ClienteID,
-		RepresentanteID: input.RepresentanteID,
-		Numero:          input.Numero,
+	escopo, err := perfil.escopo(input.Empresa, input.RepresentanteID)
+	if err != nil {
+		return nil, err
 	}
 
-	if input.Empresa != nil && !perfil.acesso.Permite(*input.Empresa) {
-		return nil, erroSemAcessoAEmpresa()
-	}
-	if !perfil.acesso.Todas() {
-		filtro.EmpresaIDs = perfil.acesso.EmpresaIDs()
-	}
-	if perfil.restritoAoRepresentante() {
-		if input.RepresentanteID != nil && *input.RepresentanteID != *perfil.representanteID {
-			return nil, domain.ErroPermissao("pedido de outro representante")
-		}
-		filtro.RepresentanteID = perfil.representanteID
+	filtro := portsout.PedidoFiltro{
+		PaginacaoFiltro: input.Filtro.Normalizada(),
+		Empresa:         escopo.Empresa,
+		EmpresaIDs:      escopo.EmpresaIDs,
+		ClienteID:       input.ClienteID,
+		RepresentanteID: escopo.RepresentanteID,
+		Numero:          input.Numero,
 	}
 	if input.Status != "" {
 		if filtro.Status, err = domainpedido.NovoStatus(input.Status); err != nil {
