@@ -196,7 +196,7 @@ func (r *repositorioSolicitacoes) Contar(ctx context.Context, filtro portsout.So
 
 func (r *repositorioSolicitacoes) AtualizarStatus(_ context.Context, solicitacao *domainsolicitacao.Solicitacao, historico *domainsolicitacao.Historico) (bool, error) {
 	salvo, ok := r.itens[solicitacao.ID]
-	if !ok || historico.DeStatus == nil || salvo.Status != *historico.DeStatus {
+	if !ok || historico.DeStatus == nil || salvo.Status != *historico.DeStatus || salvo.Versao != solicitacao.Versao-1 {
 		return false, nil
 	}
 
@@ -535,6 +535,8 @@ func atendeFiltrosDeContasAPagar(solicitacao *domainsolicitacao.Solicitacao, fil
 	case filtro.Competencia != nil && solicitacao.Competencia != *filtro.Competencia:
 		return false
 	case filtro.Origem != "" && solicitacao.Origem != filtro.Origem:
+		return false
+	case filtro.OrigemID != nil && (solicitacao.OrigemID == nil || *solicitacao.OrigemID != *filtro.OrigemID):
 		return false
 	case filtro.VenceDe != nil && vencimento.Before(*filtro.VenceDe):
 		return false

@@ -101,6 +101,7 @@ type SolicitacaoUseCase interface {
 	Obter(ctx context.Context, id, usuarioID uuid.UUID) (*domainsolicitacao.Solicitacao, error)
 	Listar(ctx context.Context, input ListarSolicitacoesInput) ([]*domainsolicitacao.Solicitacao, error)
 	Aprovar(ctx context.Context, solicitacaoID, aprovadorID uuid.UUID) error
+	AprovarNaVersao(ctx context.Context, solicitacaoID, aprovadorID uuid.UUID, versao int) error
 	Rejeitar(ctx context.Context, solicitacaoID, aprovadorID uuid.UUID, motivo string) error
 	Cancelar(ctx context.Context, solicitacaoID, usuarioID uuid.UUID) error
 	Classificar(ctx context.Context, input ClassificarSolicitacaoInput) error

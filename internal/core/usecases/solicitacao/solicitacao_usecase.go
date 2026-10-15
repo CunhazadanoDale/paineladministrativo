@@ -245,7 +245,20 @@ func statusPermitidoNoEscopo(escopo string, status domainsolicitacao.Status) boo
 }
 
 func (u *SolicitacaoUsecaseImpl) Aprovar(ctx context.Context, solicitacaoID, aprovadorID uuid.UUID) error {
+	return u.aprovar(ctx, solicitacaoID, aprovadorID, nil)
+}
+
+func (u *SolicitacaoUsecaseImpl) AprovarNaVersao(ctx context.Context, solicitacaoID, aprovadorID uuid.UUID, versao int) error {
+	return u.aprovar(ctx, solicitacaoID, aprovadorID, &versao)
+}
+
+func (u *SolicitacaoUsecaseImpl) aprovar(ctx context.Context, solicitacaoID, aprovadorID uuid.UUID, versao *int) error {
 	return u.transicionarPorAprovador(ctx, solicitacaoID, aprovadorID, func(solicitacao *domainsolicitacao.Solicitacao, agora time.Time) (*domainsolicitacao.Historico, error) {
+		if versao != nil {
+			if err := solicitacao.ConferirVersao(*versao); err != nil {
+				return nil, err
+			}
+		}
 		statusAnterior := solicitacao.Status
 		if err := solicitacao.Aprovar(aprovadorID, agora); err != nil {
 			return nil, err
@@ -322,6 +335,9 @@ func (u *SolicitacaoUsecaseImpl) Classificar(ctx context.Context, input portsin.
 	if err := solicitacao.ConferirVersao(input.Versao); err != nil {
 		return err
 	}
+	if err := solicitacao.ExigirClassificavel(); err != nil {
+		return err
+	}
 
 	competencia, err := competenciaInformada(input.Competencia)
 	if err != nil {
@@ -366,8 +382,11 @@ func (u *SolicitacaoUsecaseImpl) Editar(ctx context.Context, input portsin.Edita
 	if err := solicitacao.ConferirVersao(input.Versao); err != nil {
 		return err
 	}
+	if err := solicitacao.ExigirEditavel(); err != nil {
+		return err
+	}
 
-	dados, err := dadosDeEdicao(input)
+	dados, err := dadosDeEdicao(input, solicitacao)
 	if err != nil {
 		return err
 	}
@@ -393,13 +412,13 @@ func (u *SolicitacaoUsecaseImpl) Editar(ctx context.Context, input portsin.Edita
 	return u.repo.Editar(ctx, solicitacao, versaoLida, historico)
 }
 
-func dadosDeEdicao(input portsin.EditarSolicitacaoInput) (domainsolicitacao.DadosEdicao, error) {
+func dadosDeEdicao(input portsin.EditarSolicitacaoInput, atual *domainsolicitacao.Solicitacao) (domainsolicitacao.DadosEdicao, error) {
 	valor, err := domainsolicitacao.NovoValor(input.ValorCentavos)
 	if err != nil {
 		return domainsolicitacao.DadosEdicao{}, err
 	}
 
-	prazo, err := domainsolicitacao.NovoPrazoPagamento(input.PrazoPagamento)
+	prazo, err := prazoDaEdicao(input.PrazoPagamento, atual)
 	if err != nil {
 		return domainsolicitacao.DadosEdicao{}, err
 	}
@@ -433,6 +452,14 @@ func dadosDeEdicao(input portsin.EditarSolicitacaoInput) (domainsolicitacao.Dado
 	}, nil
 }
 
+func prazoDaEdicao(informado time.Time, atual *domainsolicitacao.Solicitacao) (domainsolicitacao.PrazoPagamento, error) {
+	if !informado.IsZero() && atual.MesmoVencimento(domainsolicitacao.PrazoPagamentoDe(informado)) {
+		return atual.Prazo, nil
+	}
+
+	return domainsolicitacao.NovoPrazoPagamento(informado)
+}
+
 func (u *SolicitacaoUsecaseImpl) Adiar(ctx context.Context, input portsin.AdiarSolicitacaoInput) error {
 	permissao, err := u.ehFinanceiro(ctx, input.UsuarioID)
 	if err != nil {
@@ -450,6 +477,9 @@ func (u *SolicitacaoUsecaseImpl) Adiar(ctx context.Context, input portsin.AdiarS
 		return err
 	}
 	if err := solicitacao.ConferirVersao(input.Versao); err != nil {
+		return err
+	}
+	if err := solicitacao.ExigirAdiavel(); err != nil {
 		return err
 	}
 
@@ -491,6 +521,14 @@ func (u *SolicitacaoUsecaseImpl) RegistrarPagamento(ctx context.Context, input p
 		return err
 	}
 	if err := u.exigeAcessoAEmpresa(ctx, input.UsuarioID, solicitacao.EmpresaID); err != nil {
+		return err
+	}
+	if err := solicitacao.ExigirPagavel(); err != nil {
+		return err
+	}
+	if err := validarClassificacao(ctx, u.fornecedores, u.categorias, domainsolicitacao.Classificacao{
+		CategoriaFinanceiraID: solicitacao.CategoriaFinanceiraID,
+	}); err != nil {
 		return err
 	}
 

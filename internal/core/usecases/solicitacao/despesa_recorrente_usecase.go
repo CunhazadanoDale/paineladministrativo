@@ -218,6 +218,18 @@ func (u *DespesaRecorrenteUsecaseImpl) gerarUma(
 	usuarioID uuid.UUID,
 	competencia domainsolicitacao.Competencia,
 ) (uuid.UUID, bool, error) {
+	jaGeradas, err := u.solicitacoes.Contar(ctx, portsout.SolicitacaoFiltro{
+		Origem:      domainsolicitacao.OrigemRecorrencia,
+		OrigemID:    &despesa.ID,
+		Competencia: &competencia,
+	})
+	if err != nil {
+		return uuid.Nil, false, err
+	}
+	if jaGeradas > 0 {
+		return uuid.Nil, false, nil
+	}
+
 	solicitacao, err := despesa.GerarSolicitacao(usuarioID, competencia, time.Now().UTC())
 	if err != nil {
 		return uuid.Nil, false, err
