@@ -1719,6 +1719,9 @@ cancela só a própria proposta.
 | `POST` | `/api/v1/entregas/{id}/saiu` | **comercial** | `200`; corpo `{ "versao", "saiu_em" }`; baixa o estoque |
 | `POST` | `/api/v1/entregas/{id}/entregue` | **comercial** | `200`; corpo `{ "versao", "entregue_em" }` |
 | `POST` | `/api/v1/entregas/{id}/cancelar` | **comercial** | `200`; corpo `{ "versao": n }`; só `pendente` |
+| `GET` | `/api/v1/pedidos/pendencias` | autenticado | `200` lista paginada por item (`?empresa=`, `?cliente=`, `?produto=`) |
+| `GET` | `/api/v1/pedidos/prazos` | autenticado | `200` lista paginada (`?empresa=`, `?situacao=vencido\|a_vencer`, `?dias=30`) |
+| `GET` | `/api/v1/pedidos/cancelamentos` | autenticado | `200` lista paginada (`?empresa=`, `?com_devolucao=true`, `?de=`, `?ate=`) |
 
 Corpo do `POST /pedidos`:
 
@@ -1811,6 +1814,36 @@ alterada por outra pessoa; ...`). **Toda operação de entrega também avança a
 recarregue o pedido depois de criar, dar saída, concluir ou cancelar uma entrega. Mudança de
 estoque concorrente (outra reserva ou movimento no mesmo produto) responde `409 estoque do produto
 alterado por outra operação, recarregue e tente novamente`, e nada é gravado.
+
+### Consultas
+
+Todas respeitam o acesso por empresa (`?empresa=` fora do acesso → `403`) e, para o representante
+com login, só os pedidos dele.
+
+**`GET /pedidos/pendencias`** — uma linha por item ainda não entregue de pedido `confirmado` ou
+`parcialmente_entregue`, ordenada pelo prazo-limite (sem prazo por último):
+
+| Campo | Significado |
+| --- | --- |
+| `pedido_id`, `numero`, `empresa_id`, `cliente_id`, `representante_id`, `status`, `prazo_limite` | do pedido |
+| `pedido_item_id`, `produto_id`, `produto_nome` | do item |
+| `vendido` / `entregue` / `restante` | quantidade do item, já saída e o que falta entregar |
+| `programado` | em entregas `pendente` |
+| `reservado` | em reservas ativas do item |
+| `falta_cobrir` | restante sem reserva |
+| `disponivel_na_empresa` | disponível do produto nos locais ativos da empresa do pedido |
+| `pode_cobrir_agora` | menor entre `falta_cobrir` e `disponivel_na_empresa`: o que `reservar-pendencias` reservaria agora |
+
+**`GET /pedidos/prazos`** — pedidos `confirmado` ou `parcialmente_entregue` com `prazo_limite`,
+ordenados pelo prazo. `situacao=vencido`: prazo antes de hoje; `situacao=a_vencer`: de hoje até
+`hoje + dias`; sem `situacao`: vencidos e a vencer até `hoje + dias`. `dias` de `0` a `365`, padrão
+`30`. Cada pedido traz `dias_para_o_prazo` (negativo quando vencido). Importação sem entrada paga
+ainda não tem prazo e não aparece.
+
+**`GET /pedidos/cancelamentos`** — pedidos `cancelado`, mais recentes primeiro. `com_devolucao=true`
+traz só os com `valor_a_devolver_centavos > 0`. `de` e `ate` (`AAAA-MM-DD`, inclusivos) filtram pela
+data do cancelamento (`atualizado_em`, que não muda depois do cancelamento); `de` depois de `ate` →
+`400`.
 
 ---
 

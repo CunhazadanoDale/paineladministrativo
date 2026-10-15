@@ -1,6 +1,6 @@
 # Escopo — M6 Pedidos de venda e entregas
 
-> **Status:** fases 1 a 4 concluídas (API de pedidos e entregas); consultas (fase 5) e front (fase 6) pendentes.
+> **Status:** API concluída (fases 1 a 5); front (fase 6) pendente, depois do F0a.
 > **Objetivo:** tirar "Vendas futuras", "Entregas de importação" e "Pendências de envio" das
 > planilhas: pedido de venda por empresa, com reserva de estoque, entregas parciais que baixam o
 > estoque e consultas de pendência, prazo e cancelamento. Base para NF-e (M8), comissões (M10),
@@ -222,7 +222,7 @@ migrations/0000NN_create_tabela_entrega                entrega, entrega_item
 migrations/0000NN_alter_produto_reserva_origem_pedido  CHECK de origem com pedido_item
 
 internal/core/domain/pedido/          modelo.go, condicao.go, status.go, pedido.go, item.go,
-                                      historico.go, entrega.go, frete.go, cobertura.go
+                                      historico.go, entrega.go, frete.go, cobertura.go, consulta.go
 internal/core/ports/out/pedido/       pedido_repository.go, entrega_repository.go, consulta_repository.go,
                                       estoque_repository.go (porta mínima: Carregar),
                                       reserva_repository.go (AtivasPorOrigem),
@@ -253,7 +253,7 @@ Numeração de migration definida no merge (regra 4 da seção 3 do `ROADMAP.md`
 | **2** | Repositórios (sequência, `Gravar` atômico com guarda de versão do pedido e da entrega, estoque na mesma `tx`, listagens e histórico; `AtivasPorOrigem` em reservas e `AtivosDaEmpresa` em locais) + testes de integração | concluída |
 | **3** | Usecases + permissões (escopo por empresa, representante com login) + testes com fakes e de isolamento | concluída |
 | **4** | Handlers/DTOs + rotas + e2e + `API.md` | concluída |
-| **5** | Consultas de pendências, prazos e cancelamentos + testes + `API.md` | pendente |
+| **5** | Consultas de pendências, prazos e cancelamentos + testes + `API.md` | concluída |
 | **6** | Frontend: pedidos, confirmação, entregas e consultas (depois do F0a) | pendente |
 
 ---
