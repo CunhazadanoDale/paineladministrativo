@@ -29,6 +29,7 @@ type SolicitacaoRepository interface {
 	GerarDeRecorrencia(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, historico *domainsolicitacao.Historico) (bool, error)
 	Obter(ctx context.Context, id uuid.UUID) (*domainsolicitacao.Solicitacao, error)
 	Listar(ctx context.Context, filtro SolicitacaoFiltro) ([]*domainsolicitacao.Solicitacao, error)
+	Contar(ctx context.Context, filtro SolicitacaoFiltro) (int, error)
 	AtualizarStatus(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, historico *domainsolicitacao.Historico) (bool, error)
 	Classificar(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, versaoLida int, historico *domainsolicitacao.Historico) error
 	Editar(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, versaoLida int, historico *domainsolicitacao.Historico) error

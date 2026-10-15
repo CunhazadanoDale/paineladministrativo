@@ -184,7 +184,37 @@ func (s *SolicitacaoRepository) Obter(ctx context.Context, id uuid.UUID) (*domai
 func (s *SolicitacaoRepository) Listar(ctx context.Context, filtro portsout.SolicitacaoFiltro) ([]*domainsolicitacao.Solicitacao, error) {
 	offset := (filtro.Page - 1) * filtro.Size
 
-	query := `SELECT ` + colunasSolicitacao + ` FROM solicitacao`
+	onde, argumentos := condicoesDaSolicitacao(filtro)
+	query := `SELECT ` + colunasSolicitacao + ` FROM solicitacao` + onde
+
+	argumentos = append(argumentos, filtro.Size, offset)
+	query += ` ORDER BY criado_em DESC, id DESC` + limiteOffset(argumentos)
+
+	var linhas []*solicitacaoLinha
+	if err := s.db.SelectContext(ctx, &linhas, query, argumentos...); err != nil {
+		return nil, err
+	}
+
+	itens := make([]*domainsolicitacao.Solicitacao, 0, len(linhas))
+	for _, linha := range linhas {
+		itens = append(itens, paraDominio(linha))
+	}
+
+	return itens, nil
+}
+
+func (s *SolicitacaoRepository) Contar(ctx context.Context, filtro portsout.SolicitacaoFiltro) (int, error) {
+	onde, argumentos := condicoesDaSolicitacao(filtro)
+
+	var total int
+	if err := s.db.GetContext(ctx, &total, `SELECT count(*) FROM solicitacao`+onde, argumentos...); err != nil {
+		return 0, err
+	}
+
+	return total, nil
+}
+
+func condicoesDaSolicitacao(filtro portsout.SolicitacaoFiltro) (string, []any) {
 	condicoes := make([]string, 0, 2)
 	argumentos := make([]any, 0, 3)
 
@@ -233,24 +263,11 @@ func (s *SolicitacaoRepository) Listar(ctx context.Context, filtro portsout.Soli
 		condicoes = append(condicoes, "prazo_pagamento < $"+strconv.Itoa(len(argumentos))+
 			" AND status IN ('pendente_aprovacao', 'aprovado')")
 	}
-	if len(condicoes) > 0 {
-		query += " WHERE " + unirCondicoes(condicoes)
+	if len(condicoes) == 0 {
+		return "", argumentos
 	}
 
-	argumentos = append(argumentos, filtro.Size, offset)
-	query += ` ORDER BY criado_em DESC, id DESC` + limiteOffset(argumentos)
-
-	var linhas []*solicitacaoLinha
-	if err := s.db.SelectContext(ctx, &linhas, query, argumentos...); err != nil {
-		return nil, err
-	}
-
-	itens := make([]*domainsolicitacao.Solicitacao, 0, len(linhas))
-	for _, linha := range linhas {
-		itens = append(itens, paraDominio(linha))
-	}
-
-	return itens, nil
+	return " WHERE " + unirCondicoes(condicoes), argumentos
 }
 
 func (s *SolicitacaoRepository) AtualizarStatus(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, historico *domainsolicitacao.Historico) (bool, error) {
