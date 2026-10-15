@@ -29,6 +29,10 @@ func (p PrazoPagamento) Data() time.Time {
 	return p.data
 }
 
+func (p PrazoPagamento) String() string {
+	return p.data.Format("2006-01-02")
+}
+
 func inicioDoDia(data time.Time) time.Time {
 	ano, mes, dia := data.UTC().Date()
 

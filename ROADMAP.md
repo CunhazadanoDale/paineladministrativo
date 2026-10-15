@@ -87,7 +87,7 @@ Documentos irmãos: `API.md` (contrato), `ESTOQUE.md` (modelo de escopo de módu
    cada módulo, ou por uma sessão própria depois que a API estiver `concluído`. O front de
    qualquer módulo a partir do M1 só começa depois do F0a (seção 5), que conserta as telas
    quebradas pelo M1 e pelo M2, a conversão de valores e de fuso, as permissões e os
-   contratos de erro (`409` de versão, `429` do login); o F0b corre em paralelo.
+   contratos de erro (`409` de versão); o F0b corre em paralelo.
 9. **Banco de dev compartilhado é intocável.** Nenhuma sessão roda `migrate` no banco
    `mia` (porta `5444`): cada uma cria a própria `000NN` e duas aplicações cruzadas deixam
    a `schema_migrations` inconsistente. Para testar a API ou o front ao vivo, use um banco
@@ -139,15 +139,17 @@ o **F0b** pode correr junto com essas telas.
 | # | Módulo | Depende de | Substitui (controle manual atual) | Status |
 |---|---|---|---|---|
 | T0 | Saneamento | — | — | concluído |
-| F0a | Correções do front — bloqueante | — | — | em andamento (feat/f0a) |
-| F0b | Correções do front — qualidade | F0a | — | pendente |
+| F0a | Correções do front — bloqueante | — | — | concluído |
+| F0b | Correções do front — qualidade | F0a | — | concluído |
+| F-M1 | Front de empresas e filiais | M1 F0a | — | concluído |
+| F-M4 | Front de fornecedores | M4 F0a | — | concluído |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
 | M3 | Clientes e representantes | M1 | Base de clientes | concluído |
 | M4 | Fornecedores | T0 | coluna fornecedor do painel financeiro | concluído |
 | M5 | Contas bancárias e plano de contas | M1 | classificação manual dos extratos | concluído |
 | M6 | Pedidos de venda e entregas | M1 M2 M3 | Vendas futuras, Entregas de importação, Pendências de envio | concluído |
-| M7 | Contas a pagar | M1 M4 M5 | Painel financeiro (contas a pagar) | em andamento (feat/m7-contas-a-pagar) |
+| M7 | Contas a pagar | M1 M4 M5 | Painel financeiro (contas a pagar) | concluído |
 | M8 | NF-e por XML | M2 M3 M6 | Controle de NFs | pendente |
 | M9 | Contas a receber e antecipação | M3 M5 | A receber no banco, títulos do Controle de NFs | pendente |
 | M10 | Comissões | M3 M6 | comissões calculadas à mão | pendente |
@@ -232,11 +234,29 @@ em duas etapas:
 - **Versão otimista**: fornecedores, contas bancárias e plano de contas exigem `versao` no
   `PUT`, `ativar` e `desativar` e respondem `409` quando outra pessoa gravou antes. Tratamento
   único no front: aviso com a mensagem da API e recarga do registro, sem perder o formulário.
-- **Limite de login**: `POST /usuarios/autenticar` responde `429` com `Retry-After`; a tela
-  de login mostra o tempo de espera em vez de erro genérico.
 - **Testes** para os itens acima, no padrão dos existentes (`vitest` + Testing Library).
 
+**Entregue (outubro/2026, branch `feat/f0a` do front):** para as telas do M1–M5:
+
+- `paraCentavos` lê ponto como milhar quando não há vírgula e o padrão é de milhar;
+  `formatarData` é só para campo só-data (formata em UTC) e `formatarDataHora` para instante
+  (fuso local); os testes rodam com `TZ=America/Sao_Paulo` para o erro de fuso aparecer no CI;
+- `useAutenticacao()` expõe `financeiro` (herdado do administrador) lido do login; só
+  `permissoes.aprovacao` vem de sondagem, negada em qualquer erro;
+- `listarTodas(caminho, params)` em `lib/api.js` percorre as páginas de 100 e recusa lista
+  acima de 5000 em vez de cortá-la;
+- `SeletorEmpresa` e `SeletorLocal` (`app/components`) carregam o acesso do usuário, selecionam
+  sozinhos a única opção (`selecionarUnica={false}` em filtros) e limpam valor que saiu da
+  lista; `useNomesEmpresas` (`app/empresas`) traduz `empresa_id` em nome fantasia;
+- `ehConflitoDeConcorrencia(erro)` reconhece o `409` de versão ou de operação concorrente pela
+  mensagem (a API não tem código próprio: todas dizem "recarregue") e `AvisoConflito` mostra
+  a mensagem com "Recarregar dados" sem perder o formulário; o movimento de estoque já usa;
+- o `429` do login já aparece com o tempo de espera, porque a tela mostra a mensagem da API;
+  travar o botão durante o `Retry-After` foi para o F0b.
+
 #### F0b — qualidade
+
+- **Limite de login**: travar o botão de entrar durante o `Retry-After` do `429`.
 
 - **Produtos**: a tela mostra banner de erro e "Nenhum produto encontrado" ao mesmo tempo;
   falhas de categorias e resumo são engolidas; categorias e resumo são buscados de novo a
@@ -268,6 +288,43 @@ em duas etapas:
   código (`lib/api.js`, `vite.config.js`, `services/leads.js`, telas de leads e funis).
 - **Testes** para os itens acima, no padrão dos existentes.
 
+**Entregue (outubro/2026, branch `feat/f0b` do front):** valem para as telas do M1–M5:
+
+- `ErroApi.esperaSegundos` traz o `Retry-After` em segundos; o login trava o botão com contagem
+  regressiva durante o `429`;
+- `listarTodas` cobre aprovadores, usuários, cargos, categorias, funis e histórico e anexos da
+  solicitação (`listarTodos*` nos services); os funis também cortavam em 50 no dashboard e nos
+  leads. O plano de contas ainda não tem tela no front: a `GET /categorias-financeiras/arvore`
+  fica para o front do M5;
+- toda leitura dos services aceita `{ sinal }`, e todo hook de dados cria um `AbortController`
+  por efeito e cancela ao desmontar ou trocar de chave (`modules/cancelamento.test.jsx` cobre
+  cada hook);
+- `enviarArquivo` rejeita `2xx` sem JSON com a mesma `MENSAGEM_SEM_JSON` do `requisitar`;
+  `obterArquivoBlob` baixa com token e `ImagemArquivo` (`app/components`) mostra o arquivo por
+  `URL.createObjectURL`. O detalhe do produto usa a rota autenticada só para o administrador:
+  `GET /arquivos/{id}` serve apenas o dono ou o administrador, então os demais seguem na rota
+  pública e não veem imagem de produto inativo;
+- `anexarImagem` apaga o arquivo enviado quando o vínculo falha; `baixarArquivo` revoga o
+  object URL depois de 60 s;
+- Produtos separa o erro da lista do vazio e avisa falha de categorias e resumo com "Tentar
+  novamente"; categorias carregam uma vez e o resumo só depois de alteração;
+- Leads: a página fica atrelada ao `q`, então a busca da TopBar abre na página 1; `recarregar`
+  busca a lista uma vez e só refaz funis e etapas se foram eles que falharam; o erro do lead e o
+  da estrutura no detalhe ficam presos à chave e somem no retry;
+- login volta ao link de origem (`state.de` no redirecionamento para `/login`, resolvido pela
+  rota `/login` do `App`); o `AutenticacaoProvider` ouve o evento `storage` e sincroniza logout
+  e login entre abas;
+- `DataGrid` usa `row.id` como `key` e como seleção;
+- `Modal` prende o foco, devolve o foco a quem abriu, usa `aria-labelledby` e não fecha no
+  clique fora depois que algum campo mudou (X e Esc continuam fechando); `index.html` em
+  `pt-BR` com o título "Painel MiaConstrutora"; busca da TopBar com `role="search"` e nome
+  acessível; os botões Ajuda e Notificações saíram;
+- higiene: `.env` ignorado, os seis arquivos sem uso removidos, README próprio,
+  `react-hooks/exhaustive-deps` como erro (o código já estava limpo) e nenhum comentário em
+  `src` nem no `vite.config.js`;
+- testes: `asyncUtilTimeout` de 3 s no `src/test/setup.js`, porque a suíte completa estourava
+  o limite de 1 s do Testing Library em máquina carregada.
+
 #### Front do M1–M5 depois do F0a
 
 Ordem sugerida, cada um como sessão própria (regra 8 da seção 3):
@@ -278,6 +335,45 @@ Ordem sugerida, cada um como sessão própria (regra 8 da seção 3):
 3. **M5 Contas bancárias e plano de contas**: árvore de categorias em dois níveis.
 4. **M2 Locais, saldo por local, lotes, transferência e reservas.**
 5. **M3 Clientes, obras, grupos, representantes**, conversão de lead e importação por CSV.
+
+**Entregue o front do M1 (outubro/2026, branch `feat/front-m1-empresas` do front):**
+
+- `services/empresas.js` ganhou `criarEmpresa`, `atualizarEmpresa` (sem `cnpj`), `ativarEmpresa`,
+  `desativarEmpresa`, `removerEmpresa`, `obterEmpresasDoUsuario` e `definirEmpresasDoUsuario`;
+  `listarEmpresas` e `obterEmpresa` passaram a aceitar `{ sinal }`;
+- tela `/empresas` (`modules/empresas`), restrita a administrador como `/usuarios` e com entrada na
+  Sidebar em Sistema: lista paginada com filtro de situação, cadastro com CNPJ numérico ou
+  alfanumérico (enviado sem máscara e em maiúsculas; os dígitos verificadores ficam com a API),
+  edição sem CNPJ, ativar/desativar e exclusão com a mensagem de "registro em uso" da API;
+- vínculo de usuários às empresas pelo botão "Empresas do usuário" em `/usuarios`: o modal grava o
+  conjunto inteiro (`acesso_todas` + `empresa_ids`), guarda a lista quando o acesso total está
+  ligado, preserva vínculo com empresa que não veio na lista, marca empresa inativa e avisa quando
+  o usuário fica sem acesso ou quando o cargo é de administrador (a rota mostra o gravado, não o
+  efetivo);
+- `useEmpresas` e `useAcessoEmpresas` com `AbortController`, ambos em
+  `modules/cancelamento.test.jsx`;
+- empresas não têm `versao` na API, então o `AvisoConflito` não entra aqui: o único `409` é o de
+  CNPJ repetido, mostrado como erro do formulário sem perder o que foi digitado.
+
+**Entregue o front do M4 (outubro/2026, branch `feat/front-m4-fornecedores` do front):**
+
+- `services/fornecedores.js` com listagem (`busca`, `pais`, `moeda`, `ativo`), detalhe, criação,
+  alteração, ativar/desativar e exclusão; `atualizarFornecedor` tira `pais` e `documento` do corpo
+  (a API responde `400` se vierem) e ativar/desativar enviam `{ versao }`; as leituras aceitam
+  `{ sinal }`;
+- tela `/fornecedores` (`modules/fornecedores`) aberta a qualquer autenticado, com entrada na
+  Sidebar em Financeiro: o financeiro (ou administrador) cria, edita, ativa e desativa; só o
+  administrador exclui; os demais só leem. Lista paginada com busca, filtro de moeda e de situação;
+- formulário por país: `BR` exige CPF ou CNPJ (enviado sem máscara e em maiúsculas) e aceita UF e
+  cidade; outro país usa `identificacao_estrangeira` em maiúsculas; país e documento travados na
+  edição; campo opcional vazio não vai no corpo, e o `PUT` leva a `versao` lida;
+- **modelo da versão otimista para o M5**: o `409` de versão no `PUT` mostra o `AvisoConflito` no
+  formulário, e "Recarregar dados" busca o registro (`GET /{id}` com `AbortController`), troca só a
+  `versao` e mantém o que foi digitado, avisando para conferir e salvar de novo; o `409` de versão
+  no ativar/desativar mostra o mesmo aviso na lista, que recarrega a página com as versões novas.
+  Os outros `409` (documento ou identificação repetidos) seguem como erro comum do formulário;
+- `useFornecedores` com `AbortController`, em `modules/cancelamento.test.jsx`; a recarga do
+  formulário é cancelada quando o modal fecha (coberta em `Fornecedores.test.jsx`).
 
 ### M1 — Empresas e filiais
 
@@ -376,7 +472,7 @@ outros módulos precisam saber.
 - Fornecedor é do grupo, não de uma empresa: por isso não depende do M1 e roda na onda 1.
   Se alguma regra precisar de empresa, ela entra no M7 (a conta a pagar tem empresa).
 
-**Entregue (outubro/2026):** API completa (fases 1 a 5 do `FORNECEDORES.md`); front pendente. Para
+**Entregue (outubro/2026):** API completa (fases 1 a 5 do `FORNECEDORES.md`); front no F-M4. Para
 os próximos módulos:
 
 - fornecedor do Brasil tem documento obrigatório (CPF ou CNPJ, validado por
@@ -490,6 +586,35 @@ Evolução do módulo `solicitacao` (mesmo pacote; o fluxo de aprovação contin
 - **Estorno, edição e notificação**: resolver os itens 6 e 7 de `PENDENCIAS.md` aqui
   (edição antes da aprovação; estorno como lançamento inverso; aviso de fila nova).
 - **Visões**: a pagar por semana, por empresa, vencidos.
+
+**Entregue (outubro/2026):** API completa (fases 1 a 5 do `CONTAS_A_PAGAR.md`); front pendente
+(fase 6). Para os próximos módulos:
+
+- a conta a pagar **é a `solicitacao`**: `fornecedor_id` e `categoria_financeira_id` opcionais na
+  criação, `competencia` (`DATE`, dia 1) sempre preenchida, `estimado`, `versao`, e
+  `origem`/`origem_id` (`manual`, `recorrencia`). O `prazo_pagamento` é o vencimento;
+- quem gera conta a pagar (M6 devolução, M9 recompra, M10 comissão, M12, M14 parcela) acrescenta
+  o próprio valor em `chk_solicitacao_origem`, grava `origem_id` com o id do seu registro e cria um
+  índice único parcial para ser idempotente, como `uq_solicitacao_recorrencia (origem_id,
+  competencia) WHERE origem = 'recorrencia'`. A criação passa por uma porta mínima do consumidor,
+  satisfeita por um método novo do `SolicitacaoRepository` no padrão de `GerarDeRecorrencia`
+  (trava a origem e a classificação com `FOR SHARE`, `INSERT ... ON CONFLICT DO NOTHING`, histórico
+  na mesma transação). A assinatura é fechada pela primeira sessão consumidora;
+- solicitação gerada por outro módulo deve nascer **com categoria** lançável: pagar exige categoria
+  ativa (`solicitação sem categoria financeira; classifique antes de pagar`). A `competencia` de
+  solicitação com `origem` diferente de `manual` é fixa (é a chave de idempotência);
+- transições da solicitação guardam status **e versão**; o aprovar aceita `{ "versao": n }` e o
+  front deve mandá-la;
+- pagamento tem `conta_bancaria_id` obrigatória (conta ativa da mesma empresa) e `usuario_id`;
+  estorno é lançamento inverso em `pagamento_estorno`, o pagamento fica `estornado = true` e a
+  solicitação volta para `aprovado`. Só um pagamento não estornado por solicitação
+  (`uq_pagamento_solicitacao_vigente`). O M13 concilia por `conta_bancaria_id` + `pago_em`
+  (`idx_pagamento_conta_bancaria`);
+- o M15 usa `competencia` + `categoria_financeira.linha_dre` (DRE por competência, decisão D5) e
+  ignora pagamento estornado; o fluxo de caixa (M13) usa o `pago_em`;
+- `solicitacao_historico.evento` (`criada`, `aprovada`, `rejeitada`, `cancelada`, `paga`,
+  `editada`, `classificada`, `adiada`, `estornada`) registra também o que não troca status;
+- `forma_pagamento` aceita também `transferencia` e `debito_automatico`.
 
 ### M8 — NF-e por XML
 

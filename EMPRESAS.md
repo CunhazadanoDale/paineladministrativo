@@ -1,6 +1,6 @@
 # Escopo — M1 Empresas e filiais
 
-> **Status:** API concluída (fases 1 a 5); frontend (fase 6) pendente, depois da trilha F0.
+> **Status:** concluído: API (fases 1 a 5) e frontend (fase 6; seletor de empresa no F0a, cadastro e acesso no front do M1).
 > **Objetivo:** tudo o que é financeiro, fiscal ou de estoque passa a pertencer a uma empresa
 > do grupo, e cada usuário só enxerga as empresas às quais tem acesso.
 > **Nome do módulo:** `empresa`
@@ -199,7 +199,7 @@ nova (sem empresa ativa no acesso, `POST /solicitacoes` responde `400`/`403`).
 | **3** | Usecases de empresa e de acesso do usuário + permissões + testes com fakes | concluída |
 | **4** | Handlers/DTOs + rotas + e2e + `API.md` | concluída |
 | **5** | Adoção em `solicitacao`: migration 000027, domínio, usecase, filtro, testes de isolamento, e2e, `API.md` | concluída |
-| **6** | Frontend: cadastro de empresas, acesso por usuário, seletor de empresa na solicitação (depois da F0) | pendente |
+| **6** | Frontend: cadastro de empresas, acesso por usuário, seletor de empresa na solicitação (depois da F0) | concluída |
 
 ---
 

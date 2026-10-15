@@ -112,7 +112,9 @@ func TestFinanceiroSoEnxergaEPagaEmpresasDoSeuAcesso(t *testing.T) {
 	}
 
 	pagamento := func(id uuid.UUID) portsin.RegistrarPagamentoInput {
-		return portsin.RegistrarPagamentoInput{SolicitacaoID: id, UsuarioID: financeiro, ValorCentavos: 10000}
+		return portsin.RegistrarPagamentoInput{
+			SolicitacaoID: id, UsuarioID: financeiro, ValorCentavos: 10000, ContaBancariaID: c.prepararPagamento(t, id),
+		}
 	}
 	if err := c.solicitacao.RegistrarPagamento(c.ctx, pagamento(daPrimeira)); !errors.Is(err, domain.ErrPermissao) {
 		t.Errorf("pagamento fora do acesso = %v, esperado erro de permissão", err)
@@ -181,9 +183,10 @@ func TestDetalhesDaSolicitacaoRespeitamOAcessoAEmpresa(t *testing.T) {
 		t.Fatalf("aprovação falhou: %v", err)
 	}
 	if err := c.solicitacao.RegistrarPagamento(c.ctx, portsin.RegistrarPagamentoInput{
-		SolicitacaoID: id,
-		UsuarioID:     administrador,
-		ValorCentavos: 10000,
+		SolicitacaoID:   id,
+		UsuarioID:       administrador,
+		ValorCentavos:   10000,
+		ContaBancariaID: c.prepararPagamento(t, id),
 	}); err != nil {
 		t.Fatalf("pagamento falhou: %v", err)
 	}

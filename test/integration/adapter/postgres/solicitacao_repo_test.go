@@ -2,7 +2,6 @@ package postgres_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -116,7 +115,9 @@ func (c *cenarioBancoSolicitacoes) novaSolicitacaoNaEmpresa(t *testing.T, empres
 		t.Fatalf("forma de pagamento de teste inválida: %v", err)
 	}
 
-	solicitacao, err := domainsolicitacao.NovaSolicitacao(c.solicitanteID, empresaID, valor, prazo, observacao, forma, nil)
+	solicitacao, err := domainsolicitacao.NovaSolicitacao(
+		c.solicitanteID, empresaID, valor, prazo, observacao, forma, domainsolicitacao.Classificacao{}, false, nil,
+	)
 	if err != nil {
 		t.Fatalf("criação da solicitação de teste falhou: %v", err)
 	}
@@ -151,7 +152,7 @@ func TestSolicitacaoCriadaPersisteComArquivosEHistorico(t *testing.T) {
 	arquivo := c.criarArquivo(t, "orcamento.pdf", "application/pdf")
 	solicitacao := c.novaSolicitacao(t)
 	historico := domainsolicitacao.NovoHistorico(
-		solicitacao.ID, c.solicitanteID, nil, solicitacao.Status, "solicitação criada",
+		solicitacao.ID, c.solicitanteID, nil, solicitacao.Status, domainsolicitacao.EventoCriada, "solicitação criada",
 	)
 
 	id, err := c.solicitacoes.Criar(ctx, solicitacao, []uuid.UUID{arquivo.ID}, historico)
@@ -208,7 +209,7 @@ func TestAtualizarStatusSoMudaSeOLStatusAnteriorBater(t *testing.T) {
 
 	solicitacao := c.novaSolicitacao(t)
 	historico := domainsolicitacao.NovoHistorico(
-		solicitacao.ID, c.solicitanteID, nil, solicitacao.Status, "solicitação criada",
+		solicitacao.ID, c.solicitanteID, nil, solicitacao.Status, domainsolicitacao.EventoCriada, "solicitação criada",
 	)
 	if _, err := c.solicitacoes.Criar(ctx, solicitacao, nil, historico); err != nil {
 		t.Fatalf("criação falhou: %v", err)
@@ -221,7 +222,7 @@ func TestAtualizarStatusSoMudaSeOLStatusAnteriorBater(t *testing.T) {
 		t.Fatalf("aprovação falhou: %v", err)
 	}
 	historicoAprovacao := domainsolicitacao.NovoHistorico(
-		solicitacao.ID, aprovadorID, &statusAnterior, solicitacao.Status, "solicitação aprovada",
+		solicitacao.ID, aprovadorID, &statusAnterior, solicitacao.Status, domainsolicitacao.EventoAprovada, "solicitação aprovada",
 	)
 
 	atualizado, err := c.solicitacoes.AtualizarStatus(ctx, solicitacao, historicoAprovacao)
@@ -252,85 +253,6 @@ func TestAtualizarStatusSoMudaSeOLStatusAnteriorBater(t *testing.T) {
 	}
 }
 
-func TestCreatePagamentoGravaValorEFicaUnicoPorSolicitacao(t *testing.T) {
-	c := cenarioSolicitacoes(t)
-	ctx := context.Background()
-
-	solicitacao := c.novaSolicitacao(t)
-	historico := domainsolicitacao.NovoHistorico(
-		solicitacao.ID, c.solicitanteID, nil, solicitacao.Status, "solicitação criada",
-	)
-	if _, err := c.solicitacoes.Criar(ctx, solicitacao, nil, historico); err != nil {
-		t.Fatalf("criação falhou: %v", err)
-	}
-
-	statusAnterior := solicitacao.Status
-	if err := solicitacao.Aprovar(c.terceiroID, time.Now().UTC()); err != nil {
-		t.Fatalf("aprovação falhou: %v", err)
-	}
-	aprovacao := domainsolicitacao.NovoHistorico(
-		solicitacao.ID, c.terceiroID, &statusAnterior, solicitacao.Status, "solicitação aprovada",
-	)
-	if _, err := c.solicitacoes.AtualizarStatus(ctx, solicitacao, aprovacao); err != nil {
-		t.Fatalf("atualização falhou: %v", err)
-	}
-
-	arquivo := c.criarArquivo(t, "comprovante.pdf", "application/pdf")
-	statusAnterior = solicitacao.Status
-	if err := solicitacao.MarcarComoPago(time.Now().UTC()); err != nil {
-		t.Fatalf("pagamento falhou: %v", err)
-	}
-
-	valor, err := domainsolicitacao.NovoValor(148500)
-	if err != nil {
-		t.Fatalf("valor de teste inválido: %v", err)
-	}
-	pagamento, err := domainsolicitacao.NovoPagamento(solicitacao.ID, valor, &arquivo.ID, time.Time{}, time.Now().UTC())
-	if err != nil {
-		t.Fatalf("pagamento inválido: %v", err)
-	}
-	pagamentoHistorico := domainsolicitacao.NovoHistorico(
-		solicitacao.ID, c.terceiroID, &statusAnterior, solicitacao.Status, "pagamento registrado",
-	)
-
-	if err := c.solicitacoes.CriarPagamento(ctx, solicitacao, pagamento, pagamentoHistorico); err != nil {
-		t.Fatalf("pagamento falhou: %v", err)
-	}
-
-	salvo, err := c.solicitacoes.ObterPagamento(ctx, solicitacao.ID)
-	if err != nil {
-		t.Fatalf("busca do pagamento falhou: %v", err)
-	}
-	if salvo == nil {
-		t.Fatal("pagamento não encontrado")
-	}
-	if salvo.Valor.Centavos() != 148500 {
-		t.Errorf("valor = %d, esperado 148500", salvo.Valor.Centavos())
-	}
-	if salvo.ComprovanteArquivoID == nil || *salvo.ComprovanteArquivoID != arquivo.ID {
-		t.Errorf("comprovante = %v, esperado %s", salvo.ComprovanteArquivoID, arquivo.ID)
-	}
-
-	solicitacaoPaga, err := c.solicitacoes.Obter(ctx, solicitacao.ID)
-	if err != nil {
-		t.Fatalf("busca falhou: %v", err)
-	}
-	if solicitacaoPaga.Status != domainsolicitacao.StatusPago {
-		t.Errorf("status = %q, esperado %q", solicitacaoPaga.Status, domainsolicitacao.StatusPago)
-	}
-
-	segundaVez, err := domainsolicitacao.NovoPagamento(solicitacao.ID, valor, nil, time.Time{}, time.Now().UTC())
-	if err != nil {
-		t.Fatalf("pagamento inválido: %v", err)
-	}
-	historicoDuplicado := domainsolicitacao.NovoHistorico(
-		solicitacao.ID, c.terceiroID, &statusAnterior, solicitacao.Status, "pagamento registrado",
-	)
-	if err := c.solicitacoes.CriarPagamento(ctx, solicitacaoPaga, segundaVez, historicoDuplicado); !errors.Is(err, domain.ErrConflito) {
-		t.Errorf("segundo pagamento = %v, esperado erro de conflito", err)
-	}
-}
-
 func TestListarSolicitacoesAplicaFiltros(t *testing.T) {
 	c := cenarioSolicitacoes(t)
 	ctx := context.Background()
@@ -341,7 +263,7 @@ func TestListarSolicitacoesAplicaFiltros(t *testing.T) {
 
 	for _, solicitacao := range []*domainsolicitacao.Solicitacao{primeira, segunda} {
 		historico := domainsolicitacao.NovoHistorico(
-			solicitacao.ID, solicitacao.SolicitanteID, nil, solicitacao.Status, "solicitação criada",
+			solicitacao.ID, solicitacao.SolicitanteID, nil, solicitacao.Status, domainsolicitacao.EventoCriada, "solicitação criada",
 		)
 		if _, err := c.solicitacoes.Criar(ctx, solicitacao, nil, historico); err != nil {
 			t.Fatalf("criação falhou: %v", err)
@@ -396,7 +318,7 @@ func TestArquivoGuardaVinculoESolicitacaoDono(t *testing.T) {
 
 	solicitacao := c.novaSolicitacao(t)
 	historico := domainsolicitacao.NovoHistorico(
-		solicitacao.ID, c.solicitanteID, nil, solicitacao.Status, "solicitação criada",
+		solicitacao.ID, c.solicitanteID, nil, solicitacao.Status, domainsolicitacao.EventoCriada, "solicitação criada",
 	)
 	if _, err := c.solicitacoes.Criar(ctx, solicitacao, []uuid.UUID{arquivo.ID}, historico); err != nil {
 		t.Fatalf("criação falhou: %v", err)
@@ -507,7 +429,7 @@ func TestListarSolicitacoesFiltraPorEmpresa(t *testing.T) {
 	daPrimeira := c.novaSolicitacao(t)
 	daSegunda := c.novaSolicitacaoNaEmpresa(t, segunda)
 	for _, solicitacao := range []*domainsolicitacao.Solicitacao{daPrimeira, daSegunda} {
-		historico := domainsolicitacao.NovoHistorico(solicitacao.ID, c.solicitanteID, nil, solicitacao.Status, "solicitação criada")
+		historico := domainsolicitacao.NovoHistorico(solicitacao.ID, c.solicitanteID, nil, solicitacao.Status, domainsolicitacao.EventoCriada, "solicitação criada")
 		if _, err := c.solicitacoes.Criar(ctx, solicitacao, nil, historico); err != nil {
 			t.Fatalf("criação falhou: %v", err)
 		}

@@ -26,13 +26,20 @@ type solicitacaoUseCaseFalso struct {
 	itens       []*domainsolicitacao.Solicitacao
 	pagamento   *domainsolicitacao.Pagamento
 
-	inputCriar     portsin.CriarSolicitacaoInput
-	inputListar    portsin.ListarSolicitacoesInput
-	inputPagamento portsin.RegistrarPagamentoInput
-	aprovadoID     uuid.UUID
-	rejeitadoID    uuid.UUID
-	canceladoID    uuid.UUID
-	motivo         string
+	inputCriar       portsin.CriarSolicitacaoInput
+	inputListar      portsin.ListarSolicitacoesInput
+	inputPagamento   portsin.RegistrarPagamentoInput
+	inputClassificar portsin.ClassificarSolicitacaoInput
+	inputEditar      portsin.EditarSolicitacaoInput
+	inputAdiar       portsin.AdiarSolicitacaoInput
+	inputEstorno     portsin.EstornarPagamentoInput
+	pagamentos       []*domainsolicitacao.Pagamento
+	pendencias       domainsolicitacao.Pendencias
+	aprovadoID       uuid.UUID
+	versaoAprovada   int
+	rejeitadoID      uuid.UUID
+	canceladoID      uuid.UUID
+	motivo           string
 }
 
 func (f *solicitacaoUseCaseFalso) Criar(_ context.Context, input portsin.CriarSolicitacaoInput) (uuid.UUID, error) {
@@ -68,6 +75,13 @@ func (f *solicitacaoUseCaseFalso) Aprovar(_ context.Context, solicitacaoID, apro
 	return f.erro
 }
 
+func (f *solicitacaoUseCaseFalso) AprovarNaVersao(_ context.Context, solicitacaoID, _ uuid.UUID, versao int) error {
+	f.aprovadoID = solicitacaoID
+	f.versaoAprovada = versao
+
+	return f.erro
+}
+
 func (f *solicitacaoUseCaseFalso) Rejeitar(_ context.Context, solicitacaoID, _ uuid.UUID, motivo string) error {
 	f.rejeitadoID = solicitacaoID
 	f.motivo = motivo
@@ -79,6 +93,42 @@ func (f *solicitacaoUseCaseFalso) Cancelar(_ context.Context, solicitacaoID, _ u
 	f.canceladoID = solicitacaoID
 
 	return f.erro
+}
+
+func (f *solicitacaoUseCaseFalso) Classificar(_ context.Context, input portsin.ClassificarSolicitacaoInput) error {
+	f.inputClassificar = input
+
+	return f.erro
+}
+
+func (f *solicitacaoUseCaseFalso) Editar(_ context.Context, input portsin.EditarSolicitacaoInput) error {
+	f.inputEditar = input
+
+	return f.erro
+}
+
+func (f *solicitacaoUseCaseFalso) Adiar(_ context.Context, input portsin.AdiarSolicitacaoInput) error {
+	f.inputAdiar = input
+
+	return f.erro
+}
+
+func (f *solicitacaoUseCaseFalso) EstornarPagamento(_ context.Context, input portsin.EstornarPagamentoInput) error {
+	f.inputEstorno = input
+
+	return f.erro
+}
+
+func (f *solicitacaoUseCaseFalso) ListarPagamentos(_ context.Context, _, _ uuid.UUID) ([]*domainsolicitacao.Pagamento, error) {
+	if f.erro != nil {
+		return nil, f.erro
+	}
+
+	return f.pagamentos, nil
+}
+
+func (f *solicitacaoUseCaseFalso) Pendencias(_ context.Context, _ uuid.UUID) (domainsolicitacao.Pendencias, error) {
+	return f.pendencias, f.erro
 }
 
 func (f *solicitacaoUseCaseFalso) RegistrarPagamento(_ context.Context, input portsin.RegistrarPagamentoInput) error {
