@@ -1,6 +1,6 @@
 # Escopo — M6 Pedidos de venda e entregas
 
-> **Status:** fases 1 e 2 concluídas (migrations, domínio e repositórios); fases 3 a 6 pendentes.
+> **Status:** fases 1 a 3 concluídas (migrations, domínio, repositórios e usecases); fases 4 a 6 pendentes.
 > **Objetivo:** tirar "Vendas futuras", "Entregas de importação" e "Pendências de envio" das
 > planilhas: pedido de venda por empresa, com reserva de estoque, entregas parciais que baixam o
 > estoque e consultas de pendência, prazo e cancelamento. Base para NF-e (M8), comissões (M10),
@@ -227,9 +227,11 @@ internal/core/ports/out/pedido/       pedido_repository.go, entrega_repository.g
                                       estoque_repository.go (porta mínima: Carregar),
                                       reserva_repository.go (AtivasPorOrigem),
                                       empresa_repository.go, cliente_repository.go, obra_repository.go,
-                                      representante_repository.go, produto_repository.go, local_repository.go
+                                      representante_repository.go, produto_repository.go, local_repository.go,
+                                      usuario_repository.go, cargo_repository.go
 internal/core/ports/in/pedido/        pedido_usecase.go, entrega_usecase.go, consulta_usecase.go
-internal/core/usecases/pedido/        (+ permissoes.go, testes e fakes)
+internal/core/usecases/pedido/        pedido_usecase.go, entrega_usecase.go, estoque.go (reservar o que
+                                      falta, liberar e baixar a entrega), permissoes.go, testes e fakes
 internal/adapter/postgres/            pedido_repo.go, entrega_repo.go, pedido_consulta_repo.go,
                                       estoque_repo.go (extração de gravarOperacaoEstoque),
                                       reserva_repo.go (AtivasPorOrigem), local_repo.go (AtivosDaEmpresa)
@@ -249,7 +251,7 @@ Numeração de migration definida no merge (regra 4 da seção 3 do `ROADMAP.md`
 |---|---|---|
 | **1** | Migrations + domínio (condição, status, pedido, item, entrega, frete, cobertura) + ajustes no domínio de estoque (origem `pedido_item`, encadeamento) + testes | concluída |
 | **2** | Repositórios (sequência, `Gravar` atômico com guarda de versão do pedido e da entrega, estoque na mesma `tx`, listagens e histórico; `AtivasPorOrigem` em reservas e `AtivosDaEmpresa` em locais) + testes de integração | concluída |
-| **3** | Usecases + permissões (escopo por empresa, representante com login) + testes com fakes e de isolamento | pendente |
+| **3** | Usecases + permissões (escopo por empresa, representante com login) + testes com fakes e de isolamento | concluída |
 | **4** | Handlers/DTOs + rotas + e2e + `API.md` | pendente |
 | **5** | Consultas de pendências, prazos e cancelamentos + testes + `API.md` | pendente |
 | **6** | Frontend: pedidos, confirmação, entregas e consultas (depois do F0a) | pendente |
