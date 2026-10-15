@@ -20,17 +20,37 @@ func (s *Solicitacao) PodeSerEditadaPor(usuarioID uuid.UUID, administrador bool)
 	return administrador || s.SolicitanteID == usuarioID
 }
 
-func (s *Solicitacao) Editar(dados DadosEdicao, agora time.Time) ([]string, error) {
+func ErroCompetenciaDaOrigemFixa() error {
+	return domain.ErroValidacao("competência de solicitação gerada por outro módulo não pode mudar")
+}
+
+func (s *Solicitacao) ExigirEditavel() error {
 	if s.Status != StatusPendenteAprovacao {
-		return nil, domain.ErroConflito("só é possível editar solicitação pendente de aprovação")
+		return domain.ErroConflito("só é possível editar solicitação pendente de aprovação")
+	}
+
+	return nil
+}
+
+func (s *Solicitacao) ExigirAdiavel() error {
+	if s.Status != StatusAprovado {
+		return domain.ErroConflito("só é possível adiar solicitação aprovada")
+	}
+
+	return nil
+}
+
+func (s *Solicitacao) Editar(dados DadosEdicao, agora time.Time) ([]string, error) {
+	if err := s.ExigirEditavel(); err != nil {
+		return nil, err
 	}
 	if err := dados.FormaPagamento.Validado(); err != nil {
 		return nil, err
 	}
 
-	competencia := CompetenciaDe(dados.Prazo.Data())
-	if dados.Classificacao.Competencia != nil {
-		competencia = *dados.Classificacao.Competencia
+	competencia, err := s.competenciaAposAlteracao(dados.Classificacao.Competencia, dados.Prazo)
+	if err != nil {
+		return nil, err
 	}
 
 	alterados := make([]string, 0, 8)
@@ -67,8 +87,8 @@ func (s *Solicitacao) Editar(dados DadosEdicao, agora time.Time) ([]string, erro
 }
 
 func (s *Solicitacao) Adiar(novoVencimento PrazoPagamento, agora time.Time) (PrazoPagamento, error) {
-	if s.Status != StatusAprovado {
-		return PrazoPagamento{}, domain.ErroConflito("só é possível adiar solicitação aprovada")
+	if err := s.ExigirAdiavel(); err != nil {
+		return PrazoPagamento{}, err
 	}
 	if !inicioDoDia(novoVencimento.Data()).After(inicioDoDia(s.Prazo.Data())) {
 		return PrazoPagamento{}, domain.ErroValidacao("novo vencimento deve ser posterior ao atual")
@@ -80,6 +100,25 @@ func (s *Solicitacao) Adiar(novoVencimento PrazoPagamento, agora time.Time) (Pra
 	s.AtualizadoEm = agora
 
 	return anterior, nil
+}
+
+func (s *Solicitacao) competenciaAposAlteracao(informada *Competencia, prazo PrazoPagamento) (Competencia, error) {
+	if s.Origem != OrigemManual {
+		if informada != nil && *informada != s.Competencia {
+			return Competencia{}, ErroCompetenciaDaOrigemFixa()
+		}
+
+		return s.Competencia, nil
+	}
+	if informada != nil {
+		return *informada, nil
+	}
+
+	return CompetenciaDe(prazo.Data()), nil
+}
+
+func (s *Solicitacao) MesmoVencimento(prazo PrazoPagamento) bool {
+	return mesmoDia(s.Prazo.Data(), prazo.Data())
 }
 
 func mesmoDia(a, b time.Time) bool {

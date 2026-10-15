@@ -112,15 +112,37 @@ func (s *Solicitacao) ConferirVersao(informada int) error {
 	return nil
 }
 
-func (s *Solicitacao) Classificar(classificacao Classificacao, agora time.Time) error {
+func (s *Solicitacao) ExigirClassificavel() error {
 	if s.Status != StatusAprovado {
 		return domain.ErroConflito("só é possível classificar solicitação aprovada")
+	}
+
+	return nil
+}
+
+func (s *Solicitacao) ExigirPagavel() error {
+	if !s.Status.PodeTransicionarPara(StatusPago) {
+		return s.transicionarPara(StatusPago)
+	}
+	if s.CategoriaFinanceiraID == nil {
+		return ErroSemCategoriaParaPagar()
+	}
+
+	return nil
+}
+
+func (s *Solicitacao) Classificar(classificacao Classificacao, agora time.Time) error {
+	if err := s.ExigirClassificavel(); err != nil {
+		return err
 	}
 	if classificacao.CategoriaFinanceiraID == nil {
 		return domain.ErroValidacao("categoria financeira é obrigatória na classificação")
 	}
 	if classificacao.Competencia == nil {
 		return domain.ErroValidacao("competência é obrigatória na classificação")
+	}
+	if s.Origem != OrigemManual && *classificacao.Competencia != s.Competencia {
+		return ErroCompetenciaDaOrigemFixa()
 	}
 
 	s.FornecedorID = classificacao.FornecedorID
@@ -190,8 +212,8 @@ func ErroSemCategoriaParaPagar() error {
 }
 
 func (s *Solicitacao) MarcarComoPago(agora time.Time) error {
-	if s.Status == StatusAprovado && s.CategoriaFinanceiraID == nil {
-		return ErroSemCategoriaParaPagar()
+	if err := s.ExigirPagavel(); err != nil {
+		return err
 	}
 	if err := s.transicionarPara(StatusPago); err != nil {
 		return err
