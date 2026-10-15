@@ -152,7 +152,7 @@ o **F0b** pode correr junto com essas telas.
 | M5 | Contas bancárias e plano de contas | M1 | classificação manual dos extratos | concluído |
 | M6 | Pedidos de venda e entregas | M1 M2 M3 | Vendas futuras, Entregas de importação, Pendências de envio | concluído |
 | M7 | Contas a pagar | M1 M4 M5 | Painel financeiro (contas a pagar) | concluído |
-| M8 | NF-e por XML | M2 M3 M6 (fase final: M9) | Controle de NFs | pendente |
+| M8 | NF-e por XML | M2 M3 M6 (fase final: M9) | Controle de NFs | em andamento (feat/m8-notas-fiscais) |
 | M9 | Contas a receber e antecipação | M3 M5 | A receber no banco, títulos do Controle de NFs | pendente |
 | M10 | Comissões | M3 M6 | comissões calculadas à mão | pendente |
 | M11 | Propostas e tabela de preços | M3 M6 | orçamentos em documento, guia de modelos de venda | pendente |
