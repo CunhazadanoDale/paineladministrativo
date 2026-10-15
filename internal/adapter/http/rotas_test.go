@@ -10,7 +10,7 @@ import (
 func muxDoTeste(t *testing.T) *http.ServeMux {
 	t.Helper()
 
-	return novasRotas(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	return novasRotas(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 }
 
 func TestNewRouterAplicaCORS(t *testing.T) {
@@ -19,7 +19,7 @@ func TestNewRouterAplicaCORS(t *testing.T) {
 	requisicao.Header.Set("Access-Control-Request-Method", "POST")
 	registrador := httptest.NewRecorder()
 
-	NewRouter(nil, []string{"http://localhost:5173"}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).ServeHTTP(registrador, requisicao)
+	NewRouter(nil, []string{"http://localhost:5173"}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).ServeHTTP(registrador, requisicao)
 
 	if registrador.Code != http.StatusNoContent {
 		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusNoContent)
@@ -205,6 +205,25 @@ func TestRotasRegistradasSemConflito(t *testing.T) {
 		{"PATCH /api/v1/categorias-financeiras/88888888-8888-8888-8888-888888888888/ativar", "PATCH /api/v1/categorias-financeiras/{id}/ativar"},
 		{"PATCH /api/v1/categorias-financeiras/88888888-8888-8888-8888-888888888888/desativar", "PATCH /api/v1/categorias-financeiras/{id}/desativar"},
 		{"DELETE /api/v1/categorias-financeiras/88888888-8888-8888-8888-888888888888", "DELETE /api/v1/categorias-financeiras/{id}"},
+		{"POST /api/v1/pedidos", "POST /api/v1/pedidos"},
+		{"GET /api/v1/pedidos", "GET /api/v1/pedidos"},
+		{"GET /api/v1/pedidos/99999999-9999-9999-9999-999999999999", "GET /api/v1/pedidos/{id}"},
+		{"PUT /api/v1/pedidos/99999999-9999-9999-9999-999999999999", "PUT /api/v1/pedidos/{id}"},
+		{"POST /api/v1/pedidos/99999999-9999-9999-9999-999999999999/confirmar", "POST /api/v1/pedidos/{id}/confirmar"},
+		{"POST /api/v1/pedidos/99999999-9999-9999-9999-999999999999/entrada", "POST /api/v1/pedidos/{id}/entrada"},
+		{"POST /api/v1/pedidos/99999999-9999-9999-9999-999999999999/reservar-pendencias", "POST /api/v1/pedidos/{id}/reservar-pendencias"},
+		{"POST /api/v1/pedidos/99999999-9999-9999-9999-999999999999/cancelar", "POST /api/v1/pedidos/{id}/cancelar"},
+		{"GET /api/v1/pedidos/99999999-9999-9999-9999-999999999999/historico", "GET /api/v1/pedidos/{id}/historico"},
+		{"POST /api/v1/pedidos/99999999-9999-9999-9999-999999999999/entregas", "POST /api/v1/pedidos/{id}/entregas"},
+		{"GET /api/v1/pedidos/99999999-9999-9999-9999-999999999999/entregas", "GET /api/v1/pedidos/{id}/entregas"},
+		{"GET /api/v1/entregas", "GET /api/v1/entregas"},
+		{"GET /api/v1/entregas/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "GET /api/v1/entregas/{id}"},
+		{"POST /api/v1/entregas/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/saiu", "POST /api/v1/entregas/{id}/saiu"},
+		{"POST /api/v1/entregas/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/entregue", "POST /api/v1/entregas/{id}/entregue"},
+		{"POST /api/v1/entregas/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/cancelar", "POST /api/v1/entregas/{id}/cancelar"},
+		{"GET /api/v1/pedidos/pendencias", "GET /api/v1/pedidos/pendencias"},
+		{"GET /api/v1/pedidos/prazos", "GET /api/v1/pedidos/prazos"},
+		{"GET /api/v1/pedidos/cancelamentos", "GET /api/v1/pedidos/cancelamentos"},
 	}
 
 	for _, caso := range casos {
@@ -226,7 +245,7 @@ func TestRotasRegistradasSemConflito(t *testing.T) {
 }
 
 func TestRotaNaoAtendidaRespondeNoEnvelopeJSON(t *testing.T) {
-	roteador := NewRouter(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	roteador := NewRouter(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	casos := []struct {
 		metodo string
