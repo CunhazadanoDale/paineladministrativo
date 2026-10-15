@@ -52,7 +52,7 @@ cliente deve autenticar de novo.
 | Comercial | Token de um usuário cujo cargo tem `"comercial": true` | Leads (criar, editar, mover, excluir), histórico e **leitura** de funis e etapas |
 | Administrador | Token de um usuário cujo cargo tem `"administrador": true` | Tudo o que os perfis autenticado e comercial podem, **mais** a estrutura de funis e etapas, a gestão de usuários, a escrita de cargos, a designação de aprovadores e `escopo=todas` |
 | Aprovador | Usuário **designado** na tabela `aprovador` pelo administrador | `escopo=aprovacao`, aprovar e rejeitar as solicitações pendentes |
-| Financeiro | Token de um usuário cujo cargo tem `"financeiro": true` (ou de administrador) | `escopo=financeiro`, o registro de pagamento das solicitações aprovadas, a escrita de fornecedores e do plano de contas, e as contas bancárias das empresas do seu acesso |
+| Financeiro | Token de um usuário cujo cargo tem `"financeiro": true` (ou de administrador) | `escopo=financeiro`, classificar, adiar, pagar e estornar as solicitações aprovadas, as despesas recorrentes e o resumo de contas a pagar, a escrita de fornecedores e do plano de contas, e as contas bancárias das empresas do seu acesso |
 
 Os três papéis novos do módulo de solicitações são **cumulativos**: um administrador também
 é tratado como aprovador e como financeiro.
@@ -570,10 +570,14 @@ opcionais na criação; o `prazo_pagamento` é o vencimento. As despesas fixas e
 | `aprovado` | `pago` | `POST /{id}/pagamento` |
 | `pago` | `aprovado` (estorno) | `POST /{id}/pagamento/estorno` |
 
-`pago`, `rejeitado` e `cancelado` são estados terminais. Toda transição grava um registro
-no histórico **na mesma transação**, e o `UPDATE` só acontece se o status anterior bater:
-se outra pessoa mudar primeiro, a segunda recebe `409`
-(`solicitação alterada por outra operação, recarregue e tente novamente`).
+`rejeitado` e `cancelado` são estados terminais; `pago` só sai pelo estorno, que volta para
+`aprovado`. Toda transição grava um registro no histórico **na mesma transação**, e o `UPDATE` só
+acontece se o status e a versão lidos ainda baterem: se outra pessoa mudar primeiro (inclusive uma
+edição), a segunda recebe `409` (`solicitação alterada por outra operação, recarregue e tente
+novamente`).
+
+"Hoje" (prazo não anterior a hoje, `vencida`, `vencidas=true`, resumo) é o dia em **UTC**: entre
+21h e 24h no horário de Brasília já vale o dia seguinte.
 
 ### Rotas
 
@@ -596,7 +600,7 @@ se outra pessoa mudar primeiro, a segunda recebe `409`
 | `GET` | `/api/v1/solicitacoes/{id}/historico` | quem pode ver | `200` lista |
 | `GET` | `/api/v1/solicitacoes/{id}/arquivos` | quem pode ver | `200` lista |
 
-**Quem pode ver** uma solicitação (roteiros `Obter`, `pagamento`, `historico`, `arquivos`):
+**Quem pode ver** uma solicitação (roteiros `Obter`, `pagamento`, `pagamentos`, `historico`, `arquivos`):
 o próprio solicitante, um administrador, o aprovador designado e o financeiro (que só enxerga
 solicitações fora de `pendente_aprovacao`). Aprovador e financeiro só enxergam solicitações
 de empresas do seu **acesso** (seção "Empresas"); o solicitante sempre vê as próprias. Quem
@@ -636,8 +640,8 @@ Filtros de conta a pagar, combináveis com qualquer escopo (valor inválido → 
 | `categoria=<uuid>` | categoria financeira |
 | `competencia=AAAA-MM` | competência (`erro de validação: competência deve estar no formato AAAA-MM`) |
 | `origem=manual\|recorrencia` | origem da solicitação |
-| `vencimento_de=AAAA-MM-DD` / `vencimento_ate=AAAA-MM-DD` | intervalo do `prazo_pagamento`, inclusivo (`erro de validação: consulta vencimento_de deve estar no formato AAAA-MM-DD`; final antes do inicial → `400`) |
-| `vencidas=true` | `pendente_aprovacao` ou `aprovado` com vencimento antes de hoje (UTC) |
+| `vencimento_de=AAAA-MM-DD` / `vencimento_ate=AAAA-MM-DD` | intervalo do `prazo_pagamento`, inclusivo (`erro de validação: consulta vencimento_de deve estar no formato AAAA-MM-DD`; final antes do inicial → `400 erro de validação: vencimento final não pode ser anterior ao inicial`) |
+| `vencidas=true` | `pendente_aprovacao` ou `aprovado` com vencimento antes de hoje (UTC); aceita `true`/`false`/`1`/`0`, outro valor → `400 erro de validação: consulta vencidas deve ser true ou false` |
 
 ### `POST /api/v1/solicitacoes`
 
@@ -734,7 +738,10 @@ não mudam o status (como `classificada`) gravam `de_status` igual a `para_statu
 ### `PATCH /api/v1/solicitacoes/{id}/classificacao`
 
 Financeiro ou administrador, com a empresa da solicitação no acesso. Só em `aprovado`. Substitui a
-classificação inteira: `fornecedor_id` omitido vira `null`.
+classificação inteira: `fornecedor_id` omitido vira `null`. Em solicitação gerada por recorrência
+(`origem` diferente de `manual`) a `competencia` precisa ser a mesma já gravada
+(`400 erro de validação: competência de solicitação gerada por outro módulo não pode mudar`), porque
+é ela que impede a geração duplicada.
 
 ```json
 {
@@ -785,10 +792,18 @@ anexos não mudam por esta rota; depois de aprovada, corrigir é cancelar e cria
 }
 ```
 
-Campos com as mesmas regras do `POST`, mais `versao` obrigatória. Responde `200` com o objeto
-atualizado e grava o evento `editada`, com os campos alterados na descrição
-(`solicitação editada: valor, vencimento`). Corpo igual ao gravado responde `200` sem avançar a
-versão nem gravar histórico.
+Campos com as mesmas regras do `POST`, mais `versao` obrigatória, com duas diferenças:
+
+- a regra "prazo não anterior a hoje" só vale quando o vencimento **muda**: uma solicitação já
+  vencida pode ser editada reenviando o mesmo `prazo_pagamento`;
+- em solicitação gerada por recorrência a `competencia` não muda: omitida, fica a gravada (não
+  é recalculada pelo vencimento); diferente, responde `400` como na classificação.
+
+Fornecedor e categoria informados precisam continuar ativos e lançáveis, mesmo que não tenham
+mudado. Responde `200` com o objeto atualizado e grava o evento `editada`, com os campos alterados
+na descrição (`solicitação editada: valor, vencimento`). Corpo igual ao gravado responde `200` sem
+avançar a versão nem gravar histórico. Fora de `pendente_aprovacao` responde `409` antes de validar
+o corpo.
 
 | Erro | Status | Mensagem |
 | --- | --- | --- |
@@ -829,8 +844,12 @@ Responde `200` com o objeto atualizado e grava o evento `adiada` com a descriç�
 
 ### `POST /api/v1/solicitacoes/{id}/aprovar`
 
-Sem corpo. Ninguém aprova a própria solicitação, nem o administrador: a segregação entre quem
-pede e quem aprova vale para todos os perfis.
+Corpo opcional: `{ "versao": n }`. Com `versao`, a aprovação só acontece se a solicitação ainda
+estiver na versão que o aprovador viu; uma edição feita depois responde `409`
+(`solicitação alterada por outra operação, recarregue e tente novamente`), em vez de aprovar um
+valor que ele não conferiu. O front deve sempre mandar a `versao`; sem corpo, vale o comportamento
+anterior. Ninguém aprova a própria solicitação, nem o administrador: a segregação entre quem pede e
+quem aprova vale para todos os perfis.
 
 | Erro | Status | Mensagem |
 | --- | --- | --- |
@@ -865,7 +884,7 @@ as antigas e as que o solicitante deixou sem categoria passam antes pelo
 | --- | --- |
 | `conta_bancaria_id` | **obrigatório desde o M7**: conta de onde o dinheiro saiu, ativa e da mesma empresa da solicitação; a empresa precisa estar ativa |
 | `valor_centavos` | valor **efetivo** pago, maior que zero — pode diferir do estimado |
-| `comprovante_arquivo_id` | opcional. Quando presente tem que ser um PDF **de quem está registrando** e ainda não vinculado a outra solicitação |
+| `comprovante_arquivo_id` | opcional. Quando presente tem que ser um PDF **de quem está registrando** e ainda não vinculado a outra solicitação. O comprovante de um pagamento estornado pode ser usado de novo no pagamento seguinte da mesma solicitação |
 | `pago_em` | opcional, RFC3339. Padrão: agora (UTC). Não pode estar no futuro (`400 erro de validação: data do pagamento não pode estar no futuro`). É a data em que o dinheiro saiu; `criado_em` do pagamento e `atualizado_em` da solicitação registram o momento do lançamento |
 
 **Objeto de pagamento:**
@@ -898,6 +917,7 @@ as antigas e as que o solicitante deixou sem categoria passam antes pelo
 | Conta inativa | `400` | `erro de validação: conta bancária inativa não recebe pagamento` |
 | Empresa inativa | `400` | `erro de validação: empresa inativa não recebe pagamento` |
 | Solicitação sem categoria | `400` | `erro de validação: solicitação sem categoria financeira; classifique antes de pagar` |
+| Categoria desativada depois da classificação | `400` | `erro de validação: categoria financeira deve ser uma subcategoria ativa` (reclassifique) |
 | Status diferente de `aprovado` | `409` | `não é possível mudar a solicitação de "<status atual>" para "pago"` |
 | Comprovante não PDF | `400` | `comprovante deve ser um arquivo PDF` |
 | Comprovante de outro usuário | `403` | `comprovante não pertence ao usuário` |
@@ -1926,8 +1946,10 @@ Ativar o que já está ativo (ou desativar o inativo) responde `200` sem mudar a
 `GET /api/v1/contas-a-pagar/resumo?de=AAAA-MM-DD&ate=AAAA-MM-DD&empresa=<uuid>`, financeiro ou
 administrador, nas empresas do acesso (`empresa` fora do acesso → `403`). Sem `de`, começa na
 segunda-feira da semana atual; sem `ate`, cobre 8 semanas. Intervalo máximo de 1 ano
-(`400 erro de validação: intervalo do resumo deve ter no máximo 1 ano`); `ate` antes de `de` →
-`400`.
+(`400 erro de validação: intervalo do resumo deve ter no máximo 1 ano`); `ate` antes do início (o
+`de` informado ou a segunda-feira atual) → `400 erro de validação: fim do resumo não pode ser
+anterior ao início`. Sem perfil financeiro, o middleware responde `403 perfil sem permissão para
+esta operação`.
 
 Considera só `pendente_aprovacao` e `aprovado`, pelo `prazo_pagamento` e pelo `valor_centavos` da
 solicitação. As três colunas não se sobrepõem:
@@ -2034,7 +2056,7 @@ quando não há).
 
 | Erro | Status | Mensagem |
 | --- | --- | --- |
-| Sem perfil de financeiro | `403` | `perfil sem permissão para despesas recorrentes` |
+| Sem perfil de financeiro | `403` | `perfil sem permissão para esta operação` (middleware das rotas `financeiro`) |
 | Empresa fora do acesso | `403` | `perfil sem acesso a esta empresa` |
 | Empresa inativa | `400` | `erro de validação: empresa inativa não recebe despesa recorrente` |
 | Sem categoria / sem início | `400` | `erro de validação: categoria financeira é obrigatória na despesa recorrente` / `...início da despesa recorrente é obrigatório` |
@@ -2042,7 +2064,7 @@ quando não há).
 | Dia fora de 1 a 31 | `400` | `erro de validação: dia de vencimento deve estar entre 1 e 31` |
 | `versao` divergente | `409` | `a despesa recorrente foi alterada por outra pessoa; recarregue e tente de novo` |
 | Excluir com solicitação gerada | `400` | `erro de validação: despesa recorrente já gerou solicitações e não pode ser excluída; desative-a` |
-| Excluir sem ser administrador | `403` | `perfil sem permissão para excluir despesa recorrente` |
+| Excluir sem ser administrador | `403` | `perfil sem permissão para esta operação` (middleware das rotas `administrador`) |
 
 ### `POST /api/v1/despesas-recorrentes/gerar`
 
@@ -2052,7 +2074,8 @@ acesso do usuário, cria a solicitação daquela competência com `origem = reco
 `pendente_aprovacao`, com quem disparou como solicitante. É **idempotente**: rodar de novo a mesma
 competência não duplica (índice único por recorrência e competência). O vencimento calculado pode
 estar no passado (competência atrasada nasce vencida). Sem agendador: o front ou uma rotina externa
-chama a rota.
+chama a rota. Uma competência já gerada conta em `ja_existentes` mesmo que a solicitação tenha sido
+rejeitada ou cancelada depois: a geração não recria a conta (para recriar, lance manualmente).
 
 ```json
 {

@@ -478,8 +478,11 @@ Evolução do módulo `solicitacao` (mesmo pacote; o fluxo de aprovação contin
   satisfeita por um método novo do `SolicitacaoRepository` no padrão de `GerarDeRecorrencia`
   (trava a origem e a classificação com `FOR SHARE`, `INSERT ... ON CONFLICT DO NOTHING`, histórico
   na mesma transação). A assinatura é fechada pela primeira sessão consumidora;
-- solicitação gerada por outro módulo deve nascer **com categoria**: pagar exige categoria
-  (`solicitação sem categoria financeira; classifique antes de pagar`);
+- solicitação gerada por outro módulo deve nascer **com categoria** lançável: pagar exige categoria
+  ativa (`solicitação sem categoria financeira; classifique antes de pagar`). A `competencia` de
+  solicitação com `origem` diferente de `manual` é fixa (é a chave de idempotência);
+- transições da solicitação guardam status **e versão**; o aprovar aceita `{ "versao": n }` e o
+  front deve mandá-la;
 - pagamento tem `conta_bancaria_id` obrigatória (conta ativa da mesma empresa) e `usuario_id`;
   estorno é lançamento inverso em `pagamento_estorno`, o pagamento fica `estornado = true` e a
   solicitação volta para `aprovado`. Só um pagamento não estornado por solicitação

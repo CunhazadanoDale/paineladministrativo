@@ -62,7 +62,11 @@
   `uq_solicitacao_recorrencia (origem_id, competencia) WHERE origem = 'recorrencia'`, que é o que
   torna a geração idempotente.
 - Fornecedor e categoria inativos depois da gravação não invalidam a solicitação; a regra de
-  ativo vale só para gravar (criar, editar, classificar).
+  ativo vale para gravar (criar, editar, classificar) e, para a categoria, também para **pagar**:
+  categoria desativada depois da classificação exige reclassificar antes do pagamento.
+- Em solicitação com `origem` diferente de `manual` a `competencia` é **fixa** (editar e classificar
+  recusam outra; o `PUT` sem competência mantém a gravada), porque ela é a chave de idempotência
+  da geração.
 - As checagens que dependem de outra linha (empresa ativa, fornecedor ativo, categoria lançável,
   conta ativa da mesma empresa) rodam na transação da escrita com `FOR SHARE` na linha de que
   dependem, como no M5 (seção 3 do `FINANCEIRO.md`).
@@ -310,6 +314,30 @@ para a branch estar sempre mergeável.
 ---
 
 ## 9. Decisões fechadas
+
+Revisão de outubro/2026 (depois da fase 5), corrigida na própria branch:
+
+- [x] **Comprovante reaproveitável depois do estorno**: `uq_pagamento_comprovante` virou
+      `uq_pagamento_comprovante_vigente` (só pagamentos não estornados).
+- [x] **Competência fixa nas geradas** (seção 2.1) e regeração que confere a existência antes de
+      validar a classificação: competência já gerada sempre conta como `ja_existentes`.
+- [x] **Editar solicitação vencida** sem mudar o vencimento.
+- [x] **Pagar exige categoria lançável**, conferida também na transação.
+- [x] **Ordem dos erros**: estado errado (`409`) antes de validar o corpo em editar, classificar,
+      adiar e pagar.
+- [x] **Transições guardam status e versão** (`versao = lida`), e o aprovar aceita `versao`
+      opcional no corpo para não aprovar um valor editado depois que o aprovador abriu a tela.
+- [x] **Rollbacks seguros**: os `down` da 000040 e da 000042 recusam com mensagem quando há dados
+      que eles corromperiam (formas novas, pagamentos estornados).
+- [x] **Travas na mesma ordem**: a alteração da recorrência trava a recorrência antes de fornecedor
+      e categoria, como a geração; o vínculo do comprovante usa `ON CONFLICT (solicitacao_id,
+      arquivo_id)` e não engole conflito com outra solicitação.
+- [x] `idx_solicitacao_em_aberto` para o resumo e o contador de quem vê todas as empresas.
+
+Ficaram registrados, sem mudança: "hoje" em UTC (convenção anterior ao M7, item 11 do
+`PENDENCIAS.md`); editar e cancelar pelo solicitante não reconferem o acesso à empresa (mesma regra
+do cancelar desde o M1); a geração que falha no meio por erro de banco devolve só o erro (rodar de
+novo é seguro, por ser idempotente).
 
 - [x] **Evolução de `solicitacao`**, sem módulo novo nem rota nova para a conta a pagar em si.
 - [x] **Contrato só com acréscimos** no `POST` de solicitação.
