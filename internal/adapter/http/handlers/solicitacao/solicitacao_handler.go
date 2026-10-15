@@ -302,6 +302,23 @@ func (h *SolicitacaoHandler) EstornarPagamento(w http.ResponseWriter, r *http.Re
 	h.responderAtualizada(w, r, id, usuario.ID)
 }
 
+func (h *SolicitacaoHandler) Pendencias(w http.ResponseWriter, r *http.Request) {
+	usuario, ok := resposta.UsuarioDoContexto(w, r)
+	if !ok {
+		return
+	}
+
+	pendencias, err := h.usecase.Pendencias(r.Context(), usuario.ID)
+	if err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+
+	dto.EscreverJSON(w, http.StatusOK, dto.Resposta[solicitacaodto.PendenciasResponse]{
+		Dados: solicitacaodto.NovaPendenciasResponse(pendencias),
+	})
+}
+
 func (h *SolicitacaoHandler) ListarHistorico(w http.ResponseWriter, r *http.Request) {
 	usuario, id, ok := resposta.UsuarioEId(w, r)
 	if !ok {

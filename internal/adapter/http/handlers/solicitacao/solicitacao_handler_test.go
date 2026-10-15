@@ -34,6 +34,7 @@ type solicitacaoUseCaseFalso struct {
 	inputAdiar       portsin.AdiarSolicitacaoInput
 	inputEstorno     portsin.EstornarPagamentoInput
 	pagamentos       []*domainsolicitacao.Pagamento
+	pendencias       domainsolicitacao.Pendencias
 	aprovadoID       uuid.UUID
 	rejeitadoID      uuid.UUID
 	canceladoID      uuid.UUID
@@ -116,6 +117,10 @@ func (f *solicitacaoUseCaseFalso) ListarPagamentos(_ context.Context, _, _ uuid.
 	}
 
 	return f.pagamentos, nil
+}
+
+func (f *solicitacaoUseCaseFalso) Pendencias(_ context.Context, _ uuid.UUID) (domainsolicitacao.Pendencias, error) {
+	return f.pendencias, f.erro
 }
 
 func (f *solicitacaoUseCaseFalso) RegistrarPagamento(_ context.Context, input portsin.RegistrarPagamentoInput) error {
