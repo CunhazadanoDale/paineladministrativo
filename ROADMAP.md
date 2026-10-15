@@ -144,7 +144,7 @@ o **F0b** pode correr junto com essas telas.
 | F0b | Correções do front — qualidade | F0a | — | concluído |
 | F-M1 | Front de empresas e filiais | M1 F0a | — | concluído |
 | F-M4 | Front de fornecedores | M4 F0a | — | concluído |
-| F-M5 | Front de contas bancárias e plano de contas | M5 F0a | — | em andamento (feat/front-m5-financeiro) |
+| F-M5 | Front de contas bancárias e plano de contas | M5 F0a | — | concluído |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
 | M3 | Clientes e representantes | M1 | Base de clientes | concluído |
@@ -377,6 +377,47 @@ Ordem sugerida, cada um como sessão própria (regra 8 da seção 3):
 - `useFornecedores` com `AbortController`, em `modules/cancelamento.test.jsx`; a recarga do
   formulário é cancelada quando o modal fecha (coberta em `Fornecedores.test.jsx`).
 
+**Entregue o front do M5 (outubro/2026, branch `feat/front-m5-financeiro` do front):** as duas telas
+ficam em `modules/financeiro` (nome do módulo na API), com um `Financeiro.css` próprio. Para os
+próximos fronts:
+
+- `services/contasBancarias.js` (lista com `empresa`, `banco`, `tipo`, `ativa`; detalhe; criação;
+  `atualizarContaBancaria` manda só `{ apelido, versao }`; ativar/desativar com `{ versao }`; exclusão;
+  `listarBancos` para o catálogo de `GET /bancos`) e `services/categoriasFinanceiras.js`
+  (`obterArvoreFinanceira({ ativas })` para `GET /categorias-financeiras/arvore`; criação que tira
+  `natureza` e `linha_dre` da subcategoria; `atualizarCategoriaFinanceira` manda só
+  `{ nome, codigo, ordem, versao }`); todas as leituras aceitam `{ sinal }`;
+- **seletores prontos para M7, M9, M13 e M14**: `SeletorBanco` (`modules/financeiro`, sobre o
+  `SeletorRemoto`, catálogo pela API, sem lista fixa no front); para escolher categoria de lançamento
+  use `obterArvoreFinanceira({ ativas: true })` e ofereça só as subcategorias com `lancavel`, filtrando
+  pela natureza do lançamento; para escolher conta use `listarTodas('/api/v1/contas-bancarias',
+  { empresa, ativa: true })` com a empresa do lançamento (a leitura é só do financeiro);
+- `planoContasUtils.js` traz `NATUREZAS`, `LINHAS_DRE` (com as naturezas aceitas por linha, a mesma
+  tabela do `chk_categoria_financeira_natureza_linha`), `rotuloDaNatureza`, `rotuloDaLinha` e
+  `linhasDaNatureza`; o M15 pode reaproveitar os rótulos das linhas da DRE.
+  `contasBancariasUtils.js` traz `TIPOS_CONTA`, `rotuloDoTipo` e a validação de agência, conta e
+  dígitos;
+- tela `/contas-bancarias` só para financeiro ou administrador (rota e entrada na Sidebar; a Sidebar
+  ganhou o filtro `financeiro: true` ao lado de `admin` e `comercial`): lista paginada com filtros de
+  empresa (`SeletorEmpresa` com inativas), banco, tipo e situação; empresa pelo `useNomesEmpresas`;
+  criação com empresa ativa do acesso, banco, tipo, agência, conta e dígitos em campos próprios
+  (pontos e espaços tirados, dígito em maiúsculas, dígito vazio não vai no corpo); a edição mostra os
+  dados imutáveis e muda só o apelido;
+- tela `/plano-de-contas` para qualquer autenticado, com entrada na Sidebar: árvore em tabela (raiz
+  e subcategorias recuadas) com código, natureza, linha da DRE herdada, selo "Lançável" e filtro "Só
+  ativas"; o financeiro cria raiz (linha da DRE limitada à natureza escolhida, aviso de
+  `compra_mercadoria` fora do resultado), cria subcategoria pela raiz (mostra o que herda), edita
+  nome, código e ordem (código apagado vai `null`, porque o `PUT` substitui os editáveis) e
+  ativa/desativa; só o administrador exclui;
+- versão otimista no padrão do M4 nas duas telas: `AvisoConflito` no formulário com recarga do
+  registro por `GET /{id}` cancelada ao fechar, e na lista para o ativar/desativar. Os `409` sem
+  "recarregue" (conta ou apelido repetidos, nome ou código repetidos, raiz com subcategorias ativas)
+  ficam como erro comum; os `400` de empresa inativa e de pai inativo aparecem com "Fechar";
+- `useContasBancarias` e `usePlanoContas` com `AbortController`, em `modules/cancelamento.test.jsx`;
+- a suíte completa às vezes estoura o tempo em testes antigos que passam sozinhos (Login,
+  ProdutoDetalhe, SolicitacaoFormModal, Usuarios), e o bundle passou de 500 kB (aviso do Vite, sem
+  falhar o build): candidatos a code-splitting das rotas numa sessão própria.
+
 ### M1 — Empresas e filiais
 
 Fundação: tudo o que é financeiro, fiscal ou de estoque passa a pertencer a uma empresa.
@@ -509,7 +550,7 @@ outros módulos precisam saber.
   `financeiro(...)` criado pelo M4); exclusão só pelo administrador; versão otimista.
 - **Saldo inicial** das contas fica no M13.
 
-**Entregue (outubro/2026):** API completa (fases 1 a 4 do `FINANCEIRO.md`); front pendente. Para
+**Entregue (outubro/2026):** API completa (fases 1 a 4 do `FINANCEIRO.md`); front no F-M5. Para
 os próximos módulos:
 
 - M7, M9 e M13 apontam para `conta_bancaria.id` e `categoria_financeira.id` com FK `RESTRICT` e

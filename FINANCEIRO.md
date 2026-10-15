@@ -1,6 +1,6 @@
 # Escopo — M5 Contas bancárias e plano de contas
 
-> **Status:** escopo fechado — API concluída (fases 1 a 4); front pendente. As decisões da
+> **Status:** escopo fechado — API e front concluídos (fases 1 a 5). As decisões da
 > seção 1 foram delegadas pelo usuário à sessão (outubro/2026), seguindo a boa prática.
 > **Objetivo:** tirar a "classificação manual dos extratos" da planilha: cadastro das contas
 > bancárias de cada empresa e plano de contas único do grupo, base para contas a pagar (M7),
@@ -325,7 +325,7 @@ test/helpers/servidor.go + test/integration + test/e2e
 | **2** | Repositórios com guarda de versão e guardas atômicas + testes de integração (unicidade com zeros à esquerda, herança no `INSERT`, desativação com filhas ativas, empresa inativa, filtros, árvore, corrida de versão) | concluída |
 | **3** | Usecases + permissões (financeiro, administrador, escopo por empresa) + testes com fakes, inclusive isolamento entre empresas | concluída |
 | **4** | Handlers/DTOs + rotas + e2e + `API.md` (usa o perfil financeiro do M4; ver seção 5) | concluída |
-| **5** | Frontend: contas bancárias por empresa e plano de contas em árvore | pendente |
+| **5** | Frontend: contas bancárias por empresa e plano de contas em árvore | concluída |
 
 O M5 não tem dinheiro nem data de fato (o saldo inicial fica no M13), então a fase 5 não depende
 da F0.
