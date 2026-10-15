@@ -746,7 +746,14 @@ Somente leitura; nenhum dado digitado aqui.
 - [x] **Empresa faturadora** (outubro/2026): escolhida no pedido entre as empresas ativas no
       acesso do usuário, sem regra automática; vale para M6 e M8.
 - [ ] **Transferências entre empresas**: tratamento fiscal com a contabilidade (afeta
-      M8 e M15).
+      M8 e M15). Faltam: tipo de nota emitida entre as empresas, se gera título e conta a
+      pagar entre elas, se entra como receita na DRE da empresa vendedora e se move estoque
+      entre os locais (e por qual custo).
+      **Regra provisória** (outubro/2026, até a contabilidade responder): o M8 importa a NF
+      cujo destinatário tem CNPJ de empresa cadastrada e a marca como **entre empresas do
+      grupo**, sem gerar título, conta a pagar nem movimento de estoque; o M15 a deixa fora da
+      receita. Com essa regra o M8 pode ser reservado; o efeito definitivo vira fase própria
+      quando a decisão chegar.
 - [x] **Representante é usuário?** Vínculo opcional (outubro/2026): `representante` é cadastro
       próprio que pode apontar para um `usuario`; o representante com login vê só os próprios
       clientes, pedidos e comissões; sem login, existe só para cálculo (afeta M3, M6, M10).
