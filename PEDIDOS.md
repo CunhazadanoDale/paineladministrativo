@@ -224,9 +224,9 @@ GET    /api/v1/pedidos/cancelamentos            ?com_devolucao=true ?empresa= ?d
 ## 6. Estrutura de código
 
 ```
-migrations/0000NN_create_tabela_pedido                 pedido, pedido_sequencia, pedido_item, pedido_historico
-migrations/0000NN_create_tabela_entrega                entrega, entrega_item
-migrations/0000NN_alter_produto_reserva_origem_pedido  CHECK de origem com pedido_item
+migrations/000044_create_tabela_pedido                 pedido, pedido_sequencia, pedido_item, pedido_historico
+migrations/000045_create_tabela_entrega                entrega, entrega_item
+migrations/000046_alter_produto_reserva_origem_pedido  CHECK de origem com pedido_item
 
 internal/core/domain/pedido/          modelo.go, condicao.go, status.go, pedido.go, item.go,
                                       historico.go, entrega.go, frete.go, cobertura.go, consulta.go
@@ -248,7 +248,8 @@ cmd/api/main.go + internal/adapter/http/rotas.go   (registro, só acréscimos)
 ```
 
 Numeração de migration definida no merge (regra 4 da seção 3 do `ROADMAP.md`): a `main` está em
-`000039` e o M7 corre em paralelo com `000040` e `000041`; a branch usa `000042` a `000044`.
+`000039` e o M7 (concluído, ainda não mergeado) usa `000040` a `000043`; o M6 vem depois, de `000044` a
+`000046`. Se outro módulo entrar na `main` antes, renumerar de novo antes do merge.
 
 ---
 
