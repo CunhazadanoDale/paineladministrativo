@@ -131,6 +131,18 @@ func (s *SolicitacaoRepository) GerarDeRecorrencia(ctx context.Context, solicita
 		return false, tratarErroDeGravacao(err)
 	}
 
+	var jaGerada bool
+	if err := tx.GetContext(ctx, &jaGerada, `
+		SELECT EXISTS (
+			SELECT 1 FROM solicitacao WHERE origem = 'recorrencia' AND origem_id = $1 AND competencia = $2
+		)
+	`, *solicitacao.OrigemID, solicitacao.Competencia.Inicio()); err != nil {
+		return false, tratarErroDeGravacao(err)
+	}
+	if jaGerada {
+		return false, nil
+	}
+
 	if err := exigirEmpresaAtivaParaSolicitacao(ctx, tx, solicitacao.EmpresaID); err != nil {
 		return false, err
 	}
@@ -249,6 +261,10 @@ func condicoesDaSolicitacao(filtro portsout.SolicitacaoFiltro) (string, []any) {
 	if filtro.Origem != "" {
 		argumentos = append(argumentos, filtro.Origem.String())
 		condicoes = append(condicoes, condicao("origem", len(argumentos)))
+	}
+	if filtro.OrigemID != nil {
+		argumentos = append(argumentos, *filtro.OrigemID)
+		condicoes = append(condicoes, condicao("origem_id", len(argumentos)))
 	}
 	if filtro.VenceDe != nil {
 		argumentos = append(argumentos, *filtro.VenceDe)
@@ -502,6 +518,7 @@ func atualizarStatusComGuarda(ctx context.Context, tx transacional, solicitacao 
 		"cancelado_em":      linha.CanceladoEm,
 		"atualizado_em":     linha.AtualizadoEm,
 		"status_anterior":   string(*statusAnterior),
+		"versao_anterior":   solicitacao.Versao - 1,
 	}
 
 	query := `
@@ -514,7 +531,7 @@ func atualizarStatusComGuarda(ctx context.Context, tx transacional, solicitacao 
 		    cancelado_em = :cancelado_em,
 		    atualizado_em = :atualizado_em,
 		    versao = versao + 1
-		WHERE id = :id AND status = :status_anterior
+		WHERE id = :id AND status = :status_anterior AND versao = :versao_anterior
 	`
 
 	resultado, err := tx.NamedExecContext(ctx, query, argumentos)

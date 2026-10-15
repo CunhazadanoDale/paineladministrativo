@@ -53,6 +53,9 @@ func (s *SolicitacaoRepository) CriarPagamento(ctx context.Context, solicitacao 
 	if err := exigirContaParaPagamento(ctx, tx, pagamento.ContaBancariaID, solicitacao.EmpresaID); err != nil {
 		return err
 	}
+	if err := exigirCategoriaDeDespesaLancavel(ctx, tx, solicitacao.CategoriaFinanceiraID); err != nil {
+		return err
+	}
 
 	atualizado, err := atualizarStatusComGuarda(ctx, tx, solicitacao, historico.DeStatus)
 	if err != nil {
@@ -75,7 +78,7 @@ func (s *SolicitacaoRepository) CriarPagamento(ctx context.Context, solicitacao 
 	if pagamento.ComprovanteArquivoID != nil {
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO solicitacao_arquivo (solicitacao_id, arquivo_id) VALUES ($1, $2)
-			ON CONFLICT DO NOTHING
+			ON CONFLICT (solicitacao_id, arquivo_id) DO NOTHING
 		`, pagamento.SolicitacaoID, *pagamento.ComprovanteArquivoID); err != nil {
 			return tratarErroDeGravacao(err)
 		}

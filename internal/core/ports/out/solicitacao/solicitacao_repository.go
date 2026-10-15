@@ -19,6 +19,7 @@ type SolicitacaoFiltro struct {
 	Categoria   *uuid.UUID
 	Competencia *domainsolicitacao.Competencia
 	Origem      domainsolicitacao.Origem
+	OrigemID    *uuid.UUID
 	VenceDe     *time.Time
 	VenceAte    *time.Time
 	VencidasEm  *time.Time

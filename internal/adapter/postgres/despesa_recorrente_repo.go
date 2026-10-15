@@ -147,6 +147,9 @@ func (r *DespesaRecorrenteRepository) Atualizar(ctx context.Context, despesa *do
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	if err := r.guarda.conferirVersaoTravada(ctx, tx, despesa.ID, despesa.Versao); err != nil {
+		return err
+	}
 	if err := exigirClassificacaoDaRecorrencia(ctx, tx, despesa); err != nil {
 		return err
 	}
