@@ -275,8 +275,15 @@ func (u *MovimentoUsecaseImpl) reservaDaSaida(ctx context.Context, reservaID *uu
 	if reserva == nil {
 		return nil, domain.ErroValidacao("reserva não encontrada")
 	}
+	if reserva.Origem == domainestoque.OrigemReservaPedidoItem {
+		return nil, erroReservaDePedido()
+	}
 
 	return reserva, nil
+}
+
+func erroReservaDePedido() error {
+	return domain.ErroConflito("reserva de item de pedido só é liberada ou baixada pelo próprio pedido")
 }
 
 func (u *operacoesDeEstoque) carregar(ctx context.Context, produtoID uuid.UUID, localIDs ...uuid.UUID) (*domainestoque.EstoqueProduto, error) {

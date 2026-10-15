@@ -194,3 +194,32 @@ func TestVitrineEscondeProdutoTodoReservado(t *testing.T) {
 		t.Errorf("vitrine com produto todo reservado = %d (%v), esperado vazia", len(lista), err)
 	}
 }
+
+func TestReservaDePedidoSoMudaPeloPedido(t *testing.T) {
+	c := novoCenario(t)
+	galpao := c.localPadrao(t)
+	produto := c.produtoDeTeste(t)
+	c.entradaNoLocal(t, produto, galpao, 10, 100)
+	reserva := c.reservarNoLocal(t, produto, galpao, 4)
+	itemID := uuid.New()
+	daReserva := c.estoqueRepo.reservas[reserva.ID]
+	daReserva.Origem = domainestoque.OrigemReservaPedidoItem
+	daReserva.OrigemID = &itemID
+
+	if _, err := c.reserva.Liberar(c.ctx, reserva.ID, c.usuarioID); !errors.Is(err, domain.ErrConflito) {
+		t.Errorf("liberar reserva de pedido pelo estoque = %v, esperado conflito", err)
+	}
+	if _, err := c.movimento.Movimentar(c.ctx, portsin.MovimentarEstoqueInput{
+		UsuarioID:  c.usuarioID,
+		ProdutoID:  produto.ID,
+		LocalID:    galpao.ID,
+		Tipo:       "saida",
+		Quantidade: 4,
+		ReservaID:  &reserva.ID,
+	}); !errors.Is(err, domain.ErrConflito) {
+		t.Errorf("baixar reserva de pedido pelo estoque = %v, esperado conflito", err)
+	}
+	if !c.estoqueRepo.reservas[reserva.ID].Ativa() {
+		t.Error("a reserva de pedido foi encerrada pelo estoque")
+	}
+}
