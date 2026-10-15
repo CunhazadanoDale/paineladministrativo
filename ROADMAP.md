@@ -117,7 +117,7 @@ Onda 2      ├── M2 Estoque por local, lote e reserva
 Onda 3   M6 Pedidos de venda e entregas      (M1 M2 M3)
          M7 Contas a pagar                   (M1 M4 M5)
                  │
-Onda 4   M8 NF-e por XML                     (M2 M3 M6)
+Onda 4   M8 NF-e por XML                     (M2 M3 M6; fase final: M9)
          M9 Contas a receber e antecipação   (M3 M5)
          M10 Comissões                       (M3 M6)
          M11 Propostas e tabela de preços    (M3 M6)
@@ -130,7 +130,8 @@ Onda 6   M15 DRE e painéis                   (M2 M7 M8 M9 M13)
 ```
 
 Módulos da mesma onda podem ser feitos em paralelo por sessões diferentes (no máximo três
-ao mesmo tempo, regra 10 da seção 3).
+ao mesmo tempo, regra 10 da seção 3). M8 e M9 correm juntos pelo acordo de títulos da seção 5
+("Coordenação M8 × M9"): só a fase final do M8 espera o M9 estar na `main`.
 
 A trilha **F0** (correções do front) corre em paralelo às ondas, numa sessão própria no repo
 do front. O **F0a** precisa estar concluído antes do front de qualquer módulo a partir do M1;
@@ -151,7 +152,7 @@ o **F0b** pode correr junto com essas telas.
 | M5 | Contas bancárias e plano de contas | M1 | classificação manual dos extratos | concluído |
 | M6 | Pedidos de venda e entregas | M1 M2 M3 | Vendas futuras, Entregas de importação, Pendências de envio | concluído |
 | M7 | Contas a pagar | M1 M4 M5 | Painel financeiro (contas a pagar) | concluído |
-| M8 | NF-e por XML | M2 M3 M6 | Controle de NFs | pendente |
+| M8 | NF-e por XML | M2 M3 M6 (fase final: M9) | Controle de NFs | pendente |
 | M9 | Contas a receber e antecipação | M3 M5 | A receber no banco, títulos do Controle de NFs | pendente |
 | M10 | Comissões | M3 M6 | comissões calculadas à mão | pendente |
 | M11 | Propostas e tabela de preços | M3 M6 | orçamentos em documento, guia de modelos de venda | pendente |
@@ -634,6 +635,33 @@ Evolução do módulo `solicitacao` (mesmo pacote; o fluxo de aprovação contin
   sistema registra o valor do documento fiscal e o valor do pedido; diferença entre
   eles é tratada com a contabilidade, não modelada como recurso.
 
+#### Coordenação M8 × M9
+
+Acordo fechado (outubro/2026) para as duas sessões correrem em paralelo:
+
+- **O M9 é dono do título.** `titulo_receber` tem `origem` + `origem_id` no padrão da
+  `solicitacao` do M7: valores `manual`, `pedido` e `nota_fiscal_duplicata`, todos já no
+  `chk_titulo_receber_origem` desde a primeira migration do M9; `origem_id` **sem FK**, porque
+  `nota_fiscal_duplicata` nasce no M8; idempotência por índice único parcial em
+  `(origem, origem_id) WHERE origem <> 'manual'`.
+- **O M9 expõe a geração por origem.** Um método do `TituloReceberRepository` no padrão de
+  `GerarDeRecorrencia` (trava o que precisa com `FOR SHARE`, `INSERT ... ON CONFLICT DO
+  NOTHING`, histórico na mesma transação), para o consumidor declarar a porta mínima. A
+  assinatura, e o que acontece com o título quando a origem é cancelada, ficam fechadas no
+  escopo do M9 (primeira entrega da sessão) e o M8 as lê de lá; mudança depois disso é
+  combinada com o usuário.
+- **O M8 só guarda as duplicatas até o M9 chegar.** As fases do M8 gravam
+  `nota_fiscal_duplicata` sem gerar títulos. A geração (e o efeito do cancelamento da NF nos
+  títulos) é a **última fase do M8**, que só começa depois que o M9 estiver mergeado na
+  `main` e a branch do M8 for atualizada com ela.
+- **O pedido (M6) é tocado pelos dois, por porta mínima própria.** O M8 vincula NF ↔ pedido
+  ↔ entrega e o M9 registra a entrada paga do pedido na baixa do título de entrada. Cada um
+  declara a sua porta em `core/ports/out/<consumidor>/`, sem acrescentar métodos ao port do
+  M6; métodos novos no `adapter/postgres` do pedido entram só no fim do arquivo (regra 5 da
+  seção 3).
+- **Sem outros cruzamentos.** A recompra do M9 gera conta a pagar no M7 (o M8 não toca na
+  `solicitacao`); criar cliente a partir da NF é só do M8.
+
 ### M9 — Contas a receber e antecipação
 
 - **Título**: `titulo_receber` (empresa, cliente, origem NF/pedido/manual, número,
@@ -647,6 +675,8 @@ Evolução do módulo `solicitacao` (mesmo pacote; o fluxo de aprovação contin
 - **Pagamento na conta errada**: registro de recebimento em conta diferente da
   cobrança, que gera a obrigação de repasse ao fomento.
 - **Baixa**: total ou parcial, com conta bancária e data.
+- **Coordenação com o M8**: o título, a origem `nota_fiscal_duplicata` e a geração por origem
+  são do M9 e seguem o acordo em "Coordenação M8 × M9" (seção do M8).
 
 ### M10 — Comissões
 
