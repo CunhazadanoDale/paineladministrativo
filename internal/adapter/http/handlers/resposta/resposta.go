@@ -3,6 +3,7 @@ package resposta
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 
@@ -53,6 +54,24 @@ func CorpoJSON(w http.ResponseWriter, r *http.Request, destino any) bool {
 	}
 
 	return true
+}
+
+func CorpoJSONOpcional(w http.ResponseWriter, r *http.Request, destino any) (bool, bool) {
+	defer r.Body.Close()
+
+	decodificador := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
+	decodificador.DisallowUnknownFields()
+
+	err := decodificador.Decode(destino)
+	if errors.Is(err, io.EOF) {
+		return false, true
+	}
+	if err != nil {
+		ResponderErro(w, domain.ErroValidacao("corpo da requisição inválido: "+err.Error()))
+		return false, false
+	}
+
+	return true, true
 }
 
 func ParametroUUID(w http.ResponseWriter, r *http.Request, nome string) (uuid.UUID, bool) {

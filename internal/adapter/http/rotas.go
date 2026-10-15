@@ -57,6 +57,8 @@ func NewRouter(
 	fornecedorUseCase portsinfornecedor.FornecedorUseCase,
 	contaBancariaUseCase portsinfinanceiro.ContaBancariaUseCase,
 	categoriaFinanceiraUseCase portsinfinanceiro.CategoriaFinanceiraUseCase,
+	despesaRecorrenteUseCase portsinsolicitacao.DespesaRecorrenteUseCase,
+	resumoContasAPagarUseCase portsinsolicitacao.ResumoContasAPagarUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, middleware.ErrosDeRoteamento(novasRotas(
@@ -73,6 +75,8 @@ func NewRouter(
 		importacaoClientesUseCase,
 		fornecedorUseCase,
 		contaBancariaUseCase, categoriaFinanceiraUseCase,
+		despesaRecorrenteUseCase,
+		resumoContasAPagarUseCase,
 		tokens,
 	)))
 }
@@ -105,6 +109,8 @@ func novasRotas(
 	fornecedorUseCase portsinfornecedor.FornecedorUseCase,
 	contaBancariaUseCase portsinfinanceiro.ContaBancariaUseCase,
 	categoriaFinanceiraUseCase portsinfinanceiro.CategoriaFinanceiraUseCase,
+	despesaRecorrenteUseCase portsinsolicitacao.DespesaRecorrenteUseCase,
+	resumoContasAPagarUseCase portsinsolicitacao.ResumoContasAPagarUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -195,6 +201,12 @@ func novasRotas(
 	protegido("GET /api/v1/solicitacoes/{id}/pagamento", solicitacaoHandler.ObterPagamento)
 	protegido("GET /api/v1/solicitacoes/{id}/historico", solicitacaoHandler.ListarHistorico)
 	protegido("GET /api/v1/solicitacoes/{id}/arquivos", solicitacaoHandler.ListarArquivos)
+	protegido("PATCH /api/v1/solicitacoes/{id}/classificacao", solicitacaoHandler.Classificar)
+	protegido("PUT /api/v1/solicitacoes/{id}", solicitacaoHandler.Editar)
+	protegido("POST /api/v1/solicitacoes/{id}/adiar", solicitacaoHandler.Adiar)
+	protegido("POST /api/v1/solicitacoes/{id}/pagamento/estorno", solicitacaoHandler.EstornarPagamento)
+	protegido("GET /api/v1/solicitacoes/{id}/pagamentos", solicitacaoHandler.ListarPagamentos)
+	protegido("GET /api/v1/solicitacoes/pendencias", solicitacaoHandler.Pendencias)
 
 	arquivoHandler := solicitacaohandlers.NewArquivoHandler(arquivoUseCase)
 	protegido("POST /api/v1/arquivos", middleware.EstenderPrazo(prazoDeArquivo, arquivoHandler.Enviar))
@@ -206,6 +218,19 @@ func novasRotas(
 	administrador("POST /api/v1/aprovadores", aprovadorHandler.Designar)
 	administrador("GET /api/v1/aprovadores", aprovadorHandler.Listar)
 	administrador("DELETE /api/v1/aprovadores/{id}", aprovadorHandler.Remover)
+
+	despesaRecorrenteHandler := solicitacaohandlers.NewDespesaRecorrenteHandler(despesaRecorrenteUseCase)
+	financeiro("POST /api/v1/despesas-recorrentes", despesaRecorrenteHandler.Criar)
+	financeiro("GET /api/v1/despesas-recorrentes", despesaRecorrenteHandler.Listar)
+	financeiro("POST /api/v1/despesas-recorrentes/gerar", despesaRecorrenteHandler.Gerar)
+	financeiro("GET /api/v1/despesas-recorrentes/{id}", despesaRecorrenteHandler.Obter)
+	financeiro("PUT /api/v1/despesas-recorrentes/{id}", despesaRecorrenteHandler.Alterar)
+	financeiro("PATCH /api/v1/despesas-recorrentes/{id}/ativar", despesaRecorrenteHandler.Ativar)
+	financeiro("PATCH /api/v1/despesas-recorrentes/{id}/desativar", despesaRecorrenteHandler.Desativar)
+	administrador("DELETE /api/v1/despesas-recorrentes/{id}", despesaRecorrenteHandler.Remover)
+
+	resumoContasAPagarHandler := solicitacaohandlers.NewResumoContasAPagarHandler(resumoContasAPagarUseCase)
+	financeiro("GET /api/v1/contas-a-pagar/resumo", resumoContasAPagarHandler.Consultar)
 
 	categoriaHandler := estoque.NewCategoriaHandler(categoriaUseCase)
 	administrador("POST /api/v1/categorias", categoriaHandler.Criar)

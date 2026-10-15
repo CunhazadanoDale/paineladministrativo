@@ -8,23 +8,48 @@ import (
 	"github.com/google/uuid"
 )
 
+const versaoInicial = 1
+
 type Solicitacao struct {
-	ID             uuid.UUID
-	SolicitanteID  uuid.UUID
-	EmpresaID      uuid.UUID
-	AprovadorID    *uuid.UUID
-	Valor          Valor
-	Prazo          PrazoPagamento
-	Observacao     Observacao
-	FormaPagamento FormaPagamento
-	Status         Status
-	MotivoRejeicao *MotivoRejeicao
-	AprovadoEm     *time.Time
-	RejeitadoEm    *time.Time
-	CanceladoEm    *time.Time
-	CriadoEm       time.Time
-	AtualizadoEm   time.Time
-	ArquivoIDs     []uuid.UUID
+	ID                    uuid.UUID
+	SolicitanteID         uuid.UUID
+	EmpresaID             uuid.UUID
+	AprovadorID           *uuid.UUID
+	Valor                 Valor
+	Prazo                 PrazoPagamento
+	Observacao            Observacao
+	FormaPagamento        FormaPagamento
+	FornecedorID          *uuid.UUID
+	CategoriaFinanceiraID *uuid.UUID
+	Competencia           Competencia
+	Estimado              bool
+	Origem                Origem
+	OrigemID              *uuid.UUID
+	Status                Status
+	MotivoRejeicao        *MotivoRejeicao
+	AprovadoEm            *time.Time
+	RejeitadoEm           *time.Time
+	CanceladoEm           *time.Time
+	Versao                int
+	CriadoEm              time.Time
+	AtualizadoEm          time.Time
+	ArquivoIDs            []uuid.UUID
+}
+
+func ErroSolicitacaoAlterada() error {
+	return domain.ErroConflito("solicitação alterada por outra operação, recarregue e tente novamente")
+}
+
+func ErroVersaoObrigatoria() error {
+	return domain.ErroValidacao("versão da solicitação é obrigatória")
+}
+
+func ErroEmpresaNaoEncontrada() error {
+	return domain.ErroValidacao("empresa da solicitação não encontrada")
+}
+
+func ErroEmpresaInativa() error {
+	return domain.ErroValidacao("empresa inativa não recebe solicitação nova")
 }
 
 func NovaSolicitacao(
@@ -34,6 +59,8 @@ func NovaSolicitacao(
 	prazo PrazoPagamento,
 	observacao Observacao,
 	formaPagamento FormaPagamento,
+	classificacao Classificacao,
+	estimado bool,
 	arquivoIDs []uuid.UUID,
 ) (*Solicitacao, error) {
 	if solicitanteID == uuid.Nil {
@@ -46,21 +73,93 @@ func NovaSolicitacao(
 		return nil, err
 	}
 
+	competencia := CompetenciaDe(prazo.Data())
+	if classificacao.Competencia != nil {
+		competencia = *classificacao.Competencia
+	}
+
 	agora := time.Now().UTC()
 
 	return &Solicitacao{
-		ID:             uuid.New(),
-		SolicitanteID:  solicitanteID,
-		EmpresaID:      empresaID,
-		Valor:          valor,
-		Prazo:          prazo,
-		Observacao:     observacao,
-		FormaPagamento: formaPagamento,
-		Status:         StatusPendenteAprovacao,
-		CriadoEm:       agora,
-		AtualizadoEm:   agora,
-		ArquivoIDs:     arquivoIDs,
+		ID:                    uuid.New(),
+		SolicitanteID:         solicitanteID,
+		EmpresaID:             empresaID,
+		Valor:                 valor,
+		Prazo:                 prazo,
+		Observacao:            observacao,
+		FormaPagamento:        formaPagamento,
+		FornecedorID:          classificacao.FornecedorID,
+		CategoriaFinanceiraID: classificacao.CategoriaFinanceiraID,
+		Competencia:           competencia,
+		Estimado:              estimado,
+		Origem:                OrigemManual,
+		Status:                StatusPendenteAprovacao,
+		Versao:                versaoInicial,
+		CriadoEm:              agora,
+		AtualizadoEm:          agora,
+		ArquivoIDs:            arquivoIDs,
 	}, nil
+}
+
+func (s *Solicitacao) ConferirVersao(informada int) error {
+	if informada < versaoInicial {
+		return ErroVersaoObrigatoria()
+	}
+	if informada != s.Versao {
+		return ErroSolicitacaoAlterada()
+	}
+
+	return nil
+}
+
+func (s *Solicitacao) ExigirClassificavel() error {
+	if s.Status != StatusAprovado {
+		return domain.ErroConflito("só é possível classificar solicitação aprovada")
+	}
+
+	return nil
+}
+
+func (s *Solicitacao) ExigirPagavel() error {
+	if !s.Status.PodeTransicionarPara(StatusPago) {
+		return s.transicionarPara(StatusPago)
+	}
+	if s.CategoriaFinanceiraID == nil {
+		return ErroSemCategoriaParaPagar()
+	}
+
+	return nil
+}
+
+func (s *Solicitacao) Classificar(classificacao Classificacao, agora time.Time) error {
+	if err := s.ExigirClassificavel(); err != nil {
+		return err
+	}
+	if classificacao.CategoriaFinanceiraID == nil {
+		return domain.ErroValidacao("categoria financeira é obrigatória na classificação")
+	}
+	if classificacao.Competencia == nil {
+		return domain.ErroValidacao("competência é obrigatória na classificação")
+	}
+	if s.Origem != OrigemManual && *classificacao.Competencia != s.Competencia {
+		return ErroCompetenciaDaOrigemFixa()
+	}
+
+	s.FornecedorID = classificacao.FornecedorID
+	s.CategoriaFinanceiraID = classificacao.CategoriaFinanceiraID
+	s.Competencia = *classificacao.Competencia
+	s.Versao++
+	s.AtualizadoEm = agora
+
+	return nil
+}
+
+func (s *Solicitacao) Vencida(agora time.Time) bool {
+	if s.Status != StatusPendenteAprovacao && s.Status != StatusAprovado {
+		return false
+	}
+
+	return inicioDoDia(s.Prazo.Data()).Before(inicioDoDia(agora))
 }
 
 func (s *Solicitacao) Aprovar(aprovadorID uuid.UUID, agora time.Time) error {
@@ -108,7 +207,14 @@ func (s *Solicitacao) Cancelar(agora time.Time) error {
 	return nil
 }
 
+func ErroSemCategoriaParaPagar() error {
+	return domain.ErroValidacao("solicitação sem categoria financeira; classifique antes de pagar")
+}
+
 func (s *Solicitacao) MarcarComoPago(agora time.Time) error {
+	if err := s.ExigirPagavel(); err != nil {
+		return err
+	}
 	if err := s.transicionarPara(StatusPago); err != nil {
 		return err
 	}
@@ -130,6 +236,7 @@ func (s *Solicitacao) transicionarPara(proximo Status) error {
 	}
 
 	s.Status = proximo
+	s.Versao++
 
 	return nil
 }

@@ -10,7 +10,7 @@ import (
 func muxDoTeste(t *testing.T) *http.ServeMux {
 	t.Helper()
 
-	return novasRotas(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	return novasRotas(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 }
 
 func TestNewRouterAplicaCORS(t *testing.T) {
@@ -19,7 +19,7 @@ func TestNewRouterAplicaCORS(t *testing.T) {
 	requisicao.Header.Set("Access-Control-Request-Method", "POST")
 	registrador := httptest.NewRecorder()
 
-	NewRouter(nil, []string{"http://localhost:5173"}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).ServeHTTP(registrador, requisicao)
+	NewRouter(nil, []string{"http://localhost:5173"}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).ServeHTTP(registrador, requisicao)
 
 	if registrador.Code != http.StatusNoContent {
 		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusNoContent)
@@ -87,6 +87,21 @@ func TestRotasRegistradasSemConflito(t *testing.T) {
 		{"GET /api/v1/solicitacoes/66666666-6666-6666-6666-666666666666/pagamento", "GET /api/v1/solicitacoes/{id}/pagamento"},
 		{"GET /api/v1/solicitacoes/66666666-6666-6666-6666-666666666666/historico", "GET /api/v1/solicitacoes/{id}/historico"},
 		{"GET /api/v1/solicitacoes/66666666-6666-6666-6666-666666666666/arquivos", "GET /api/v1/solicitacoes/{id}/arquivos"},
+		{"PATCH /api/v1/solicitacoes/66666666-6666-6666-6666-666666666666/classificacao", "PATCH /api/v1/solicitacoes/{id}/classificacao"},
+		{"PUT /api/v1/solicitacoes/66666666-6666-6666-6666-666666666666", "PUT /api/v1/solicitacoes/{id}"},
+		{"POST /api/v1/solicitacoes/66666666-6666-6666-6666-666666666666/adiar", "POST /api/v1/solicitacoes/{id}/adiar"},
+		{"POST /api/v1/solicitacoes/66666666-6666-6666-6666-666666666666/pagamento/estorno", "POST /api/v1/solicitacoes/{id}/pagamento/estorno"},
+		{"GET /api/v1/solicitacoes/66666666-6666-6666-6666-666666666666/pagamentos", "GET /api/v1/solicitacoes/{id}/pagamentos"},
+		{"POST /api/v1/despesas-recorrentes", "POST /api/v1/despesas-recorrentes"},
+		{"GET /api/v1/despesas-recorrentes", "GET /api/v1/despesas-recorrentes"},
+		{"POST /api/v1/despesas-recorrentes/gerar?competencia=2026-11", "POST /api/v1/despesas-recorrentes/gerar"},
+		{"GET /api/v1/despesas-recorrentes/66666666-6666-6666-6666-666666666666", "GET /api/v1/despesas-recorrentes/{id}"},
+		{"PUT /api/v1/despesas-recorrentes/66666666-6666-6666-6666-666666666666", "PUT /api/v1/despesas-recorrentes/{id}"},
+		{"PATCH /api/v1/despesas-recorrentes/66666666-6666-6666-6666-666666666666/ativar", "PATCH /api/v1/despesas-recorrentes/{id}/ativar"},
+		{"PATCH /api/v1/despesas-recorrentes/66666666-6666-6666-6666-666666666666/desativar", "PATCH /api/v1/despesas-recorrentes/{id}/desativar"},
+		{"DELETE /api/v1/despesas-recorrentes/66666666-6666-6666-6666-666666666666", "DELETE /api/v1/despesas-recorrentes/{id}"},
+		{"GET /api/v1/solicitacoes/pendencias", "GET /api/v1/solicitacoes/pendencias"},
+		{"GET /api/v1/contas-a-pagar/resumo", "GET /api/v1/contas-a-pagar/resumo"},
 		{"POST /api/v1/arquivos", "POST /api/v1/arquivos"},
 		{"GET /api/v1/arquivos", "GET /api/v1/arquivos"},
 		{"GET /api/v1/arquivos/77777777-7777-7777-7777-777777777777", "GET /api/v1/arquivos/{id}"},
@@ -211,7 +226,7 @@ func TestRotasRegistradasSemConflito(t *testing.T) {
 }
 
 func TestRotaNaoAtendidaRespondeNoEnvelopeJSON(t *testing.T) {
-	roteador := NewRouter(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	roteador := NewRouter(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	casos := []struct {
 		metodo string
