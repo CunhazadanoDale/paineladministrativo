@@ -1692,6 +1692,126 @@ exigem a `versao` lida.
 
 Ativar o que já está ativo (ou desativar o inativo) responde `200` sem mudar a versão.
 
+## Pedidos de venda e entregas
+
+Pedidos de cada **empresa** vendedora, com escopo por empresa (padrão da seção 4 do
+`EMPRESAS.md`). Perfis: **comercial** (ou administrador) cria, altera, confirma, reserva
+pendências, cancela e opera entregas; **financeiro** (ou administrador) registra a entrada paga;
+qualquer autenticado lê os pedidos das empresas do seu acesso. **Representante com login** (não
+administrador) vê e altera só os pedidos em que é o representante, cria sempre em nome próprio e
+cancela só a própria proposta.
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/pedidos` | **comercial** | `201` proposta |
+| `GET` | `/api/v1/pedidos` | autenticado | `200` lista paginada sem itens (`?empresa=`, `?cliente=`, `?representante=`, `?status=`, `?modelo=`, `?numero=`) |
+| `GET` | `/api/v1/pedidos/{id}` | autenticado | `200` detalhe com itens, reservado e falta cobrir por item e reservas ativas |
+| `PUT` | `/api/v1/pedidos/{id}` | **comercial** | `200`; só em `proposta`; corpo do `POST` sem `empresa_id` e com `versao` |
+| `POST` | `/api/v1/pedidos/{id}/confirmar` | **comercial** | `200`; corpo `{ "versao": n }` |
+| `POST` | `/api/v1/pedidos/{id}/entrada` | **financeiro** | `200`; corpo `{ "versao", "pago_em", "valor_centavos" }` |
+| `POST` | `/api/v1/pedidos/{id}/reservar-pendencias` | **comercial** | `200`; corpo `{ "versao": n }` |
+| `POST` | `/api/v1/pedidos/{id}/cancelar` | **comercial** | `200`; corpo `{ "versao", "motivo", "valor_a_devolver_centavos" }` |
+| `GET` | `/api/v1/pedidos/{id}/historico` | autenticado | `200` lista (`{ "dados": [...] }`), mais antigo primeiro |
+| `POST` | `/api/v1/pedidos/{id}/entregas` | **comercial** | `201` entrega `pendente` |
+| `GET` | `/api/v1/pedidos/{id}/entregas` | autenticado | `200` lista (`{ "dados": [...] }`) |
+| `GET` | `/api/v1/entregas` | autenticado | `200` lista paginada (`?empresa=`, `?status=`, `?previsao_ate=`) |
+| `GET` | `/api/v1/entregas/{id}` | autenticado | `200` |
+| `POST` | `/api/v1/entregas/{id}/saiu` | **comercial** | `200`; corpo `{ "versao", "saiu_em" }`; baixa o estoque |
+| `POST` | `/api/v1/entregas/{id}/entregue` | **comercial** | `200`; corpo `{ "versao", "entregue_em" }` |
+| `POST` | `/api/v1/entregas/{id}/cancelar` | **comercial** | `200`; corpo `{ "versao": n }`; só `pendente` |
+
+Corpo do `POST /pedidos`:
+
+```json
+{
+  "empresa_id": "…",
+  "cliente_id": "…",
+  "obra_id": "…",
+  "representante_id": "…",
+  "modelo": "pronta_entrega",
+  "prazo_limite": "2026-12-20",
+  "numero_pedido_cliente": "OC-778",
+  "observacoes": "",
+  "itens": [{ "produto_id": "…", "quantidade": 10, "preco_unitario_centavos": 1500 }]
+}
+```
+
+| Campo | Regra |
+| --- | --- |
+| `empresa_id` | obrigatório; empresa do acesso (`403 perfil sem acesso a esta empresa`) e ativa (`400 empresa inativa não recebe pedido novo`); não muda |
+| `cliente_id` | obrigatório; cliente ativo ao criar ou trocar (`400 cliente inativo não recebe pedido novo`) |
+| `obra_id` | opcional; obra do mesmo cliente e ativa ao escolher (`400 obra não encontrada para o cliente do pedido`) |
+| `representante_id` | opcional; sem ele vale o representante do cliente; ativo ao atribuir; representante com login só em nome próprio (`403`) |
+| `modelo` | `pronta_entrega` ou `importacao`; define a condição gravada no pedido |
+| `prazo_limite` | data `AAAA-MM-DD`, opcional, só na pronta entrega; na importação é calculado pela entrada paga (`400`) |
+| `numero_pedido_cliente` | opcional, até 60 (número de compra do cliente) |
+| `itens` | pelo menos um; produto ativo ao incluir e sem repetir no pedido; `quantidade > 0`; `preco_unitario_centavos >= 0` (o front sugere `produto.preco`) |
+
+Condição gravada pelo modelo, devolvida em `condicao`:
+
+| `modelo` | `entrada_bp` | `prazo_boleto_dias` | `prazo_entrega_dias` |
+| --- | --- | --- | --- |
+| `pronta_entrega` | `0` | `30` | `null` |
+| `importacao` | `3000` (30%) | `null` | `120`, contados da entrada paga |
+
+A resposta traz `numero` (sequencial por empresa), `status`, `valor_total_centavos`, `condicao`,
+`prazo_limite`, `entrada_paga_em`, `entrada_paga_centavos`, `cancelado_motivo`,
+`valor_a_devolver_centavos`, `versao` e `itens` (`subtotal_centavos`, `quantidade_entregue` e
+`restante`). No `GET /pedidos/{id}` cada item traz também `reservado` e `falta_cobrir`, e o pedido
+traz `reservas` (mesmo formato de `GET /produtos/{id}/reservas`, com `origem = pedido_item`).
+Datas só-data (`prazo_limite`, `entrada_paga_em`, `previsao`, `saiu_em`, `entregue_em`) chegam como
+meia-noite UTC e são aceitas como `AAAA-MM-DD`.
+
+### Estados e efeitos
+
+| Ação | De | Para | Efeito |
+| --- | --- | --- | --- |
+| confirmar | `proposta` | `confirmado` | reserva o disponível de cada item nos locais ativos da empresa, começando pelo local com mais disponível; o que faltar fica a cobrir |
+| entrada | `confirmado`, `parcialmente_entregue` | igual | só importação, uma vez; `pago_em` não pode estar no futuro; valor entre 1 e o total; grava `prazo_limite` |
+| reservar pendências | `confirmado`, `parcialmente_entregue` | igual | reserva o que ficou a cobrir; sem nada novo para reservar devolve o pedido sem gravar |
+| saída de entrega | `confirmado`, `parcialmente_entregue` | `parcialmente_entregue` ou `entregue` | baixa o estoque e soma o entregue |
+| cancelar | `proposta`, `confirmado`, `parcialmente_entregue` | `cancelado` | libera as reservas e cancela as entregas `pendente`; entrega `saiu` bloqueia (`409 há entrega em trânsito...`) |
+
+Cancelamento: `motivo` obrigatório (até 1000). Com entrada paga, `valor_a_devolver_centavos` vale a
+entrada quando omitido e fica entre `0` e a entrada; sem entrada paga, informar valor diferente de
+zero → `400`. O valor a devolver só fica registrado: a conta a pagar sai depois, no M7.
+
+### Entregas
+
+Corpo do `POST /pedidos/{id}/entregas`:
+
+```json
+{
+  "transportadora": "Rodonaves",
+  "frete_tipo": "cif",
+  "frete_centavos": 18000,
+  "previsao": "2026-10-20",
+  "itens": [{ "pedido_item_id": "…", "local_id": "…", "quantidade": 5 }]
+}
+```
+
+| Campo | Regra |
+| --- | --- |
+| `frete_tipo` | `cif` ou `fob`; `frete_centavos` obrigatório no `cif`, opcional no `fob`, `>= 0` |
+| `itens` | pelo menos um; item do pedido sem repetir; local **da empresa do pedido**; quantidade até o restante ainda não programado em outras entregas pendentes |
+| `transportadora` | opcional, até 160 |
+
+`saiu` (data padrão: hoje) baixa o estoque na mesma gravação, com **um movimento de saída por
+item** (`itens[].movimento_id`): se o item tem uma única reserva no local com a quantidade exata, a
+saída baixa essa reserva; senão, as reservas do item no local são liberadas, a saída sai do
+disponível e o que sobrar das reservas é reservado de novo. Sem disponível no local → `400 saldo
+disponível insuficiente no local`. `entregue` (data padrão: hoje, não antes de `saiu_em`) só
+registra a data.
+
+### Versão (edição concorrente)
+
+Pedido e entrega têm `versao` própria, com o mesmo contrato dos fornecedores (`400` sem versão,
+`409 o pedido foi alterado por outra pessoa; recarregue e tente de novo` ou `409 a entrega foi
+alterada por outra pessoa; ...`). **Toda operação de entrega também avança a `versao` do pedido**:
+recarregue o pedido depois de criar, dar saída, concluir ou cancelar uma entrega. Mudança de
+estoque concorrente (outra reserva ou movimento no mesmo produto) responde `409 estoque do produto
+alterado por outra operação, recarregue e tente novamente`, e nada é gravado.
+
 ---
 
 ## Exemplos
