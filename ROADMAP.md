@@ -141,7 +141,7 @@ o **F0b** pode correr junto com essas telas.
 | T0 | Saneamento | — | — | concluído |
 | F0a | Correções do front — bloqueante | — | — | concluído |
 | F0b | Correções do front — qualidade | F0a | — | concluído |
-| F-M1 | Front de empresas e filiais | M1 F0a | — | em andamento (feat/front-m1-empresas) |
+| F-M1 | Front de empresas e filiais | M1 F0a | — | concluído |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
 | M3 | Clientes e representantes | M1 | Base de clientes | concluído |
@@ -334,6 +334,25 @@ Ordem sugerida, cada um como sessão própria (regra 8 da seção 3):
 3. **M5 Contas bancárias e plano de contas**: árvore de categorias em dois níveis.
 4. **M2 Locais, saldo por local, lotes, transferência e reservas.**
 5. **M3 Clientes, obras, grupos, representantes**, conversão de lead e importação por CSV.
+
+**Entregue o front do M1 (outubro/2026, branch `feat/front-m1-empresas` do front):**
+
+- `services/empresas.js` ganhou `criarEmpresa`, `atualizarEmpresa` (sem `cnpj`), `ativarEmpresa`,
+  `desativarEmpresa`, `removerEmpresa`, `obterEmpresasDoUsuario` e `definirEmpresasDoUsuario`;
+  `listarEmpresas` e `obterEmpresa` passaram a aceitar `{ sinal }`;
+- tela `/empresas` (`modules/empresas`), restrita a administrador como `/usuarios` e com entrada na
+  Sidebar em Sistema: lista paginada com filtro de situação, cadastro com CNPJ numérico ou
+  alfanumérico (enviado sem máscara e em maiúsculas; os dígitos verificadores ficam com a API),
+  edição sem CNPJ, ativar/desativar e exclusão com a mensagem de "registro em uso" da API;
+- vínculo de usuários às empresas pelo botão "Empresas do usuário" em `/usuarios`: o modal grava o
+  conjunto inteiro (`acesso_todas` + `empresa_ids`), guarda a lista quando o acesso total está
+  ligado, preserva vínculo com empresa que não veio na lista, marca empresa inativa e avisa quando
+  o usuário fica sem acesso ou quando o cargo é de administrador (a rota mostra o gravado, não o
+  efetivo);
+- `useEmpresas` e `useAcessoEmpresas` com `AbortController`, ambos em
+  `modules/cancelamento.test.jsx`;
+- empresas não têm `versao` na API, então o `AvisoConflito` não entra aqui: o único `409` é o de
+  CNPJ repetido, mostrado como erro do formulário sem perder o que foi digitado.
 
 ### M1 — Empresas e filiais
 
