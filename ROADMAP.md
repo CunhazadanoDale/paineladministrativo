@@ -141,6 +141,7 @@ o **F0b** pode correr junto com essas telas.
 | T0 | Saneamento | — | — | concluído |
 | F0a | Correções do front — bloqueante | — | — | concluído |
 | F0b | Correções do front — qualidade | F0a | — | concluído |
+| F-M1 | Front de empresas e filiais | M1 F0a | — | em andamento (feat/front-m1-empresas) |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
 | M3 | Clientes e representantes | M1 | Base de clientes | concluído |
