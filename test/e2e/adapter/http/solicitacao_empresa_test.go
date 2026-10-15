@@ -152,7 +152,8 @@ func TestFinanceiroERejeicaoFicamIsoladosPorEmpresa(t *testing.T) {
 		map[string]any{"valor_centavos": 50000}, tokenFinanceiro)
 	conferirStatus(t, resposta, http.StatusForbidden)
 
+	conta := prepararPagamentoE2E(t, servidor, mia, daMia.ID, 2)
 	resposta = enviaComToken(t, servidor, http.MethodPost, "/api/v1/solicitacoes/"+daMia.ID.String()+"/pagamento",
-		map[string]any{"valor_centavos": 50000}, tokenFinanceiro)
+		map[string]any{"valor_centavos": 50000, "conta_bancaria_id": conta}, tokenFinanceiro)
 	conferirStatus(t, resposta, http.StatusCreated)
 }

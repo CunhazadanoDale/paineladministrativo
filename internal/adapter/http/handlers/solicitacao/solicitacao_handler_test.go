@@ -32,6 +32,8 @@ type solicitacaoUseCaseFalso struct {
 	inputClassificar portsin.ClassificarSolicitacaoInput
 	inputEditar      portsin.EditarSolicitacaoInput
 	inputAdiar       portsin.AdiarSolicitacaoInput
+	inputEstorno     portsin.EstornarPagamentoInput
+	pagamentos       []*domainsolicitacao.Pagamento
 	aprovadoID       uuid.UUID
 	rejeitadoID      uuid.UUID
 	canceladoID      uuid.UUID
@@ -100,6 +102,20 @@ func (f *solicitacaoUseCaseFalso) Adiar(_ context.Context, input portsin.AdiarSo
 	f.inputAdiar = input
 
 	return f.erro
+}
+
+func (f *solicitacaoUseCaseFalso) EstornarPagamento(_ context.Context, input portsin.EstornarPagamentoInput) error {
+	f.inputEstorno = input
+
+	return f.erro
+}
+
+func (f *solicitacaoUseCaseFalso) ListarPagamentos(_ context.Context, _, _ uuid.UUID) ([]*domainsolicitacao.Pagamento, error) {
+	if f.erro != nil {
+		return nil, f.erro
+	}
+
+	return f.pagamentos, nil
 }
 
 func (f *solicitacaoUseCaseFalso) RegistrarPagamento(_ context.Context, input portsin.RegistrarPagamentoInput) error {

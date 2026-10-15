@@ -141,9 +141,12 @@ func TestFluxoCompletoDeSolicitacaoDePagamento(t *testing.T) {
 	conferirStatus(t, respostaComprovante, http.StatusCreated)
 	comprovante := decodificarEnvelope[solicitacaodto.ArquivoResponse](t, respostaComprovante).Dados
 
+	conta := prepararPagamentoE2E(t, servidor, solicitacao.EmpresaID, solicitacao.ID, aprovada.Versao)
+
 	respostaPagamento := enviaComToken(t, servidor, http.MethodPost, caminho+"/pagamento", map[string]any{
 		"valor_centavos":         148500,
 		"comprovante_arquivo_id": comprovante.ID,
+		"conta_bancaria_id":      conta,
 	}, tokenFinanceiro)
 	conferirStatus(t, respostaPagamento, http.StatusCreated)
 	pagamento := decodificarEnvelope[solicitacaodto.PagamentoResponse](t, respostaPagamento).Dados
@@ -174,11 +177,11 @@ func TestFluxoCompletoDeSolicitacaoDePagamento(t *testing.T) {
 	respostaHistorico := enviaComToken(t, servidor, http.MethodGet, caminho+"/historico", nil, tokenSolicitante)
 	conferirStatus(t, respostaHistorico, http.StatusOK)
 	historico := decodificarEnvelope[[]solicitacaodto.HistoricoResponse](t, respostaHistorico).Dados
-	if len(historico) != 3 {
-		t.Fatalf("histórico = %d registros, esperado 3", len(historico))
+	if len(historico) != 4 {
+		t.Fatalf("histórico = %d registros, esperado 4", len(historico))
 	}
-	if historico[0].ParaStatus != "pago" || historico[2].ParaStatus != "pendente_aprovacao" {
-		t.Errorf("ordem do histórico inesperada: %q ... %q", historico[0].ParaStatus, historico[2].ParaStatus)
+	if historico[0].ParaStatus != "pago" || historico[1].Evento != "classificada" || historico[3].ParaStatus != "pendente_aprovacao" {
+		t.Errorf("ordem do histórico inesperada: %q, %q ... %q", historico[0].ParaStatus, historico[1].Evento, historico[3].ParaStatus)
 	}
 
 	respostaArquivos := enviaComToken(t, servidor, http.MethodGet, caminho+"/arquivos", nil, tokenSolicitante)

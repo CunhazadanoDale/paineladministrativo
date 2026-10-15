@@ -260,6 +260,48 @@ func (h *SolicitacaoHandler) ObterPagamento(w http.ResponseWriter, r *http.Reque
 	})
 }
 
+func (h *SolicitacaoHandler) ListarPagamentos(w http.ResponseWriter, r *http.Request) {
+	usuario, id, ok := resposta.UsuarioEId(w, r)
+	if !ok {
+		return
+	}
+
+	pagamentos, err := h.usecase.ListarPagamentos(r.Context(), id, usuario.ID)
+	if err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+
+	dto.EscreverJSON(w, http.StatusOK, dto.Resposta[[]solicitacaodto.PagamentoResponse]{
+		Dados: solicitacaodto.NovoPagamentoResponses(pagamentos),
+	})
+}
+
+func (h *SolicitacaoHandler) EstornarPagamento(w http.ResponseWriter, r *http.Request) {
+	usuario, id, ok := resposta.UsuarioEId(w, r)
+	if !ok {
+		return
+	}
+
+	var requisicao solicitacaodto.EstornarPagamentoRequest
+	if !resposta.CorpoJSON(w, r, &requisicao) {
+		return
+	}
+
+	input, err := requisicao.ParaInput(id, usuario.ID)
+	if err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+
+	if err := h.usecase.EstornarPagamento(r.Context(), input); err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+
+	h.responderAtualizada(w, r, id, usuario.ID)
+}
+
 func (h *SolicitacaoHandler) ListarHistorico(w http.ResponseWriter, r *http.Request) {
 	usuario, id, ok := resposta.UsuarioEId(w, r)
 	if !ok {

@@ -142,6 +142,7 @@ type RejeitarRequest struct {
 }
 
 type RegistrarPagamentoRequest struct {
+	ContaBancariaID      *uuid.UUID `json:"conta_bancaria_id"`
 	ValorCentavos        int64      `json:"valor_centavos"`
 	ComprovanteArquivoID *uuid.UUID `json:"comprovante_arquivo_id"`
 	PagoEm               string     `json:"pago_em"`
@@ -151,6 +152,7 @@ func (r RegistrarPagamentoRequest) ParaInput(solicitacaoID, usuarioID uuid.UUID)
 	input := portsin.RegistrarPagamentoInput{
 		SolicitacaoID:        solicitacaoID,
 		UsuarioID:            usuarioID,
+		ContaBancariaID:      r.ContaBancariaID,
 		ValorCentavos:        r.ValorCentavos,
 		ComprovanteArquivoID: r.ComprovanteArquivoID,
 	}
@@ -243,24 +245,88 @@ func NovaSolicitacaoResponses(itens []*domainsolicitacao.Solicitacao) []Solicita
 	return respostas
 }
 
+type EstornarPagamentoRequest struct {
+	Motivo      string `json:"motivo"`
+	EstornadoEm string `json:"estornado_em"`
+	Versao      int    `json:"versao"`
+}
+
+func (r EstornarPagamentoRequest) ParaInput(solicitacaoID, usuarioID uuid.UUID) (portsin.EstornarPagamentoInput, error) {
+	input := portsin.EstornarPagamentoInput{
+		SolicitacaoID: solicitacaoID,
+		UsuarioID:     usuarioID,
+		Motivo:        r.Motivo,
+		Versao:        r.Versao,
+	}
+
+	estornadoEm := strings.TrimSpace(r.EstornadoEm)
+	if estornadoEm == "" {
+		return input, nil
+	}
+
+	data, err := time.Parse(time.RFC3339, estornadoEm)
+	if err != nil {
+		return portsin.EstornarPagamentoInput{}, domain.ErroValidacao("data do estorno deve estar no formato AAAA-MM-DDTHH:MM:SSZ")
+	}
+	input.EstornadoEm = data
+
+	return input, nil
+}
+
+type EstornoResponse struct {
+	ID          uuid.UUID `json:"id"`
+	Motivo      string    `json:"motivo"`
+	EstornadoEm time.Time `json:"estornado_em"`
+	UsuarioID   uuid.UUID `json:"usuario_id"`
+	CriadoEm    time.Time `json:"criado_em"`
+}
+
 type PagamentoResponse struct {
-	ID                   uuid.UUID  `json:"id"`
-	SolicitacaoID        uuid.UUID  `json:"solicitacao_id"`
-	ComprovanteArquivoID *uuid.UUID `json:"comprovante_arquivo_id"`
-	ValorCentavos        int64      `json:"valor_centavos"`
-	PagoEm               time.Time  `json:"pago_em"`
-	CriadoEm             time.Time  `json:"criado_em"`
+	ID                   uuid.UUID        `json:"id"`
+	SolicitacaoID        uuid.UUID        `json:"solicitacao_id"`
+	ContaBancariaID      *uuid.UUID       `json:"conta_bancaria_id"`
+	UsuarioID            *uuid.UUID       `json:"usuario_id"`
+	ComprovanteArquivoID *uuid.UUID       `json:"comprovante_arquivo_id"`
+	ValorCentavos        int64            `json:"valor_centavos"`
+	PagoEm               time.Time        `json:"pago_em"`
+	Estornado            bool             `json:"estornado"`
+	Estorno              *EstornoResponse `json:"estorno"`
+	CriadoEm             time.Time        `json:"criado_em"`
 }
 
 func NovoPagamentoResponse(item *domainsolicitacao.Pagamento) PagamentoResponse {
-	return PagamentoResponse{
+	resposta := PagamentoResponse{
 		ID:                   item.ID,
 		SolicitacaoID:        item.SolicitacaoID,
+		ContaBancariaID:      item.ContaBancariaID,
+		UsuarioID:            item.UsuarioID,
 		ComprovanteArquivoID: item.ComprovanteArquivoID,
 		ValorCentavos:        item.Valor.Centavos(),
 		PagoEm:               item.PagoEm,
+		Estornado:            item.Estornado,
 		CriadoEm:             item.CriadoEm,
 	}
+
+	if item.Estorno != nil {
+		resposta.Estorno = &EstornoResponse{
+			ID:          item.Estorno.ID,
+			Motivo:      item.Estorno.Motivo.Texto(),
+			EstornadoEm: item.Estorno.EstornadoEm,
+			UsuarioID:   item.Estorno.UsuarioID,
+			CriadoEm:    item.Estorno.CriadoEm,
+		}
+	}
+
+	return resposta
+}
+
+func NovoPagamentoResponses(itens []*domainsolicitacao.Pagamento) []PagamentoResponse {
+	respostas := make([]PagamentoResponse, 0, len(itens))
+	for _, item := range itens {
+		respostas = append(respostas, NovoPagamentoResponse(item))
+	}
+
+	return respostas
 }
 
 type HistoricoResponse struct {
