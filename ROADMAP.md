@@ -140,7 +140,7 @@ o **F0b** pode correr junto com essas telas.
 |---|---|---|---|---|
 | T0 | Saneamento | — | — | concluído |
 | F0a | Correções do front — bloqueante | — | — | concluído |
-| F0b | Correções do front — qualidade | F0a | — | em andamento (feat/f0b) |
+| F0b | Correções do front — qualidade | F0a | — | concluído |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
 | M3 | Clientes e representantes | M1 | Base de clientes | concluído |
@@ -285,6 +285,43 @@ em duas etapas:
   ainda é o template do Vite; `.oxlintrc.json` sem `exhaustive-deps`; comentários no
   código (`lib/api.js`, `vite.config.js`, `services/leads.js`, telas de leads e funis).
 - **Testes** para os itens acima, no padrão dos existentes.
+
+**Entregue (outubro/2026, branch `feat/f0b` do front):** valem para as telas do M1–M5:
+
+- `ErroApi.esperaSegundos` traz o `Retry-After` em segundos; o login trava o botão com contagem
+  regressiva durante o `429`;
+- `listarTodas` cobre aprovadores, usuários, cargos, categorias, funis e histórico e anexos da
+  solicitação (`listarTodos*` nos services); os funis também cortavam em 50 no dashboard e nos
+  leads. O plano de contas ainda não tem tela no front: a `GET /categorias-financeiras/arvore`
+  fica para o front do M5;
+- toda leitura dos services aceita `{ sinal }`, e todo hook de dados cria um `AbortController`
+  por efeito e cancela ao desmontar ou trocar de chave (`modules/cancelamento.test.jsx` cobre
+  cada hook);
+- `enviarArquivo` rejeita `2xx` sem JSON com a mesma `MENSAGEM_SEM_JSON` do `requisitar`;
+  `obterArquivoBlob` baixa com token e `ImagemArquivo` (`app/components`) mostra o arquivo por
+  `URL.createObjectURL`. O detalhe do produto usa a rota autenticada só para o administrador:
+  `GET /arquivos/{id}` serve apenas o dono ou o administrador, então os demais seguem na rota
+  pública e não veem imagem de produto inativo;
+- `anexarImagem` apaga o arquivo enviado quando o vínculo falha; `baixarArquivo` revoga o
+  object URL depois de 60 s;
+- Produtos separa o erro da lista do vazio e avisa falha de categorias e resumo com "Tentar
+  novamente"; categorias carregam uma vez e o resumo só depois de alteração;
+- Leads: a página fica atrelada ao `q`, então a busca da TopBar abre na página 1; `recarregar`
+  busca a lista uma vez e só refaz funis e etapas se foram eles que falharam; o erro do lead e o
+  da estrutura no detalhe ficam presos à chave e somem no retry;
+- login volta ao link de origem (`state.de` no redirecionamento para `/login`, resolvido pela
+  rota `/login` do `App`); o `AutenticacaoProvider` ouve o evento `storage` e sincroniza logout
+  e login entre abas;
+- `DataGrid` usa `row.id` como `key` e como seleção;
+- `Modal` prende o foco, devolve o foco a quem abriu, usa `aria-labelledby` e não fecha no
+  clique fora depois que algum campo mudou (X e Esc continuam fechando); `index.html` em
+  `pt-BR` com o título "Painel MiaConstrutora"; busca da TopBar com `role="search"` e nome
+  acessível; os botões Ajuda e Notificações saíram;
+- higiene: `.env` ignorado, os seis arquivos sem uso removidos, README próprio,
+  `react-hooks/exhaustive-deps` como erro (o código já estava limpo) e nenhum comentário em
+  `src` nem no `vite.config.js`;
+- testes: `asyncUtilTimeout` de 3 s no `src/test/setup.js`, porque a suíte completa estourava
+  o limite de 1 s do Testing Library em máquina carregada.
 
 #### Front do M1–M5 depois do F0a
 
