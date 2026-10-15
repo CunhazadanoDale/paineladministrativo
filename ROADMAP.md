@@ -87,7 +87,7 @@ Documentos irmãos: `API.md` (contrato), `ESTOQUE.md` (modelo de escopo de módu
    cada módulo, ou por uma sessão própria depois que a API estiver `concluído`. O front de
    qualquer módulo a partir do M1 só começa depois do F0a (seção 5), que conserta as telas
    quebradas pelo M1 e pelo M2, a conversão de valores e de fuso, as permissões e os
-   contratos de erro (`409` de versão, `429` do login); o F0b corre em paralelo.
+   contratos de erro (`409` de versão); o F0b corre em paralelo.
 9. **Banco de dev compartilhado é intocável.** Nenhuma sessão roda `migrate` no banco
    `mia` (porta `5444`): cada uma cria a própria `000NN` e duas aplicações cruzadas deixam
    a `schema_migrations` inconsistente. Para testar a API ou o front ao vivo, use um banco
@@ -139,8 +139,10 @@ o **F0b** pode correr junto com essas telas.
 | # | Módulo | Depende de | Substitui (controle manual atual) | Status |
 |---|---|---|---|---|
 | T0 | Saneamento | — | — | concluído |
-| F0a | Correções do front — bloqueante | — | — | em andamento (feat/f0a) |
-| F0b | Correções do front — qualidade | F0a | — | pendente |
+| F0a | Correções do front — bloqueante | — | — | concluído |
+| F0b | Correções do front — qualidade | F0a | — | concluído |
+| F-M1 | Front de empresas e filiais | M1 F0a | — | concluído |
+| F-M4 | Front de fornecedores | M4 F0a | — | em andamento (feat/front-m4-fornecedores) |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
 | M3 | Clientes e representantes | M1 | Base de clientes | concluído |
@@ -232,11 +234,29 @@ em duas etapas:
 - **Versão otimista**: fornecedores, contas bancárias e plano de contas exigem `versao` no
   `PUT`, `ativar` e `desativar` e respondem `409` quando outra pessoa gravou antes. Tratamento
   único no front: aviso com a mensagem da API e recarga do registro, sem perder o formulário.
-- **Limite de login**: `POST /usuarios/autenticar` responde `429` com `Retry-After`; a tela
-  de login mostra o tempo de espera em vez de erro genérico.
 - **Testes** para os itens acima, no padrão dos existentes (`vitest` + Testing Library).
 
+**Entregue (outubro/2026, branch `feat/f0a` do front):** para as telas do M1–M5:
+
+- `paraCentavos` lê ponto como milhar quando não há vírgula e o padrão é de milhar;
+  `formatarData` é só para campo só-data (formata em UTC) e `formatarDataHora` para instante
+  (fuso local); os testes rodam com `TZ=America/Sao_Paulo` para o erro de fuso aparecer no CI;
+- `useAutenticacao()` expõe `financeiro` (herdado do administrador) lido do login; só
+  `permissoes.aprovacao` vem de sondagem, negada em qualquer erro;
+- `listarTodas(caminho, params)` em `lib/api.js` percorre as páginas de 100 e recusa lista
+  acima de 5000 em vez de cortá-la;
+- `SeletorEmpresa` e `SeletorLocal` (`app/components`) carregam o acesso do usuário, selecionam
+  sozinhos a única opção (`selecionarUnica={false}` em filtros) e limpam valor que saiu da
+  lista; `useNomesEmpresas` (`app/empresas`) traduz `empresa_id` em nome fantasia;
+- `ehConflitoDeConcorrencia(erro)` reconhece o `409` de versão ou de operação concorrente pela
+  mensagem (a API não tem código próprio: todas dizem "recarregue") e `AvisoConflito` mostra
+  a mensagem com "Recarregar dados" sem perder o formulário; o movimento de estoque já usa;
+- o `429` do login já aparece com o tempo de espera, porque a tela mostra a mensagem da API;
+  travar o botão durante o `Retry-After` foi para o F0b.
+
 #### F0b — qualidade
+
+- **Limite de login**: travar o botão de entrar durante o `Retry-After` do `429`.
 
 - **Produtos**: a tela mostra banner de erro e "Nenhum produto encontrado" ao mesmo tempo;
   falhas de categorias e resumo são engolidas; categorias e resumo são buscados de novo a
@@ -268,6 +288,43 @@ em duas etapas:
   código (`lib/api.js`, `vite.config.js`, `services/leads.js`, telas de leads e funis).
 - **Testes** para os itens acima, no padrão dos existentes.
 
+**Entregue (outubro/2026, branch `feat/f0b` do front):** valem para as telas do M1–M5:
+
+- `ErroApi.esperaSegundos` traz o `Retry-After` em segundos; o login trava o botão com contagem
+  regressiva durante o `429`;
+- `listarTodas` cobre aprovadores, usuários, cargos, categorias, funis e histórico e anexos da
+  solicitação (`listarTodos*` nos services); os funis também cortavam em 50 no dashboard e nos
+  leads. O plano de contas ainda não tem tela no front: a `GET /categorias-financeiras/arvore`
+  fica para o front do M5;
+- toda leitura dos services aceita `{ sinal }`, e todo hook de dados cria um `AbortController`
+  por efeito e cancela ao desmontar ou trocar de chave (`modules/cancelamento.test.jsx` cobre
+  cada hook);
+- `enviarArquivo` rejeita `2xx` sem JSON com a mesma `MENSAGEM_SEM_JSON` do `requisitar`;
+  `obterArquivoBlob` baixa com token e `ImagemArquivo` (`app/components`) mostra o arquivo por
+  `URL.createObjectURL`. O detalhe do produto usa a rota autenticada só para o administrador:
+  `GET /arquivos/{id}` serve apenas o dono ou o administrador, então os demais seguem na rota
+  pública e não veem imagem de produto inativo;
+- `anexarImagem` apaga o arquivo enviado quando o vínculo falha; `baixarArquivo` revoga o
+  object URL depois de 60 s;
+- Produtos separa o erro da lista do vazio e avisa falha de categorias e resumo com "Tentar
+  novamente"; categorias carregam uma vez e o resumo só depois de alteração;
+- Leads: a página fica atrelada ao `q`, então a busca da TopBar abre na página 1; `recarregar`
+  busca a lista uma vez e só refaz funis e etapas se foram eles que falharam; o erro do lead e o
+  da estrutura no detalhe ficam presos à chave e somem no retry;
+- login volta ao link de origem (`state.de` no redirecionamento para `/login`, resolvido pela
+  rota `/login` do `App`); o `AutenticacaoProvider` ouve o evento `storage` e sincroniza logout
+  e login entre abas;
+- `DataGrid` usa `row.id` como `key` e como seleção;
+- `Modal` prende o foco, devolve o foco a quem abriu, usa `aria-labelledby` e não fecha no
+  clique fora depois que algum campo mudou (X e Esc continuam fechando); `index.html` em
+  `pt-BR` com o título "Painel MiaConstrutora"; busca da TopBar com `role="search"` e nome
+  acessível; os botões Ajuda e Notificações saíram;
+- higiene: `.env` ignorado, os seis arquivos sem uso removidos, README próprio,
+  `react-hooks/exhaustive-deps` como erro (o código já estava limpo) e nenhum comentário em
+  `src` nem no `vite.config.js`;
+- testes: `asyncUtilTimeout` de 3 s no `src/test/setup.js`, porque a suíte completa estourava
+  o limite de 1 s do Testing Library em máquina carregada.
+
 #### Front do M1–M5 depois do F0a
 
 Ordem sugerida, cada um como sessão própria (regra 8 da seção 3):
@@ -278,6 +335,25 @@ Ordem sugerida, cada um como sessão própria (regra 8 da seção 3):
 3. **M5 Contas bancárias e plano de contas**: árvore de categorias em dois níveis.
 4. **M2 Locais, saldo por local, lotes, transferência e reservas.**
 5. **M3 Clientes, obras, grupos, representantes**, conversão de lead e importação por CSV.
+
+**Entregue o front do M1 (outubro/2026, branch `feat/front-m1-empresas` do front):**
+
+- `services/empresas.js` ganhou `criarEmpresa`, `atualizarEmpresa` (sem `cnpj`), `ativarEmpresa`,
+  `desativarEmpresa`, `removerEmpresa`, `obterEmpresasDoUsuario` e `definirEmpresasDoUsuario`;
+  `listarEmpresas` e `obterEmpresa` passaram a aceitar `{ sinal }`;
+- tela `/empresas` (`modules/empresas`), restrita a administrador como `/usuarios` e com entrada na
+  Sidebar em Sistema: lista paginada com filtro de situação, cadastro com CNPJ numérico ou
+  alfanumérico (enviado sem máscara e em maiúsculas; os dígitos verificadores ficam com a API),
+  edição sem CNPJ, ativar/desativar e exclusão com a mensagem de "registro em uso" da API;
+- vínculo de usuários às empresas pelo botão "Empresas do usuário" em `/usuarios`: o modal grava o
+  conjunto inteiro (`acesso_todas` + `empresa_ids`), guarda a lista quando o acesso total está
+  ligado, preserva vínculo com empresa que não veio na lista, marca empresa inativa e avisa quando
+  o usuário fica sem acesso ou quando o cargo é de administrador (a rota mostra o gravado, não o
+  efetivo);
+- `useEmpresas` e `useAcessoEmpresas` com `AbortController`, ambos em
+  `modules/cancelamento.test.jsx`;
+- empresas não têm `versao` na API, então o `AvisoConflito` não entra aqui: o único `409` é o de
+  CNPJ repetido, mostrado como erro do formulário sem perder o que foi digitado.
 
 ### M1 — Empresas e filiais
 
@@ -590,8 +666,8 @@ Somente leitura; nenhum dado digitado aqui.
 
 ## 6. Decisões em aberto (levar ao usuário)
 
-- [ ] **Empresa faturadora**: regra para decidir se a venda sai pela MIA ou pela CE
-      (afeta M6 e M8).
+- [x] **Empresa faturadora** (outubro/2026): escolhida no pedido entre as empresas ativas no
+      acesso do usuário, sem regra automática; vale para M6 e M8.
 - [ ] **Transferências entre empresas**: tratamento fiscal com a contabilidade (afeta
       M8 e M15).
 - [x] **Representante é usuário?** Vínculo opcional (outubro/2026): `representante` é cadastro
