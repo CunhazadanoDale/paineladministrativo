@@ -145,6 +145,7 @@ o **F0b** pode correr junto com essas telas.
 | F-M1 | Front de empresas e filiais | M1 F0a | — | concluído |
 | F-M4 | Front de fornecedores | M4 F0a | — | concluído |
 | F-M5 | Front de contas bancárias e plano de contas | M5 F0a | — | concluído |
+| F-M2 | Front de estoque por local, lote e reserva | M2 F0a | — | em andamento (feat/front-m2-estoque) |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
 | M3 | Clientes e representantes | M1 | Base de clientes | concluído |
