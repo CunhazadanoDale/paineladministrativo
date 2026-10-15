@@ -142,7 +142,7 @@ o **F0b** pode correr junto com essas telas.
 | F0a | Correções do front — bloqueante | — | — | concluído |
 | F0b | Correções do front — qualidade | F0a | — | concluído |
 | F-M1 | Front de empresas e filiais | M1 F0a | — | concluído |
-| F-M4 | Front de fornecedores | M4 F0a | — | em andamento (feat/front-m4-fornecedores) |
+| F-M4 | Front de fornecedores | M4 F0a | — | concluído |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
 | M3 | Clientes e representantes | M1 | Base de clientes | concluído |
@@ -355,6 +355,26 @@ Ordem sugerida, cada um como sessão própria (regra 8 da seção 3):
 - empresas não têm `versao` na API, então o `AvisoConflito` não entra aqui: o único `409` é o de
   CNPJ repetido, mostrado como erro do formulário sem perder o que foi digitado.
 
+**Entregue o front do M4 (outubro/2026, branch `feat/front-m4-fornecedores` do front):**
+
+- `services/fornecedores.js` com listagem (`busca`, `pais`, `moeda`, `ativo`), detalhe, criação,
+  alteração, ativar/desativar e exclusão; `atualizarFornecedor` tira `pais` e `documento` do corpo
+  (a API responde `400` se vierem) e ativar/desativar enviam `{ versao }`; as leituras aceitam
+  `{ sinal }`;
+- tela `/fornecedores` (`modules/fornecedores`) aberta a qualquer autenticado, com entrada na
+  Sidebar em Financeiro: o financeiro (ou administrador) cria, edita, ativa e desativa; só o
+  administrador exclui; os demais só leem. Lista paginada com busca, filtro de moeda e de situação;
+- formulário por país: `BR` exige CPF ou CNPJ (enviado sem máscara e em maiúsculas) e aceita UF e
+  cidade; outro país usa `identificacao_estrangeira` em maiúsculas; país e documento travados na
+  edição; campo opcional vazio não vai no corpo, e o `PUT` leva a `versao` lida;
+- **modelo da versão otimista para o M5**: o `409` de versão no `PUT` mostra o `AvisoConflito` no
+  formulário, e "Recarregar dados" busca o registro (`GET /{id}` com `AbortController`), troca só a
+  `versao` e mantém o que foi digitado, avisando para conferir e salvar de novo; o `409` de versão
+  no ativar/desativar mostra o mesmo aviso na lista, que recarrega a página com as versões novas.
+  Os outros `409` (documento ou identificação repetidos) seguem como erro comum do formulário;
+- `useFornecedores` com `AbortController`, em `modules/cancelamento.test.jsx`; a recarga do
+  formulário é cancelada quando o modal fecha (coberta em `Fornecedores.test.jsx`).
+
 ### M1 — Empresas e filiais
 
 Fundação: tudo o que é financeiro, fiscal ou de estoque passa a pertencer a uma empresa.
@@ -452,7 +472,7 @@ outros módulos precisam saber.
 - Fornecedor é do grupo, não de uma empresa: por isso não depende do M1 e roda na onda 1.
   Se alguma regra precisar de empresa, ela entra no M7 (a conta a pagar tem empresa).
 
-**Entregue (outubro/2026):** API completa (fases 1 a 5 do `FORNECEDORES.md`); front pendente. Para
+**Entregue (outubro/2026):** API completa (fases 1 a 5 do `FORNECEDORES.md`); front no F-M4. Para
 os próximos módulos:
 
 - fornecedor do Brasil tem documento obrigatório (CPF ou CNPJ, validado por

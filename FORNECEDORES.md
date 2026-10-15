@@ -1,6 +1,6 @@
 # Escopo — M4 Fornecedores
 
-> **Status:** escopo aprovado — API concluída (fases 1 a 5); front pendente.
+> **Status:** concluído: API (fases 1 a 5) e frontend (fase 6, front do M4).
 > **Objetivo:** tirar a "coluna fornecedor do painel financeiro" do texto livre: cadastro único
 > de fornecedores do grupo, nacionais e estrangeiros, base para contas a pagar (M7),
 > importações (M12) e dívidas (M14).
@@ -184,7 +184,7 @@ test/helpers/servidor.go + test/integration + test/e2e
 | **3** | Perfil financeiro (`TemAcessoFinanceiro`, `ExigirFinanceiro`, campo no login) + testes; o wrapper `financeiro(...)` entra em `rotas.go` junto da primeira rota que o usa (Go recusa variável local sem uso) | concluída |
 | **4** | Usecase + permissões + testes com fakes | concluída |
 | **5** | Handlers/DTOs + rotas + e2e + `API.md` | concluída |
-| **6** | Frontend: lista, cadastro e edição de fornecedores | pendente |
+| **6** | Frontend: lista, cadastro e edição de fornecedores | concluída |
 
 O M4 não tem dinheiro nem data de fato (moeda é só um código), então a fase 6 não depende da
 F0.
