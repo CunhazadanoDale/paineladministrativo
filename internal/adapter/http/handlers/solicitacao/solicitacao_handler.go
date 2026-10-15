@@ -100,7 +100,19 @@ func (h *SolicitacaoHandler) Aprovar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.usecase.Aprovar(r.Context(), id, usuario.ID); err != nil {
+	var requisicao solicitacaodto.AprovarRequest
+	presente, ok := resposta.CorpoJSONOpcional(w, r, &requisicao)
+	if !ok {
+		return
+	}
+
+	var err error
+	if presente && requisicao.Versao != nil {
+		err = h.usecase.AprovarNaVersao(r.Context(), id, usuario.ID, *requisicao.Versao)
+	} else {
+		err = h.usecase.Aprovar(r.Context(), id, usuario.ID)
+	}
+	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
 	}
@@ -370,10 +382,13 @@ func entradaDeListagem(r *http.Request, usuarioID uuid.UUID) (portsin.ListarSoli
 		Status:      resposta.ConsultaTexto(r, "status"),
 		Competencia: resposta.ConsultaTexto(r, "competencia"),
 		Origem:      resposta.ConsultaTexto(r, "origem"),
-		Vencidas:    resposta.ConsultaBooleana(r, "vencidas"),
 	}
 
-	var err error
+	vencidas, err := resposta.ConsultaBooleanaOpcional(r, "vencidas")
+	if err != nil {
+		return input, err
+	}
+	input.Vencidas = vencidas != nil && *vencidas
 	if input.Empresa, err = resposta.ConsultaUUID(r, "empresa"); err != nil {
 		return input, err
 	}

@@ -36,6 +36,7 @@ type solicitacaoUseCaseFalso struct {
 	pagamentos       []*domainsolicitacao.Pagamento
 	pendencias       domainsolicitacao.Pendencias
 	aprovadoID       uuid.UUID
+	versaoAprovada   int
 	rejeitadoID      uuid.UUID
 	canceladoID      uuid.UUID
 	motivo           string
@@ -70,6 +71,13 @@ func (f *solicitacaoUseCaseFalso) Listar(_ context.Context, input portsin.Listar
 func (f *solicitacaoUseCaseFalso) Aprovar(_ context.Context, solicitacaoID, aprovadorID uuid.UUID) error {
 	f.aprovadoID = solicitacaoID
 	_ = aprovadorID
+
+	return f.erro
+}
+
+func (f *solicitacaoUseCaseFalso) AprovarNaVersao(_ context.Context, solicitacaoID, _ uuid.UUID, versao int) error {
+	f.aprovadoID = solicitacaoID
+	f.versaoAprovada = versao
 
 	return f.erro
 }

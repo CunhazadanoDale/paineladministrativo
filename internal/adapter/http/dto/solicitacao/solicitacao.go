@@ -137,6 +137,10 @@ func DataDeConsulta(valor, nome string) (*time.Time, error) {
 	return &data, nil
 }
 
+type AprovarRequest struct {
+	Versao *int `json:"versao"`
+}
+
 type RejeitarRequest struct {
 	Motivo string `json:"motivo"`
 }

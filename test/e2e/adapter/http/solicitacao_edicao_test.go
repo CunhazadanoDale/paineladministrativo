@@ -46,7 +46,10 @@ func TestSolicitanteEditaPendenteEFinanceiroAdiaAprovada(t *testing.T) {
 	conferirMensagem(t, enviaComToken(t, servidor, http.MethodPut, caminho, edicao, tokenSolicitante),
 		http.StatusConflict, "solicitação alterada por outra operação, recarregue e tente novamente")
 
-	respostaAprovacao := enviaComToken(t, servidor, http.MethodPost, caminho+"/aprovar", nil, tokenAprovador)
+	conferirMensagem(t, enviaComToken(t, servidor, http.MethodPost, caminho+"/aprovar", map[string]any{"versao": 1}, tokenAprovador),
+		http.StatusConflict, "solicitação alterada por outra operação, recarregue e tente novamente")
+
+	respostaAprovacao := enviaComToken(t, servidor, http.MethodPost, caminho+"/aprovar", map[string]any{"versao": 2}, tokenAprovador)
 	conferirStatus(t, respostaAprovacao, http.StatusOK)
 
 	edicao["versao"] = 3
