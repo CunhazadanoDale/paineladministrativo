@@ -446,12 +446,14 @@ func TestRegistrarPagamentoValidaADataInformada(t *testing.T) {
 	if err := c.solicitacao.Aprovar(c.ctx, id, aprovador); err != nil {
 		t.Fatalf("aprovação falhou: %v", err)
 	}
+	conta := c.prepararPagamento(t, id)
 
 	if err := c.solicitacao.RegistrarPagamento(c.ctx, portsin.RegistrarPagamentoInput{
-		SolicitacaoID: id,
-		UsuarioID:     financeiro,
-		ValorCentavos: 150000,
-		PagoEm:        time.Now().UTC().Add(48 * time.Hour),
+		SolicitacaoID:   id,
+		UsuarioID:       financeiro,
+		ContaBancariaID: conta,
+		ValorCentavos:   150000,
+		PagoEm:          time.Now().UTC().Add(48 * time.Hour),
 	}); !errors.Is(err, domain.ErrValidacao) {
 		t.Fatalf("pagamento com data futura = %v, esperado erro de validação", err)
 	}
@@ -459,10 +461,11 @@ func TestRegistrarPagamentoValidaADataInformada(t *testing.T) {
 	pagoEm := time.Now().UTC().AddDate(0, 0, -3)
 	antes := time.Now().UTC()
 	if err := c.solicitacao.RegistrarPagamento(c.ctx, portsin.RegistrarPagamentoInput{
-		SolicitacaoID: id,
-		UsuarioID:     financeiro,
-		ValorCentavos: 150000,
-		PagoEm:        pagoEm,
+		SolicitacaoID:   id,
+		UsuarioID:       financeiro,
+		ContaBancariaID: conta,
+		ValorCentavos:   150000,
+		PagoEm:          pagoEm,
 	}); err != nil {
 		t.Fatalf("pagamento retroativo falhou: %v", err)
 	}
@@ -495,12 +498,14 @@ func TestRegistrarPagamentoAceitaValorDiferenteDoEstimado(t *testing.T) {
 	if err := c.solicitacao.Aprovar(c.ctx, id, aprovador); err != nil {
 		t.Fatalf("aprovação falhou: %v", err)
 	}
+	conta := c.prepararPagamento(t, id)
 
 	comprovante := c.enviarArquivo(t, financeiro, "comprovante.pdf", "application/pdf")
 
 	if err := c.solicitacao.RegistrarPagamento(c.ctx, portsin.RegistrarPagamentoInput{
 		SolicitacaoID:        id,
 		UsuarioID:            financeiro,
+		ContaBancariaID:      conta,
 		ValorCentavos:        148500,
 		ComprovanteArquivoID: &comprovante.ID,
 		PagoEm:               time.Now().UTC(),
@@ -531,9 +536,10 @@ func TestRegistrarPagamentoAceitaValorDiferenteDoEstimado(t *testing.T) {
 	}
 
 	if err := c.solicitacao.RegistrarPagamento(c.ctx, portsin.RegistrarPagamentoInput{
-		SolicitacaoID: id,
-		UsuarioID:     financeiro,
-		ValorCentavos: 100,
+		SolicitacaoID:   id,
+		UsuarioID:       financeiro,
+		ContaBancariaID: conta,
+		ValorCentavos:   100,
 	}); !errors.Is(err, domain.ErrConflito) {
 		t.Errorf("pagamento repetido = %v, esperado erro de conflito", err)
 	}

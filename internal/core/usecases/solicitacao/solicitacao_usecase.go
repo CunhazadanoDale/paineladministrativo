@@ -20,6 +20,7 @@ type SolicitacaoUsecaseImpl struct {
 	arquivos     portsout.ArquivoRepository
 	fornecedores portsout.FornecedorRepository
 	categorias   portsout.CategoriaFinanceiraRepository
+	contas       portsout.ContaBancariaRepository
 	permissoes
 }
 
@@ -32,12 +33,14 @@ func NewSolicitacaoUsecase(
 	empresas portsout.EmpresaRepository,
 	fornecedores portsout.FornecedorRepository,
 	categorias portsout.CategoriaFinanceiraRepository,
+	contas portsout.ContaBancariaRepository,
 ) *SolicitacaoUsecaseImpl {
 	return &SolicitacaoUsecaseImpl{
 		repo:         repo,
 		arquivos:     arquivos,
 		fornecedores: fornecedores,
 		categorias:   categorias,
+		contas:       contas,
 		permissoes: permissoes{
 			usuarios:    usuarios,
 			cargos:      cargos,
@@ -491,6 +494,10 @@ func (u *SolicitacaoUsecaseImpl) RegistrarPagamento(ctx context.Context, input p
 		return err
 	}
 
+	if err := u.validarContaDoPagamento(ctx, input.ContaBancariaID, solicitacao.EmpresaID); err != nil {
+		return err
+	}
+
 	if err := u.validarComprovante(ctx, solicitacao.ID, input.UsuarioID, input.ComprovanteArquivoID); err != nil {
 		return err
 	}
@@ -501,7 +508,9 @@ func (u *SolicitacaoUsecaseImpl) RegistrarPagamento(ctx context.Context, input p
 	}
 
 	agora := time.Now().UTC()
-	pagamento, err := domainsolicitacao.NovoPagamento(solicitacao.ID, valor, input.ComprovanteArquivoID, input.PagoEm.UTC(), agora)
+	pagamento, err := domainsolicitacao.NovoPagamento(
+		solicitacao.ID, *input.ContaBancariaID, input.UsuarioID, valor, input.ComprovanteArquivoID, input.PagoEm.UTC(), agora,
+	)
 	if err != nil {
 		return err
 	}
@@ -544,10 +553,99 @@ func (u *SolicitacaoUsecaseImpl) ObterPagamento(ctx context.Context, solicitacao
 		return nil, err
 	}
 	if pagamento == nil {
-		return nil, domain.ErroNaoEncontrado("pagamento não encontrado")
+		return nil, domainsolicitacao.ErroPagamentoNaoEncontrado()
 	}
 
 	return pagamento, nil
+}
+
+func (u *SolicitacaoUsecaseImpl) ListarPagamentos(ctx context.Context, solicitacaoID, usuarioID uuid.UUID) ([]*domainsolicitacao.Pagamento, error) {
+	if _, err := u.buscarVisivel(ctx, solicitacaoID, usuarioID); err != nil {
+		return nil, err
+	}
+
+	return u.repo.ListarPagamentos(ctx, solicitacaoID)
+}
+
+func (u *SolicitacaoUsecaseImpl) EstornarPagamento(ctx context.Context, input portsin.EstornarPagamentoInput) error {
+	permissao, err := u.ehFinanceiro(ctx, input.UsuarioID)
+	if err != nil {
+		return err
+	}
+	if !permissao {
+		return domain.ErroPermissao("perfil sem permissão para estornar pagamento")
+	}
+
+	solicitacao, err := u.buscar(ctx, input.SolicitacaoID)
+	if err != nil {
+		return err
+	}
+	if err := u.exigeAcessoAEmpresa(ctx, input.UsuarioID, solicitacao.EmpresaID); err != nil {
+		return err
+	}
+	if err := solicitacao.ConferirVersao(input.Versao); err != nil {
+		return err
+	}
+
+	motivo, err := domainsolicitacao.NovoMotivoEstorno(input.Motivo)
+	if err != nil {
+		return err
+	}
+
+	agora := time.Now().UTC()
+	versaoLida := solicitacao.Versao
+	statusAnterior := solicitacao.Status
+	if err := solicitacao.Estornar(agora); err != nil {
+		return err
+	}
+
+	pagamento, err := u.repo.ObterPagamento(ctx, solicitacao.ID)
+	if err != nil {
+		return err
+	}
+	if pagamento == nil {
+		return domainsolicitacao.ErroPagamentoNaoEncontrado()
+	}
+	if _, err := pagamento.Estornar(motivo, input.UsuarioID, input.EstornadoEm.UTC(), agora); err != nil {
+		return err
+	}
+
+	historico := domainsolicitacao.NovoHistorico(
+		solicitacao.ID, input.UsuarioID, &statusAnterior, solicitacao.Status, domainsolicitacao.EventoEstornada,
+		"pagamento estornado: "+motivo.Texto(),
+	)
+
+	return u.repo.Estornar(ctx, solicitacao, versaoLida, pagamento, historico)
+}
+
+func (u *SolicitacaoUsecaseImpl) validarContaDoPagamento(ctx context.Context, contaBancariaID *uuid.UUID, empresaID uuid.UUID) error {
+	if contaBancariaID == nil || *contaBancariaID == uuid.Nil {
+		return domainsolicitacao.ErroContaBancariaObrigatoria()
+	}
+
+	conta, err := u.contas.Obter(ctx, *contaBancariaID)
+	if err != nil {
+		return err
+	}
+	if conta == nil {
+		return domainsolicitacao.ErroContaBancariaNaoEncontrada()
+	}
+	if conta.EmpresaID != empresaID {
+		return domainsolicitacao.ErroContaBancariaDeOutraEmpresa()
+	}
+	if !conta.Ativa {
+		return domainsolicitacao.ErroContaBancariaInativa()
+	}
+
+	empresa, err := u.empresas.Obter(ctx, empresaID)
+	if err != nil {
+		return err
+	}
+	if empresa == nil || !empresa.Ativa {
+		return domainsolicitacao.ErroEmpresaInativaNoPagamento()
+	}
+
+	return nil
 }
 
 func (u *SolicitacaoUsecaseImpl) transicionarPorAprovador(

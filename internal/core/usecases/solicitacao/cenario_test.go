@@ -7,6 +7,7 @@ import (
 	"time"
 
 	domainempresa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/empresa"
+	domainfinanceiro "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/financeiro"
 	domainsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/solicitacao"
 	domainusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/usuarios"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/solicitacao"
@@ -27,6 +28,7 @@ type cenario struct {
 	empresasRepo     *repositorioEmpresas
 	fornecedoresRepo *repositorioFornecedores
 	categoriasRepo   *repositorioCategoriasFinanceiras
+	contasRepo       *repositorioContasBancarias
 	storage          *storageFalso
 	empresaID        uuid.UUID
 }
@@ -43,11 +45,12 @@ func novoCenario(t *testing.T) *cenario {
 	empresas := novoRepositorioEmpresas()
 	fornecedores := novoRepositorioFornecedores()
 	categorias := novoRepositorioCategoriasFinanceiras()
+	contas := novoRepositorioContasBancarias()
 
 	c := &cenario{
 		ctx: context.Background(),
 		solicitacao: solicitacaousecases.NewSolicitacaoUsecase(
-			solicitacoes, arquivos, aprovadores, usuarios, cargos, empresas, fornecedores, categorias,
+			solicitacoes, arquivos, aprovadores, usuarios, cargos, empresas, fornecedores, categorias, contas,
 		),
 		arquivo:          solicitacaousecases.NewArquivoUsecase(arquivos, solicitacoes, storage, usuarios, cargos, aprovadores, empresas),
 		aprovador:        solicitacaousecases.NewAprovadorUsecase(aprovadores, usuarios),
@@ -59,6 +62,7 @@ func novoCenario(t *testing.T) *cenario {
 		empresasRepo:     empresas,
 		fornecedoresRepo: fornecedores,
 		categoriasRepo:   categorias,
+		contasRepo:       contas,
 		storage:          storage,
 	}
 	c.empresaID = c.novaEmpresa(true)
@@ -93,6 +97,27 @@ func (c *cenario) criarSolicitacaoNaEmpresa(t *testing.T, solicitanteID, empresa
 	}
 
 	return id
+}
+
+func (c *cenario) novaConta(empresaID uuid.UUID, ativa bool) uuid.UUID {
+	id := uuid.New()
+	c.contasRepo.itens[id] = &domainfinanceiro.ContaBancaria{ID: id, EmpresaID: empresaID, Apelido: "Conta " + id.String()[:8], Ativa: ativa, Versao: 1}
+
+	return id
+}
+
+func (c *cenario) prepararPagamento(t *testing.T, id uuid.UUID) *uuid.UUID {
+	t.Helper()
+
+	salva, ok := c.solicitacoesRepo.itens[id]
+	if !ok {
+		t.Fatalf("solicitação %s não encontrada no cenário", id)
+	}
+	categoriaID := c.novaCategoria(domainfinanceiro.NaturezaDespesa, true, true)
+	salva.CategoriaFinanceiraID = &categoriaID
+	contaID := c.novaConta(salva.EmpresaID, true)
+
+	return &contaID
 }
 
 func (c *cenario) novoUsuario(nome string, administrador, financeiro bool) uuid.UUID {

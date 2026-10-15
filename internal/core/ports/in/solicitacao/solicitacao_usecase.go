@@ -67,9 +67,18 @@ type ClassificarSolicitacaoInput struct {
 type RegistrarPagamentoInput struct {
 	SolicitacaoID        uuid.UUID
 	UsuarioID            uuid.UUID
+	ContaBancariaID      *uuid.UUID
 	ValorCentavos        int64
 	ComprovanteArquivoID *uuid.UUID
 	PagoEm               time.Time
+}
+
+type EstornarPagamentoInput struct {
+	SolicitacaoID uuid.UUID
+	UsuarioID     uuid.UUID
+	Motivo        string
+	EstornadoEm   time.Time
+	Versao        int
 }
 
 type ListarSolicitacoesInput struct {
@@ -101,6 +110,8 @@ type SolicitacaoUseCase interface {
 	ListarHistorico(ctx context.Context, solicitacaoID, usuarioID uuid.UUID) ([]*domainsolicitacao.Historico, error)
 	ListarArquivos(ctx context.Context, solicitacaoID, usuarioID uuid.UUID) ([]*domainsolicitacao.Arquivo, error)
 	ObterPagamento(ctx context.Context, solicitacaoID, usuarioID uuid.UUID) (*domainsolicitacao.Pagamento, error)
+	ListarPagamentos(ctx context.Context, solicitacaoID, usuarioID uuid.UUID) ([]*domainsolicitacao.Pagamento, error)
+	EstornarPagamento(ctx context.Context, input EstornarPagamentoInput) error
 }
 
 type ArquivoUseCase interface {

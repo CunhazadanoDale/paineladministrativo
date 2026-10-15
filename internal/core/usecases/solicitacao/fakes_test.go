@@ -27,7 +27,26 @@ var (
 
 	_ portsout.FornecedorRepository          = (*repositorioFornecedores)(nil)
 	_ portsout.CategoriaFinanceiraRepository = (*repositorioCategoriasFinanceiras)(nil)
+	_ portsout.ContaBancariaRepository       = (*repositorioContasBancarias)(nil)
 )
+
+type repositorioContasBancarias struct {
+	itens map[uuid.UUID]*domainfinanceiro.ContaBancaria
+}
+
+func novoRepositorioContasBancarias() *repositorioContasBancarias {
+	return &repositorioContasBancarias{itens: map[uuid.UUID]*domainfinanceiro.ContaBancaria{}}
+}
+
+func (r *repositorioContasBancarias) Obter(_ context.Context, id uuid.UUID) (*domainfinanceiro.ContaBancaria, error) {
+	conta, ok := r.itens[id]
+	if !ok {
+		return nil, nil
+	}
+
+	copia := *conta
+	return &copia, nil
+}
 
 type repositorioFornecedores struct {
 	itens map[uuid.UUID]*domainfornecedor.Fornecedor
@@ -97,7 +116,7 @@ func (r *repositorioEmpresas) AcessoDoUsuario(_ context.Context, usuarioID uuid.
 
 type repositorioSolicitacoes struct {
 	itens      map[uuid.UUID]*domainsolicitacao.Solicitacao
-	pagamentos map[uuid.UUID]*domainsolicitacao.Pagamento
+	pagamentos map[uuid.UUID][]*domainsolicitacao.Pagamento
 	historicos map[uuid.UUID][]*domainsolicitacao.Historico
 	arquivos   map[uuid.UUID][]*domainsolicitacao.Arquivo
 	origem     *repositorioArquivos
@@ -106,7 +125,7 @@ type repositorioSolicitacoes struct {
 func novoRepositorioSolicitacoes(origem *repositorioArquivos) *repositorioSolicitacoes {
 	return &repositorioSolicitacoes{
 		itens:      map[uuid.UUID]*domainsolicitacao.Solicitacao{},
-		pagamentos: map[uuid.UUID]*domainsolicitacao.Pagamento{},
+		pagamentos: map[uuid.UUID][]*domainsolicitacao.Pagamento{},
 		historicos: map[uuid.UUID][]*domainsolicitacao.Historico{},
 		arquivos:   map[uuid.UUID][]*domainsolicitacao.Arquivo{},
 		origem:     origem,
@@ -218,9 +237,28 @@ func (r *repositorioSolicitacoes) CriarPagamento(_ context.Context, solicitacao 
 		return domain.ErroConflito("solicitação alterada por outra operação")
 	}
 
-	r.pagamentos[solicitacao.ID] = pagamento
+	r.pagamentos[solicitacao.ID] = append(r.pagamentos[solicitacao.ID], pagamento)
 
 	return nil
+}
+
+func (r *repositorioSolicitacoes) Estornar(_ context.Context, solicitacao *domainsolicitacao.Solicitacao, versaoLida int, pagamento *domainsolicitacao.Pagamento, historico *domainsolicitacao.Historico) error {
+	if err := r.gravarComGuarda(solicitacao, versaoLida, domainsolicitacao.StatusPago, historico); err != nil {
+		return err
+	}
+
+	for posicao, salvo := range r.pagamentos[solicitacao.ID] {
+		if salvo.ID == pagamento.ID {
+			copia := *pagamento
+			r.pagamentos[solicitacao.ID][posicao] = &copia
+		}
+	}
+
+	return nil
+}
+
+func (r *repositorioSolicitacoes) ListarPagamentos(_ context.Context, solicitacaoID uuid.UUID) ([]*domainsolicitacao.Pagamento, error) {
+	return r.pagamentos[solicitacaoID], nil
 }
 
 func (r *repositorioSolicitacoes) ListarArquivos(_ context.Context, solicitacaoID uuid.UUID) ([]*domainsolicitacao.Arquivo, error) {
@@ -243,7 +281,14 @@ func (r *repositorioSolicitacoes) registrarHistorico(solicitacaoID uuid.UUID, hi
 }
 
 func (r *repositorioSolicitacoes) ObterPagamento(_ context.Context, solicitacaoID uuid.UUID) (*domainsolicitacao.Pagamento, error) {
-	return r.pagamentos[solicitacaoID], nil
+	for _, pagamento := range r.pagamentos[solicitacaoID] {
+		if !pagamento.Estornado {
+			copia := *pagamento
+			return &copia, nil
+		}
+	}
+
+	return nil, nil
 }
 
 type repositorioArquivos struct {

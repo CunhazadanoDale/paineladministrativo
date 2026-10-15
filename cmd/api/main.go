@@ -104,6 +104,7 @@ func executar(registrador *slog.Logger) error {
 			empresaRepository,
 			postgres.NewFornecedorRepository(banco),
 			postgres.NewCategoriaFinanceiraRepository(banco),
+			postgres.NewContaBancariaRepository(banco),
 		),
 		solicitacaousecases.NewArquivoUsecase(
 			arquivoRepository,

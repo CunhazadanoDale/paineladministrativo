@@ -69,6 +69,7 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 			empresaRepository,
 			postgres.NewFornecedorRepository(banco),
 			postgres.NewCategoriaFinanceiraRepository(banco),
+			postgres.NewContaBancariaRepository(banco),
 		),
 		solicitacaousecases.NewArquivoUsecase(
 			arquivoRepository,
