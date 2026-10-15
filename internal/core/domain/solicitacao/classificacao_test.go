@@ -129,7 +129,7 @@ func TestConferirVersao(t *testing.T) {
 }
 
 func TestTransicoesAvancamAVersao(t *testing.T) {
-	solicitacao := novaSolicitacaoDeTeste(t)
+	solicitacao := novaSolicitacaoClassificada(t)
 
 	if err := solicitacao.Aprovar(uuid.New(), time.Now().UTC()); err != nil {
 		t.Fatalf("aprovação falhou: %v", err)
@@ -143,7 +143,7 @@ func TestTransicoesAvancamAVersao(t *testing.T) {
 }
 
 func TestVencidaSoEmAbertoComVencimentoAntesDeHoje(t *testing.T) {
-	solicitacao := novaSolicitacaoDeTeste(t)
+	solicitacao := novaSolicitacaoClassificada(t)
 	vencimento := solicitacao.Prazo.Data()
 
 	if solicitacao.Vencida(vencimento) {

@@ -145,8 +145,18 @@ func TestSolicitacaoRejeitadaExigeMotivoEConflitaDepois(t *testing.T) {
 	}
 }
 
-func TestSolicitacaoSoPagaAposAprovacao(t *testing.T) {
+func novaSolicitacaoClassificada(t *testing.T) *domainsolicitacao.Solicitacao {
+	t.Helper()
+
 	solicitacao := novaSolicitacaoDeTeste(t)
+	categoriaID := uuid.New()
+	solicitacao.CategoriaFinanceiraID = &categoriaID
+
+	return solicitacao
+}
+
+func TestSolicitacaoSoPagaAposAprovacao(t *testing.T) {
+	solicitacao := novaSolicitacaoClassificada(t)
 
 	if err := solicitacao.MarcarComoPago(time.Now().UTC()); !errors.Is(err, domain.ErrConflito) {
 		t.Fatalf("pagar pendente = %v, esperado erro de conflito", err)

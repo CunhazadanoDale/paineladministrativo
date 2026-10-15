@@ -185,7 +185,14 @@ func (s *Solicitacao) Cancelar(agora time.Time) error {
 	return nil
 }
 
+func ErroSemCategoriaParaPagar() error {
+	return domain.ErroValidacao("solicitação sem categoria financeira; classifique antes de pagar")
+}
+
 func (s *Solicitacao) MarcarComoPago(agora time.Time) error {
+	if s.Status == StatusAprovado && s.CategoriaFinanceiraID == nil {
+		return ErroSemCategoriaParaPagar()
+	}
 	if err := s.transicionarPara(StatusPago); err != nil {
 		return err
 	}
