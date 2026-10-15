@@ -1,3 +1,11 @@
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM solicitacao WHERE forma_pagamento IN ('transferencia', 'debito_automatico')) THEN
+        RAISE EXCEPTION 'rollback da 000040 bloqueado: há solicitações com forma de pagamento transferencia ou debito_automatico';
+    END IF;
+END $$;
+
+DROP INDEX idx_solicitacao_em_aberto;
 DROP INDEX idx_solicitacao_categoria_financeira;
 DROP INDEX idx_solicitacao_fornecedor;
 DROP INDEX idx_solicitacao_vencimento;

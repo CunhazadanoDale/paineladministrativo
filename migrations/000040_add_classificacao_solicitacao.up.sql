@@ -25,6 +25,8 @@ ALTER TABLE solicitacao
         FOREIGN KEY (categoria_financeira_id) REFERENCES categoria_financeira (id) ON DELETE RESTRICT;
 
 CREATE INDEX idx_solicitacao_vencimento ON solicitacao (empresa_id, status, prazo_pagamento, id);
+CREATE INDEX idx_solicitacao_em_aberto
+    ON solicitacao (prazo_pagamento) WHERE status IN ('pendente_aprovacao', 'aprovado');
 CREATE INDEX idx_solicitacao_fornecedor ON solicitacao (fornecedor_id) WHERE fornecedor_id IS NOT NULL;
 CREATE INDEX idx_solicitacao_categoria_financeira
     ON solicitacao (categoria_financeira_id) WHERE categoria_financeira_id IS NOT NULL;

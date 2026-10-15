@@ -4,9 +4,12 @@ ALTER TABLE pagamento
     ADD COLUMN estornado BOOLEAN NOT NULL DEFAULT false,
     ADD CONSTRAINT fk_pagamento_conta_bancaria FOREIGN KEY (conta_bancaria_id) REFERENCES conta_bancaria (id) ON DELETE RESTRICT,
     ADD CONSTRAINT fk_pagamento_usuario FOREIGN KEY (usuario_id) REFERENCES usuario (id) ON DELETE RESTRICT,
-    DROP CONSTRAINT uq_pagamento_solicitacao;
+    DROP CONSTRAINT uq_pagamento_solicitacao,
+    DROP CONSTRAINT uq_pagamento_comprovante;
 
 CREATE UNIQUE INDEX uq_pagamento_solicitacao_vigente ON pagamento (solicitacao_id) WHERE NOT estornado;
+CREATE UNIQUE INDEX uq_pagamento_comprovante_vigente
+    ON pagamento (comprovante_arquivo_id) WHERE comprovante_arquivo_id IS NOT NULL AND NOT estornado;
 CREATE INDEX idx_pagamento_solicitacao ON pagamento (solicitacao_id, criado_em, id);
 CREATE INDEX idx_pagamento_conta_bancaria ON pagamento (conta_bancaria_id, pago_em) WHERE conta_bancaria_id IS NOT NULL;
 
