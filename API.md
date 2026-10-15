@@ -567,6 +567,7 @@ opcionais na criação; o `prazo_pagamento` é o vencimento.
 | `pendente_aprovacao` | `pendente_aprovacao` (edição) | `PUT /{id}` |
 | `aprovado` | `aprovado` (classificação ou adiamento) | `PATCH /{id}/classificacao`, `POST /{id}/adiar` |
 | `aprovado` | `pago` | `POST /{id}/pagamento` |
+| `pago` | `aprovado` (estorno) | `POST /{id}/pagamento/estorno` |
 
 `pago`, `rejeitado` e `cancelado` são estados terminais. Toda transição grava um registro
 no histórico **na mesma transação**, e o `UPDATE` só acontece se o status anterior bater:
@@ -587,7 +588,9 @@ se outra pessoa mudar primeiro, a segunda recebe `409`
 | `PUT` | `/api/v1/solicitacoes/{id}` | solicitante ou administrador | `200` |
 | `POST` | `/api/v1/solicitacoes/{id}/adiar` | financeiro ou administrador | `200` |
 | `POST` | `/api/v1/solicitacoes/{id}/pagamento` | financeiro ou administrador | `201` |
-| `GET` | `/api/v1/solicitacoes/{id}/pagamento` | quem pode ver | `200` objeto único |
+| `GET` | `/api/v1/solicitacoes/{id}/pagamento` | quem pode ver | `200` objeto único (pagamento vigente) |
+| `GET` | `/api/v1/solicitacoes/{id}/pagamentos` | quem pode ver | `200` lista, com os estornados |
+| `POST` | `/api/v1/solicitacoes/{id}/pagamento/estorno` | financeiro ou administrador | `200` |
 | `GET` | `/api/v1/solicitacoes/{id}/historico` | quem pode ver | `200` lista |
 | `GET` | `/api/v1/solicitacoes/{id}/arquivos` | quem pode ver | `200` lista |
 
@@ -845,14 +848,20 @@ pede e quem aprova vale para todos os perfis.
 
 ```json
 {
+  "conta_bancaria_id": "00000000-0000-4000-8000-000000000006",
   "valor_centavos": 148500,
   "comprovante_arquivo_id": "00000000-0000-4000-8000-000000000004",
   "pago_em": "2026-10-15T14:00:00Z"
 }
 ```
 
+A solicitação precisa estar **classificada** (com `categoria_financeira_id`) antes de ser paga;
+as antigas e as que o solicitante deixou sem categoria passam antes pelo
+`PATCH /{id}/classificacao`.
+
 | Campo | Regra |
 | --- | --- |
+| `conta_bancaria_id` | **obrigatório desde o M7**: conta de onde o dinheiro saiu, ativa e da mesma empresa da solicitação; a empresa precisa estar ativa |
 | `valor_centavos` | valor **efetivo** pago, maior que zero — pode diferir do estimado |
 | `comprovante_arquivo_id` | opcional. Quando presente tem que ser um PDF **de quem está registrando** e ainda não vinculado a outra solicitação |
 | `pago_em` | opcional, RFC3339. Padrão: agora (UTC). Não pode estar no futuro (`400 erro de validação: data do pagamento não pode estar no futuro`). É a data em que o dinheiro saiu; `criado_em` do pagamento e `atualizado_em` da solicitação registram o momento do lançamento |
@@ -863,24 +872,73 @@ pede e quem aprova vale para todos os perfis.
 {
   "id": "00000000-0000-4000-8000-000000000005",
   "solicitacao_id": "00000000-0000-4000-8000-000000000001",
+  "conta_bancaria_id": "00000000-0000-4000-8000-000000000006",
+  "usuario_id": "00000000-0000-4000-8000-000000000007",
   "comprovante_arquivo_id": "00000000-0000-4000-8000-000000000004",
   "valor_centavos": 148500,
   "pago_em": "2026-10-15T14:00:00Z",
+  "estornado": false,
+  "estorno": null,
   "criado_em": "2026-10-15T14:02:10Z"
 }
 ```
 
+`usuario_id` é quem registrou o pagamento. Pagamentos anteriores ao M7 têm `conta_bancaria_id` e
+`usuario_id` nulos. Em pagamento estornado, `estorno` traz
+`{ "id", "motivo", "estornado_em", "usuario_id", "criado_em" }`.
+
 | Erro | Status | Mensagem |
 | --- | --- | --- |
 | Sem perfil de financeiro | `403` | `perfil sem permissão para registrar pagamento` |
+| Sem `conta_bancaria_id` | `400` | `erro de validação: conta bancária do pagamento é obrigatória` |
+| Conta inexistente | `400` | `erro de validação: conta bancária não encontrada` |
+| Conta de outra empresa | `400` | `erro de validação: conta bancária deve ser da empresa da solicitação` |
+| Conta inativa | `400` | `erro de validação: conta bancária inativa não recebe pagamento` |
+| Empresa inativa | `400` | `erro de validação: empresa inativa não recebe pagamento` |
+| Solicitação sem categoria | `400` | `erro de validação: solicitação sem categoria financeira; classifique antes de pagar` |
 | Status diferente de `aprovado` | `409` | `não é possível mudar a solicitação de "<status atual>" para "pago"` |
 | Comprovante não PDF | `400` | `comprovante deve ser um arquivo PDF` |
 | Comprovante de outro usuário | `403` | `comprovante não pertence ao usuário` |
 | Comprovante já usado em outra solicitação | `400` | `comprovante já vinculado a outra solicitação` |
-| Sem pagamento registrado | `404` | `registro não encontrado: pagamento não encontrado` (em `GET /{id}/pagamento`) |
+| Sem pagamento vigente | `404` | `registro não encontrado: pagamento não encontrado` (em `GET /{id}/pagamento`, inclusive depois de um estorno) |
 
 A resposta de `aprovar`, `rejeitar` e `cancelar` devolve o objeto da solicitação já com
 o status novo; a de `POST /{id}/pagamento` devolve o objeto do pagamento.
+
+### `POST /api/v1/solicitacoes/{id}/pagamento/estorno`
+
+Financeiro ou administrador, com a empresa da solicitação no acesso. Só em `pago`. Estorna o
+pagamento vigente como lançamento inverso: o pagamento continua gravado, marcado como
+`estornado`, o estorno fica registrado ao lado e a solicitação **volta para `aprovado`**, pronta
+para um novo pagamento ou para ser cancelada.
+
+```json
+{ "motivo": "pago em duplicidade", "estornado_em": "2026-10-16T09:00:00Z", "versao": 4 }
+```
+
+| Campo | Regra |
+| --- | --- |
+| `motivo` | obrigatório, no máximo 500 caracteres |
+| `estornado_em` | opcional, RFC3339. Padrão: agora. Não pode estar no futuro nem antes do `pago_em` |
+| `versao` | obrigatória |
+
+Responde `200` com o objeto da solicitação (status `aprovado`, `versao` avançada) e grava o
+evento `estornada` (`pagamento estornado: <motivo>`).
+
+| Erro | Status | Mensagem |
+| --- | --- | --- |
+| Sem perfil de financeiro | `403` | `perfil sem permissão para estornar pagamento` |
+| Empresa fora do acesso | `403` | `perfil sem acesso a esta empresa` |
+| `versao` diferente da atual | `409` | `solicitação alterada por outra operação, recarregue e tente novamente` |
+| Fora de `pago` | `409` | `só é possível estornar solicitação paga` |
+| Sem motivo | `400` | `erro de validação: motivo do estorno é obrigatório` |
+| Data no futuro / antes do pagamento | `400` | `erro de validação: data do estorno não pode estar no futuro` / `...não pode ser anterior ao pagamento` |
+| Data fora do formato | `400` | `erro de validação: data do estorno deve estar no formato AAAA-MM-DDTHH:MM:SSZ` |
+
+### `GET /api/v1/solicitacoes/{id}/pagamentos`
+
+Todos os pagamentos da solicitação, do mais antigo ao mais novo, inclusive os estornados com o
+`estorno` preenchido. Mesma regra de "quem pode ver" das outras consultas.
 
 ---
 
