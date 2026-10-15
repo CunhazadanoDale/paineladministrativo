@@ -53,6 +53,60 @@ func (e *EstoqueProduto) NaoAlocado() int {
 	return e.Produto.Saldo.Quantidade() - e.TotalAlocado
 }
 
+func (e *EstoqueProduto) Aplicar(operacao *OperacaoEstoque) error {
+	switch {
+	case operacao == nil || operacao.ProdutoID != e.Produto.ID:
+		return domain.ErroValidacao("operação de outro produto")
+	case operacao.VersaoLida != e.Produto.VersaoEstoque:
+		return domain.ErroConflito("operação lida de outra versão do estoque")
+	}
+
+	if e.Saldos == nil {
+		e.Saldos = map[uuid.UUID]SaldoLocal{}
+	}
+	for _, saldo := range operacao.Saldos {
+		e.TotalAlocado += saldo.Quantidade - e.SaldoNoLocal(saldo.LocalID).Quantidade
+		e.Saldos[saldo.LocalID] = saldo
+	}
+
+	if operacao.Movimento != nil {
+		e.Lotes = consumirLotes(e.Lotes, operacao.Movimento.Consumos)
+	}
+	e.Lotes = append(e.Lotes, operacao.LotesCriados...)
+
+	e.Produto.Saldo = operacao.Saldo
+	e.Produto.Reservado = operacao.Reservado
+	e.Produto.VersaoEstoque++
+
+	return nil
+}
+
+func consumirLotes(lotes []*Lote, consumos []ConsumoLote) []*Lote {
+	if len(consumos) == 0 {
+		return lotes
+	}
+
+	consumidoPorLote := make(map[uuid.UUID]int, len(consumos))
+	for _, consumo := range consumos {
+		consumidoPorLote[consumo.LoteID] += consumo.Quantidade
+	}
+
+	atualizados := make([]*Lote, 0, len(lotes))
+	for _, lote := range lotes {
+		consumido, ok := consumidoPorLote[lote.ID]
+		if !ok {
+			atualizados = append(atualizados, lote)
+			continue
+		}
+
+		copia := *lote
+		copia.QuantidadeAtual -= consumido
+		atualizados = append(atualizados, &copia)
+	}
+
+	return atualizados
+}
+
 func (e *EstoqueProduto) SaldoNoLocal(localID uuid.UUID) SaldoLocal {
 	if saldo, ok := e.Saldos[localID]; ok {
 		return saldo

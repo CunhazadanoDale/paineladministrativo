@@ -148,7 +148,7 @@ o **F0b** pode correr junto com essas telas.
 | M3 | Clientes e representantes | M1 | Base de clientes | concluído |
 | M4 | Fornecedores | T0 | coluna fornecedor do painel financeiro | concluído |
 | M5 | Contas bancárias e plano de contas | M1 | classificação manual dos extratos | concluído |
-| M6 | Pedidos de venda e entregas | M1 M2 M3 | Vendas futuras, Entregas de importação, Pendências de envio | pendente |
+| M6 | Pedidos de venda e entregas | M1 M2 M3 | Vendas futuras, Entregas de importação, Pendências de envio | concluído |
 | M7 | Contas a pagar | M1 M4 M5 | Painel financeiro (contas a pagar) | concluído |
 | M8 | NF-e por XML | M2 M3 M6 | Controle de NFs | pendente |
 | M9 | Contas a receber e antecipação | M3 M5 | A receber no banco, títulos do Controle de NFs | pendente |
@@ -545,6 +545,32 @@ Coração comercial. Substitui os três controles de vendas e pendências.
 - **Consultas**: pendências de entrega (vendido × entregue × disponível), pedidos com
   prazo vencido ou a vencer, cancelamentos com valor a devolver.
 - **Cancelamento com entrada paga**: gera obrigação de devolução no M7 via port.
+
+**Entregue (outubro/2026):** API completa (fases 1 a 5 do `PEDIDOS.md`); front pendente, depois do
+F0a. Para os próximos módulos:
+
+- empresa faturadora escolhida no pedido (decisão da seção 6); `pedido.numero` é sequencial por
+  empresa (`pedido_sequencia`); condições do modelo gravadas no pedido (`entrada_bp`,
+  `prazo_boleto_dias`, `prazo_entrega_dias`) e não editáveis no M6 — o M11 pode abrir a edição;
+- proposta é o pedido em `proposta`: itens só mudam nesse estado; aceitar proposta (M11) =
+  `POST /pedidos/{id}/confirmar`, que reserva o disponível nos locais ativos da empresa;
+- reservas de pedido são `produto_reserva` com `origem = 'pedido_item'` e `origem_id` = item; só o
+  pedido as libera ou baixa (o estoque responde `409`); o M12, ao receber importação, cria reservas
+  pela mesma origem ou chama `reservar-pendencias`;
+- toda gravação do módulo passa por `PedidoRepository.Gravar` (`ports/out/pedido.Gravacao`): pedido,
+  entregas, operações de estoque e histórico na mesma transação, com guarda de versão do pedido, da
+  entrega e do estoque. Operação de entrega avança a `versao` do pedido;
+- saída de entrega gera um movimento `saida` por item (`entrega_item.movimento_id`), com o custo
+  FIFO em `produto_movimento_lote`: é a base do CMV do M15 e da comissão do M10 (proporcional ao
+  entregue em `pedido_item.quantidade_entregue`);
+- entrada paga da importação fica em `pedido.entrada_paga_em/centavos` e define `prazo_limite`
+  (120 dias); no M9 a baixa do título de entrada passa a registrá-la;
+- cancelamento grava `valor_a_devolver_centavos`; a conta a pagar da devolução **ainda não é
+  gerada** — fica para depois do M7 (consulta `GET /pedidos/cancelamentos?com_devolucao=true`);
+- representante com login vê só os próprios pedidos e só usa clientes da própria carteira (M10
+  reaproveita a regra);
+- "hoje" do módulo é o dia no fuso de Brasília (`domainpedido.Hoje`); os próximos módulos com datas
+  de fato devem usar a mesma referência.
 
 ### M7 — Contas a pagar
 

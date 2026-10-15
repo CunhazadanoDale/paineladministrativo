@@ -72,6 +72,18 @@ func (l *LocalRepository) ObterVarios(ctx context.Context, ids []uuid.UUID) ([]*
 	return paraDominioLocais(linhas), nil
 }
 
+func (l *LocalRepository) AtivosDaEmpresa(ctx context.Context, empresaID uuid.UUID) ([]*domainestoque.Local, error) {
+	var linhas []*localLinha
+	if err := l.db.SelectContext(ctx, &linhas,
+		`SELECT `+colunasLocal+` FROM estoque_local WHERE empresa_id = $1 AND ativo ORDER BY nome ASC, id ASC`,
+		empresaID,
+	); err != nil {
+		return nil, err
+	}
+
+	return paraDominioLocais(linhas), nil
+}
+
 func (l *LocalRepository) Listar(ctx context.Context, filtro portsout.LocalFiltro) ([]*domainestoque.Local, error) {
 	filtro.PaginacaoFiltro = filtro.Normalizada()
 	offset := (filtro.Page - 1) * filtro.Size

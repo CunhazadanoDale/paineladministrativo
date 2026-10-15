@@ -40,7 +40,10 @@ func (s StatusReserva) String() string {
 
 type OrigemReserva string
 
-const OrigemReservaManual OrigemReserva = "manual"
+const (
+	OrigemReservaManual     OrigemReserva = "manual"
+	OrigemReservaPedidoItem OrigemReserva = "pedido_item"
+)
 
 func OrigemReservaDe(valor string) OrigemReserva {
 	return OrigemReserva(valor)
@@ -114,6 +117,9 @@ func (e *EstoqueProduto) Reservar(input ReservaInput) (*OperacaoEstoque, error) 
 	if origem == "" {
 		origem = OrigemReservaManual
 	}
+	if err := validarOrigemReserva(origem, input.OrigemID); err != nil {
+		return nil, err
+	}
 
 	operacao := e.operacaoDeReserva(reservado, input.Agora, saldoLocal)
 	operacao.ReservaCriada = &Reserva{
@@ -178,6 +184,21 @@ func (e *EstoqueProduto) operacaoDeReserva(reservado Saldo, agora time.Time, sal
 		Reservado:    reservado,
 		Saldos:       []SaldoLocal{saldo},
 		AtualizadoEm: agora,
+	}
+}
+
+func validarOrigemReserva(origem OrigemReserva, origemID *uuid.UUID) error {
+	switch origem {
+	case OrigemReservaManual:
+		return nil
+	case OrigemReservaPedidoItem:
+		if origemID == nil || *origemID == uuid.Nil {
+			return domain.ErroValidacao("reserva de item de pedido exige o item de origem")
+		}
+
+		return nil
+	default:
+		return domain.ErroValidacao("origem da reserva deve ser manual ou pedido_item")
 	}
 }
 

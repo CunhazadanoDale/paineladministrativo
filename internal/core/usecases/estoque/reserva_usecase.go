@@ -97,6 +97,9 @@ func (u *ReservaUsecaseImpl) Liberar(ctx context.Context, reservaID, usuarioID u
 	if reserva == nil {
 		return nil, domain.ErroNaoEncontrado("reserva não encontrada")
 	}
+	if reserva.Origem == domainestoque.OrigemReservaPedidoItem {
+		return nil, erroReservaDePedido()
+	}
 
 	local, err := u.locais.Obter(ctx, reserva.LocalID)
 	if err != nil {
