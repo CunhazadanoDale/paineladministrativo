@@ -61,6 +61,7 @@ func NewRouter(
 	categoriaFinanceiraUseCase portsinfinanceiro.CategoriaFinanceiraUseCase,
 	pedidoUseCase portsinpedido.PedidoUseCase,
 	entregaUseCase portsinpedido.EntregaUseCase,
+	consultaPedidosUseCase portsinpedido.ConsultaUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, middleware.ErrosDeRoteamento(novasRotas(
@@ -77,7 +78,7 @@ func NewRouter(
 		importacaoClientesUseCase,
 		fornecedorUseCase,
 		contaBancariaUseCase, categoriaFinanceiraUseCase,
-		pedidoUseCase, entregaUseCase,
+		pedidoUseCase, entregaUseCase, consultaPedidosUseCase,
 		tokens,
 	)))
 }
@@ -112,6 +113,7 @@ func novasRotas(
 	categoriaFinanceiraUseCase portsinfinanceiro.CategoriaFinanceiraUseCase,
 	pedidoUseCase portsinpedido.PedidoUseCase,
 	entregaUseCase portsinpedido.EntregaUseCase,
+	consultaPedidosUseCase portsinpedido.ConsultaUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -365,6 +367,11 @@ func novasRotas(
 	comercial("POST /api/v1/entregas/{id}/saiu", entregaHandler.RegistrarSaida)
 	comercial("POST /api/v1/entregas/{id}/entregue", entregaHandler.Concluir)
 	comercial("POST /api/v1/entregas/{id}/cancelar", entregaHandler.Cancelar)
+
+	consultaPedidosHandler := pedidohandlers.NewConsultaHandler(consultaPedidosUseCase)
+	protegido("GET /api/v1/pedidos/pendencias", consultaPedidosHandler.Pendencias)
+	protegido("GET /api/v1/pedidos/prazos", consultaPedidosHandler.Prazos)
+	protegido("GET /api/v1/pedidos/cancelamentos", consultaPedidosHandler.Cancelamentos)
 
 	return mux
 }
