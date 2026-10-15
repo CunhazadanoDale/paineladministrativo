@@ -187,6 +187,13 @@ func (r *repositorioSolicitacoes) Listar(_ context.Context, filtro portsout.Soli
 	return paginar(coincidindo, filtro.PaginacaoFiltro), nil
 }
 
+func (r *repositorioSolicitacoes) Contar(ctx context.Context, filtro portsout.SolicitacaoFiltro) (int, error) {
+	filtro.PaginacaoFiltro = domain.PaginacaoFiltro{Page: 1, Size: len(r.itens) + 1}
+	itens, err := r.Listar(ctx, filtro)
+
+	return len(itens), err
+}
+
 func (r *repositorioSolicitacoes) AtualizarStatus(_ context.Context, solicitacao *domainsolicitacao.Solicitacao, historico *domainsolicitacao.Historico) (bool, error) {
 	salvo, ok := r.itens[solicitacao.ID]
 	if !ok || historico.DeStatus == nil || salvo.Status != *historico.DeStatus {

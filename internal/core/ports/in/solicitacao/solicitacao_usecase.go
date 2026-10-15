@@ -112,6 +112,7 @@ type SolicitacaoUseCase interface {
 	ObterPagamento(ctx context.Context, solicitacaoID, usuarioID uuid.UUID) (*domainsolicitacao.Pagamento, error)
 	ListarPagamentos(ctx context.Context, solicitacaoID, usuarioID uuid.UUID) ([]*domainsolicitacao.Pagamento, error)
 	EstornarPagamento(ctx context.Context, input EstornarPagamentoInput) error
+	Pendencias(ctx context.Context, usuarioID uuid.UUID) (domainsolicitacao.Pendencias, error)
 }
 
 type ArquivoUseCase interface {

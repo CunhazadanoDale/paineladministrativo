@@ -648,6 +648,50 @@ func (u *SolicitacaoUsecaseImpl) validarContaDoPagamento(ctx context.Context, co
 	return nil
 }
 
+func (u *SolicitacaoUsecaseImpl) Pendencias(ctx context.Context, usuarioID uuid.UUID) (domainsolicitacao.Pendencias, error) {
+	acesso, err := u.empresas.AcessoDoUsuario(ctx, usuarioID)
+	if err != nil {
+		return domainsolicitacao.Pendencias{}, err
+	}
+	empresaIDs := acesso.EmpresaIDs()
+
+	var pendencias domainsolicitacao.Pendencias
+
+	aprovador, err := u.ehAprovador(ctx, usuarioID)
+	if err != nil {
+		return domainsolicitacao.Pendencias{}, err
+	}
+	if aprovador {
+		total, err := u.repo.Contar(ctx, portsout.SolicitacaoFiltro{Status: domainsolicitacao.StatusPendenteAprovacao, EmpresaIDs: empresaIDs})
+		if err != nil {
+			return domainsolicitacao.Pendencias{}, err
+		}
+		pendencias.Aprovacao = &total
+	}
+
+	financeiro, err := u.ehFinanceiro(ctx, usuarioID)
+	if err != nil {
+		return domainsolicitacao.Pendencias{}, err
+	}
+	if !financeiro {
+		return pendencias, nil
+	}
+
+	aPagar, err := u.repo.Contar(ctx, portsout.SolicitacaoFiltro{Status: domainsolicitacao.StatusAprovado, EmpresaIDs: empresaIDs})
+	if err != nil {
+		return domainsolicitacao.Pendencias{}, err
+	}
+	hoje := inicioDoDia(time.Now())
+	vencidas, err := u.repo.Contar(ctx, portsout.SolicitacaoFiltro{VencidasEm: &hoje, EmpresaIDs: empresaIDs})
+	if err != nil {
+		return domainsolicitacao.Pendencias{}, err
+	}
+	pendencias.Financeiro = &aPagar
+	pendencias.Vencidas = &vencidas
+
+	return pendencias, nil
+}
+
 func (u *SolicitacaoUsecaseImpl) transicionarPorAprovador(
 	ctx context.Context,
 	solicitacaoID, aprovadorID uuid.UUID,
