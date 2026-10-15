@@ -100,6 +100,10 @@ func (r *EntregaRepository) Listar(ctx context.Context, filtro portsout.EntregaF
 		condicoes = append(condicoes,
 			"pedido_id IN (SELECT id FROM pedido WHERE empresa_id = ANY($"+strconv.Itoa(len(argumentos))+"::uuid[]))")
 	}
+	if filtro.RepresentanteID != nil {
+		argumentos = append(argumentos, *filtro.RepresentanteID)
+		condicoes = append(condicoes, "pedido_id IN (SELECT id FROM pedido WHERE representante_id = $"+strconv.Itoa(len(argumentos))+")")
+	}
 	if filtro.Status != "" {
 		argumentos = append(argumentos, filtro.Status.String())
 		condicoes = append(condicoes, condicao("status", len(argumentos)))

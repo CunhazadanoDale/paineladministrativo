@@ -636,7 +636,16 @@ func TestListarEntregasFiltra(t *testing.T) {
 	segunda := c.novaEntrega(t, daMia, c.galpao, 3)
 
 	localDaRed := c.novoLocal(t, c.red, "Galpão da Red")
-	daRed := c.novoPedido(t, c.red, c.dados(domainpedido.ModeloProntaEntrega))
+	representante, err := domaincliente.NovoRepresentante(domaincliente.DadosRepresentante{Nome: "Carlos Representante"})
+	if err != nil {
+		t.Fatalf("representante de teste inválido: %v", err)
+	}
+	if _, err := postgres.NewRepresentanteRepository(c.banco).Criar(c.ctx, representante); err != nil {
+		t.Fatalf("criação do representante falhou: %v", err)
+	}
+	dadosDaRed := c.dados(domainpedido.ModeloProntaEntrega)
+	dadosDaRed.RepresentanteID = &representante.ID
+	daRed := c.novoPedido(t, c.red, dadosDaRed)
 	if err := daRed.Confirmar(time.Now().UTC()); err != nil {
 		t.Fatalf("Confirmar falhou: %v", err)
 	}
@@ -664,6 +673,9 @@ func TestListarEntregasFiltra(t *testing.T) {
 	}
 	if total := listar(portspedido.EntregaFiltro{Empresa: &c.mia}); total != 2 {
 		t.Errorf("da MIA = %d, esperado 2", total)
+	}
+	if total := listar(portspedido.EntregaFiltro{RepresentanteID: &representante.ID}); total != 1 {
+		t.Errorf("do representante = %d, esperado 1", total)
 	}
 	if total := listar(portspedido.EntregaFiltro{EmpresaIDs: []uuid.UUID{c.red}}); total != 1 {
 		t.Errorf("acesso à Red = %d, esperado 1", total)

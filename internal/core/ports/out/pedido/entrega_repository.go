@@ -11,10 +11,11 @@ import (
 
 type EntregaFiltro struct {
 	domain.PaginacaoFiltro
-	Empresa     *uuid.UUID
-	EmpresaIDs  []uuid.UUID
-	Status      domainpedido.StatusEntrega
-	PrevisaoAte *time.Time
+	Empresa         *uuid.UUID
+	EmpresaIDs      []uuid.UUID
+	RepresentanteID *uuid.UUID
+	Status          domainpedido.StatusEntrega
+	PrevisaoAte     *time.Time
 }
 
 type EntregaRepository interface {
