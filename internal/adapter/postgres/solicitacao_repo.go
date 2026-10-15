@@ -111,6 +111,62 @@ func (s *SolicitacaoRepository) Criar(ctx context.Context, solicitacao *domainso
 	return solicitacao.ID, nil
 }
 
+func (s *SolicitacaoRepository) GerarDeRecorrencia(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, historico *domainsolicitacao.Historico) (bool, error) {
+	if solicitacao.Origem != domainsolicitacao.OrigemRecorrencia || solicitacao.OrigemID == nil {
+		return false, domain.ErroValidacao("solicitação gerada precisa da despesa recorrente de origem")
+	}
+
+	tx, err := s.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return false, tratarErroDeGravacao(err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var ativa bool
+	err = tx.GetContext(ctx, &ativa, `SELECT ativa FROM despesa_recorrente WHERE id = $1 FOR SHARE`, *solicitacao.OrigemID)
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && !ativa) {
+		return false, domainsolicitacao.ErroDespesaRecorrenteIndisponivel()
+	}
+	if err != nil {
+		return false, tratarErroDeGravacao(err)
+	}
+
+	if err := exigirEmpresaAtivaParaSolicitacao(ctx, tx, solicitacao.EmpresaID); err != nil {
+		return false, err
+	}
+	if err := exigirClassificacaoGravavel(ctx, tx, solicitacao); err != nil {
+		return false, err
+	}
+
+	resultado, err := tx.NamedExecContext(ctx, `
+		INSERT INTO solicitacao (`+colunasSolicitacao+`) VALUES (
+			:id, :solicitante_id, :empresa_id, :aprovador_id, :valor_estimado, :prazo_pagamento, :observacao,
+			:forma_pagamento, :fornecedor_id, :categoria_financeira_id, :competencia, :estimado, :origem, :origem_id,
+			:status, :rejeitacao_motivo, :aprovado_em, :rejeitado_em, :cancelado_em, :versao, :criado_em, :atualizado_em
+		)
+		ON CONFLICT (origem_id, competencia) WHERE origem = 'recorrencia' DO NOTHING
+	`, paraLinha(solicitacao))
+	if err != nil {
+		return false, tratarErroDeGravacao(err)
+	}
+	linhas, err := resultado.RowsAffected()
+	if err != nil {
+		return false, tratarErroDeGravacao(err)
+	}
+	if linhas == 0 {
+		return false, nil
+	}
+
+	if err := inserirHistorico(ctx, tx, historico); err != nil {
+		return false, tratarErroDeGravacao(err)
+	}
+	if err := tx.Commit(); err != nil {
+		return false, tratarErroDeGravacao(err)
+	}
+
+	return true, nil
+}
+
 func (s *SolicitacaoRepository) Obter(ctx context.Context, id uuid.UUID) (*domainsolicitacao.Solicitacao, error) {
 	query := `SELECT ` + colunasSolicitacao + ` FROM solicitacao WHERE id = $1`
 
@@ -480,21 +536,35 @@ type categoriaParaLancamento struct {
 }
 
 func exigirClassificacaoGravavel(ctx context.Context, tx *sqlx.Tx, solicitacao *domainsolicitacao.Solicitacao) error {
-	if solicitacao.FornecedorID != nil {
-		var ativo bool
-		err := tx.GetContext(ctx, &ativo, `SELECT ativo FROM fornecedor WHERE id = $1 FOR SHARE`, *solicitacao.FornecedorID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return domainsolicitacao.ErroFornecedorNaoEncontrado()
-		}
-		if err != nil {
-			return tratarErroDeGravacao(err)
-		}
-		if !ativo {
-			return domainsolicitacao.ErroFornecedorInativo()
-		}
+	if err := exigirFornecedorAtivo(ctx, tx, solicitacao.FornecedorID); err != nil {
+		return err
 	}
 
-	if solicitacao.CategoriaFinanceiraID == nil {
+	return exigirCategoriaDeDespesaLancavel(ctx, tx, solicitacao.CategoriaFinanceiraID)
+}
+
+func exigirFornecedorAtivo(ctx context.Context, tx *sqlx.Tx, fornecedorID *uuid.UUID) error {
+	if fornecedorID == nil {
+		return nil
+	}
+
+	var ativo bool
+	err := tx.GetContext(ctx, &ativo, `SELECT ativo FROM fornecedor WHERE id = $1 FOR SHARE`, *fornecedorID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domainsolicitacao.ErroFornecedorNaoEncontrado()
+	}
+	if err != nil {
+		return tratarErroDeGravacao(err)
+	}
+	if !ativo {
+		return domainsolicitacao.ErroFornecedorInativo()
+	}
+
+	return nil
+}
+
+func exigirCategoriaDeDespesaLancavel(ctx context.Context, tx *sqlx.Tx, categoriaID *uuid.UUID) error {
+	if categoriaID == nil {
 		return nil
 	}
 
@@ -504,7 +574,7 @@ func exigirClassificacaoGravavel(ctx context.Context, tx *sqlx.Tx, solicitacao *
 		FROM categoria_financeira
 		WHERE id = $1
 		FOR SHARE
-	`, *solicitacao.CategoriaFinanceiraID)
+	`, *categoriaID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domainsolicitacao.ErroCategoriaFinanceiraNaoEncontrada()
 	}

@@ -26,6 +26,7 @@ type SolicitacaoFiltro struct {
 
 type SolicitacaoRepository interface {
 	Criar(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, arquivoIDs []uuid.UUID, historico *domainsolicitacao.Historico) (uuid.UUID, error)
+	GerarDeRecorrencia(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, historico *domainsolicitacao.Historico) (bool, error)
 	Obter(ctx context.Context, id uuid.UUID) (*domainsolicitacao.Solicitacao, error)
 	Listar(ctx context.Context, filtro SolicitacaoFiltro) ([]*domainsolicitacao.Solicitacao, error)
 	AtualizarStatus(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, historico *domainsolicitacao.Historico) (bool, error)
