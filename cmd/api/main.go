@@ -102,6 +102,9 @@ func executar(registrador *slog.Logger) error {
 			usuarioRepository,
 			cargoRepository,
 			empresaRepository,
+			postgres.NewFornecedorRepository(banco),
+			postgres.NewCategoriaFinanceiraRepository(banco),
+			postgres.NewContaBancariaRepository(banco),
 		),
 		solicitacaousecases.NewArquivoUsecase(
 			arquivoRepository,
@@ -136,6 +139,14 @@ func executar(registrador *slog.Logger) error {
 		fornecedorusecases.NewFornecedorUsecase(postgres.NewFornecedorRepository(banco), usuarioRepository, cargoRepository),
 		financeirousecases.NewContaBancariaUsecase(postgres.NewContaBancariaRepository(banco), empresaRepository, usuarioRepository, cargoRepository),
 		financeirousecases.NewCategoriaFinanceiraUsecase(postgres.NewCategoriaFinanceiraRepository(banco), usuarioRepository, cargoRepository),
+		solicitacaousecases.NewDespesaRecorrenteUsecase(
+			postgres.NewDespesaRecorrenteRepository(banco), solicitacaoRepository,
+			postgres.NewFornecedorRepository(banco), postgres.NewCategoriaFinanceiraRepository(banco),
+			aprovadorRepository, usuarioRepository, cargoRepository, empresaRepository,
+		),
+		solicitacaousecases.NewResumoContasAPagarUsecase(
+			postgres.NewContasAPagarResumoRepository(banco), aprovadorRepository, usuarioRepository, cargoRepository, empresaRepository,
+		),
 		autenticacao.NovoTokenService(cfg.JWTSecret, cfg.JWTExpiracao),
 	)
 

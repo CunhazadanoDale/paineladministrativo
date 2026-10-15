@@ -59,19 +59,14 @@ func (h *SolicitacaoHandler) Listar(w http.ResponseWriter, r *http.Request) {
 
 	paginacao := resposta.ConsultaPaginacao(r)
 
-	empresa, err := resposta.ConsultaUUID(r, "empresa")
+	input, err := entradaDeListagem(r, usuario.ID)
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
 	}
+	input.Filtro = paginacao
 
-	itens, err := h.usecase.Listar(r.Context(), portsin.ListarSolicitacoesInput{
-		UsuarioID: usuario.ID,
-		Escopo:    resposta.ConsultaTexto(r, "escopo"),
-		Status:    resposta.ConsultaTexto(r, "status"),
-		Empresa:   empresa,
-		Filtro:    paginacao,
-	})
+	itens, err := h.usecase.Listar(r.Context(), input)
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
@@ -105,7 +100,19 @@ func (h *SolicitacaoHandler) Aprovar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.usecase.Aprovar(r.Context(), id, usuario.ID); err != nil {
+	var requisicao solicitacaodto.AprovarRequest
+	presente, ok := resposta.CorpoJSONOpcional(w, r, &requisicao)
+	if !ok {
+		return
+	}
+
+	var err error
+	if presente && requisicao.Versao != nil {
+		err = h.usecase.AprovarNaVersao(r.Context(), id, usuario.ID, *requisicao.Versao)
+	} else {
+		err = h.usecase.Aprovar(r.Context(), id, usuario.ID)
+	}
+	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
 	}
@@ -139,6 +146,75 @@ func (h *SolicitacaoHandler) Cancelar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.usecase.Cancelar(r.Context(), id, usuario.ID); err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+
+	h.responderAtualizada(w, r, id, usuario.ID)
+}
+
+func (h *SolicitacaoHandler) Classificar(w http.ResponseWriter, r *http.Request) {
+	usuario, id, ok := resposta.UsuarioEId(w, r)
+	if !ok {
+		return
+	}
+
+	var requisicao solicitacaodto.ClassificarSolicitacaoRequest
+	if !resposta.CorpoJSON(w, r, &requisicao) {
+		return
+	}
+
+	if err := h.usecase.Classificar(r.Context(), requisicao.ParaInput(id, usuario.ID)); err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+
+	h.responderAtualizada(w, r, id, usuario.ID)
+}
+
+func (h *SolicitacaoHandler) Editar(w http.ResponseWriter, r *http.Request) {
+	usuario, id, ok := resposta.UsuarioEId(w, r)
+	if !ok {
+		return
+	}
+
+	var requisicao solicitacaodto.EditarSolicitacaoRequest
+	if !resposta.CorpoJSON(w, r, &requisicao) {
+		return
+	}
+
+	input, err := requisicao.ParaInput(id, usuario.ID)
+	if err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+
+	if err := h.usecase.Editar(r.Context(), input); err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+
+	h.responderAtualizada(w, r, id, usuario.ID)
+}
+
+func (h *SolicitacaoHandler) Adiar(w http.ResponseWriter, r *http.Request) {
+	usuario, id, ok := resposta.UsuarioEId(w, r)
+	if !ok {
+		return
+	}
+
+	var requisicao solicitacaodto.AdiarSolicitacaoRequest
+	if !resposta.CorpoJSON(w, r, &requisicao) {
+		return
+	}
+
+	input, err := requisicao.ParaInput(id, usuario.ID)
+	if err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+
+	if err := h.usecase.Adiar(r.Context(), input); err != nil {
 		resposta.ResponderErro(w, err)
 		return
 	}
@@ -196,6 +272,65 @@ func (h *SolicitacaoHandler) ObterPagamento(w http.ResponseWriter, r *http.Reque
 	})
 }
 
+func (h *SolicitacaoHandler) ListarPagamentos(w http.ResponseWriter, r *http.Request) {
+	usuario, id, ok := resposta.UsuarioEId(w, r)
+	if !ok {
+		return
+	}
+
+	pagamentos, err := h.usecase.ListarPagamentos(r.Context(), id, usuario.ID)
+	if err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+
+	dto.EscreverJSON(w, http.StatusOK, dto.Resposta[[]solicitacaodto.PagamentoResponse]{
+		Dados: solicitacaodto.NovoPagamentoResponses(pagamentos),
+	})
+}
+
+func (h *SolicitacaoHandler) EstornarPagamento(w http.ResponseWriter, r *http.Request) {
+	usuario, id, ok := resposta.UsuarioEId(w, r)
+	if !ok {
+		return
+	}
+
+	var requisicao solicitacaodto.EstornarPagamentoRequest
+	if !resposta.CorpoJSON(w, r, &requisicao) {
+		return
+	}
+
+	input, err := requisicao.ParaInput(id, usuario.ID)
+	if err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+
+	if err := h.usecase.EstornarPagamento(r.Context(), input); err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+
+	h.responderAtualizada(w, r, id, usuario.ID)
+}
+
+func (h *SolicitacaoHandler) Pendencias(w http.ResponseWriter, r *http.Request) {
+	usuario, ok := resposta.UsuarioDoContexto(w, r)
+	if !ok {
+		return
+	}
+
+	pendencias, err := h.usecase.Pendencias(r.Context(), usuario.ID)
+	if err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+
+	dto.EscreverJSON(w, http.StatusOK, dto.Resposta[solicitacaodto.PendenciasResponse]{
+		Dados: solicitacaodto.NovaPendenciasResponse(pendencias),
+	})
+}
+
 func (h *SolicitacaoHandler) ListarHistorico(w http.ResponseWriter, r *http.Request) {
 	usuario, id, ok := resposta.UsuarioEId(w, r)
 	if !ok {
@@ -238,6 +373,39 @@ func (h *SolicitacaoHandler) responderAtualizada(w http.ResponseWriter, r *http.
 	}
 
 	escreverSolicitacao(w, http.StatusOK, item)
+}
+
+func entradaDeListagem(r *http.Request, usuarioID uuid.UUID) (portsin.ListarSolicitacoesInput, error) {
+	input := portsin.ListarSolicitacoesInput{
+		UsuarioID:   usuarioID,
+		Escopo:      resposta.ConsultaTexto(r, "escopo"),
+		Status:      resposta.ConsultaTexto(r, "status"),
+		Competencia: resposta.ConsultaTexto(r, "competencia"),
+		Origem:      resposta.ConsultaTexto(r, "origem"),
+	}
+
+	vencidas, err := resposta.ConsultaBooleanaOpcional(r, "vencidas")
+	if err != nil {
+		return input, err
+	}
+	input.Vencidas = vencidas != nil && *vencidas
+	if input.Empresa, err = resposta.ConsultaUUID(r, "empresa"); err != nil {
+		return input, err
+	}
+	if input.Fornecedor, err = resposta.ConsultaUUID(r, "fornecedor"); err != nil {
+		return input, err
+	}
+	if input.Categoria, err = resposta.ConsultaUUID(r, "categoria"); err != nil {
+		return input, err
+	}
+	if input.VenceDe, err = solicitacaodto.DataDeConsulta(resposta.ConsultaTexto(r, "vencimento_de"), "vencimento_de"); err != nil {
+		return input, err
+	}
+	if input.VenceAte, err = solicitacaodto.DataDeConsulta(resposta.ConsultaTexto(r, "vencimento_ate"), "vencimento_ate"); err != nil {
+		return input, err
+	}
+
+	return input, nil
 }
 
 func escreverSolicitacao(w http.ResponseWriter, status int, item *domainsolicitacao.Solicitacao) {

@@ -148,8 +148,8 @@ o **F0b** pode correr junto com essas telas.
 | M3 | Clientes e representantes | M1 | Base de clientes | concluído |
 | M4 | Fornecedores | T0 | coluna fornecedor do painel financeiro | concluído |
 | M5 | Contas bancárias e plano de contas | M1 | classificação manual dos extratos | concluído |
-| M6 | Pedidos de venda e entregas | M1 M2 M3 | Vendas futuras, Entregas de importação, Pendências de envio | em andamento (feat/m6-pedidos) |
-| M7 | Contas a pagar | M1 M4 M5 | Painel financeiro (contas a pagar) | em andamento (feat/m7-contas-a-pagar) |
+| M6 | Pedidos de venda e entregas | M1 M2 M3 | Vendas futuras, Entregas de importação, Pendências de envio | pendente |
+| M7 | Contas a pagar | M1 M4 M5 | Painel financeiro (contas a pagar) | concluído |
 | M8 | NF-e por XML | M2 M3 M6 | Controle de NFs | pendente |
 | M9 | Contas a receber e antecipação | M3 M5 | A receber no banco, títulos do Controle de NFs | pendente |
 | M10 | Comissões | M3 M6 | comissões calculadas à mão | pendente |
@@ -560,6 +560,35 @@ Evolução do módulo `solicitacao` (mesmo pacote; o fluxo de aprovação contin
 - **Estorno, edição e notificação**: resolver os itens 6 e 7 de `PENDENCIAS.md` aqui
   (edição antes da aprovação; estorno como lançamento inverso; aviso de fila nova).
 - **Visões**: a pagar por semana, por empresa, vencidos.
+
+**Entregue (outubro/2026):** API completa (fases 1 a 5 do `CONTAS_A_PAGAR.md`); front pendente
+(fase 6). Para os próximos módulos:
+
+- a conta a pagar **é a `solicitacao`**: `fornecedor_id` e `categoria_financeira_id` opcionais na
+  criação, `competencia` (`DATE`, dia 1) sempre preenchida, `estimado`, `versao`, e
+  `origem`/`origem_id` (`manual`, `recorrencia`). O `prazo_pagamento` é o vencimento;
+- quem gera conta a pagar (M6 devolução, M9 recompra, M10 comissão, M12, M14 parcela) acrescenta
+  o próprio valor em `chk_solicitacao_origem`, grava `origem_id` com o id do seu registro e cria um
+  índice único parcial para ser idempotente, como `uq_solicitacao_recorrencia (origem_id,
+  competencia) WHERE origem = 'recorrencia'`. A criação passa por uma porta mínima do consumidor,
+  satisfeita por um método novo do `SolicitacaoRepository` no padrão de `GerarDeRecorrencia`
+  (trava a origem e a classificação com `FOR SHARE`, `INSERT ... ON CONFLICT DO NOTHING`, histórico
+  na mesma transação). A assinatura é fechada pela primeira sessão consumidora;
+- solicitação gerada por outro módulo deve nascer **com categoria** lançável: pagar exige categoria
+  ativa (`solicitação sem categoria financeira; classifique antes de pagar`). A `competencia` de
+  solicitação com `origem` diferente de `manual` é fixa (é a chave de idempotência);
+- transições da solicitação guardam status **e versão**; o aprovar aceita `{ "versao": n }` e o
+  front deve mandá-la;
+- pagamento tem `conta_bancaria_id` obrigatória (conta ativa da mesma empresa) e `usuario_id`;
+  estorno é lançamento inverso em `pagamento_estorno`, o pagamento fica `estornado = true` e a
+  solicitação volta para `aprovado`. Só um pagamento não estornado por solicitação
+  (`uq_pagamento_solicitacao_vigente`). O M13 concilia por `conta_bancaria_id` + `pago_em`
+  (`idx_pagamento_conta_bancaria`);
+- o M15 usa `competencia` + `categoria_financeira.linha_dre` (DRE por competência, decisão D5) e
+  ignora pagamento estornado; o fluxo de caixa (M13) usa o `pago_em`;
+- `solicitacao_historico.evento` (`criada`, `aprovada`, `rejeitada`, `cancelada`, `paga`,
+  `editada`, `classificada`, `adiada`, `estornada`) registra também o que não troca status;
+- `forma_pagamento` aceita também `transferencia` e `debito_automatico`.
 
 ### M8 — NF-e por XML
 

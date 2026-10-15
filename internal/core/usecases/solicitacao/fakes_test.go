@@ -8,6 +8,8 @@ import (
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	domainempresa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/empresa"
+	domainfinanceiro "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/financeiro"
+	domainfornecedor "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/fornecedor"
 	domainsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/solicitacao"
 	domainusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/usuarios"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/solicitacao"
@@ -22,7 +24,65 @@ var (
 	_ portsout.CargoRepository       = (*repositorioCargos)(nil)
 	_ portsout.Storage               = (*storageFalso)(nil)
 	_ portsout.EmpresaRepository     = (*repositorioEmpresas)(nil)
+
+	_ portsout.FornecedorRepository          = (*repositorioFornecedores)(nil)
+	_ portsout.CategoriaFinanceiraRepository = (*repositorioCategoriasFinanceiras)(nil)
+	_ portsout.ContaBancariaRepository       = (*repositorioContasBancarias)(nil)
 )
+
+type repositorioContasBancarias struct {
+	itens map[uuid.UUID]*domainfinanceiro.ContaBancaria
+}
+
+func novoRepositorioContasBancarias() *repositorioContasBancarias {
+	return &repositorioContasBancarias{itens: map[uuid.UUID]*domainfinanceiro.ContaBancaria{}}
+}
+
+func (r *repositorioContasBancarias) Obter(_ context.Context, id uuid.UUID) (*domainfinanceiro.ContaBancaria, error) {
+	conta, ok := r.itens[id]
+	if !ok {
+		return nil, nil
+	}
+
+	copia := *conta
+	return &copia, nil
+}
+
+type repositorioFornecedores struct {
+	itens map[uuid.UUID]*domainfornecedor.Fornecedor
+}
+
+func novoRepositorioFornecedores() *repositorioFornecedores {
+	return &repositorioFornecedores{itens: map[uuid.UUID]*domainfornecedor.Fornecedor{}}
+}
+
+func (r *repositorioFornecedores) Obter(_ context.Context, id uuid.UUID) (*domainfornecedor.Fornecedor, error) {
+	fornecedor, ok := r.itens[id]
+	if !ok {
+		return nil, nil
+	}
+
+	copia := *fornecedor
+	return &copia, nil
+}
+
+type repositorioCategoriasFinanceiras struct {
+	itens map[uuid.UUID]*domainfinanceiro.CategoriaFinanceira
+}
+
+func novoRepositorioCategoriasFinanceiras() *repositorioCategoriasFinanceiras {
+	return &repositorioCategoriasFinanceiras{itens: map[uuid.UUID]*domainfinanceiro.CategoriaFinanceira{}}
+}
+
+func (r *repositorioCategoriasFinanceiras) Obter(_ context.Context, id uuid.UUID) (*domainfinanceiro.CategoriaFinanceira, error) {
+	categoria, ok := r.itens[id]
+	if !ok {
+		return nil, nil
+	}
+
+	copia := *categoria
+	return &copia, nil
+}
 
 type repositorioEmpresas struct {
 	itens   map[uuid.UUID]*domainempresa.Empresa
@@ -56,7 +116,7 @@ func (r *repositorioEmpresas) AcessoDoUsuario(_ context.Context, usuarioID uuid.
 
 type repositorioSolicitacoes struct {
 	itens      map[uuid.UUID]*domainsolicitacao.Solicitacao
-	pagamentos map[uuid.UUID]*domainsolicitacao.Pagamento
+	pagamentos map[uuid.UUID][]*domainsolicitacao.Pagamento
 	historicos map[uuid.UUID][]*domainsolicitacao.Historico
 	arquivos   map[uuid.UUID][]*domainsolicitacao.Arquivo
 	origem     *repositorioArquivos
@@ -65,7 +125,7 @@ type repositorioSolicitacoes struct {
 func novoRepositorioSolicitacoes(origem *repositorioArquivos) *repositorioSolicitacoes {
 	return &repositorioSolicitacoes{
 		itens:      map[uuid.UUID]*domainsolicitacao.Solicitacao{},
-		pagamentos: map[uuid.UUID]*domainsolicitacao.Pagamento{},
+		pagamentos: map[uuid.UUID][]*domainsolicitacao.Pagamento{},
 		historicos: map[uuid.UUID][]*domainsolicitacao.Historico{},
 		arquivos:   map[uuid.UUID][]*domainsolicitacao.Arquivo{},
 		origem:     origem,
@@ -113,6 +173,9 @@ func (r *repositorioSolicitacoes) Listar(_ context.Context, filtro portsout.Soli
 		if filtro.EmpresaIDs != nil && !contemEmpresa(filtro.EmpresaIDs, solicitacao.EmpresaID) {
 			continue
 		}
+		if !atendeFiltrosDeContasAPagar(solicitacao, filtro) {
+			continue
+		}
 		copia := *solicitacao
 		coincidindo = append(coincidindo, &copia)
 	}
@@ -124,9 +187,16 @@ func (r *repositorioSolicitacoes) Listar(_ context.Context, filtro portsout.Soli
 	return paginar(coincidindo, filtro.PaginacaoFiltro), nil
 }
 
+func (r *repositorioSolicitacoes) Contar(ctx context.Context, filtro portsout.SolicitacaoFiltro) (int, error) {
+	filtro.PaginacaoFiltro = domain.PaginacaoFiltro{Page: 1, Size: len(r.itens) + 1}
+	itens, err := r.Listar(ctx, filtro)
+
+	return len(itens), err
+}
+
 func (r *repositorioSolicitacoes) AtualizarStatus(_ context.Context, solicitacao *domainsolicitacao.Solicitacao, historico *domainsolicitacao.Historico) (bool, error) {
 	salvo, ok := r.itens[solicitacao.ID]
-	if !ok || historico.DeStatus == nil || salvo.Status != *historico.DeStatus {
+	if !ok || historico.DeStatus == nil || salvo.Status != *historico.DeStatus || salvo.Versao != solicitacao.Versao-1 {
 		return false, nil
 	}
 
@@ -135,6 +205,34 @@ func (r *repositorioSolicitacoes) AtualizarStatus(_ context.Context, solicitacao
 	r.registrarHistorico(solicitacao.ID, historico)
 
 	return true, nil
+}
+
+func (r *repositorioSolicitacoes) Classificar(_ context.Context, solicitacao *domainsolicitacao.Solicitacao, versaoLida int, historico *domainsolicitacao.Historico) error {
+	return r.gravarComGuarda(solicitacao, versaoLida, domainsolicitacao.StatusAprovado, historico)
+}
+
+func (r *repositorioSolicitacoes) Editar(_ context.Context, solicitacao *domainsolicitacao.Solicitacao, versaoLida int, historico *domainsolicitacao.Historico) error {
+	return r.gravarComGuarda(solicitacao, versaoLida, domainsolicitacao.StatusPendenteAprovacao, historico)
+}
+
+func (r *repositorioSolicitacoes) Adiar(_ context.Context, solicitacao *domainsolicitacao.Solicitacao, versaoLida int, historico *domainsolicitacao.Historico) error {
+	return r.gravarComGuarda(solicitacao, versaoLida, domainsolicitacao.StatusAprovado, historico)
+}
+
+func (r *repositorioSolicitacoes) gravarComGuarda(solicitacao *domainsolicitacao.Solicitacao, versaoLida int, status domainsolicitacao.Status, historico *domainsolicitacao.Historico) error {
+	salvo, ok := r.itens[solicitacao.ID]
+	if !ok {
+		return domain.ErrNotFound
+	}
+	if salvo.Versao != versaoLida || salvo.Status != status {
+		return domainsolicitacao.ErroSolicitacaoAlterada()
+	}
+
+	copia := *solicitacao
+	r.itens[solicitacao.ID] = &copia
+	r.registrarHistorico(solicitacao.ID, historico)
+
+	return nil
 }
 
 func (r *repositorioSolicitacoes) CriarPagamento(_ context.Context, solicitacao *domainsolicitacao.Solicitacao, pagamento *domainsolicitacao.Pagamento, historico *domainsolicitacao.Historico) error {
@@ -146,9 +244,28 @@ func (r *repositorioSolicitacoes) CriarPagamento(_ context.Context, solicitacao 
 		return domain.ErroConflito("solicitação alterada por outra operação")
 	}
 
-	r.pagamentos[solicitacao.ID] = pagamento
+	r.pagamentos[solicitacao.ID] = append(r.pagamentos[solicitacao.ID], pagamento)
 
 	return nil
+}
+
+func (r *repositorioSolicitacoes) Estornar(_ context.Context, solicitacao *domainsolicitacao.Solicitacao, versaoLida int, pagamento *domainsolicitacao.Pagamento, historico *domainsolicitacao.Historico) error {
+	if err := r.gravarComGuarda(solicitacao, versaoLida, domainsolicitacao.StatusPago, historico); err != nil {
+		return err
+	}
+
+	for posicao, salvo := range r.pagamentos[solicitacao.ID] {
+		if salvo.ID == pagamento.ID {
+			copia := *pagamento
+			r.pagamentos[solicitacao.ID][posicao] = &copia
+		}
+	}
+
+	return nil
+}
+
+func (r *repositorioSolicitacoes) ListarPagamentos(_ context.Context, solicitacaoID uuid.UUID) ([]*domainsolicitacao.Pagamento, error) {
+	return r.pagamentos[solicitacaoID], nil
 }
 
 func (r *repositorioSolicitacoes) ListarArquivos(_ context.Context, solicitacaoID uuid.UUID) ([]*domainsolicitacao.Arquivo, error) {
@@ -171,7 +288,14 @@ func (r *repositorioSolicitacoes) registrarHistorico(solicitacaoID uuid.UUID, hi
 }
 
 func (r *repositorioSolicitacoes) ObterPagamento(_ context.Context, solicitacaoID uuid.UUID) (*domainsolicitacao.Pagamento, error) {
-	return r.pagamentos[solicitacaoID], nil
+	for _, pagamento := range r.pagamentos[solicitacaoID] {
+		if !pagamento.Estornado {
+			copia := *pagamento
+			return &copia, nil
+		}
+	}
+
+	return nil, nil
 }
 
 type repositorioArquivos struct {
@@ -398,6 +522,31 @@ func paginar[T any](itens []T, filtro domain.PaginacaoFiltro) []T {
 	}
 
 	return itens[inicio:fim]
+}
+
+func atendeFiltrosDeContasAPagar(solicitacao *domainsolicitacao.Solicitacao, filtro portsout.SolicitacaoFiltro) bool {
+	vencimento := solicitacao.Prazo.Data()
+
+	switch {
+	case filtro.Fornecedor != nil && (solicitacao.FornecedorID == nil || *solicitacao.FornecedorID != *filtro.Fornecedor):
+		return false
+	case filtro.Categoria != nil && (solicitacao.CategoriaFinanceiraID == nil || *solicitacao.CategoriaFinanceiraID != *filtro.Categoria):
+		return false
+	case filtro.Competencia != nil && solicitacao.Competencia != *filtro.Competencia:
+		return false
+	case filtro.Origem != "" && solicitacao.Origem != filtro.Origem:
+		return false
+	case filtro.OrigemID != nil && (solicitacao.OrigemID == nil || *solicitacao.OrigemID != *filtro.OrigemID):
+		return false
+	case filtro.VenceDe != nil && vencimento.Before(*filtro.VenceDe):
+		return false
+	case filtro.VenceAte != nil && vencimento.After(*filtro.VenceAte):
+		return false
+	case filtro.VencidasEm != nil && !solicitacao.Vencida(*filtro.VencidasEm):
+		return false
+	}
+
+	return true
 }
 
 func contemEmpresa(empresaIDs []uuid.UUID, empresaID uuid.UUID) bool {

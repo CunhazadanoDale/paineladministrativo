@@ -52,7 +52,7 @@ cliente deve autenticar de novo.
 | Comercial | Token de um usuário cujo cargo tem `"comercial": true` | Leads (criar, editar, mover, excluir), histórico e **leitura** de funis e etapas |
 | Administrador | Token de um usuário cujo cargo tem `"administrador": true` | Tudo o que os perfis autenticado e comercial podem, **mais** a estrutura de funis e etapas, a gestão de usuários, a escrita de cargos, a designação de aprovadores e `escopo=todas` |
 | Aprovador | Usuário **designado** na tabela `aprovador` pelo administrador | `escopo=aprovacao`, aprovar e rejeitar as solicitações pendentes |
-| Financeiro | Token de um usuário cujo cargo tem `"financeiro": true` (ou de administrador) | `escopo=financeiro`, o registro de pagamento das solicitações aprovadas, a escrita de fornecedores e do plano de contas, e as contas bancárias das empresas do seu acesso |
+| Financeiro | Token de um usuário cujo cargo tem `"financeiro": true` (ou de administrador) | `escopo=financeiro`, classificar, adiar, pagar e estornar as solicitações aprovadas, as despesas recorrentes e o resumo de contas a pagar, a escrita de fornecedores e do plano de contas, e as contas bancárias das empresas do seu acesso |
 
 Os três papéis novos do módulo de solicitações são **cumulativos**: um administrador também
 é tratado como aprovador e como financeiro.
@@ -550,7 +550,13 @@ Fluxo: **solicitante → aprovador designado → financeiro**.
 1. O solicitante sobe os anexos (`POST /api/v1/arquivos`) e cria a solicitação.
 2. O administrador designa quem pode aprovar (`POST /api/v1/aprovadores`).
 3. O aprovador aprova ou rejeita.
-4. O financeiro registra o pagamento — o **valor pago pode ser diferente** do estimado.
+4. O financeiro classifica a conta a pagar (fornecedor, categoria financeira e competência),
+   se o solicitante não o fez.
+5. O financeiro registra o pagamento — o **valor pago pode ser diferente** do estimado.
+
+Desde o M7 a solicitação é a **conta a pagar** do grupo. Os campos de classificação são
+opcionais na criação; o `prazo_pagamento` é o vencimento. As despesas fixas entram pela seção
+"Despesas recorrentes", que gera as solicitações com `origem = recorrencia`.
 
 ### Estados
 
@@ -559,12 +565,19 @@ Fluxo: **solicitante → aprovador designado → financeiro**.
 | `pendente_aprovacao` | `aprovado` | `POST /{id}/aprovar` |
 | `pendente_aprovacao` | `rejeitado` | `POST /{id}/rejeitar` |
 | `pendente_aprovacao`, `aprovado` | `cancelado` | `POST /{id}/cancelar` |
+| `pendente_aprovacao` | `pendente_aprovacao` (edição) | `PUT /{id}` |
+| `aprovado` | `aprovado` (classificação ou adiamento) | `PATCH /{id}/classificacao`, `POST /{id}/adiar` |
 | `aprovado` | `pago` | `POST /{id}/pagamento` |
+| `pago` | `aprovado` (estorno) | `POST /{id}/pagamento/estorno` |
 
-`pago`, `rejeitado` e `cancelado` são estados terminais. Toda transição grava um registro
-no histórico **na mesma transação**, e o `UPDATE` só acontece se o status anterior bater:
-se outra pessoa mudar primeiro, a segunda recebe `409`
-(`solicitação alterada por outra operação, recarregue e tente novamente`).
+`rejeitado` e `cancelado` são estados terminais; `pago` só sai pelo estorno, que volta para
+`aprovado`. Toda transição grava um registro no histórico **na mesma transação**, e o `UPDATE` só
+acontece se o status e a versão lidos ainda baterem: se outra pessoa mudar primeiro (inclusive uma
+edição), a segunda recebe `409` (`solicitação alterada por outra operação, recarregue e tente
+novamente`).
+
+"Hoje" (prazo não anterior a hoje, `vencida`, `vencidas=true`, resumo) é o dia em **UTC**: entre
+21h e 24h no horário de Brasília já vale o dia seguinte.
 
 ### Rotas
 
@@ -576,12 +589,18 @@ se outra pessoa mudar primeiro, a segunda recebe `409`
 | `POST` | `/api/v1/solicitacoes/{id}/aprovar` | aprovador ou administrador, exceto o próprio solicitante | `200` |
 | `POST` | `/api/v1/solicitacoes/{id}/rejeitar` | aprovador ou administrador | `200` |
 | `POST` | `/api/v1/solicitacoes/{id}/cancelar` | solicitante ou administrador | `200` |
+| `PATCH` | `/api/v1/solicitacoes/{id}/classificacao` | financeiro ou administrador | `200` |
+| `PUT` | `/api/v1/solicitacoes/{id}` | solicitante ou administrador | `200` |
+| `POST` | `/api/v1/solicitacoes/{id}/adiar` | financeiro ou administrador | `200` |
 | `POST` | `/api/v1/solicitacoes/{id}/pagamento` | financeiro ou administrador | `201` |
-| `GET` | `/api/v1/solicitacoes/{id}/pagamento` | quem pode ver | `200` objeto único |
+| `GET` | `/api/v1/solicitacoes/{id}/pagamento` | quem pode ver | `200` objeto único (pagamento vigente) |
+| `GET` | `/api/v1/solicitacoes/{id}/pagamentos` | quem pode ver | `200` lista, com os estornados |
+| `GET` | `/api/v1/solicitacoes/pendencias` | autenticado | `200` contadores do usuário |
+| `POST` | `/api/v1/solicitacoes/{id}/pagamento/estorno` | financeiro ou administrador | `200` |
 | `GET` | `/api/v1/solicitacoes/{id}/historico` | quem pode ver | `200` lista |
 | `GET` | `/api/v1/solicitacoes/{id}/arquivos` | quem pode ver | `200` lista |
 
-**Quem pode ver** uma solicitação (roteiros `Obter`, `pagamento`, `historico`, `arquivos`):
+**Quem pode ver** uma solicitação (roteiros `Obter`, `pagamento`, `pagamentos`, `historico`, `arquivos`):
 o próprio solicitante, um administrador, o aprovador designado e o financeiro (que só enxerga
 solicitações fora de `pendente_aprovacao`). Aprovador e financeiro só enxergam solicitações
 de empresas do seu **acesso** (seção "Empresas"); o solicitante sempre vê as próprias. Quem
@@ -591,7 +610,8 @@ respondem `403` (`perfil sem acesso a esta empresa`).
 
 ### Escopos de listagem
 
-`GET /api/v1/solicitacoes` aceita `pagina`, `tamanho`, `escopo`, `status` e `empresa`:
+`GET /api/v1/solicitacoes` aceita `pagina`, `tamanho`, `escopo`, `status`, `empresa` e os filtros
+de conta a pagar da tabela no fim desta seção:
 
 | `escopo` | Quem pode | O que lista |
 | --- | --- | --- |
@@ -612,6 +632,17 @@ enxergar — não serve para furar a definição do escopo. `escopo=aprovacao` s
 (`status não permitido para o escopo de listagem informado`). `escopo` fora da lista
 devolve `400` (`escopo de listagem inválido`); escopo de outro perfil devolve `403`.
 
+Filtros de conta a pagar, combináveis com qualquer escopo (valor inválido → `400`):
+
+| Consulta | Filtra |
+| --- | --- |
+| `fornecedor=<uuid>` | fornecedor da solicitação |
+| `categoria=<uuid>` | categoria financeira |
+| `competencia=AAAA-MM` | competência (`erro de validação: competência deve estar no formato AAAA-MM`) |
+| `origem=manual\|recorrencia` | origem da solicitação |
+| `vencimento_de=AAAA-MM-DD` / `vencimento_ate=AAAA-MM-DD` | intervalo do `prazo_pagamento`, inclusivo (`erro de validação: consulta vencimento_de deve estar no formato AAAA-MM-DD`; final antes do inicial → `400 erro de validação: vencimento final não pode ser anterior ao inicial`) |
+| `vencidas=true` | `pendente_aprovacao` ou `aprovado` com vencimento antes de hoje (UTC); aceita `true`/`false`/`1`/`0`, outro valor → `400 erro de validação: consulta vencidas deve ser true ou false` |
+
 ### `POST /api/v1/solicitacoes`
 
 ```json
@@ -621,6 +652,10 @@ devolve `400` (`escopo de listagem inválido`); escopo de outro perfil devolve `
   "prazo_pagamento": "2026-10-20",
   "observacao": "Compra de cimento para a fase 2",
   "forma_pagamento": "pix",
+  "fornecedor_id": "uuid-do-fornecedor",
+  "categoria_financeira_id": "uuid-da-subcategoria",
+  "competencia": "2026-10",
+  "estimado": false,
   "arquivo_ids": ["3f1c2a4e-0000-4000-8000-000000000001"]
 }
 ```
@@ -631,7 +666,11 @@ devolve `400` (`escopo de listagem inválido`); escopo de outro perfil devolve `
 | `valor_centavos` | inteiro em centavos, maior que zero (`150000` = R$ 1.500,00) |
 | `prazo_pagamento` | `AAAA-MM-DD` (ou RFC3339). Obrigatório e não pode ser anterior a hoje |
 | `observacao` | obrigatória, no máximo 1000 caracteres |
-| `forma_pagamento` | `pix`, `cartao` ou `boleto` |
+| `forma_pagamento` | `pix`, `cartao`, `boleto`, `transferencia` ou `debito_automatico` |
+| `fornecedor_id` | opcional. Fornecedor existente e ativo |
+| `categoria_financeira_id` | opcional. Subcategoria ativa de natureza `despesa` (plano de contas) |
+| `competencia` | opcional, `AAAA-MM` (de `2000-01` a `2099-12`). Padrão: o mês do `prazo_pagamento` |
+| `estimado` | opcional, padrão `false`. `true` quando o valor é previsão (conta de consumo) |
 | `arquivo_ids` | opcional. Cada anexo tem que existir, pertencer ao solicitante, aparecer uma vez só e não estar em outra solicitação |
 
 **Objeto de solicitação:**
@@ -646,6 +685,14 @@ devolve `400` (`escopo de listagem inválido`); escopo de outro perfil devolve `
   "prazo_pagamento": "2026-10-20T00:00:00Z",
   "observacao": "Compra de cimento para a fase 2",
   "forma_pagamento": "pix",
+  "fornecedor_id": null,
+  "categoria_financeira_id": null,
+  "competencia": "2026-10",
+  "estimado": false,
+  "origem": "manual",
+  "origem_id": null,
+  "vencida": false,
+  "versao": 1,
   "status": "pendente_aprovacao",
   "motivo_rejeicao": null,
   "aprovado_em": null,
@@ -661,7 +708,12 @@ devolve `400` (`escopo de listagem inválido`); escopo de outro perfil devolve `
 | --- | --- | --- |
 | Valor zero ou negativo | `400` | `erro de validação: valor deve ser maior que zero` |
 | Prazo vazio ou anterior a hoje | `400` | `erro de validação: prazo de pagamento é obrigatório` / `...não pode ser anterior a hoje` |
-| Forma diferente das três | `400` | `erro de validação: forma de pagamento deve ser pix, cartao ou boleto` |
+| Forma fora da lista | `400` | `erro de validação: forma de pagamento deve ser pix, cartao, boleto, transferencia ou debito_automatico` |
+| Fornecedor inexistente / inativo | `400` | `erro de validação: fornecedor não encontrado` / `...fornecedor inativo não recebe conta a pagar` |
+| Categoria inexistente | `400` | `erro de validação: categoria financeira não encontrada` |
+| Categoria raiz ou inativa | `400` | `erro de validação: categoria financeira deve ser uma subcategoria ativa` |
+| Categoria de receita ou transferência | `400` | `erro de validação: categoria financeira deve ser de despesa` |
+| Competência fora do formato | `400` | `erro de validação: competência deve estar no formato AAAA-MM` |
 | Anexo de outra pessoa | `403` | `arquivo não pertence ao solicitante` |
 | Anexo já em uso | `400` | `erro de validação: arquivo já vinculado a outra solicitação` |
 | Mesmo anexo duas vezes | `400` | `erro de validação: arquivo repetido na solicitação` |
@@ -670,10 +722,134 @@ devolve `400` (`escopo de listagem inválido`); escopo de outro perfil devolve `
 | Empresa fora do acesso, inclusive inexistente | `403` | `perfil sem acesso a esta empresa` |
 | Empresa inativa | `400` | `erro de validação: empresa inativa não recebe solicitação nova` |
 
+Campos de leitura do objeto:
+
+| Campo | Significado |
+| --- | --- |
+| `competencia` | mês da despesa na DRE, `AAAA-MM` |
+| `origem` / `origem_id` | `manual` (sem id) ou o módulo que gerou a solicitação e o id do registro de origem |
+| `vencida` | `pendente_aprovacao` ou `aprovado` com `prazo_pagamento` antes de hoje (UTC); derivado, nunca gravado |
+| `versao` | começa em `1` e avança em toda gravação, inclusive aprovação, rejeição, cancelamento e pagamento |
+
+O histórico (`GET /{id}/historico`) traz `evento` em cada registro: `criada`, `aprovada`,
+`rejeitada`, `cancelada`, `paga`, `editada`, `classificada`, `adiada` ou `estornada`. Eventos que
+não mudam o status (como `classificada`) gravam `de_status` igual a `para_status`.
+
+### `PATCH /api/v1/solicitacoes/{id}/classificacao`
+
+Financeiro ou administrador, com a empresa da solicitação no acesso. Só em `aprovado`. Substitui a
+classificação inteira: `fornecedor_id` omitido vira `null`. Em solicitação gerada por recorrência
+(`origem` diferente de `manual`) a `competencia` precisa ser a mesma já gravada
+(`400 erro de validação: competência de solicitação gerada por outro módulo não pode mudar`), porque
+é ela que impede a geração duplicada.
+
+```json
+{
+  "fornecedor_id": "uuid-do-fornecedor",
+  "categoria_financeira_id": "uuid-da-subcategoria",
+  "competencia": "2026-09",
+  "versao": 2
+}
+```
+
+| Campo | Regra |
+| --- | --- |
+| `fornecedor_id` | opcional; mesmas regras da criação |
+| `categoria_financeira_id` | **obrigatório**; mesmas regras da criação |
+| `competencia` | **obrigatória**, `AAAA-MM` |
+| `versao` | **obrigatória**: a `versao` lida da solicitação |
+
+Responde `200` com o objeto da solicitação (`versao` avançada) e grava o evento `classificada` no
+histórico.
+
+| Erro | Status | Mensagem |
+| --- | --- | --- |
+| Sem perfil de financeiro | `403` | `perfil sem permissão para classificar solicitação` |
+| Empresa fora do acesso | `403` | `perfil sem acesso a esta empresa` |
+| `versao` ausente, zero ou negativa | `400` | `erro de validação: versão da solicitação é obrigatória` |
+| `versao` diferente da atual | `409` | `solicitação alterada por outra operação, recarregue e tente novamente` |
+| Fora de `aprovado` | `409` | `só é possível classificar solicitação aprovada` |
+| Sem categoria / sem competência | `400` | `erro de validação: categoria financeira é obrigatória na classificação` / `...competência é obrigatória na classificação` |
+
+### `PUT /api/v1/solicitacoes/{id}`
+
+Edição pelo solicitante ou pelo administrador, só em `pendente_aprovacao`. Substitui todos os
+campos editáveis: o que for omitido volta ao padrão (`fornecedor_id` e `categoria_financeira_id`
+viram `null`, `competencia` vira o mês do `prazo_pagamento`, `estimado` vira `false`). Empresa e
+anexos não mudam por esta rota; depois de aprovada, corrigir é cancelar e criar outra.
+
+```json
+{
+  "valor_centavos": 64000,
+  "prazo_pagamento": "2026-10-24",
+  "observacao": "Compra de cimento e areia",
+  "forma_pagamento": "transferencia",
+  "fornecedor_id": null,
+  "categoria_financeira_id": null,
+  "competencia": "2026-10",
+  "estimado": true,
+  "versao": 1
+}
+```
+
+Campos com as mesmas regras do `POST`, mais `versao` obrigatória, com duas diferenças:
+
+- a regra "prazo não anterior a hoje" só vale quando o vencimento **muda**: uma solicitação já
+  vencida pode ser editada reenviando o mesmo `prazo_pagamento`;
+- em solicitação gerada por recorrência a `competencia` não muda: omitida, fica a gravada (não
+  é recalculada pelo vencimento); diferente, responde `400` como na classificação.
+
+Fornecedor e categoria informados precisam continuar ativos e lançáveis, mesmo que não tenham
+mudado. Responde `200` com o objeto atualizado e grava o evento `editada`, com os campos alterados
+na descrição (`solicitação editada: valor, vencimento`). Corpo igual ao gravado responde `200` sem
+avançar a versão nem gravar histórico. Fora de `pendente_aprovacao` responde `409` antes de validar
+o corpo.
+
+| Erro | Status | Mensagem |
+| --- | --- | --- |
+| Nem solicitante nem administrador | `403` | `perfil sem permissão para editar esta solicitação` |
+| `versao` ausente, zero ou negativa | `400` | `erro de validação: versão da solicitação é obrigatória` |
+| `versao` diferente da atual | `409` | `solicitação alterada por outra operação, recarregue e tente novamente` |
+| Fora de `pendente_aprovacao` | `409` | `só é possível editar solicitação pendente de aprovação` |
+| Campo inválido | `400` | as mensagens do `POST` |
+
+### `POST /api/v1/solicitacoes/{id}/adiar`
+
+Financeiro ou administrador, com a empresa da solicitação no acesso. Só em `aprovado`. Muda o
+`prazo_pagamento`; a competência e o status não mudam.
+
+```json
+{ "vencimento": "2026-11-13", "motivo": "fornecedor aceitou o novo prazo", "versao": 3 }
+```
+
+| Campo | Regra |
+| --- | --- |
+| `vencimento` | obrigatório, `AAAA-MM-DD`; posterior ao vencimento atual e não anterior a hoje |
+| `motivo` | obrigatório, no máximo 500 caracteres |
+| `versao` | obrigatória |
+
+Responde `200` com o objeto atualizado e grava o evento `adiada` com a descrição
+`vencimento adiado de 2026-10-24 para 2026-11-13: fornecedor aceitou o novo prazo`.
+
+| Erro | Status | Mensagem |
+| --- | --- | --- |
+| Sem perfil de financeiro | `403` | `perfil sem permissão para adiar solicitação` |
+| Empresa fora do acesso | `403` | `perfil sem acesso a esta empresa` |
+| `versao` diferente da atual | `409` | `solicitação alterada por outra operação, recarregue e tente novamente` |
+| Fora de `aprovado` | `409` | `só é possível adiar solicitação aprovada` |
+| Sem vencimento / formato errado | `400` | `erro de validação: vencimento é obrigatório` / `...vencimento deve estar no formato AAAA-MM-DD` |
+| Vencimento no mesmo dia ou antes do atual | `400` | `erro de validação: novo vencimento deve ser posterior ao atual` |
+| Vencimento antes de hoje | `400` | `erro de validação: prazo de pagamento não pode ser anterior a hoje` |
+| Sem motivo / motivo longo | `400` | `erro de validação: motivo do adiamento é obrigatório` / `...deve ter no máximo 500 caracteres` |
+
 ### `POST /api/v1/solicitacoes/{id}/aprovar`
 
-Sem corpo. Ninguém aprova a própria solicitação, nem o administrador: a segregação entre quem
-pede e quem aprova vale para todos os perfis.
+Corpo opcional: `{ "versao": n }`. Com `versao`, a aprovação só acontece se a solicitação ainda
+estiver na versão que o aprovador viu; uma edição feita depois responde `409`
+(`solicitação alterada por outra operação, recarregue e tente novamente`), em vez de aprovar um
+valor que ele não conferiu. O front deve sempre mandar a `versao`; sem corpo, vale o comportamento
+anterior. Ninguém aprova a própria solicitação, nem o administrador: a segregação entre quem pede e
+quem aprova vale para todos os perfis.
 
 | Erro | Status | Mensagem |
 | --- | --- | --- |
@@ -693,16 +869,22 @@ pede e quem aprova vale para todos os perfis.
 
 ```json
 {
+  "conta_bancaria_id": "00000000-0000-4000-8000-000000000006",
   "valor_centavos": 148500,
   "comprovante_arquivo_id": "00000000-0000-4000-8000-000000000004",
   "pago_em": "2026-10-15T14:00:00Z"
 }
 ```
 
+A solicitação precisa estar **classificada** (com `categoria_financeira_id`) antes de ser paga;
+as antigas e as que o solicitante deixou sem categoria passam antes pelo
+`PATCH /{id}/classificacao`.
+
 | Campo | Regra |
 | --- | --- |
+| `conta_bancaria_id` | **obrigatório desde o M7**: conta de onde o dinheiro saiu, ativa e da mesma empresa da solicitação; a empresa precisa estar ativa |
 | `valor_centavos` | valor **efetivo** pago, maior que zero — pode diferir do estimado |
-| `comprovante_arquivo_id` | opcional. Quando presente tem que ser um PDF **de quem está registrando** e ainda não vinculado a outra solicitação |
+| `comprovante_arquivo_id` | opcional. Quando presente tem que ser um PDF **de quem está registrando** e ainda não vinculado a outra solicitação. O comprovante de um pagamento estornado pode ser usado de novo no pagamento seguinte da mesma solicitação |
 | `pago_em` | opcional, RFC3339. Padrão: agora (UTC). Não pode estar no futuro (`400 erro de validação: data do pagamento não pode estar no futuro`). É a data em que o dinheiro saiu; `criado_em` do pagamento e `atualizado_em` da solicitação registram o momento do lançamento |
 
 **Objeto de pagamento:**
@@ -711,24 +893,89 @@ pede e quem aprova vale para todos os perfis.
 {
   "id": "00000000-0000-4000-8000-000000000005",
   "solicitacao_id": "00000000-0000-4000-8000-000000000001",
+  "conta_bancaria_id": "00000000-0000-4000-8000-000000000006",
+  "usuario_id": "00000000-0000-4000-8000-000000000007",
   "comprovante_arquivo_id": "00000000-0000-4000-8000-000000000004",
   "valor_centavos": 148500,
   "pago_em": "2026-10-15T14:00:00Z",
+  "estornado": false,
+  "estorno": null,
   "criado_em": "2026-10-15T14:02:10Z"
 }
 ```
 
+`usuario_id` é quem registrou o pagamento. Pagamentos anteriores ao M7 têm `conta_bancaria_id` e
+`usuario_id` nulos. Em pagamento estornado, `estorno` traz
+`{ "id", "motivo", "estornado_em", "usuario_id", "criado_em" }`.
+
 | Erro | Status | Mensagem |
 | --- | --- | --- |
 | Sem perfil de financeiro | `403` | `perfil sem permissão para registrar pagamento` |
+| Sem `conta_bancaria_id` | `400` | `erro de validação: conta bancária do pagamento é obrigatória` |
+| Conta inexistente | `400` | `erro de validação: conta bancária não encontrada` |
+| Conta de outra empresa | `400` | `erro de validação: conta bancária deve ser da empresa da solicitação` |
+| Conta inativa | `400` | `erro de validação: conta bancária inativa não recebe pagamento` |
+| Empresa inativa | `400` | `erro de validação: empresa inativa não recebe pagamento` |
+| Solicitação sem categoria | `400` | `erro de validação: solicitação sem categoria financeira; classifique antes de pagar` |
+| Categoria desativada depois da classificação | `400` | `erro de validação: categoria financeira deve ser uma subcategoria ativa` (reclassifique) |
 | Status diferente de `aprovado` | `409` | `não é possível mudar a solicitação de "<status atual>" para "pago"` |
 | Comprovante não PDF | `400` | `comprovante deve ser um arquivo PDF` |
 | Comprovante de outro usuário | `403` | `comprovante não pertence ao usuário` |
 | Comprovante já usado em outra solicitação | `400` | `comprovante já vinculado a outra solicitação` |
-| Sem pagamento registrado | `404` | `registro não encontrado: pagamento não encontrado` (em `GET /{id}/pagamento`) |
+| Sem pagamento vigente | `404` | `registro não encontrado: pagamento não encontrado` (em `GET /{id}/pagamento`, inclusive depois de um estorno) |
 
 A resposta de `aprovar`, `rejeitar` e `cancelar` devolve o objeto da solicitação já com
 o status novo; a de `POST /{id}/pagamento` devolve o objeto do pagamento.
+
+### `POST /api/v1/solicitacoes/{id}/pagamento/estorno`
+
+Financeiro ou administrador, com a empresa da solicitação no acesso. Só em `pago`. Estorna o
+pagamento vigente como lançamento inverso: o pagamento continua gravado, marcado como
+`estornado`, o estorno fica registrado ao lado e a solicitação **volta para `aprovado`**, pronta
+para um novo pagamento ou para ser cancelada.
+
+```json
+{ "motivo": "pago em duplicidade", "estornado_em": "2026-10-16T09:00:00Z", "versao": 4 }
+```
+
+| Campo | Regra |
+| --- | --- |
+| `motivo` | obrigatório, no máximo 500 caracteres |
+| `estornado_em` | opcional, RFC3339. Padrão: agora. Não pode estar no futuro nem antes do `pago_em` |
+| `versao` | obrigatória |
+
+Responde `200` com o objeto da solicitação (status `aprovado`, `versao` avançada) e grava o
+evento `estornada` (`pagamento estornado: <motivo>`).
+
+| Erro | Status | Mensagem |
+| --- | --- | --- |
+| Sem perfil de financeiro | `403` | `perfil sem permissão para estornar pagamento` |
+| Empresa fora do acesso | `403` | `perfil sem acesso a esta empresa` |
+| `versao` diferente da atual | `409` | `solicitação alterada por outra operação, recarregue e tente novamente` |
+| Fora de `pago` | `409` | `só é possível estornar solicitação paga` |
+| Sem motivo | `400` | `erro de validação: motivo do estorno é obrigatório` |
+| Data no futuro / antes do pagamento | `400` | `erro de validação: data do estorno não pode estar no futuro` / `...não pode ser anterior ao pagamento` |
+| Data fora do formato | `400` | `erro de validação: data do estorno deve estar no formato AAAA-MM-DDTHH:MM:SSZ` |
+
+### `GET /api/v1/solicitacoes/{id}/pagamentos`
+
+Todos os pagamentos da solicitação, do mais antigo ao mais novo, inclusive os estornados com o
+`estorno` preenchido. Mesma regra de "quem pode ver" das outras consultas.
+
+### `GET /api/v1/solicitacoes/pendencias`
+
+Contadores para o badge do front, nas empresas do acesso do usuário. Cada contador só vem
+preenchido quando o perfil enxerga aquela fila; fora do perfil vem `null` (não `0`).
+
+```json
+{ "dados": { "aprovacao": 4, "financeiro": 7, "vencidas": 2 } }
+```
+
+| Campo | Quem recebe | Conta |
+| --- | --- | --- |
+| `aprovacao` | aprovador designado ou administrador | `pendente_aprovacao` (a mesma fila de `escopo=aprovacao`) |
+| `financeiro` | financeiro ou administrador | `aprovado` (a mesma fila de `escopo=financeiro`) |
+| `vencidas` | financeiro ou administrador | `pendente_aprovacao` ou `aprovado` com vencimento antes de hoje (UTC) |
 
 ---
 
@@ -1691,6 +1938,160 @@ exigem a `versao` lida.
 | campo que não muda no corpo do `PUT` (`banco`, `conta`, `natureza`…) | `400` | `erro de validação: corpo da requisição inválido: json: unknown field ...` |
 
 Ativar o que já está ativo (ou desativar o inativo) responde `200` sem mudar a versão.
+
+---
+
+## Contas a pagar — resumo (financeiro)
+
+`GET /api/v1/contas-a-pagar/resumo?de=AAAA-MM-DD&ate=AAAA-MM-DD&empresa=<uuid>`, financeiro ou
+administrador, nas empresas do acesso (`empresa` fora do acesso → `403`). Sem `de`, começa na
+segunda-feira da semana atual; sem `ate`, cobre 8 semanas. Intervalo máximo de 1 ano
+(`400 erro de validação: intervalo do resumo deve ter no máximo 1 ano`); `ate` antes do início (o
+`de` informado ou a segunda-feira atual) → `400 erro de validação: fim do resumo não pode ser
+anterior ao início`. Sem perfil financeiro, o middleware responde `403 perfil sem permissão para
+esta operação`.
+
+Considera só `pendente_aprovacao` e `aprovado`, pelo `prazo_pagamento` e pelo `valor_centavos` da
+solicitação. As três colunas não se sobrepõem:
+
+| Coluna | Conta |
+| --- | --- |
+| `previsto` | `pendente_aprovacao` vencendo hoje ou depois |
+| `a_pagar` | `aprovado` vencendo hoje ou depois |
+| `vencido` | qualquer das duas com vencimento antes de hoje (UTC) |
+
+`estimado_centavos` soma o valor das que têm `estimado = true`, em qualquer coluna.
+
+```json
+{
+  "dados": {
+    "de": "2026-10-12",
+    "ate": "2026-12-06",
+    "semanas": [
+      {
+        "semana": "2026-10-12",
+        "empresa_id": "uuid",
+        "previsto": { "quantidade": 2, "valor_centavos": 100000 },
+        "a_pagar": { "quantidade": 1, "valor_centavos": 50000 },
+        "vencido": { "quantidade": 1, "valor_centavos": 50000 },
+        "estimado_centavos": 0
+      }
+    ],
+    "atrasadas": [
+      { "empresa_id": "uuid", "vencido": { "quantidade": 3, "valor_centavos": 90000 } }
+    ],
+    "totais": {
+      "previsto": { "quantidade": 2, "valor_centavos": 100000 },
+      "a_pagar": { "quantidade": 1, "valor_centavos": 50000 },
+      "vencido": { "quantidade": 4, "valor_centavos": 140000 },
+      "estimado_centavos": 0
+    }
+  }
+}
+```
+
+- `semanas`: uma linha por semana (segunda-feira em `semana`) e empresa que tenha algo no período;
+  semana sem conta não aparece.
+- `atrasadas`: vencidas **antes** do `de`, por empresa, para o atraso acumulado não sumir do resumo.
+- `totais`: soma das semanas; o `vencido` inclui as `atrasadas`.
+- Só agregado: o financeiro continua sem ver o detalhe de `pendente_aprovacao`.
+
+---
+
+## Despesas recorrentes
+
+Despesas fixas do mês (aluguel, energia, internet, impostos) que geram as solicitações de pagamento
+de cada competência. Escrita e leitura pelo **financeiro** (ou administrador), com escopo por
+empresa; exclusão só pelo **administrador**.
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/despesas-recorrentes` | financeiro | `201` |
+| `GET` | `/api/v1/despesas-recorrentes` | financeiro | `200` lista paginada (`?empresa=`, `?ativa=`, `?fornecedor=`) |
+| `GET` | `/api/v1/despesas-recorrentes/{id}` | financeiro | `200` |
+| `PUT` | `/api/v1/despesas-recorrentes/{id}` | financeiro | `200` |
+| `PATCH` | `/api/v1/despesas-recorrentes/{id}/ativar` | financeiro | `200` |
+| `PATCH` | `/api/v1/despesas-recorrentes/{id}/desativar` | financeiro | `200` |
+| `DELETE` | `/api/v1/despesas-recorrentes/{id}` | administrador | `204` |
+| `POST` | `/api/v1/despesas-recorrentes/gerar?competencia=AAAA-MM` | financeiro | `200` |
+
+### `POST /api/v1/despesas-recorrentes`
+
+```json
+{
+  "empresa_id": "uuid-da-empresa",
+  "fornecedor_id": "uuid-do-fornecedor",
+  "categoria_financeira_id": "uuid-da-subcategoria",
+  "descricao": "Aluguel do galpão",
+  "valor_centavos": 420000,
+  "estimado": false,
+  "forma_pagamento": "transferencia",
+  "dia_vencimento": 10,
+  "vencimento_mes_seguinte": false,
+  "inicio": "2026-01",
+  "fim": null
+}
+```
+
+| Campo | Regra |
+| --- | --- |
+| `empresa_id` | obrigatório; empresa ativa e no acesso do usuário. Não muda depois |
+| `fornecedor_id` | opcional; fornecedor ativo |
+| `categoria_financeira_id` | obrigatório; subcategoria ativa de natureza `despesa` |
+| `descricao` | obrigatória, até 1000 caracteres; vira a `observacao` da solicitação gerada |
+| `valor_centavos` | maior que zero |
+| `estimado` | `true` para valor variável (energia, água); a solicitação nasce `estimado` |
+| `forma_pagamento` | mesmas formas da solicitação |
+| `dia_vencimento` | `1` a `31`; em mês mais curto vence no último dia |
+| `vencimento_mes_seguinte` | `false`: vence no mês da competência; `true`: no mês seguinte |
+| `inicio` / `fim` | competências `AAAA-MM`; `fim` opcional e não anterior ao `inicio` |
+
+O `PUT` recebe os mesmos campos, **sem** `empresa_id` (campo desconhecido → `400`), mais `versao`;
+substitui tudo (omitidos voltam ao padrão). `ativar`/`desativar` recebem `{ "versao": n }`; já na
+situação pedida responde `200` sem avançar a versão. Reativar exige a empresa ativa. Editar a
+recorrência não muda solicitações já geradas.
+
+Objeto: os campos acima mais `id`, `ativa`, `versao`, `criado_em` e `atualizado_em` (`fim` `null`
+quando não há).
+
+| Erro | Status | Mensagem |
+| --- | --- | --- |
+| Sem perfil de financeiro | `403` | `perfil sem permissão para esta operação` (middleware das rotas `financeiro`) |
+| Empresa fora do acesso | `403` | `perfil sem acesso a esta empresa` |
+| Empresa inativa | `400` | `erro de validação: empresa inativa não recebe despesa recorrente` |
+| Sem categoria / sem início | `400` | `erro de validação: categoria financeira é obrigatória na despesa recorrente` / `...início da despesa recorrente é obrigatório` |
+| Fim antes do início | `400` | `erro de validação: fim da despesa recorrente não pode ser anterior ao início` |
+| Dia fora de 1 a 31 | `400` | `erro de validação: dia de vencimento deve estar entre 1 e 31` |
+| `versao` divergente | `409` | `a despesa recorrente foi alterada por outra pessoa; recarregue e tente de novo` |
+| Excluir com solicitação gerada | `400` | `erro de validação: despesa recorrente já gerou solicitações e não pode ser excluída; desative-a` |
+| Excluir sem ser administrador | `403` | `perfil sem permissão para esta operação` (middleware das rotas `administrador`) |
+
+### `POST /api/v1/despesas-recorrentes/gerar`
+
+`?competencia=AAAA-MM` (obrigatória) e `?empresa=` (opcional, precisa estar no acesso). Para cada
+recorrência ativa, vigente na competência (`inicio <= competência <= fim`) e de empresa ativa no
+acesso do usuário, cria a solicitação daquela competência com `origem = recorrencia`, em
+`pendente_aprovacao`, com quem disparou como solicitante. É **idempotente**: rodar de novo a mesma
+competência não duplica (índice único por recorrência e competência). O vencimento calculado pode
+estar no passado (competência atrasada nasce vencida). Sem agendador: o front ou uma rotina externa
+chama a rota. Uma competência já gerada conta em `ja_existentes` mesmo que a solicitação tenha sido
+rejeitada ou cancelada depois: a geração não recria a conta (para recriar, lance manualmente).
+
+```json
+{
+  "dados": {
+    "competencia": "2026-11",
+    "geradas": ["uuid-da-solicitacao"],
+    "ja_existentes": 3,
+    "recusadas": [
+      { "despesa_recorrente_id": "uuid", "motivo": "fornecedor inativo não recebe conta a pagar" }
+    ]
+  }
+}
+```
+
+`recusadas` lista as recorrências que não puderam gerar (fornecedor inativo, categoria que deixou
+de ser lançável, recorrência desativada no meio da geração), sem impedir as outras.
 
 ---
 

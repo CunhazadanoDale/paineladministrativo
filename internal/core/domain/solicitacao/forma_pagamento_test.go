@@ -9,7 +9,7 @@ import (
 )
 
 func TestNovaFormaPagamentoAceitaFormasValidas(t *testing.T) {
-	for _, valor := range []string{"pix", "cartao", "boleto", "  PIX  "} {
+	for _, valor := range []string{"pix", "cartao", "boleto", "transferencia", "debito_automatico", "  PIX  "} {
 		forma, err := domainsolicitacao.NovaFormaPagamento(valor)
 		if err != nil {
 			t.Errorf("NovaFormaPagamento(%q) falhou: %v", valor, err)
@@ -22,7 +22,7 @@ func TestNovaFormaPagamentoAceitaFormasValidas(t *testing.T) {
 }
 
 func TestNovaFormaPagamentoRejeitaFormasInvalidas(t *testing.T) {
-	for _, valor := range []string{"", "dinheiro", "transferencia"} {
+	for _, valor := range []string{"", "dinheiro", "ted", "debito automatico"} {
 		if _, err := domainsolicitacao.NovaFormaPagamento(valor); !errors.Is(err, domain.ErrValidacao) {
 			t.Errorf("NovaFormaPagamento(%q) = %v, esperado erro de validação", valor, err)
 		}
