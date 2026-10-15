@@ -244,13 +244,7 @@ func (c *cenarioBancoPedidos) gravacaoDaSaida(t *testing.T, pedido *domainpedido
 	if err != nil {
 		t.Fatalf("reservas do item falharam: %v", err)
 	}
-	doLocal := make([]*domainestoque.Reserva, 0, len(reservas))
-	for _, reserva := range reservas {
-		if reserva.LocalID == item.LocalID {
-			doLocal = append(doLocal, reserva)
-		}
-	}
-	plano, err := domainpedido.PlanejarBaixa(item, doLocal)
+	plano, err := domainpedido.PlanejarBaixa(item, pedido.Item(item.PedidoItemID).Restante(), reservas)
 	if err != nil {
 		t.Fatalf("PlanejarBaixa falhou: %v", err)
 	}
@@ -272,18 +266,20 @@ func (c *cenarioBancoPedidos) gravacaoDaSaida(t *testing.T, pedido *domainpedido
 	for _, reserva := range plano.Liberar {
 		aplicar(estoque.LiberarReserva(reserva, agora))
 	}
+	locais := map[uuid.UUID]*domainestoque.Local{c.galpao.ID: c.galpao, c.loja.ID: c.loja}
 	saida := aplicar(estoque.Movimentar(domainestoque.MovimentoLocalInput{
 		Tipo:       domainestoque.TipoMovimentoSaida,
-		Local:      c.galpao,
-		Quantidade: domainestoque.QuantidadeDe(plano.Sair),
+		Local:      locais[item.LocalID],
+		Quantidade: domainestoque.QuantidadeDe(item.Quantidade),
+		Reserva:    plano.BaixarReserva,
 		UsuarioID:  c.usuarioID,
 		Agora:      agora,
 	}))
-	if plano.ReservarDeNovo > 0 {
+	for _, planejada := range plano.Reservar {
 		itemID := item.PedidoItemID
 		aplicar(estoque.Reservar(domainestoque.ReservaInput{
-			Local:      c.galpao,
-			Quantidade: domainestoque.QuantidadeDe(plano.ReservarDeNovo),
+			Local:      locais[planejada.LocalID],
+			Quantidade: domainestoque.QuantidadeDe(planejada.Quantidade),
 			Origem:     domainestoque.OrigemReservaPedidoItem,
 			OrigemID:   &itemID,
 			UsuarioID:  c.usuarioID,
@@ -292,7 +288,7 @@ func (c *cenarioBancoPedidos) gravacaoDaSaida(t *testing.T, pedido *domainpedido
 	}
 	item.MovimentoID = &saida.Movimento.ID
 
-	if err := pedido.RegistrarSaida(entrega, agora, agora); err != nil {
+	if err := pedido.RegistrarSaida(entrega, domainpedido.Hoje(agora), agora); err != nil {
 		t.Fatalf("RegistrarSaida falhou: %v", err)
 	}
 
@@ -551,7 +547,7 @@ func TestPedidoCanceladoGuardaMotivoEDevolucao(t *testing.T) {
 	if err := pedido.Confirmar(agora); err != nil {
 		t.Fatalf("Confirmar falhou: %v", err)
 	}
-	if err := pedido.RegistrarEntrada(agora, 7500, agora); err != nil {
+	if err := pedido.RegistrarEntrada(domainpedido.Hoje(agora), 7500, agora); err != nil {
 		t.Fatalf("RegistrarEntrada falhou: %v", err)
 	}
 	c.gravar(t, &portspedido.Gravacao{Pedido: pedido, VersaoLida: versao, StatusAnterior: domainpedido.StatusProposta})
@@ -563,7 +559,7 @@ func TestPedidoCanceladoGuardaMotivoEDevolucao(t *testing.T) {
 	c.gravar(t, &portspedido.Gravacao{Pedido: pedido, VersaoLida: 2, StatusAnterior: domainpedido.StatusConfirmado})
 
 	salvo := c.obter(t, pedido.ID)
-	hoje := domainpedido.DataDe(agora)
+	hoje := domainpedido.Hoje(agora)
 	if salvo.Status != domainpedido.StatusCancelado || salvo.CanceladoMotivo == nil || *salvo.CanceladoMotivo != "atraso do fornecedor" {
 		t.Errorf("cancelamento = %q, motivo %v", salvo.Status, salvo.CanceladoMotivo)
 	}

@@ -208,7 +208,7 @@ func (u *EntregaUsecaseImpl) transicionar(
 	agora := time.Now().UTC()
 	data := input.Data
 	if data.IsZero() {
-		data = agora
+		data = domainpedido.Hoje(agora)
 	}
 
 	versaoDoPedido, statusDoPedido := pedido.Versao, pedido.Status

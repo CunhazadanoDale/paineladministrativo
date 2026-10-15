@@ -93,7 +93,7 @@ func TestConsultasRestringemAoAcessoDoUsuario(t *testing.T) {
 func TestPrazosMontaAJanelaPelaSituacao(t *testing.T) {
 	c := novoCenario(t)
 	usecase, repo := c.consultas()
-	hoje := domainpedido.DataDe(time.Now().UTC())
+	hoje := domainpedido.Hoje(time.Now())
 	sete := 7
 
 	if _, err := usecase.Prazos(c.ctx, portsin.ConsultarPrazosInput{UsuarioID: c.comercial, Situacao: "a_vencer", Dias: &sete}); err != nil {

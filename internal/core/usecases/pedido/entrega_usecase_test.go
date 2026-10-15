@@ -176,7 +176,7 @@ func TestConcluirECancelarEntrega(t *testing.T) {
 	if _, err := c.entregas.Concluir(c.ctx, portsin.TransicaoEntregaInput{UsuarioID: c.comercial, EntregaID: entrega.ID, Versao: 1}); !errors.Is(err, domain.ErrConflito) {
 		t.Errorf("concluir com versão velha = %v, esperado conflito", err)
 	}
-	concluida, err := c.entregas.Concluir(c.ctx, portsin.TransicaoEntregaInput{UsuarioID: c.comercial, EntregaID: entrega.ID, Versao: saiu.Versao, Data: time.Now().UTC()})
+	concluida, err := c.entregas.Concluir(c.ctx, portsin.TransicaoEntregaInput{UsuarioID: c.comercial, EntregaID: entrega.ID, Versao: saiu.Versao, Data: domainpedido.Hoje(time.Now())})
 	if err != nil || concluida.Status != domainpedido.StatusEntregaEntregue || concluida.EntregueEm == nil {
 		t.Fatalf("concluída = %+v (%v)", concluida, err)
 	}
@@ -199,7 +199,7 @@ func TestConcluirECancelarEntrega(t *testing.T) {
 func TestEntregasRespeitamEmpresaERepresentante(t *testing.T) {
 	c := novoCenario(t)
 	c.entrada(t, c.cimento, c.galpao, 20)
-	doVendedor := c.criar(t, c.vendedor, c.mia, c.dados())
+	doVendedor := c.criar(t, c.vendedor, c.mia, c.dadosDoVendedor())
 	if _, err := c.pedidos.Confirmar(c.ctx, portsin.TransicaoPedidoInput{UsuarioID: c.vendedor, PedidoID: doVendedor.ID, Versao: 1}); err != nil {
 		t.Fatalf("Confirmar falhou: %v", err)
 	}
@@ -253,5 +253,46 @@ func TestEntregasRespeitamEmpresaERepresentante(t *testing.T) {
 	}
 	if _, err := c.entregas.Listar(c.ctx, portsin.ListarEntregasInput{UsuarioID: c.comercial, Status: "voando"}); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("status inválido = %v, esperado erro de validação", err)
+	}
+}
+
+func TestSaidaLiberaReservaQueSobraEmOutroLocal(t *testing.T) {
+	c := novoCenario(t)
+	c.entrada(t, c.cimento, c.galpao, 6)
+	c.entrada(t, c.cimento, c.loja, 4)
+	pedido := c.confirmado(t, c.dados())
+	if reservas := c.reservasDoItem(pedido.Itens[0].ID); reservas[c.galpao.ID] != 6 || reservas[c.loja.ID] != 4 {
+		t.Fatalf("reservas depois de confirmar = %v, esperado 6 no galpão e 4 na loja", reservas)
+	}
+	c.entrada(t, c.cimento, c.galpao, 4)
+
+	c.sair(t, c.novaEntrega(t, c.pedido(pedido.ID), c.galpao, 10))
+
+	if reservas := c.reservasDoItem(pedido.Itens[0].ID); len(reservas) != 0 {
+		t.Errorf("reservas do item entregue por completo = %v, esperado nenhuma", reservas)
+	}
+	if loja := c.saldo(c.cimento, c.loja); loja.Quantidade != 4 || loja.Reservado != 0 {
+		t.Errorf("loja = %+v, esperado 4 livres", loja)
+	}
+	if galpao := c.saldo(c.cimento, c.galpao); galpao.Quantidade != 0 || galpao.Reservado != 0 {
+		t.Errorf("galpão = %+v, esperado zerado", galpao)
+	}
+	if item := c.pedido(pedido.ID).Itens[0]; item.QuantidadeEntregue != 10 {
+		t.Errorf("entregue = %d, esperado 10", item.QuantidadeEntregue)
+	}
+}
+
+func TestSaidaParcialReduzReservaDeOutroLocalAoRestante(t *testing.T) {
+	c := novoCenario(t)
+	c.entrada(t, c.cimento, c.galpao, 6)
+	c.entrada(t, c.cimento, c.loja, 4)
+	pedido := c.confirmado(t, c.dados())
+	c.entrada(t, c.cimento, c.galpao, 2)
+
+	c.sair(t, c.novaEntrega(t, c.pedido(pedido.ID), c.galpao, 8))
+
+	reservas := c.reservasDoItem(pedido.Itens[0].ID)
+	if reservas[c.loja.ID] != 2 || reservas[c.galpao.ID] != 0 {
+		t.Errorf("reservas com 2 a entregar = %v, esperado só 2 na loja", reservas)
 	}
 }

@@ -82,6 +82,6 @@ type PedidoUseCase interface {
 	ReservarPendencias(ctx context.Context, input TransicaoPedidoInput) (*domainpedido.Pedido, error)
 	RegistrarEntrada(ctx context.Context, input RegistrarEntradaInput) (*domainpedido.Pedido, error)
 	Cancelar(ctx context.Context, input CancelarPedidoInput) (*domainpedido.Pedido, error)
-	ListarReservas(ctx context.Context, pedidoID, usuarioID uuid.UUID) ([]*domainestoque.Reserva, error)
+	ObterComReservas(ctx context.Context, pedidoID, usuarioID uuid.UUID) (*domainpedido.Pedido, []*domainestoque.Reserva, error)
 	ListarHistorico(ctx context.Context, pedidoID, usuarioID uuid.UUID) ([]*domainpedido.Historico, error)
 }

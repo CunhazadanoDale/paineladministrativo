@@ -163,9 +163,15 @@ func (e *estoqueDoPedido) liberarReservas(ctx context.Context, pedido *domainped
 func (e *estoqueDoPedido) baixarEntrega(
 	ctx context.Context, pedido *domainpedido.Pedido, entrega *domainpedido.Entrega, usuarioID uuid.UUID, agora time.Time,
 ) ([]*domainestoque.OperacaoEstoque, error) {
+	reservasDoItem, err := e.reservasPorItem(ctx, pedido)
+	if err != nil {
+		return nil, err
+	}
+
 	localIDs := make([]uuid.UUID, 0, len(entrega.Itens))
 	for _, item := range entrega.Itens {
 		localIDs = append(localIDs, item.LocalID)
+		localIDs = append(localIDs, locaisDasReservas(reservasDoItem[item.PedidoItemID])...)
 	}
 	locais, err := e.locais.ObterVarios(ctx, localIDs)
 	if err != nil {
@@ -174,11 +180,6 @@ func (e *estoqueDoPedido) baixarEntrega(
 	localPorID := make(map[uuid.UUID]*domainestoque.Local, len(locais))
 	for _, local := range locais {
 		localPorID[local.ID] = local
-	}
-
-	reservasDoItem, err := e.reservasPorItem(ctx, pedido)
-	if err != nil {
-		return nil, err
 	}
 
 	referencia := referenciaDoPedido(pedido)
@@ -193,24 +194,23 @@ func (e *estoqueDoPedido) baixarEntrega(
 			return nil, domain.ErroValidacao("local de saída não encontrado")
 		}
 
-		doLocal := make([]*domainestoque.Reserva, 0)
-		for _, reserva := range reservasDoItem[item.ID] {
-			if reserva.LocalID == local.ID {
-				doLocal = append(doLocal, reserva)
-			}
-		}
-		plano, err := domainpedido.PlanejarBaixa(itemEntrega, doLocal)
+		plano, err := domainpedido.PlanejarBaixa(itemEntrega, item.Restante(), reservasDoItem[item.ID])
 		if err != nil {
 			return nil, err
 		}
 
-		estoque, err := e.carregar(ctx, item.ProdutoID, []uuid.UUID{local.ID})
+		estoque, err := e.carregar(ctx, item.ProdutoID, append([]uuid.UUID{local.ID}, plano.Locais()...))
 		if err != nil {
 			return nil, err
 		}
 		cadeia := encadeamento{estoque: estoque, operacoes: &operacoes}
 
-		saida := domainestoque.MovimentoLocalInput{
+		for _, reserva := range plano.Liberar {
+			if _, err := cadeia.aplicar(estoque.LiberarReserva(reserva, agora)); err != nil {
+				return nil, err
+			}
+		}
+		movimento, err := cadeia.aplicar(estoque.Movimentar(domainestoque.MovimentoLocalInput{
 			Tipo:         domainestoque.TipoMovimentoSaida,
 			Local:        local,
 			Quantidade:   domainestoque.QuantidadeDe(itemEntrega.Quantidade),
@@ -219,21 +219,19 @@ func (e *estoqueDoPedido) baixarEntrega(
 			DocumentoRef: &referencia,
 			Observacao:   "entrega do " + referencia,
 			Agora:        agora,
-		}
-		for _, reserva := range plano.Liberar {
-			if _, err := cadeia.aplicar(estoque.LiberarReserva(reserva, agora)); err != nil {
-				return nil, err
-			}
-		}
-		movimento, err := cadeia.aplicar(estoque.Movimentar(saida))
+		}))
 		if err != nil {
 			return nil, err
 		}
-		if plano.ReservarDeNovo > 0 {
+		for _, planejada := range plano.Reservar {
+			localDaReserva := localPorID[planejada.LocalID]
+			if localDaReserva == nil {
+				return nil, domain.ErroValidacao("local da reserva do item não encontrado")
+			}
 			itemID := item.ID
 			if _, err := cadeia.aplicar(estoque.Reservar(domainestoque.ReservaInput{
-				Local:      local,
-				Quantidade: domainestoque.QuantidadeDe(plano.ReservarDeNovo),
+				Local:      localDaReserva,
+				Quantidade: domainestoque.QuantidadeDe(planejada.Quantidade),
 				Origem:     domainestoque.OrigemReservaPedidoItem,
 				OrigemID:   &itemID,
 				UsuarioID:  usuarioID,

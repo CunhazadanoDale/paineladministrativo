@@ -76,7 +76,7 @@ func NovaJanelaDePrazo(situacao SituacaoPrazo, dias *int, agora time.Time) (Jane
 		return JanelaDePrazo{}, domain.ErroValidacao("dias deve estar entre 0 e 365")
 	}
 
-	hoje := DataDe(agora)
+	hoje := Hoje(agora)
 	switch situacao {
 	case SituacaoPrazoVencido:
 		return JanelaDePrazo{Ate: hoje.AddDate(0, 0, -1)}, nil
@@ -92,7 +92,7 @@ func (p *Pedido) DiasParaOPrazo(agora time.Time) *int {
 		return nil
 	}
 
-	dias := int(DataDe(*p.PrazoLimite).Sub(DataDe(agora)).Hours() / 24)
+	dias := int(DataDe(*p.PrazoLimite).Sub(Hoje(agora)).Hours() / 24)
 
 	return &dias
 }

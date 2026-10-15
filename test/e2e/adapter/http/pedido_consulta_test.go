@@ -8,6 +8,7 @@ import (
 	"time"
 
 	pedidodto "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto/pedido"
+	domainpedido "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/pedido"
 )
 
 func TestConsultasDePendenciasPrazosECancelamentos(t *testing.T) {
@@ -22,7 +23,7 @@ func TestConsultasDePendenciasPrazosECancelamentos(t *testing.T) {
 	clienteID := clienteDoPedido(t, servidor)
 	tokenRed := usuarioComercialDasEmpresas(t, servidor, "Rui Red", "rui@red.exemplo.com", red)
 
-	ontem := time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02")
+	ontem := domainpedido.Hoje(time.Now()).AddDate(0, 0, -1).Format("2006-01-02")
 	corpo := corpoDePedido(mia, clienteID, produtoID, "pronta_entrega", 10)
 	corpo["prazo_limite"] = ontem
 	pedido := criarPedidoE2E(t, servidor, corpo, tokenDoTeste)
@@ -52,7 +53,7 @@ func TestConsultasDePendenciasPrazosECancelamentos(t *testing.T) {
 
 	conferirStatus(t, envia(t, servidor, http.MethodPost, caminho+"/cancelar", map[string]any{"versao": 2, "motivo": "obra parada"}), http.StatusOK)
 
-	hoje := time.Now().UTC().Format("2006-01-02")
+	hoje := domainpedido.Hoje(time.Now()).Format("2006-01-02")
 	resposta = envia(t, servidor, http.MethodGet, "/api/v1/pedidos/cancelamentos?de="+hoje+"&ate="+hoje, nil)
 	conferirStatus(t, resposta, http.StatusOK)
 	if cancelados := decodificarPagina[pedidodto.PedidoResponse](t, resposta).Dados; len(cancelados) != 1 || cancelados[0].ID != pedido.ID {

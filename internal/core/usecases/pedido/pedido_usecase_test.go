@@ -84,12 +84,19 @@ func TestCriarValida(t *testing.T) {
 func TestRepresentanteComLoginSoVeEMexeNosProprios(t *testing.T) {
 	c := novoCenario(t)
 
-	proprio := c.criar(t, c.vendedor, c.mia, c.dados())
+	proprio := c.criar(t, c.vendedor, c.mia, c.dadosDoVendedor())
 	if proprio.RepresentanteID == nil || *proprio.RepresentanteID != c.representante.ID {
 		t.Fatalf("pedido do vendedor com representante %v, esperado ele mesmo", proprio.RepresentanteID)
 	}
 
-	outroDados := c.dados()
+	if _, err := c.pedidos.Criar(c.ctx, portsin.CriarPedidoInput{UsuarioID: c.vendedor, EmpresaID: c.mia, Dados: c.dados()}); !errors.Is(err, domain.ErrPermissao) {
+		t.Errorf("vendedor com cliente de outro representante = %v, esperado permissão", err)
+	}
+	if _, err := c.pedidos.Alterar(c.ctx, portsin.AlterarPedidoInput{UsuarioID: c.vendedor, PedidoID: proprio.ID, Versao: 1, Dados: c.dados()}); !errors.Is(err, domain.ErrPermissao) {
+		t.Errorf("vendedor trocando para cliente de outro representante = %v, esperado permissão", err)
+	}
+
+	outroDados := c.dadosDoVendedor()
 	outroDados.RepresentanteID = &c.outroRepresentante.ID
 	if _, err := c.pedidos.Criar(c.ctx, portsin.CriarPedidoInput{UsuarioID: c.vendedor, EmpresaID: c.mia, Dados: outroDados}); !errors.Is(err, domain.ErrPermissao) {
 		t.Errorf("vendedor em nome de outro = %v, esperado permissão", err)
@@ -115,7 +122,7 @@ func TestRepresentanteComLoginSoVeEMexeNosProprios(t *testing.T) {
 		t.Errorf("vendedor cancelando a própria proposta = %v", err)
 	}
 
-	confirmado := c.criar(t, c.vendedor, c.mia, c.dados())
+	confirmado := c.criar(t, c.vendedor, c.mia, c.dadosDoVendedor())
 	if _, err := c.pedidos.Confirmar(c.ctx, portsin.TransicaoPedidoInput{UsuarioID: c.vendedor, PedidoID: confirmado.ID, Versao: 1}); err != nil {
 		t.Fatalf("Confirmar falhou: %v", err)
 	}
@@ -208,7 +215,7 @@ func TestConfirmarReservaODisponivelComecandoPeloMaiorLocal(t *testing.T) {
 		t.Errorf("loja = %+v, esperado 6 reservados", saldo)
 	}
 
-	reservas, err := c.pedidos.ListarReservas(c.ctx, pedido.ID, c.comercial)
+	_, reservas, err := c.pedidos.ObterComReservas(c.ctx, pedido.ID, c.comercial)
 	if err != nil || len(reservas) != 2 {
 		t.Errorf("reservas do pedido = %d (%v), esperado 2", len(reservas), err)
 	}
@@ -323,7 +330,7 @@ func TestCancelarComEntradaDevolveAEntradaPorPadrao(t *testing.T) {
 	dados.Modelo = "importacao"
 	pedido := c.confirmado(t, dados)
 	if _, err := c.pedidos.RegistrarEntrada(c.ctx, portsin.RegistrarEntradaInput{
-		UsuarioID: c.financeiro, PedidoID: pedido.ID, Versao: 2, PagaEm: time.Now().UTC(), ValorCentavos: 7500,
+		UsuarioID: c.financeiro, PedidoID: pedido.ID, Versao: 2, PagaEm: domainpedido.Hoje(time.Now()), ValorCentavos: 7500,
 	}); err != nil {
 		t.Fatalf("RegistrarEntrada falhou: %v", err)
 	}

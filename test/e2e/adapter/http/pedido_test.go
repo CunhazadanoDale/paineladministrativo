@@ -11,6 +11,7 @@ import (
 	clientedto "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto/cliente"
 	estoquedto "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto/estoque"
 	pedidodto "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto/pedido"
+	domainpedido "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/pedido"
 	"github.com/google/uuid"
 )
 
@@ -136,7 +137,7 @@ func TestFluxoDePedidoComReservaEEntregaParcial(t *testing.T) {
 		t.Errorf("pedido depois da saída = %+v", depois)
 	}
 
-	hoje := time.Now().UTC().Format("2006-01-02")
+	hoje := domainpedido.Hoje(time.Now()).Format("2006-01-02")
 	resposta = envia(t, servidor, http.MethodPost, caminhoDaEntrega+"/entregue", map[string]any{"versao": 2, "entregue_em": hoje})
 	conferirStatus(t, resposta, http.StatusOK)
 	if concluida := decodificarEnvelope[pedidodto.EntregaResponse](t, resposta).Dados; concluida.Status != "entregue" {
@@ -216,7 +217,7 @@ func TestPedidosIsoladosPorEmpresaEPerfil(t *testing.T) {
 
 	caminho := "/api/v1/pedidos/" + daMia.ID.String()
 	conferirStatus(t, enviaComToken(t, servidor, http.MethodPost, caminho+"/confirmar", map[string]any{"versao": 1}, tokenMia), http.StatusOK)
-	entrada := map[string]any{"versao": 2, "pago_em": time.Now().UTC().Format("2006-01-02"), "valor_centavos": 4500}
+	entrada := map[string]any{"versao": 2, "pago_em": domainpedido.Hoje(time.Now()).Format("2006-01-02"), "valor_centavos": 4500}
 	conferirStatus(t, enviaComToken(t, servidor, http.MethodPost, caminho+"/entrada", entrada, tokenMia), http.StatusForbidden)
 
 	resposta = enviaComToken(t, servidor, http.MethodPost, caminho+"/entrada", entrada, tokenFinanceiro)

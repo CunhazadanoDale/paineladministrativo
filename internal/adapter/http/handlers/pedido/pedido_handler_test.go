@@ -68,8 +68,8 @@ func (f *pedidoUseCaseFalso) Cancelar(_ context.Context, input portsin.CancelarP
 	return f.pedido, f.erro
 }
 
-func (f *pedidoUseCaseFalso) ListarReservas(context.Context, uuid.UUID, uuid.UUID) ([]*domainestoque.Reserva, error) {
-	return f.reservas, f.erro
+func (f *pedidoUseCaseFalso) ObterComReservas(context.Context, uuid.UUID, uuid.UUID) (*domainpedido.Pedido, []*domainestoque.Reserva, error) {
+	return f.pedido, f.reservas, f.erro
 }
 
 func (f *pedidoUseCaseFalso) ListarHistorico(context.Context, uuid.UUID, uuid.UUID) ([]*domainpedido.Historico, error) {

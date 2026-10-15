@@ -78,13 +78,7 @@ func (h *PedidoHandler) Obter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pedido, err := h.usecase.Obter(r.Context(), id, usuario.ID)
-	if err != nil {
-		resposta.ResponderErro(w, err)
-		return
-	}
-
-	reservas, err := h.usecase.ListarReservas(r.Context(), id, usuario.ID)
+	pedido, reservas, err := h.usecase.ObterComReservas(r.Context(), id, usuario.ID)
 	escreverItem(w, http.StatusOK, pedido, err, func(item *domainpedido.Pedido) pedidodto.PedidoDetalheResponse {
 		return pedidodto.NovoPedidoDetalheResponse(item, reservas)
 	})

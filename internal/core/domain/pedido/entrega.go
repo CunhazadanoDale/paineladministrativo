@@ -2,6 +2,7 @@ package pedido
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
@@ -28,7 +29,7 @@ var transicoesEntrega = map[StatusEntrega][]StatusEntrega{
 }
 
 func NovoStatusEntrega(valor string) (StatusEntrega, error) {
-	status := StatusEntrega(valor)
+	status := StatusEntrega(strings.ToLower(strings.TrimSpace(valor)))
 
 	if _, ok := transicoesEntrega[status]; !ok {
 		return "", domain.ErroValidacao("status da entrega deve ser pendente, saiu, entregue ou cancelada")

@@ -138,3 +138,19 @@ func TestDataDeIgnoraHoraEFuso(t *testing.T) {
 		t.Errorf("DataDe = %v, esperado 2026-10-14 UTC", data)
 	}
 }
+
+func TestHojeUsaOFusoDoGrupo(t *testing.T) {
+	noiteEmBrasilia := time.Date(2026, 10, 15, 2, 30, 0, 0, time.UTC)
+
+	if hoje := domainpedido.Hoje(noiteEmBrasilia); !hoje.Equal(time.Date(2026, 10, 14, 0, 0, 0, 0, time.UTC)) {
+		t.Errorf("Hoje às 23h30 de Brasília = %v, esperado 2026-10-14", hoje)
+	}
+	if inicio := domainpedido.InicioDoDia(time.Date(2026, 10, 14, 0, 0, 0, 0, time.UTC)); !inicio.Equal(time.Date(2026, 10, 14, 3, 0, 0, 0, time.UTC)) {
+		t.Errorf("InicioDoDia = %v, esperado 03:00 UTC", inicio)
+	}
+
+	pedido := confirmadoDeTeste(t, domainpedido.ModeloImportacao)
+	if err := pedido.RegistrarEntrada(time.Date(2026, 10, 15, 0, 0, 0, 0, time.UTC), 100, noiteEmBrasilia); !errors.Is(err, domain.ErrValidacao) {
+		t.Errorf("entrada com a data de amanhã em Brasília = %v, esperado erro de validação", err)
+	}
+}

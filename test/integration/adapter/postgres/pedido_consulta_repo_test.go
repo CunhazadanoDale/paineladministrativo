@@ -74,7 +74,7 @@ func TestPendenciasSomamProgramadoReservadoEDisponivel(t *testing.T) {
 func TestPedidosPorPrazo(t *testing.T) {
 	c := novoCenarioPedidos(t)
 	consultas := postgres.NewPedidoConsultaRepository(c.banco)
-	hoje := domainpedido.DataDe(time.Now().UTC())
+	hoje := domainpedido.Hoje(time.Now())
 
 	comPrazo := func(dias int, confirmar bool) *domainpedido.Pedido {
 		dados := c.dados(domainpedido.ModeloProntaEntrega)
@@ -137,7 +137,7 @@ func TestCancelamentosComDevolucao(t *testing.T) {
 	if err := comEntrada.Confirmar(agora); err != nil {
 		t.Fatalf("Confirmar falhou: %v", err)
 	}
-	if err := comEntrada.RegistrarEntrada(agora, 7500, agora); err != nil {
+	if err := comEntrada.RegistrarEntrada(domainpedido.Hoje(agora), 7500, agora); err != nil {
 		t.Fatalf("RegistrarEntrada falhou: %v", err)
 	}
 	c.gravar(t, &portspedido.Gravacao{Pedido: comEntrada, VersaoLida: versao, StatusAnterior: domainpedido.StatusProposta})
@@ -154,7 +154,7 @@ func TestCancelamentosComDevolucao(t *testing.T) {
 		}
 		return len(pedidos)
 	}
-	hoje := domainpedido.DataDe(agora)
+	hoje := domainpedido.Hoje(agora)
 	amanha := hoje.AddDate(0, 0, 1)
 
 	if total := contar(portspedido.CancelamentoFiltro{}); total != 2 {

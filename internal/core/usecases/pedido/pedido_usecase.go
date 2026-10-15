@@ -359,20 +359,20 @@ func (u *PedidoUsecaseImpl) Cancelar(ctx context.Context, input portsin.Cancelar
 	return pedido, nil
 }
 
-func (u *PedidoUsecaseImpl) ListarReservas(ctx context.Context, pedidoID, usuarioID uuid.UUID) ([]*domainestoque.Reserva, error) {
+func (u *PedidoUsecaseImpl) ObterComReservas(ctx context.Context, pedidoID, usuarioID uuid.UUID) (*domainpedido.Pedido, []*domainestoque.Reserva, error) {
 	perfil, err := u.perfil(ctx, usuarioID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	pedido, err := u.pedidoVisivel(ctx, perfil, pedidoID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	porItem, err := u.reservasPorItem(ctx, pedido)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	reservas := make([]*domainestoque.Reserva, 0)
@@ -380,7 +380,7 @@ func (u *PedidoUsecaseImpl) ListarReservas(ctx context.Context, pedidoID, usuari
 		reservas = append(reservas, porItem[item.ID]...)
 	}
 
-	return reservas, nil
+	return pedido, reservas, nil
 }
 
 func (u *PedidoUsecaseImpl) ListarHistorico(ctx context.Context, pedidoID, usuarioID uuid.UUID) ([]*domainpedido.Historico, error) {
@@ -436,6 +436,10 @@ func (u *PedidoUsecaseImpl) dadosValidados(
 	clienteTrocado := atual == nil || atual.ClienteID != cliente.ID
 	if clienteTrocado && !cliente.Ativo {
 		return domainpedido.DadosPedido{}, domain.ErroValidacao("cliente inativo não recebe pedido novo")
+	}
+	clienteDeOutro := cliente.RepresentanteID == nil || perfil.representanteID == nil || *cliente.RepresentanteID != *perfil.representanteID
+	if clienteTrocado && perfil.restritoAoRepresentante() && clienteDeOutro {
+		return domainpedido.DadosPedido{}, domain.ErroPermissao("cliente de outro representante")
 	}
 
 	obraID, err := u.obraValidada(ctx, atual, cliente.ID, input.ObraID)
@@ -553,10 +557,10 @@ func (u *PedidoUsecaseImpl) itensValidados(ctx context.Context, atual *domainped
 }
 
 func detalheDaReserva(reservado int, pedido *domainpedido.Pedido) string {
-	vendido := 0
+	restante := 0
 	for _, item := range pedido.Itens {
-		vendido += item.Restante()
+		restante += item.Restante()
 	}
 
-	return fmt.Sprintf("reservadas %d unidades; restante a entregar %d", reservado, vendido)
+	return fmt.Sprintf("reservadas %d unidades; restante a entregar %d", reservado, restante)
 }

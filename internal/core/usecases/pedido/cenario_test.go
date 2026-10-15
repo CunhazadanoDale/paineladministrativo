@@ -37,12 +37,13 @@ type cenario struct {
 	representante      *domaincliente.Representante
 	outroRepresentante *domaincliente.Representante
 
-	cliente        *domaincliente.Cliente
-	clienteInativo *domaincliente.Cliente
-	obra           *domaincliente.Obra
-	cimento        *domainestoque.Produto
-	porcelanato    *domainestoque.Produto
-	produtoInativo *domainestoque.Produto
+	cliente           *domaincliente.Cliente
+	clienteInativo    *domaincliente.Cliente
+	clienteDoVendedor *domaincliente.Cliente
+	obra              *domaincliente.Obra
+	cimento           *domainestoque.Produto
+	porcelanato       *domainestoque.Produto
+	produtoInativo    *domainestoque.Produto
 }
 
 func novoCenario(t *testing.T) *cenario {
@@ -81,6 +82,7 @@ func novoCenario(t *testing.T) *cenario {
 
 	c.cliente = c.novoCliente(true, &c.outroRepresentante.ID)
 	c.clienteInativo = c.novoCliente(false, nil)
+	c.clienteDoVendedor = c.novoCliente(true, &c.representante.ID)
 	c.obra = &domaincliente.Obra{ID: uuid.New(), ClienteID: c.cliente.ID, Nome: "Residencial Alfa", Ativo: true}
 	m.obras[c.obra.ID] = c.obra
 
@@ -193,6 +195,13 @@ func (c *cenario) dados() portsin.DadosPedidoInput {
 			{ProdutoID: c.porcelanato.ID, Quantidade: 4, PrecoUnitarioCentavos: 2500},
 		},
 	}
+}
+
+func (c *cenario) dadosDoVendedor() portsin.DadosPedidoInput {
+	dados := c.dados()
+	dados.ClienteID = c.clienteDoVendedor.ID
+
+	return dados
 }
 
 func (c *cenario) criar(t *testing.T, usuarioID, empresaID uuid.UUID, dados portsin.DadosPedidoInput) *domainpedido.Pedido {

@@ -68,7 +68,7 @@ func TestPendenciasDevolvemOsCalculosPorItem(t *testing.T) {
 
 func TestPrazosDevolvemDiasParaOPrazo(t *testing.T) {
 	pedido := pedidoDeTeste(t)
-	prazo := domainpedido.DataDe(time.Now().UTC()).AddDate(0, 0, 5)
+	prazo := domainpedido.Hoje(time.Now()).AddDate(0, 0, 5)
 	pedido.PrazoLimite = &prazo
 	usecase := &consultaUseCaseFalso{pedidos: []*domainpedido.Pedido{pedido}}
 

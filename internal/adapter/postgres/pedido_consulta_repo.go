@@ -170,10 +170,10 @@ func (r *PedidoConsultaRepository) Cancelamentos(ctx context.Context, filtro por
 		consulta.condicoes = append(consulta.condicoes, "p.valor_a_devolver_centavos > 0")
 	}
 	if filtro.De != nil {
-		consulta.comparar("p.atualizado_em", ">=", domainpedido.DataDe(*filtro.De))
+		consulta.comparar("p.atualizado_em", ">=", domainpedido.InicioDoDia(*filtro.De))
 	}
 	if filtro.Ate != nil {
-		consulta.comparar("p.atualizado_em", "<", domainpedido.DataDe(*filtro.Ate).AddDate(0, 0, 1))
+		consulta.comparar("p.atualizado_em", "<", domainpedido.InicioDoDia(*filtro.Ate).AddDate(0, 0, 1))
 	}
 
 	return r.listar(ctx, consulta, `p.atualizado_em DESC, p.id DESC`, filtro.PaginacaoFiltro)

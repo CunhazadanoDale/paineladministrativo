@@ -47,37 +47,85 @@ func DistribuirReserva(falta int, locais []DisponivelNoLocal) []ReservaPlanejada
 }
 
 type PlanoDeBaixa struct {
-	BaixarReserva  *domainestoque.Reserva
-	Liberar        []*domainestoque.Reserva
-	Sair           int
-	ReservarDeNovo int
+	BaixarReserva *domainestoque.Reserva
+	Liberar       []*domainestoque.Reserva
+	Sair          int
+	Reservar      []ReservaPlanejada
 }
 
-func PlanejarBaixa(item *EntregaItem, reservas []*domainestoque.Reserva) (PlanoDeBaixa, error) {
+func (p PlanoDeBaixa) Locais() []uuid.UUID {
+	vistos := make(map[uuid.UUID]bool)
+	locais := make([]uuid.UUID, 0, 1+len(p.Liberar)+len(p.Reservar))
+	incluir := func(id uuid.UUID) {
+		if !vistos[id] {
+			vistos[id] = true
+			locais = append(locais, id)
+		}
+	}
+	if p.BaixarReserva != nil {
+		incluir(p.BaixarReserva.LocalID)
+	}
+	for _, reserva := range p.Liberar {
+		incluir(reserva.LocalID)
+	}
+	for _, reserva := range p.Reservar {
+		incluir(reserva.LocalID)
+	}
+
+	return locais
+}
+
+func PlanejarBaixa(item *EntregaItem, restanteDoItem int, reservas []*domainestoque.Reserva) (PlanoDeBaixa, error) {
 	if item == nil || item.Quantidade <= 0 {
 		return PlanoDeBaixa{}, domain.ErroValidacao("item da entrega sem quantidade")
 	}
+	if item.Quantidade > restanteDoItem {
+		return PlanoDeBaixa{}, domain.ErroValidacao("quantidade da entrega maior que o restante do item")
+	}
 
-	reservado := 0
+	doLocal := make([]*domainestoque.Reserva, 0, len(reservas))
+	deOutrosLocais := make([]*domainestoque.Reserva, 0, len(reservas))
+	reservadoNoLocal := 0
 	for _, reserva := range reservas {
 		switch {
 		case reserva == nil || !reserva.Ativa():
 			return PlanoDeBaixa{}, domain.ErroConflito("reserva do item já encerrada, recarregue e tente novamente")
 		case reserva.Origem != domainestoque.OrigemReservaPedidoItem || reserva.OrigemID == nil || *reserva.OrigemID != item.PedidoItemID:
 			return PlanoDeBaixa{}, domain.ErroValidacao("reserva de outro item")
-		case reserva.LocalID != item.LocalID:
-			return PlanoDeBaixa{}, domain.ErroValidacao("reserva de outro local")
+		case reserva.LocalID == item.LocalID:
+			doLocal = append(doLocal, reserva)
+			reservadoNoLocal += reserva.Quantidade
+		default:
+			deOutrosLocais = append(deOutrosLocais, reserva)
 		}
-		reservado += reserva.Quantidade
 	}
 
-	if len(reservas) == 1 && reservado == item.Quantidade {
-		return PlanoDeBaixa{BaixarReserva: reservas[0]}, nil
+	plano := PlanoDeBaixa{}
+	cabeAindaReservado := restanteDoItem - item.Quantidade
+	for _, reserva := range deOutrosLocais {
+		if reserva.Quantidade <= cabeAindaReservado {
+			cabeAindaReservado -= reserva.Quantidade
+			continue
+		}
+
+		plano.Liberar = append(plano.Liberar, reserva)
+		if cabeAindaReservado > 0 {
+			plano.Reservar = append(plano.Reservar, ReservaPlanejada{LocalID: reserva.LocalID, Quantidade: cabeAindaReservado})
+			cabeAindaReservado = 0
+		}
 	}
 
-	return PlanoDeBaixa{
-		Liberar:        reservas,
-		Sair:           item.Quantidade,
-		ReservarDeNovo: max(reservado-item.Quantidade, 0),
-	}, nil
+	if len(doLocal) == 1 && reservadoNoLocal == item.Quantidade {
+		plano.BaixarReserva = doLocal[0]
+
+		return plano, nil
+	}
+
+	plano.Liberar = append(doLocal, plano.Liberar...)
+	plano.Sair = item.Quantidade
+	if sobra := min(max(reservadoNoLocal-item.Quantidade, 0), cabeAindaReservado); sobra > 0 {
+		plano.Reservar = append(plano.Reservar, ReservaPlanejada{LocalID: item.LocalID, Quantidade: sobra})
+	}
+
+	return plano, nil
 }
