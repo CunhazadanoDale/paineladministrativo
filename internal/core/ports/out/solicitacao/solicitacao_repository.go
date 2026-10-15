@@ -36,4 +36,6 @@ type SolicitacaoRepository interface {
 	ListarArquivos(ctx context.Context, solicitacaoID uuid.UUID) ([]*domainsolicitacao.Arquivo, error)
 	ListarHistorico(ctx context.Context, solicitacaoID uuid.UUID) ([]*domainsolicitacao.Historico, error)
 	ObterPagamento(ctx context.Context, solicitacaoID uuid.UUID) (*domainsolicitacao.Pagamento, error)
+	ListarPagamentos(ctx context.Context, solicitacaoID uuid.UUID) ([]*domainsolicitacao.Pagamento, error)
+	Estornar(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, versaoLida int, pagamento *domainsolicitacao.Pagamento, historico *domainsolicitacao.Historico) error
 }

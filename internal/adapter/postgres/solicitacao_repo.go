@@ -59,15 +59,6 @@ type solicitacaoLinha struct {
 	AtualizadoEm          time.Time  `db:"atualizado_em"`
 }
 
-type pagamentoLinha struct {
-	ID                   uuid.UUID  `db:"id"`
-	SolicitacaoID        uuid.UUID  `db:"solicitacao_id"`
-	ComprovanteArquivoID *uuid.UUID `db:"comprovante_arquivo_id"`
-	ValorCentavos        int64      `db:"valor"`
-	PagoEm               time.Time  `db:"pago_em"`
-	CriadoEm             time.Time  `db:"criado_em"`
-}
-
 const colunasSolicitacao = `
 	id, solicitante_id, empresa_id, aprovador_id, valor_estimado, prazo_pagamento, observacao,
 	forma_pagamento, fornecedor_id, categoria_financeira_id, competencia, estimado, origem, origem_id,
@@ -308,53 +299,6 @@ func (s *SolicitacaoRepository) gravarComGuarda(
 	return tratarErroDeGravacao(tx.Commit())
 }
 
-func (s *SolicitacaoRepository) CriarPagamento(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, pagamento *domainsolicitacao.Pagamento, historico *domainsolicitacao.Historico) error {
-	tx, err := s.db.BeginTxx(ctx, nil)
-	if err != nil {
-		return tratarErroDeGravacao(err)
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	atualizado, err := atualizarStatusComGuarda(ctx, tx, solicitacao, historico.DeStatus)
-	if err != nil {
-		return tratarErroDeGravacao(err)
-	}
-	if !atualizado {
-		return domain.ErroConflito("solicitação alterada por outra operação, recarregue e tente novamente")
-	}
-
-	linhaPagamento := pagamentoLinha{
-		ID:                   pagamento.ID,
-		SolicitacaoID:        pagamento.SolicitacaoID,
-		ComprovanteArquivoID: pagamento.ComprovanteArquivoID,
-		ValorCentavos:        pagamento.Valor.Centavos(),
-		PagoEm:               pagamento.PagoEm,
-		CriadoEm:             pagamento.CriadoEm,
-	}
-
-	if _, err := tx.NamedExecContext(ctx, `
-		INSERT INTO pagamento (id, solicitacao_id, comprovante_arquivo_id, valor, pago_em, criado_em)
-		VALUES (:id, :solicitacao_id, :comprovante_arquivo_id, :valor, :pago_em, :criado_em)
-	`, linhaPagamento); err != nil {
-		return tratarErroDeGravacao(err)
-	}
-
-	if pagamento.ComprovanteArquivoID != nil {
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO solicitacao_arquivo (solicitacao_id, arquivo_id) VALUES ($1, $2)
-			ON CONFLICT DO NOTHING
-		`, pagamento.SolicitacaoID, *pagamento.ComprovanteArquivoID); err != nil {
-			return tratarErroDeGravacao(err)
-		}
-	}
-
-	if err := inserirHistorico(ctx, tx, historico); err != nil {
-		return tratarErroDeGravacao(err)
-	}
-
-	return tratarErroDeGravacao(tx.Commit())
-}
-
 func (s *SolicitacaoRepository) ListarArquivos(ctx context.Context, solicitacaoID uuid.UUID) ([]*domainsolicitacao.Arquivo, error) {
 	query := `
 		SELECT a.id, a.proprietario_id, a.nome, a.chave, a.content_type, a.tamanho, a.criado_em
@@ -384,31 +328,6 @@ func (s *SolicitacaoRepository) ListarHistorico(ctx context.Context, solicitacao
 		return nil, err
 	}
 	return itens, nil
-}
-
-func (s *SolicitacaoRepository) ObterPagamento(ctx context.Context, solicitacaoID uuid.UUID) (*domainsolicitacao.Pagamento, error) {
-	query := `
-		SELECT id, solicitacao_id, comprovante_arquivo_id, valor, pago_em, criado_em
-		FROM pagamento
-		WHERE solicitacao_id = $1
-	`
-
-	var linha pagamentoLinha
-	if err := s.db.GetContext(ctx, &linha, query, solicitacaoID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-		return nil, err
-	}
-
-	return &domainsolicitacao.Pagamento{
-		ID:                   linha.ID,
-		SolicitacaoID:        linha.SolicitacaoID,
-		ComprovanteArquivoID: linha.ComprovanteArquivoID,
-		Valor:                domainsolicitacao.ValorDe(linha.ValorCentavos),
-		PagoEm:               linha.PagoEm,
-		CriadoEm:             linha.CriadoEm,
-	}, nil
 }
 
 func paraLinha(solicitacao *domainsolicitacao.Solicitacao) solicitacaoLinha {
