@@ -20,6 +20,8 @@ type cenario struct {
 	solicitacao      portsin.SolicitacaoUseCase
 	arquivo          portsin.ArquivoUseCase
 	aprovador        portsin.AprovadorUseCase
+	recorrencia      portsin.DespesaRecorrenteUseCase
+	recorrenciasRepo *repositorioRecorrencias
 	usuariosRepo     *repositorioUsuarios
 	cargosRepo       *repositorioCargos
 	arquivosRepo     *repositorioArquivos
@@ -46,14 +48,19 @@ func novoCenario(t *testing.T) *cenario {
 	fornecedores := novoRepositorioFornecedores()
 	categorias := novoRepositorioCategoriasFinanceiras()
 	contas := novoRepositorioContasBancarias()
+	recorrencias := novoRepositorioRecorrencias()
 
 	c := &cenario{
 		ctx: context.Background(),
 		solicitacao: solicitacaousecases.NewSolicitacaoUsecase(
 			solicitacoes, arquivos, aprovadores, usuarios, cargos, empresas, fornecedores, categorias, contas,
 		),
-		arquivo:          solicitacaousecases.NewArquivoUsecase(arquivos, solicitacoes, storage, usuarios, cargos, aprovadores, empresas),
-		aprovador:        solicitacaousecases.NewAprovadorUsecase(aprovadores, usuarios),
+		arquivo:   solicitacaousecases.NewArquivoUsecase(arquivos, solicitacoes, storage, usuarios, cargos, aprovadores, empresas),
+		aprovador: solicitacaousecases.NewAprovadorUsecase(aprovadores, usuarios),
+		recorrencia: solicitacaousecases.NewDespesaRecorrenteUsecase(
+			recorrencias, solicitacoes, fornecedores, categorias, aprovadores, usuarios, cargos, empresas,
+		),
+		recorrenciasRepo: recorrencias,
 		usuariosRepo:     usuarios,
 		cargosRepo:       cargos,
 		arquivosRepo:     arquivos,

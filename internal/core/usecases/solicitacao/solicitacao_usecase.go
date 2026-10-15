@@ -85,7 +85,7 @@ func (u *SolicitacaoUsecaseImpl) Criar(ctx context.Context, input portsin.CriarS
 		return uuid.Nil, err
 	}
 
-	if err := u.validarClassificacao(ctx, classificacao); err != nil {
+	if err := validarClassificacao(ctx, u.fornecedores, u.categorias, classificacao); err != nil {
 		return uuid.Nil, err
 	}
 
@@ -337,7 +337,7 @@ func (u *SolicitacaoUsecaseImpl) Classificar(ctx context.Context, input portsin.
 	if err := solicitacao.Classificar(classificacao, time.Now().UTC()); err != nil {
 		return err
 	}
-	if err := u.validarClassificacao(ctx, classificacao); err != nil {
+	if err := validarClassificacao(ctx, u.fornecedores, u.categorias, classificacao); err != nil {
 		return err
 	}
 
@@ -380,7 +380,7 @@ func (u *SolicitacaoUsecaseImpl) Editar(ctx context.Context, input portsin.Edita
 	if len(alterados) == 0 {
 		return nil
 	}
-	if err := u.validarClassificacao(ctx, dados.Classificacao); err != nil {
+	if err := validarClassificacao(ctx, u.fornecedores, u.categorias, dados.Classificacao); err != nil {
 		return err
 	}
 
@@ -745,9 +745,14 @@ func (u *SolicitacaoUsecaseImpl) validarEmpresa(ctx context.Context, solicitante
 	return nil
 }
 
-func (u *SolicitacaoUsecaseImpl) validarClassificacao(ctx context.Context, classificacao domainsolicitacao.Classificacao) error {
+func validarClassificacao(
+	ctx context.Context,
+	fornecedores portsout.FornecedorRepository,
+	categorias portsout.CategoriaFinanceiraRepository,
+	classificacao domainsolicitacao.Classificacao,
+) error {
 	if classificacao.FornecedorID != nil {
-		fornecedor, err := u.fornecedores.Obter(ctx, *classificacao.FornecedorID)
+		fornecedor, err := fornecedores.Obter(ctx, *classificacao.FornecedorID)
 		if err != nil {
 			return err
 		}
@@ -763,7 +768,7 @@ func (u *SolicitacaoUsecaseImpl) validarClassificacao(ctx context.Context, class
 		return nil
 	}
 
-	categoria, err := u.categorias.Obter(ctx, *classificacao.CategoriaFinanceiraID)
+	categoria, err := categorias.Obter(ctx, *classificacao.CategoriaFinanceiraID)
 	if err != nil {
 		return err
 	}
