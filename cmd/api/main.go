@@ -25,6 +25,7 @@ import (
 	financeirousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/financeiro"
 	fornecedorusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/fornecedor"
 	leadusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/lead"
+	pedidousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/pedido"
 	solicitacaousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/solicitacao"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/usuarios"
 )
@@ -81,6 +82,8 @@ func executar(registrador *slog.Logger) error {
 	clienteGrupoRepository := postgres.NewClienteGrupoRepository(banco)
 	clienteObraRepository := postgres.NewClienteObraRepository(banco)
 	representanteRepository := postgres.NewRepresentanteRepository(banco)
+	pedidoRepository := postgres.NewPedidoRepository(banco)
+	entregaRepository := postgres.NewEntregaRepository(banco)
 	clienteUsecase := clienteusecases.NewClienteUsecase(
 		clienteRepository, clienteGrupoRepository, representanteRepository, empresaRepository,
 		postgres.NewLeadRepository(banco), usuarioRepository, cargoRepository,
@@ -136,6 +139,15 @@ func executar(registrador *slog.Logger) error {
 		fornecedorusecases.NewFornecedorUsecase(postgres.NewFornecedorRepository(banco), usuarioRepository, cargoRepository),
 		financeirousecases.NewContaBancariaUsecase(postgres.NewContaBancariaRepository(banco), empresaRepository, usuarioRepository, cargoRepository),
 		financeirousecases.NewCategoriaFinanceiraUsecase(postgres.NewCategoriaFinanceiraRepository(banco), usuarioRepository, cargoRepository),
+		pedidousecases.NewPedidoUsecase(
+			pedidoRepository, entregaRepository, clienteRepository, clienteObraRepository, representanteRepository,
+			produtoRepository, empresaRepository, estoqueRepository, reservaRepository, localRepository,
+			usuarioRepository, cargoRepository,
+		),
+		pedidousecases.NewEntregaUsecase(
+			pedidoRepository, entregaRepository, representanteRepository, empresaRepository,
+			estoqueRepository, reservaRepository, localRepository, usuarioRepository, cargoRepository,
+		),
 		autenticacao.NovoTokenService(cfg.JWTSecret, cfg.JWTExpiracao),
 	)
 

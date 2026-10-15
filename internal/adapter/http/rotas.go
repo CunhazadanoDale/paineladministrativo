@@ -10,6 +10,7 @@ import (
 	financeirohandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/financeiro"
 	fornecedorhandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/fornecedor"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/lead"
+	pedidohandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/pedido"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/saude"
 	solicitacaohandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/solicitacao"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/usuarios"
@@ -21,6 +22,7 @@ import (
 	portsinfinanceiro "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/financeiro"
 	portsinfornecedor "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/fornecedor"
 	portsinlead "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/leads"
+	portsinpedido "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/pedido"
 	portsinsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/solicitacao"
 	portsinusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/usuarios"
 	"github.com/jmoiron/sqlx"
@@ -57,6 +59,8 @@ func NewRouter(
 	fornecedorUseCase portsinfornecedor.FornecedorUseCase,
 	contaBancariaUseCase portsinfinanceiro.ContaBancariaUseCase,
 	categoriaFinanceiraUseCase portsinfinanceiro.CategoriaFinanceiraUseCase,
+	pedidoUseCase portsinpedido.PedidoUseCase,
+	entregaUseCase portsinpedido.EntregaUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, middleware.ErrosDeRoteamento(novasRotas(
@@ -73,6 +77,7 @@ func NewRouter(
 		importacaoClientesUseCase,
 		fornecedorUseCase,
 		contaBancariaUseCase, categoriaFinanceiraUseCase,
+		pedidoUseCase, entregaUseCase,
 		tokens,
 	)))
 }
@@ -105,6 +110,8 @@ func novasRotas(
 	fornecedorUseCase portsinfornecedor.FornecedorUseCase,
 	contaBancariaUseCase portsinfinanceiro.ContaBancariaUseCase,
 	categoriaFinanceiraUseCase portsinfinanceiro.CategoriaFinanceiraUseCase,
+	pedidoUseCase portsinpedido.PedidoUseCase,
+	entregaUseCase portsinpedido.EntregaUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -338,6 +345,26 @@ func novasRotas(
 	financeiro("PATCH /api/v1/categorias-financeiras/{id}/ativar", categoriaFinanceiraHandler.Ativar)
 	financeiro("PATCH /api/v1/categorias-financeiras/{id}/desativar", categoriaFinanceiraHandler.Desativar)
 	administrador("DELETE /api/v1/categorias-financeiras/{id}", categoriaFinanceiraHandler.Remover)
+
+	pedidoHandler := pedidohandlers.NewPedidoHandler(pedidoUseCase)
+	comercial("POST /api/v1/pedidos", pedidoHandler.Criar)
+	protegido("GET /api/v1/pedidos", pedidoHandler.Listar)
+	protegido("GET /api/v1/pedidos/{id}", pedidoHandler.Obter)
+	comercial("PUT /api/v1/pedidos/{id}", pedidoHandler.Alterar)
+	comercial("POST /api/v1/pedidos/{id}/confirmar", pedidoHandler.Confirmar)
+	financeiro("POST /api/v1/pedidos/{id}/entrada", pedidoHandler.RegistrarEntrada)
+	comercial("POST /api/v1/pedidos/{id}/reservar-pendencias", pedidoHandler.ReservarPendencias)
+	comercial("POST /api/v1/pedidos/{id}/cancelar", pedidoHandler.Cancelar)
+	protegido("GET /api/v1/pedidos/{id}/historico", pedidoHandler.ListarHistorico)
+
+	entregaHandler := pedidohandlers.NewEntregaHandler(entregaUseCase)
+	comercial("POST /api/v1/pedidos/{id}/entregas", entregaHandler.Criar)
+	protegido("GET /api/v1/pedidos/{id}/entregas", entregaHandler.ListarDoPedido)
+	protegido("GET /api/v1/entregas", entregaHandler.Listar)
+	protegido("GET /api/v1/entregas/{id}", entregaHandler.Obter)
+	comercial("POST /api/v1/entregas/{id}/saiu", entregaHandler.RegistrarSaida)
+	comercial("POST /api/v1/entregas/{id}/entregue", entregaHandler.Concluir)
+	comercial("POST /api/v1/entregas/{id}/cancelar", entregaHandler.Cancelar)
 
 	return mux
 }
