@@ -591,6 +591,7 @@ se outra pessoa mudar primeiro, a segunda recebe `409`
 | `POST` | `/api/v1/solicitacoes/{id}/pagamento` | financeiro ou administrador | `201` |
 | `GET` | `/api/v1/solicitacoes/{id}/pagamento` | quem pode ver | `200` objeto único (pagamento vigente) |
 | `GET` | `/api/v1/solicitacoes/{id}/pagamentos` | quem pode ver | `200` lista, com os estornados |
+| `GET` | `/api/v1/solicitacoes/pendencias` | autenticado | `200` contadores do usuário |
 | `POST` | `/api/v1/solicitacoes/{id}/pagamento/estorno` | financeiro ou administrador | `200` |
 | `GET` | `/api/v1/solicitacoes/{id}/historico` | quem pode ver | `200` lista |
 | `GET` | `/api/v1/solicitacoes/{id}/arquivos` | quem pode ver | `200` lista |
@@ -940,6 +941,21 @@ evento `estornada` (`pagamento estornado: <motivo>`).
 
 Todos os pagamentos da solicitação, do mais antigo ao mais novo, inclusive os estornados com o
 `estorno` preenchido. Mesma regra de "quem pode ver" das outras consultas.
+
+### `GET /api/v1/solicitacoes/pendencias`
+
+Contadores para o badge do front, nas empresas do acesso do usuário. Cada contador só vem
+preenchido quando o perfil enxerga aquela fila; fora do perfil vem `null` (não `0`).
+
+```json
+{ "dados": { "aprovacao": 4, "financeiro": 7, "vencidas": 2 } }
+```
+
+| Campo | Quem recebe | Conta |
+| --- | --- | --- |
+| `aprovacao` | aprovador designado ou administrador | `pendente_aprovacao` (a mesma fila de `escopo=aprovacao`) |
+| `financeiro` | financeiro ou administrador | `aprovado` (a mesma fila de `escopo=financeiro`) |
+| `vencidas` | financeiro ou administrador | `pendente_aprovacao` ou `aprovado` com vencimento antes de hoje (UTC) |
 
 ---
 
@@ -1902,6 +1918,61 @@ exigem a `versao` lida.
 | campo que não muda no corpo do `PUT` (`banco`, `conta`, `natureza`…) | `400` | `erro de validação: corpo da requisição inválido: json: unknown field ...` |
 
 Ativar o que já está ativo (ou desativar o inativo) responde `200` sem mudar a versão.
+
+---
+
+## Contas a pagar — resumo (financeiro)
+
+`GET /api/v1/contas-a-pagar/resumo?de=AAAA-MM-DD&ate=AAAA-MM-DD&empresa=<uuid>`, financeiro ou
+administrador, nas empresas do acesso (`empresa` fora do acesso → `403`). Sem `de`, começa na
+segunda-feira da semana atual; sem `ate`, cobre 8 semanas. Intervalo máximo de 1 ano
+(`400 erro de validação: intervalo do resumo deve ter no máximo 1 ano`); `ate` antes de `de` →
+`400`.
+
+Considera só `pendente_aprovacao` e `aprovado`, pelo `prazo_pagamento` e pelo `valor_centavos` da
+solicitação. As três colunas não se sobrepõem:
+
+| Coluna | Conta |
+| --- | --- |
+| `previsto` | `pendente_aprovacao` vencendo hoje ou depois |
+| `a_pagar` | `aprovado` vencendo hoje ou depois |
+| `vencido` | qualquer das duas com vencimento antes de hoje (UTC) |
+
+`estimado_centavos` soma o valor das que têm `estimado = true`, em qualquer coluna.
+
+```json
+{
+  "dados": {
+    "de": "2026-10-12",
+    "ate": "2026-12-06",
+    "semanas": [
+      {
+        "semana": "2026-10-12",
+        "empresa_id": "uuid",
+        "previsto": { "quantidade": 2, "valor_centavos": 100000 },
+        "a_pagar": { "quantidade": 1, "valor_centavos": 50000 },
+        "vencido": { "quantidade": 1, "valor_centavos": 50000 },
+        "estimado_centavos": 0
+      }
+    ],
+    "atrasadas": [
+      { "empresa_id": "uuid", "vencido": { "quantidade": 3, "valor_centavos": 90000 } }
+    ],
+    "totais": {
+      "previsto": { "quantidade": 2, "valor_centavos": 100000 },
+      "a_pagar": { "quantidade": 1, "valor_centavos": 50000 },
+      "vencido": { "quantidade": 4, "valor_centavos": 140000 },
+      "estimado_centavos": 0
+    }
+  }
+}
+```
+
+- `semanas`: uma linha por semana (segunda-feira em `semana`) e empresa que tenha algo no período;
+  semana sem conta não aparece.
+- `atrasadas`: vencidas **antes** do `de`, por empresa, para o atraso acumulado não sumir do resumo.
+- `totais`: soma das semanas; o `vencido` inclui as `atrasadas`.
+- Só agregado: o financeiro continua sem ver o detalhe de `pendente_aprovacao`.
 
 ---
 

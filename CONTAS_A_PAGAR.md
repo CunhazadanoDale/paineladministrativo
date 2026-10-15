@@ -1,7 +1,7 @@
 # Escopo — M7 Contas a pagar
 
-> **Status:** escopo fechado — decisões D1 a D6 respondidas pelo usuário (outubro/2026); fases 1
-> a 4 concluídas.
+> **Status:** escopo fechado — decisões D1 a D6 respondidas pelo usuário (outubro/2026); API
+> concluída (fases 1 a 5); front (fase 6) pendente.
 > **Objetivo:** tirar o "painel financeiro (contas a pagar)" da planilha: a solicitação de
 > pagamento passa a ser a conta a pagar do grupo, com fornecedor (M4), categoria financeira e
 > conta bancária (M5), competência, recorrência, adiamento, edição, estorno e visões de
@@ -172,8 +172,9 @@ solicitações antigas e as que o solicitante deixou sem categoria. Evento `clas
 ### 3.5 Pendências (`PENDENCIAS.md` item 6)
 
 Decisão D4: `GET /api/v1/solicitacoes/pendencias` devolve os contadores do usuário
-(`aprovacao`, `financeiro`, `vencidas`), cada um só quando o perfil permite, para o front mostrar
-o badge. E-mail fica fora.
+(`aprovacao`, `financeiro`, `vencidas`), cada um só quando o perfil permite (`null` fora do
+perfil, para o front não mostrar badge de fila que o usuário não vê), contados com o mesmo filtro
+da listagem (`SolicitacaoRepository.Contar`). E-mail fica fora.
 
 ---
 
@@ -202,10 +203,12 @@ GET    /api/v1/contas-a-pagar/resumo   ?de= ?ate= ?empresa= (financeiro)
 ```
 
 Totais e quantidades por **semana** (segunda a domingo, pelo vencimento) e por **empresa**, em
-três colunas: `previsto` (`pendente_aprovacao`), `a_pagar` (`aprovado`) e `vencido`; mais o total
-de `estimado`. Só agregado: o financeiro continua sem ver o detalhe de `pendente_aprovacao`.
-Consulta em SQL no repositório, no padrão do `resumo_usecase` do estoque. Intervalo máximo de
-1 ano.
+três colunas sem sobreposição: `previsto` (`pendente_aprovacao` a vencer), `a_pagar` (`aprovado` a
+vencer) e `vencido` (as duas, vencidas); mais o total de `estimado`. As vencidas antes do início
+do período saem à parte em `atrasadas`, por empresa, e entram no total de vencido. Só agregado: o
+financeiro continua sem ver o detalhe de `pendente_aprovacao`. Consulta em SQL no repositório
+(`ContasAPagarResumoRepository`, `date_trunc('week')`), no padrão do `resumo_usecase` do estoque.
+Período padrão de 8 semanas a partir da segunda-feira atual; intervalo máximo de 1 ano.
 
 ### Despesas recorrentes
 ```
@@ -301,7 +304,7 @@ para a branch estar sempre mergeável.
 | **2** | Edição (`PUT`) e adiamento, com versão otimista e eventos | concluída |
 | **3** | Pagamento com conta bancária obrigatória e exigência de classificação; estorno e `GET /pagamentos` (migration 000042). Quebra o modal de pagamento do front atual até a fase 6 | concluída |
 | **4** | Despesas recorrentes: CRUD + geração idempotente (migration 000043), isolamento por empresa | concluída |
-| **5** | Visões: resumo por semana/empresa e contador de pendências | pendente |
+| **5** | Visões: resumo por semana/empresa e contador de pendências | concluída |
 | **6** | Frontend (depois do F0a): campos novos no formulário, classificação, adiar, estorno, recorrências, resumo e badge | pendente |
 
 ---
