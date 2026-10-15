@@ -555,7 +555,8 @@ Fluxo: **solicitante → aprovador designado → financeiro**.
 5. O financeiro registra o pagamento — o **valor pago pode ser diferente** do estimado.
 
 Desde o M7 a solicitação é a **conta a pagar** do grupo. Os campos de classificação são
-opcionais na criação; o `prazo_pagamento` é o vencimento.
+opcionais na criação; o `prazo_pagamento` é o vencimento. As despesas fixas entram pela seção
+"Despesas recorrentes", que gera as solicitações com `origem = recorrencia`.
 
 ### Estados
 
@@ -1901,6 +1902,102 @@ exigem a `versao` lida.
 | campo que não muda no corpo do `PUT` (`banco`, `conta`, `natureza`…) | `400` | `erro de validação: corpo da requisição inválido: json: unknown field ...` |
 
 Ativar o que já está ativo (ou desativar o inativo) responde `200` sem mudar a versão.
+
+---
+
+## Despesas recorrentes
+
+Despesas fixas do mês (aluguel, energia, internet, impostos) que geram as solicitações de pagamento
+de cada competência. Escrita e leitura pelo **financeiro** (ou administrador), com escopo por
+empresa; exclusão só pelo **administrador**.
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/despesas-recorrentes` | financeiro | `201` |
+| `GET` | `/api/v1/despesas-recorrentes` | financeiro | `200` lista paginada (`?empresa=`, `?ativa=`, `?fornecedor=`) |
+| `GET` | `/api/v1/despesas-recorrentes/{id}` | financeiro | `200` |
+| `PUT` | `/api/v1/despesas-recorrentes/{id}` | financeiro | `200` |
+| `PATCH` | `/api/v1/despesas-recorrentes/{id}/ativar` | financeiro | `200` |
+| `PATCH` | `/api/v1/despesas-recorrentes/{id}/desativar` | financeiro | `200` |
+| `DELETE` | `/api/v1/despesas-recorrentes/{id}` | administrador | `204` |
+| `POST` | `/api/v1/despesas-recorrentes/gerar?competencia=AAAA-MM` | financeiro | `200` |
+
+### `POST /api/v1/despesas-recorrentes`
+
+```json
+{
+  "empresa_id": "uuid-da-empresa",
+  "fornecedor_id": "uuid-do-fornecedor",
+  "categoria_financeira_id": "uuid-da-subcategoria",
+  "descricao": "Aluguel do galpão",
+  "valor_centavos": 420000,
+  "estimado": false,
+  "forma_pagamento": "transferencia",
+  "dia_vencimento": 10,
+  "vencimento_mes_seguinte": false,
+  "inicio": "2026-01",
+  "fim": null
+}
+```
+
+| Campo | Regra |
+| --- | --- |
+| `empresa_id` | obrigatório; empresa ativa e no acesso do usuário. Não muda depois |
+| `fornecedor_id` | opcional; fornecedor ativo |
+| `categoria_financeira_id` | obrigatório; subcategoria ativa de natureza `despesa` |
+| `descricao` | obrigatória, até 1000 caracteres; vira a `observacao` da solicitação gerada |
+| `valor_centavos` | maior que zero |
+| `estimado` | `true` para valor variável (energia, água); a solicitação nasce `estimado` |
+| `forma_pagamento` | mesmas formas da solicitação |
+| `dia_vencimento` | `1` a `31`; em mês mais curto vence no último dia |
+| `vencimento_mes_seguinte` | `false`: vence no mês da competência; `true`: no mês seguinte |
+| `inicio` / `fim` | competências `AAAA-MM`; `fim` opcional e não anterior ao `inicio` |
+
+O `PUT` recebe os mesmos campos, **sem** `empresa_id` (campo desconhecido → `400`), mais `versao`;
+substitui tudo (omitidos voltam ao padrão). `ativar`/`desativar` recebem `{ "versao": n }`; já na
+situação pedida responde `200` sem avançar a versão. Reativar exige a empresa ativa. Editar a
+recorrência não muda solicitações já geradas.
+
+Objeto: os campos acima mais `id`, `ativa`, `versao`, `criado_em` e `atualizado_em` (`fim` `null`
+quando não há).
+
+| Erro | Status | Mensagem |
+| --- | --- | --- |
+| Sem perfil de financeiro | `403` | `perfil sem permissão para despesas recorrentes` |
+| Empresa fora do acesso | `403` | `perfil sem acesso a esta empresa` |
+| Empresa inativa | `400` | `erro de validação: empresa inativa não recebe despesa recorrente` |
+| Sem categoria / sem início | `400` | `erro de validação: categoria financeira é obrigatória na despesa recorrente` / `...início da despesa recorrente é obrigatório` |
+| Fim antes do início | `400` | `erro de validação: fim da despesa recorrente não pode ser anterior ao início` |
+| Dia fora de 1 a 31 | `400` | `erro de validação: dia de vencimento deve estar entre 1 e 31` |
+| `versao` divergente | `409` | `a despesa recorrente foi alterada por outra pessoa; recarregue e tente de novo` |
+| Excluir com solicitação gerada | `400` | `erro de validação: despesa recorrente já gerou solicitações e não pode ser excluída; desative-a` |
+| Excluir sem ser administrador | `403` | `perfil sem permissão para excluir despesa recorrente` |
+
+### `POST /api/v1/despesas-recorrentes/gerar`
+
+`?competencia=AAAA-MM` (obrigatória) e `?empresa=` (opcional, precisa estar no acesso). Para cada
+recorrência ativa, vigente na competência (`inicio <= competência <= fim`) e de empresa ativa no
+acesso do usuário, cria a solicitação daquela competência com `origem = recorrencia`, em
+`pendente_aprovacao`, com quem disparou como solicitante. É **idempotente**: rodar de novo a mesma
+competência não duplica (índice único por recorrência e competência). O vencimento calculado pode
+estar no passado (competência atrasada nasce vencida). Sem agendador: o front ou uma rotina externa
+chama a rota.
+
+```json
+{
+  "dados": {
+    "competencia": "2026-11",
+    "geradas": ["uuid-da-solicitacao"],
+    "ja_existentes": 3,
+    "recusadas": [
+      { "despesa_recorrente_id": "uuid", "motivo": "fornecedor inativo não recebe conta a pagar" }
+    ]
+  }
+}
+```
+
+`recusadas` lista as recorrências que não puderam gerar (fornecedor inativo, categoria que deixou
+de ser lançável, recorrência desativada no meio da geração), sem impedir as outras.
 
 ---
 

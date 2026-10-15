@@ -1,7 +1,7 @@
 # Escopo — M7 Contas a pagar
 
 > **Status:** escopo fechado — decisões D1 a D6 respondidas pelo usuário (outubro/2026); fases 1
-> a 3 concluídas.
+> a 4 concluídas.
 > **Objetivo:** tirar o "painel financeiro (contas a pagar)" da planilha: a solicitação de
 > pagamento passa a ser a conta a pagar do grupo, com fornecedor (M4), categoria financeira e
 > conta bancária (M5), competência, recorrência, adiamento, edição, estorno e visões de
@@ -126,6 +126,10 @@ ativa, dentro do intervalo e de empresa ativa no acesso do usuário, cria a soli
 competência com `origem = recorrencia`; a que já existe é pulada pelo `uq_solicitacao_recorrencia`
 (`INSERT ... ON CONFLICT DO NOTHING`). Responde quantas foram geradas e quantas já existiam.
 O solicitante da gerada é quem disparou a geração, e ela nasce em `pendente_aprovacao` (D3).
+A resposta traz `geradas` (ids), `ja_existentes` e `recusadas` (recorrência e motivo): uma recorrência
+com fornecedor inativo ou categoria que deixou de ser lançável é recusada sem impedir as outras. Cada
+solicitação gerada é gravada numa transação própria, com a recorrência travada (`FOR SHARE`), e a
+exclusão trava a recorrência (`FOR UPDATE`) antes de conferir se ela já gerou solicitações.
 O vencimento calculado pode estar no passado (gerar uma competência atrasada é registrar uma
 conta vencida) e, por isso, não passa pela regra "não anterior a hoje" do `POST`.
 
@@ -296,7 +300,7 @@ para a branch estar sempre mergeável.
 | **1** | Classificação: migrations 000040–000041, fornecedor/categoria/competência/estimado/origem/versão, formas `transferencia` e `debito_automatico`, evento no histórico, portas mínimas do M4 e do M5, `PATCH /classificacao`, novos filtros | concluída |
 | **2** | Edição (`PUT`) e adiamento, com versão otimista e eventos | concluída |
 | **3** | Pagamento com conta bancária obrigatória e exigência de classificação; estorno e `GET /pagamentos` (migration 000042). Quebra o modal de pagamento do front atual até a fase 6 | concluída |
-| **4** | Despesas recorrentes: CRUD + geração idempotente (migration 000043), isolamento por empresa | pendente |
+| **4** | Despesas recorrentes: CRUD + geração idempotente (migration 000043), isolamento por empresa | concluída |
 | **5** | Visões: resumo por semana/empresa e contador de pendências | pendente |
 | **6** | Frontend (depois do F0a): campos novos no formulário, classificação, adiar, estorno, recorrências, resumo e badge | pendente |
 
