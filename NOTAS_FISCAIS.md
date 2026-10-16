@@ -137,8 +137,9 @@ Append-only, como `solicitacao_historico`.
   modelo, série, número). O CNPJ da chave aceita o formato **alfanumérico** (como em `empresa`):
   cada caractere vale seu código ASCII − 48 no cálculo do dígito.
 - Destinatário com `idEstrangeiro` → `400` (o cliente exige CPF/CNPJ).
-- O arquivo precisa ser do usuário que importa, ter tipo XML e não estar vinculado a outra nota,
-  evento ou solicitação.
+- O arquivo precisa ser do usuário que importa (`403`), ter tipo XML (`400`), não estar vinculado a
+  solicitação (`400`) nem a outra nota ou evento (`409`).
+- Empresa emitente inativa → `400` (padrão do `EMPRESAS.md`).
 
 ### 3.2 Cliente
 
@@ -246,22 +247,25 @@ internal/core/domain/notafiscal/      chave.go, decimal.go (centavos e quantidad
                                       xml.go (leitura do nfeProc e do procEventoNFe), nota_fiscal.go
                                       (nota, item, duplicata, vínculos), evento.go
 internal/core/ports/out/notafiscal/   nota_fiscal_repository.go, arquivo_repository.go, storage.go,
-                                      empresa_repository.go (Obter, ObterPorCNPJ, AcessoDoUsuario),
+                                      empresa_repository.go (ObterPorCNPJ, AcessoDoUsuario),
                                       cliente_repository.go (ObterPorDocumento, Criar),
                                       produto_repository.go (Obter, IDsPorCodigos),
                                       pedido_repository.go (Obter), entrega_repository.go (Obter),
                                       representante_repository.go, usuario_repository.go, cargo_repository.go
 internal/core/ports/in/notafiscal/    nota_fiscal_usecase.go, evento_usecase.go
-internal/core/usecases/notafiscal/    importacao.go, nota_fiscal_usecase.go, evento_usecase.go,
-                                      permissoes.go (+ testes e fakes)
+internal/core/usecases/notafiscal/    nota_fiscal_usecase.go (importação, vínculos, consultas),
+                                      destino.go (empresa do grupo ou cliente, criado se faltar),
+                                      arquivo.go (leitura do XML), evento_usecase.go, permissoes.go
+                                      (+ testes e fakes)
 internal/adapter/postgres/            nota_fiscal_repo.go (inclui entregas sem NF e itens sem produto,
                                       sem tocar no entrega_repo.go do M6); IDsPorCodigos no fim de
                                       produto_repo.go
 internal/core/usecases/solicitacao/   arquivo_usecase.go aceita XML
 internal/adapter/http/dto/notafiscal/ + handlers/notafiscal/
 cmd/api/main.go + internal/adapter/http/rotas.go   (registro, só acréscimos)
-XMLs de teste gerados em código (chave com dígito calculado, sem dados reais): construtor_test.go
-  no domínio e um equivalente em test/helpers para integração e e2e
+test/fixtures/nfe/                    gerador de XML de NF-e e de evento para usecase e e2e (chave com
+                                      dígito calculado, sem dados reais); o domínio tem o próprio
+                                      construtor_test.go
 ```
 
 Numeração de migration definida no merge (regra 4 da seção 3 do `ROADMAP.md`): a `main` está em
@@ -275,7 +279,7 @@ Numeração de migration definida no merge (regra 4 da seção 3 do `ROADMAP.md`
 |---|---|---|
 | **1** | Migrations 000047–000048 + domínio (chave, decimal, natureza, nota, item, duplicata, evento, leitura do XML) + testes | concluída |
 | **2** | Repositório (gravação da nota com itens e duplicatas numa transação, eventos com guarda de status e versão, vínculo com pedido e entrega travados com `FOR SHARE`, listagens; `IDsPorCodigos` e entregas sem NF) + testes de integração | concluída |
-| **3** | Usecases de importação, vínculo e eventos + XML no fluxo de arquivos + permissões (escopo por empresa, representante) + testes com fakes e de isolamento | pendente |
+| **3** | Usecases de importação, vínculo e eventos + XML no fluxo de arquivos + permissões (escopo por empresa, representante) + testes com fakes e de isolamento | concluída |
 | **4** | Handlers/DTOs + rotas + e2e + `API.md` | pendente |
 | **5** | Consultas (entregas sem NF, itens sem produto e vínculo de item) + testes + `API.md` | pendente |
 | **6** | Títulos no M9: duplicata → título (origem `nota_fiscal_duplicata`) na importação e efeito do cancelamento, pela assinatura do `CONTAS_A_RECEBER.md`; **só depois do M9 na `main`** | bloqueada (M9) |
