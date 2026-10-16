@@ -2253,6 +2253,136 @@ de ser lançável, recorrência desativada no meio da geração), sem impedir as
 
 ---
 
+## Notas fiscais (NF-e por XML)
+
+O sistema **não emite** NF-e: importa o XML autorizado (`nfeProc`) das notas emitidas pelas empresas
+do grupo. Escopo por empresa emitente (padrão da seção 4 do `EMPRESAS.md`). Perfis: **financeiro**
+(ou administrador) importa notas e eventos, vincula pedido e entrega e liga item a produto; qualquer
+autenticado lê as notas das empresas do seu acesso. **Representante com login** (não administrador)
+vê só notas de clientes da própria carteira (nota entre empresas não aparece) e não consulta itens
+sem produto (`403`).
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/notas-fiscais/importacao` | **financeiro** | `201` nota com itens, duplicatas e `avisos` |
+| `GET` | `/api/v1/notas-fiscais` | autenticado | `200` lista paginada sem itens (`?empresa=`, `?cliente=`, `?pedido=`, `?natureza=`, `?status=`, `?entre_empresas=`, `?sem_pedido=true`, `?emitida_de=`, `?emitida_ate=`, `?numero=`, `?chave=`) |
+| `GET` | `/api/v1/notas-fiscais/{id}` | autenticado | `200` detalhe com itens e duplicatas |
+| `GET` | `/api/v1/notas-fiscais/{id}/xml` | autenticado | `200` XML original (`attachment`, `nosniff`) |
+| `PUT` | `/api/v1/notas-fiscais/{id}/vinculo` | **financeiro** | `200`; corpo `{ "versao", "pedido_id", "entrega_id" }` (`null` desfaz) |
+| `PUT` | `/api/v1/notas-fiscais/{id}/itens/{numero}/produto` | **financeiro** | `200`; corpo `{ "versao", "produto_id" }` |
+| `GET` | `/api/v1/notas-fiscais/itens-sem-produto` | autenticado | `200` lista paginada (`?empresa=`) |
+| `POST` | `/api/v1/notas-fiscais/eventos` | **financeiro** | `201` `{ "evento": {...}, "nota_fiscal": {...} }` |
+| `GET` | `/api/v1/notas-fiscais/{id}/eventos` | autenticado | `200` lista (`{ "dados": [...] }`), mais antigo primeiro |
+| `GET` | `/api/v1/entregas/sem-nota-fiscal` | autenticado | `200` lista paginada (`?empresa=`, `?cliente=`) |
+
+### Importação
+
+1. Envie o XML por `POST /api/v1/arquivos` (`application/xml` ou `text/xml`); o arquivo fica
+   guardado e vira o XML original da nota.
+2. Chame a importação com o `arquivo_id`:
+
+```json
+{ "arquivo_id": "…", "pedido_id": "…", "entrega_id": "…" }
+```
+
+`pedido_id` e `entrega_id` são opcionais (`entrega_id` exige `pedido_id`).
+
+| Regra | Resposta |
+| --- | --- |
+| arquivo de outro usuário | `403 o arquivo XML precisa ter sido enviado por você` |
+| arquivo que não é XML ou de uma solicitação | `400` |
+| arquivo já importado em outra nota ou evento | `409` |
+| XML sem protocolo (`NFe` sem `nfeProc`), malformado, NFC-e (modelo 65), homologação (`tpAmb = 2`), não autorizada (`cStat` diferente de `100`/`150`) | `400` |
+| chave inválida (44 caracteres, dígito módulo 11, CNPJ alfanumérico aceito) ou incoerente com a nota (UF, ano e mês, CNPJ, série, número) ou com o protocolo | `400` |
+| emitente que não é empresa cadastrada / empresa inativa | `400` |
+| emitente fora do acesso | `403 perfil sem acesso a esta empresa` |
+| chave já importada | `409 já existe uma nota fiscal com esta chave de acesso` |
+| destinatário estrangeiro (`idEstrangeiro`) | `400` |
+
+A assinatura digital do XML não é conferida; a autenticidade vem da chave e do protocolo da SEFAZ.
+
+**Destinatário**: CNPJ de empresa cadastrada → nota **entre empresas do grupo** (`entre_empresas =
+true`, `natureza = transferencia`, `empresa_destinataria_id`, sem cliente). Regra provisória até a
+contabilidade responder: sem título, conta a pagar nem movimento de estoque. Senão o cliente é achado
+pelo documento e, se não existir, **criado** com nome, UF e cidade do XML (`tipo` `pf` para CPF e
+`outro` para CNPJ, sem representante; e-mail inválido é ignorado). Cliente novo sem UF ou cidade no
+XML → `400`.
+
+**Natureza**: `transferencia` (entre empresas) › `devolucao` (`finNFe = 4`) › `remessa` (CFOP
+predominante de remessa: `5116/5117/6116/6117`, `5905/6905`, `5910`–`5917`, `6910`–`6917`,
+`5923/6923`, `5934/6934`, `5949/6949`) › `venda` (inclusive o simples faturamento `5922/6922`). O CFOP
+predominante é o do item de maior valor. Só `venda` vai virar título no contas a receber (fase
+seguinte do M8, depois do M9); as duplicatas são guardadas em todas as naturezas.
+
+**Itens**: o produto é resolvido pelo `codigo` (`cProd`); item sem produto entra com `produto_id =
+null` e aparece em `itens-sem-produto`. A NF **não move estoque** (a saída é a da entrega).
+
+`avisos` da importação:
+
+| Aviso | Quando |
+| --- | --- |
+| `itens_sem_produto` | algum item não achou produto pelo código |
+| `numero_pedido_ausente` | o cliente exige número de pedido na NF e o XML não traz `xPed` |
+| `cliente_criado` | o cliente foi criado a partir do destinatário |
+
+Resposta (resumo):
+
+```json
+{
+  "dados": {
+    "id": "…", "chave": "2526…", "empresa_id": "…", "numero": 123, "serie": 1,
+    "emitida_em": "2026-10-10T12:30:00Z", "tipo_operacao": "saida", "finalidade": "normal",
+    "natureza": "venda", "natureza_operacao": "VENDA DE MERCADORIA", "entre_empresas": false,
+    "cliente_id": "…", "empresa_destinataria_id": null, "destinatario_documento": "11444777000161",
+    "destinatario_nome": "…", "cfop_predominante": "5102", "valor_total_centavos": 109000,
+    "valor_produtos_centavos": 109000, "valor_frete_centavos": 0, "valor_desconto_centavos": 0,
+    "numero_pedido_cliente": "PC-77", "protocolo": "325260000012345",
+    "autorizada_em": "2026-10-10T12:31:02Z", "status": "autorizada", "pedido_id": null,
+    "entrega_id": null, "arquivo_id": "…", "usuario_id": "…", "versao": 1,
+    "itens": [{
+      "numero_item": 1, "codigo": "PISO-01", "descricao": "…", "produto_id": "…", "ncm": "69072100",
+      "cfop": "5102", "unidade": "M2", "quantidade": "10.5000", "quantidade_decimilesimos": 105000,
+      "valor_unitario": "100.0000000000", "valor_centavos": 105000, "desconto_centavos": 0,
+      "pedido_cliente": null
+    }],
+    "duplicatas": [{ "id": "…", "numero": "001", "vencimento": "2026-11-09T00:00:00Z", "valor_centavos": 54500 }],
+    "avisos": ["itens_sem_produto"]
+  }
+}
+```
+
+`quantidade` vem como texto com 4 casas (o XML tem até 4); `valor_unitario` é o `vUnCom` como veio.
+`vencimento` é só-data (meia-noite UTC). Filtros `emitida_de`/`emitida_ate` (`AAAA-MM-DD`,
+inclusivos) usam o dia no fuso de Brasília; `de` depois de `ate` → `400`.
+
+### Vínculo com pedido e entrega
+
+Pedido da mesma empresa e do mesmo cliente da nota, fora de `proposta` e `cancelado`; entrega do
+pedido e não cancelada (`400`). Uma entrega tem no máximo uma NF autorizada (`409 a entrega já tem
+uma nota fiscal autorizada`). Nota entre empresas não se vincula a pedido (`400`); nota cancelada não
+muda de vínculo (`409`). A situação do pedido e da entrega é conferida de novo na gravação (`409` se
+mudou). `versao` segue o contrato dos fornecedores (`400` sem versão, `409 a nota fiscal foi alterada
+por outra pessoa; ...`). Ligar item a produto (`PUT .../itens/{numero}/produto`) usa a mesma versão;
+produto inexistente → `404`.
+
+### Eventos (cancelamento e carta de correção)
+
+Envie o XML do evento (`procEventoNFe`) por `POST /api/v1/arquivos` e importe com
+`{ "arquivo_id": "…" }`. Aceita `110111` (cancelamento) e `110110` (carta de correção), com retorno
+`cStat` `135`, `136` ou `155` e ambiente de produção. A nota é achada pela chave (`404` se ainda não
+foi importada) e o autor do evento precisa ser o CNPJ emitente (`400`).
+
+- **Cancelamento**: nota `autorizada` → `cancelada` (avança a `versao`); a entrega volta a aparecer
+  em `entregas/sem-nota-fiscal`. Cancelar de novo → `409`.
+- **Carta de correção**: só registra o texto (`justificativa`); mesma sequência repetida → `409`;
+  nota cancelada não recebe (`409`).
+
+`GET /entregas/sem-nota-fiscal` lista entregas `saiu` ou `entregue` sem NF autorizada, mais antigas
+primeiro, com `entrega_id`, `pedido_id`, `pedido_numero`, `empresa_id`, `cliente_id`, `status`,
+`saiu_em`, `entregue_em` e `transportadora`; o representante com login vê só as dos próprios pedidos.
+
+---
+
 ## Exemplos
 
 ### PowerShell

@@ -10,6 +10,7 @@ import (
 	financeirohandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/financeiro"
 	fornecedorhandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/fornecedor"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/lead"
+	notafiscalhandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/notafiscal"
 	pedidohandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/pedido"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/saude"
 	solicitacaohandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/solicitacao"
@@ -22,6 +23,7 @@ import (
 	portsinfinanceiro "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/financeiro"
 	portsinfornecedor "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/fornecedor"
 	portsinlead "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/leads"
+	portsinnotafiscal "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/notafiscal"
 	portsinpedido "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/pedido"
 	portsinsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/solicitacao"
 	portsinusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/usuarios"
@@ -64,6 +66,8 @@ func NewRouter(
 	pedidoUseCase portsinpedido.PedidoUseCase,
 	entregaUseCase portsinpedido.EntregaUseCase,
 	consultaPedidosUseCase portsinpedido.ConsultaUseCase,
+	notaFiscalUseCase portsinnotafiscal.NotaFiscalUseCase,
+	eventoNotaFiscalUseCase portsinnotafiscal.EventoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, middleware.ErrosDeRoteamento(novasRotas(
@@ -83,6 +87,7 @@ func NewRouter(
 		despesaRecorrenteUseCase,
 		resumoContasAPagarUseCase,
 		pedidoUseCase, entregaUseCase, consultaPedidosUseCase,
+		notaFiscalUseCase, eventoNotaFiscalUseCase,
 		tokens,
 	)))
 }
@@ -120,6 +125,8 @@ func novasRotas(
 	pedidoUseCase portsinpedido.PedidoUseCase,
 	entregaUseCase portsinpedido.EntregaUseCase,
 	consultaPedidosUseCase portsinpedido.ConsultaUseCase,
+	notaFiscalUseCase portsinnotafiscal.NotaFiscalUseCase,
+	eventoNotaFiscalUseCase portsinnotafiscal.EventoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -397,6 +404,20 @@ func novasRotas(
 	protegido("GET /api/v1/pedidos/pendencias", consultaPedidosHandler.Pendencias)
 	protegido("GET /api/v1/pedidos/prazos", consultaPedidosHandler.Prazos)
 	protegido("GET /api/v1/pedidos/cancelamentos", consultaPedidosHandler.Cancelamentos)
+
+	notaFiscalHandler := notafiscalhandlers.NewNotaFiscalHandler(notaFiscalUseCase)
+	financeiro("POST /api/v1/notas-fiscais/importacao", notaFiscalHandler.Importar)
+	protegido("GET /api/v1/notas-fiscais", notaFiscalHandler.Listar)
+	protegido("GET /api/v1/notas-fiscais/itens-sem-produto", notaFiscalHandler.ListarItensSemProduto)
+	protegido("GET /api/v1/notas-fiscais/{id}", notaFiscalHandler.Obter)
+	protegido("GET /api/v1/notas-fiscais/{id}/xml", middleware.EstenderPrazo(prazoDeArquivo, notaFiscalHandler.BaixarXML))
+	financeiro("PUT /api/v1/notas-fiscais/{id}/vinculo", notaFiscalHandler.Vincular)
+	financeiro("PUT /api/v1/notas-fiscais/{id}/itens/{numero}/produto", notaFiscalHandler.VincularProduto)
+	protegido("GET /api/v1/entregas/sem-nota-fiscal", notaFiscalHandler.ListarEntregasSemNota)
+
+	eventoNotaFiscalHandler := notafiscalhandlers.NewEventoHandler(eventoNotaFiscalUseCase)
+	financeiro("POST /api/v1/notas-fiscais/eventos", eventoNotaFiscalHandler.Importar)
+	protegido("GET /api/v1/notas-fiscais/{id}/eventos", eventoNotaFiscalHandler.Listar)
 
 	return mux
 }
