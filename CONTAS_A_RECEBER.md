@@ -1,6 +1,6 @@
 # Escopo — M9 Contas a receber e antecipação
 
-> **Status:** escopo fechado — decisões D1 a D6 respondidas pelo usuário (outubro/2026); fases 1 a 3 concluídas.
+> **Status:** escopo fechado — decisões D1 a D6 respondidas pelo usuário (outubro/2026); fases 1 a 4 concluídas.
 > **Objetivo:** tirar "A receber no banco" e os títulos do "Controle de NFs" das planilhas: título a
 > receber por empresa e cliente, com cobrança em banco, envio de boleto, baixa total ou parcial,
 > antecipação em borderô com fomento, recompra e repasse de pagamento feito na conta errada. Base
@@ -414,7 +414,7 @@ test/helpers + test/integration + test/e2e
 | **1** | Título manual: migration 000047, domínio (origem, status, título, histórico, vencido derivado), repositório, usecase com escopo por empresa, criar/editar/prorrogar/enviar e retirar do banco/boleto/cancelar, listagem e histórico, e2e + `API.md` | concluída |
 | **2** | Geração por origem: `Geracao`, `GerarDeOrigem`, `CancelarPorOrigem` (contrato da seção 6.1, testes de integração de idempotência e de corrida) e título de entrada do pedido | concluída |
 | **3** | Baixa: recebimento total e parcial, estorno, registro da entrada paga do pedido na mesma transação (migration 000048) | concluída |
-| **4** | Antecipação: borderô, estorno, recompra e repasse ao fomento com a conta a pagar do M7 na mesma transação (migrations 000049–000050) | pendente |
+| **4** | Antecipação: borderô, estorno, recompra e repasse ao fomento com a conta a pagar do M7 na mesma transação (migrations 000049–000050) | concluída |
 | **5** | Visões: resumo por semana/empresa e alerta de boleto não enviado | pendente |
 | **6** | Frontend (depois do F0a): títulos, baixa, borderô, recompra, resumo e alertas | pendente |
 
@@ -442,6 +442,12 @@ Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates ve
       recusa origem cancelada; o `case` de `pedido` está pronto e o de `nota_fiscal_duplicata` é do M8.
 - [x] **`registrou_entrada_pedido` no recebimento** (fase 3): marca a baixa que gravou a entrada no
       pedido e bloqueia o estorno dela no próprio `UPDATE`.
+- [x] **Conta a pagar gerada pelo M9** (fase 4): `domainsolicitacao.NovaSolicitacaoDeOrigem` e
+      `gerarSolicitacaoDeOrigem` (fim de `solicitacao_repo.go`) com `uq_solicitacao_origem`; o M9
+      chama a função interna na transação da recompra e do recebimento, e
+      `SolicitacaoRepository.GerarDeOrigem` fica para M10, M12 e M14.
+- [x] **Repasse sem os juros** (fase 4): o repasse ao fomento é o `valor_centavos` recebido; os juros
+      pagos pelo cliente ficam com a empresa até o financeiro decidir outro acerto com o fomento.
 - [x] **Número único por empresa e origem** (fase 1), sem diferenciar maiúsculas: o número da NF não
       colide com um título manual de mesmo número.
 - [x] **D1 — Fomento é fornecedor do M4.** Sim; o borderô aponta para `fornecedor`, e a

@@ -8,13 +8,14 @@ import (
 )
 
 type ReceberRequest struct {
-	Versao           int        `json:"versao"`
-	Tipo             string     `json:"tipo"`
-	ContaBancariaID  *uuid.UUID `json:"conta_bancaria_id"`
-	RecebidoEm       string     `json:"recebido_em"`
-	ValorCentavos    int64      `json:"valor_centavos"`
-	JurosCentavos    int64      `json:"juros_centavos"`
-	DescontoCentavos int64      `json:"desconto_centavos"`
+	Versao           int             `json:"versao"`
+	Tipo             string          `json:"tipo"`
+	ContaBancariaID  *uuid.UUID      `json:"conta_bancaria_id"`
+	RecebidoEm       string          `json:"recebido_em"`
+	ValorCentavos    int64           `json:"valor_centavos"`
+	JurosCentavos    int64           `json:"juros_centavos"`
+	DescontoCentavos int64           `json:"desconto_centavos"`
+	Repasse          *RepasseRequest `json:"repasse"`
 }
 
 type EstornoRecebimentoRequest struct {
@@ -45,6 +46,7 @@ type RecebimentoResponse struct {
 	RegistrouEntradaPedido bool                        `json:"registrou_entrada_pedido"`
 	Estornado              bool                        `json:"estornado"`
 	Estorno                *EstornoRecebimentoResponse `json:"estorno"`
+	Repasse                *RepasseResponse            `json:"repasse"`
 	UsuarioID              uuid.UUID                   `json:"usuario_id"`
 	CriadoEm               time.Time                   `json:"criado_em"`
 }
@@ -70,6 +72,7 @@ func NovoRecebimentoResponse(item *domainreceber.Recebimento) RecebimentoRespons
 		Estornado:              item.Estornado,
 		UsuarioID:              item.UsuarioID,
 		CriadoEm:               item.CriadoEm,
+		Repasse:                novoRepasseResponse(item.Repasse),
 	}
 	if item.Estorno != nil {
 		resposta.Estorno = &EstornoRecebimentoResponse{

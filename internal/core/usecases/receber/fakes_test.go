@@ -8,6 +8,7 @@ import (
 	domaincliente "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/cliente"
 	domainempresa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/empresa"
 	domainfinanceiro "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/financeiro"
+	domainfornecedor "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/fornecedor"
 	domainpedido "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/pedido"
 	domainreceber "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/receber"
 	domainusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/usuarios"
@@ -26,6 +27,10 @@ type memoria struct {
 	pedidos      map[uuid.UUID]*domainpedido.Pedido
 	geracoes     []*domainreceber.Geracao
 	baixas       []*portsout.Baixa
+	fornecedores map[uuid.UUID]*domainfornecedor.Fornecedor
+	antecipacoes map[uuid.UUID]*domainreceber.Antecipacao
+	recompras    []*portsout.GravacaoRecompra
+	estornos     []*portsout.EstornoDaAntecipacao
 	recebimentos map[uuid.UUID][]*domainreceber.Recebimento
 	titulos      map[uuid.UUID]*domainreceber.Titulo
 	historicos   []*domainreceber.Historico
@@ -44,6 +49,8 @@ func novaMemoria() *memoria {
 		categorias:   map[uuid.UUID]*domainfinanceiro.CategoriaFinanceira{},
 		pedidos:      map[uuid.UUID]*domainpedido.Pedido{},
 		recebimentos: map[uuid.UUID][]*domainreceber.Recebimento{},
+		fornecedores: map[uuid.UUID]*domainfornecedor.Fornecedor{},
+		antecipacoes: map[uuid.UUID]*domainreceber.Antecipacao{},
 		titulos:      map[uuid.UUID]*domainreceber.Titulo{},
 	}
 }
@@ -261,4 +268,100 @@ func (r repoTitulos) ListarRecebimentos(_ context.Context, tituloID uuid.UUID) (
 	}
 
 	return recebimentos, nil
+}
+
+type repoFornecedores struct{ *memoria }
+
+func (r repoFornecedores) Obter(_ context.Context, id uuid.UUID) (*domainfornecedor.Fornecedor, error) {
+	return copiar(r.fornecedores[id]), nil
+}
+
+type repoAntecipacoes struct{ *memoria }
+
+func copiarAntecipacao(antecipacao *domainreceber.Antecipacao) *domainreceber.Antecipacao {
+	if antecipacao == nil {
+		return nil
+	}
+	copia := *antecipacao
+	copia.Titulos = make([]*domainreceber.AntecipacaoTitulo, 0, len(antecipacao.Titulos))
+	for _, vinculo := range antecipacao.Titulos {
+		copia.Titulos = append(copia.Titulos, copiar(vinculo))
+	}
+
+	return &copia
+}
+
+func (r repoAntecipacoes) gravarTitulos(ctx context.Context, titulos []portsout.TituloAlterado) error {
+	for _, alterado := range titulos {
+		if err := repoTitulos(r).Atualizar(ctx, &portsout.Alteracao{
+			Titulo: alterado.Titulo, VersaoLida: alterado.VersaoLida, StatusAnterior: alterado.StatusAnterior, Historico: alterado.Historico,
+		}); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (r repoAntecipacoes) Criar(ctx context.Context, gravacao *portsout.GravacaoAntecipacao) error {
+	if err := r.gravarTitulos(ctx, gravacao.Titulos); err != nil {
+		return err
+	}
+	r.antecipacoes[gravacao.Antecipacao.ID] = copiarAntecipacao(gravacao.Antecipacao)
+
+	return nil
+}
+
+func (r repoAntecipacoes) Obter(_ context.Context, id uuid.UUID) (*domainreceber.Antecipacao, error) {
+	return copiarAntecipacao(r.antecipacoes[id]), nil
+}
+
+func (r repoAntecipacoes) ObterVigenteDoTitulo(_ context.Context, tituloID uuid.UUID) (*domainreceber.Antecipacao, error) {
+	for _, antecipacao := range r.antecipacoes {
+		if vinculo := antecipacao.Vinculo(tituloID); vinculo != nil && vinculo.Vigente {
+			return copiarAntecipacao(antecipacao), nil
+		}
+	}
+
+	return nil, nil
+}
+
+func (r repoAntecipacoes) Listar(_ context.Context, filtro portsout.AntecipacaoFiltro) ([]*domainreceber.Antecipacao, error) {
+	antecipacoes := make([]*domainreceber.Antecipacao, 0)
+	for _, antecipacao := range r.antecipacoes {
+		if filtro.EmpresaIDs != nil && !slices.Contains(filtro.EmpresaIDs, antecipacao.EmpresaID) {
+			continue
+		}
+		if filtro.Status != "" && antecipacao.Status != filtro.Status {
+			continue
+		}
+		antecipacoes = append(antecipacoes, copiarAntecipacao(antecipacao))
+	}
+
+	return antecipacoes, nil
+}
+
+func (r repoAntecipacoes) Estornar(ctx context.Context, estorno *portsout.EstornoDaAntecipacao) error {
+	if r.antecipacoes[estorno.Antecipacao.ID].Versao != estorno.VersaoLida {
+		return domainreceber.ErroAntecipacaoAlterada()
+	}
+	if err := r.gravarTitulos(ctx, estorno.Titulos); err != nil {
+		return err
+	}
+	estorno.Antecipacao.Versao++
+	r.antecipacoes[estorno.Antecipacao.ID] = copiarAntecipacao(estorno.Antecipacao)
+	r.memoria.estornos = append(r.memoria.estornos, estorno)
+
+	return nil
+}
+
+func (r repoAntecipacoes) Recomprar(ctx context.Context, gravacao *portsout.GravacaoRecompra) error {
+	if err := r.gravarTitulos(ctx, []portsout.TituloAlterado{gravacao.Titulo}); err != nil {
+		return err
+	}
+	r.antecipacoes[gravacao.Recompra.AntecipacaoID].Vinculo(gravacao.Recompra.TituloID).Vigente = false
+	gravacao.Recompra.SolicitacaoID = gravacao.ContaAPagar.Solicitacao.ID
+	r.memoria.recompras = append(r.memoria.recompras, gravacao)
+
+	return nil
 }

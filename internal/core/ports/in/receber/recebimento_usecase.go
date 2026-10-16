@@ -8,6 +8,11 @@ import (
 	"github.com/google/uuid"
 )
 
+type RepasseInput struct {
+	Vencimento            time.Time
+	CategoriaFinanceiraID uuid.UUID
+}
+
 type ReceberInput struct {
 	UsuarioID        uuid.UUID
 	TituloID         uuid.UUID
@@ -18,6 +23,7 @@ type ReceberInput struct {
 	ValorCentavos    int64
 	JurosCentavos    int64
 	DescontoCentavos int64
+	Repasse          *RepasseInput
 }
 
 type EstornarRecebimentoInput struct {

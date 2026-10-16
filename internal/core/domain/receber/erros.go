@@ -69,3 +69,23 @@ func ErroOrigemNaoEncontrada() error {
 func ErroOrigemCancelada() error {
 	return domain.ErroConflito("origem cancelada não gera título")
 }
+
+func ErroFomentoNaoEncontrado() error {
+	return domain.ErroValidacao("fomento da antecipação não encontrado")
+}
+
+func ErroFomentoInativo() error {
+	return domain.ErroValidacao("fomento inativo não recebe antecipação")
+}
+
+func ErroClienteProibeAntecipacao(nome string) error {
+	return domain.ErroValidacao("cliente não permite antecipação: " + nome)
+}
+
+func ErroTituloJaAntecipado() error {
+	return domain.ErroConflito("título já está numa antecipação vigente")
+}
+
+func ErroContaAPagarJaGerada() error {
+	return domain.ErroConflito("a conta a pagar desta origem já foi gerada")
+}

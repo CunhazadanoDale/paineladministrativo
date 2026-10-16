@@ -52,6 +52,7 @@ type Recebimento struct {
 	RegistrouEntradaPedido bool
 	Estornado              bool
 	Estorno                *EstornoRecebimento
+	Repasse                *Repasse
 	UsuarioID              uuid.UUID
 	CriadoEm               time.Time
 }
@@ -72,6 +73,7 @@ type DadosRecebimento struct {
 	ValorCentavos    int64
 	JurosCentavos    int64
 	DescontoCentavos int64
+	Repasse          *DadosRepasse
 }
 
 func (r *Recebimento) AbatidoCentavos() int64 {
@@ -111,8 +113,8 @@ func (t *Titulo) Receber(dados DadosRecebimento, usuarioID uuid.UUID, agora time
 		return nil, nil, domain.ErroValidacao("recebimento liquidado no fomento não tem conta bancária")
 	case tipo == TipoRecebimentoFomento && t.Status != StatusAntecipado:
 		return nil, nil, domain.ErroConflito("só o título antecipado é liquidado no fomento")
-	case tipo == TipoRecebimentoConta && t.Status == StatusAntecipado:
-		return nil, nil, domain.ErroConflito("título antecipado recebido em conta própria gera repasse ao fomento; registre o repasse junto")
+	case dados.Repasse != nil && (tipo != TipoRecebimentoConta || t.Status != StatusAntecipado):
+		return nil, nil, domain.ErroValidacao("repasse ao fomento só vale para título antecipado recebido em conta própria")
 	}
 
 	recebidoEm, err := dataObrigatoria(dados.RecebidoEm, feminino("data do recebimento"))
@@ -147,6 +149,11 @@ func (t *Titulo) Receber(dados DadosRecebimento, usuarioID uuid.UUID, agora time
 		UsuarioID:            usuarioID,
 		CriadoEm:             agora,
 	}
+	if tipo == TipoRecebimentoConta && anterior == StatusAntecipado {
+		if recebimento.Repasse, err = novoRepasse(recebimento, dados.Repasse, usuarioID, agora); err != nil {
+			return nil, nil, err
+		}
+	}
 
 	t.RecebidoCentavos += recebimento.AbatidoCentavos()
 	if t.SaldoCentavos() == 0 {
@@ -156,6 +163,9 @@ func (t *Titulo) Receber(dados DadosRecebimento, usuarioID uuid.UUID, agora time
 
 	descricao := fmt.Sprintf("%s em %s: valor %d, juros %d, desconto %d centavos", tipo, recebidoEm.Format(formatoData),
 		recebimento.ValorCentavos, recebimento.JurosCentavos, recebimento.DescontoCentavos)
+	if recebimento.Repasse != nil {
+		descricao += "; recebido em conta própria, gera repasse ao fomento"
+	}
 
 	return recebimento, NovoHistorico(t.ID, usuarioID, EventoRecebido, &anterior, t.Status, descricao, agora), nil
 }
@@ -170,6 +180,8 @@ func (t *Titulo) EstornarRecebimento(
 		return nil, nil, domain.ErroConflito("o recebimento já foi estornado")
 	case recebimento.RegistrouEntradaPedido:
 		return nil, nil, domain.ErroConflito("o recebimento registrou a entrada paga do pedido e não pode ser estornado")
+	case recebimento.Repasse != nil:
+		return nil, nil, domain.ErroConflito("o recebimento gerou repasse ao fomento e não pode ser estornado; trate a conta a pagar do repasse")
 	}
 
 	motivo, err := textoObrigatorio(motivo, masculino("motivo do estorno"), tamanhoMaximoMotivoEstorno)

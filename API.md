@@ -556,7 +556,10 @@ Fluxo: **solicitante → aprovador designado → financeiro**.
 
 Desde o M7 a solicitação é a **conta a pagar** do grupo. Os campos de classificação são
 opcionais na criação; o `prazo_pagamento` é o vencimento. As despesas fixas entram pela seção
-"Despesas recorrentes", que gera as solicitações com `origem = recorrencia`.
+"Despesas recorrentes", que gera as solicitações com `origem = recorrencia`. O M9 gera as
+contas a pagar da recompra de título antecipado (`origem = recompra`) e do repasse ao fomento
+(`origem = repasse_fomento`): elas nascem em `pendente_aprovacao`, já com fornecedor (o fomento),
+categoria e competência, e seguem o fluxo de aprovação normal.
 
 ### Estados
 
@@ -639,7 +642,7 @@ Filtros de conta a pagar, combináveis com qualquer escopo (valor inválido → 
 | `fornecedor=<uuid>` | fornecedor da solicitação |
 | `categoria=<uuid>` | categoria financeira |
 | `competencia=AAAA-MM` | competência (`erro de validação: competência deve estar no formato AAAA-MM`) |
-| `origem=manual\|recorrencia` | origem da solicitação |
+| `origem=manual\|recorrencia\|recompra\|repasse_fomento` | origem da solicitação |
 | `vencimento_de=AAAA-MM-DD` / `vencimento_ate=AAAA-MM-DD` | intervalo do `prazo_pagamento`, inclusivo (`erro de validação: consulta vencimento_de deve estar no formato AAAA-MM-DD`; final antes do inicial → `400 erro de validação: vencimento final não pode ser anterior ao inicial`) |
 | `vencidas=true` | `pendente_aprovacao` ou `aprovado` com vencimento antes de hoje (UTC); aceita `true`/`false`/`1`/`0`, outro valor → `400 erro de validação: consulta vencidas deve ser true ou false` |
 
@@ -2403,9 +2406,13 @@ Corpo do `POST /titulos-receber/{id}/recebimentos`:
 
 - `valor + desconto` não pode passar do saldo (`400 valor mais desconto passa do saldo do título (<saldo> centavos)`).
   Quando o saldo zera, o título vira `recebido`; antes disso, o status não muda.
-- Só título `carteira`, `em_banco` ou `antecipado` recebe baixa (`409`). Título `antecipado` recebido em
-  conta própria (pagamento na conta errada) gera o repasse ao fomento: entra com a antecipação
-  (fase 4); até lá responde `409`.
+- Só título `carteira`, `em_banco` ou `antecipado` recebe baixa (`409`).
+- **Pagamento na conta errada**: título `antecipado` recebido com `tipo = conta` exige
+  `"repasse": { "vencimento", "categoria_financeira_id" }` no corpo (`400` sem ele). Na mesma
+  transação da baixa, o M9 grava o repasse (valor = `valor_centavos`, sem juros) e gera a conta a pagar
+  ao fomento no M7 (`origem = repasse_fomento`, categoria lançável de `despesa`, competência do mês
+  do recebimento). O recebimento traz `repasse` com o `solicitacao_id`; o que gerou repasse não é
+  estornado (`409`). `repasse` em título que não está antecipado → `400`.
 - O recebimento traz `entrada_no_caixa_centavos` (`valor + juros` em `conta`, `0` em `fomento`), que
   é o que o M13 concilia com o extrato pela `conta_bancaria_id` e pela `recebido_em`.
 - **Título de entrada do pedido**: a baixa que zera o saldo registra a entrada paga no pedido (M6) na
@@ -2429,6 +2436,79 @@ Corpo do `POST /titulos-receber/{id}/recebimentos`:
 | Transição fora do estado | `409` | `não é possível mudar o título de "<atual>" para "<novo>"` |
 | Boleto fora do banco | `409` | `só o título em banco tem boleto para enviar` |
 | Cancelar com recebimento | `409` | `título com recebimento não pode ser cancelado; estorne o recebimento antes` |
+
+---
+
+## Antecipações (borderô, recompra e repasse)
+
+Antecipação de títulos com uma empresa de fomento, que é um **fornecedor** do M4. Só **financeiro** e
+administrador, com escopo por empresa.
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/antecipacoes` | **financeiro** | `201` borderô `ativa`; os títulos passam a `antecipado` |
+| `GET` | `/api/v1/antecipacoes` | **financeiro** | `200` lista paginada, mais recente primeiro (`?empresa=`, `?fornecedor=`, `?status=ativa\|estornada`, `?de=`, `?ate=`) |
+| `GET` | `/api/v1/antecipacoes/{id}` | **financeiro** | `200` com os títulos |
+| `POST` | `/api/v1/antecipacoes/{id}/estorno` | **financeiro** | `200`; corpo `{ "versao", "motivo" }` |
+| `POST` | `/api/v1/titulos-receber/{id}/recompra` | **financeiro** | `201` `{ "titulo", "recompra" }` |
+
+Corpo do `POST /antecipacoes`:
+
+```json
+{
+  "empresa_id": "…",
+  "fornecedor_id": "…",
+  "numero": "B-77",
+  "operado_em": "2026-10-15",
+  "taxa_bp": 300,
+  "valor_liquido_centavos": 294000,
+  "conta_bancaria_id": "…",
+  "titulo_ids": ["…", "…"]
+}
+```
+
+| Campo | Regra |
+| --- | --- |
+| `empresa_id` | empresa do acesso e ativa; todos os títulos são dela |
+| `fornecedor_id` | o fomento; fornecedor ativo (`400 fomento inativo não recebe antecipação`) |
+| `numero` | opcional, até 30 (número do borderô no fomento) |
+| `operado_em` | `AAAA-MM-DD`, não no futuro |
+| `taxa_bp` | taxa ao mês em pontos-base, informativa, `0..10000` |
+| `valor_liquido_centavos` | creditado na conta; `> 0` e no máximo o bruto |
+| `conta_bancaria_id` | conta ativa da empresa onde o líquido entrou (o M13 concilia por ela e por `operado_em`) |
+| `titulo_ids` | de 1 a 200 títulos `carteira` ou `em_banco`, com saldo, sem origem cancelada, sem repetir |
+
+- `valor_bruto_centavos` é a soma dos saldos dos títulos; `encargos_centavos` = bruto − líquido (o M15
+  os lê como resultado financeiro). Cada título guarda o valor antecipado e o status anterior em
+  `titulos[]`.
+- Cliente com `proibe_antecipacao` (M3) bloqueia o borderô inteiro:
+  `400 cliente não permite antecipação: <nome do cliente>`, conferido também na transação.
+- Título já antecipado em outro borderô → `409`.
+- **Estorno do borderô** (lançamento errado): só se nenhum título foi recebido nem recomprado (`409`);
+  os títulos voltam ao status anterior e a antecipação fica `estornada` com `estorno_motivo` (até
+  500) e `estornado_em`. `versao` divergente → `409 a antecipação foi alterada por outra pessoa; ...`.
+
+### Recompra
+
+Corpo do `POST /titulos-receber/{id}/recompra`:
+
+```json
+{
+  "versao": 2,
+  "recomprado_em": "2026-10-15",
+  "encargos_centavos": 4500,
+  "vencimento": "2026-10-20",
+  "categoria_financeira_id": "…",
+  "motivo": "cliente não pagou"
+}
+```
+
+Só título `antecipado` numa antecipação vigente (`409`). Na mesma transação: o título volta para
+`carteira` (a empresa cobra o cliente de novo), sai do borderô, e o M7 ganha a conta a pagar ao
+fomento com `origem = recompra`, valor = saldo do título + encargos, a `categoria_financeira_id`
+informada (subcategoria ativa de `despesa`, senão `400`), vencimento informado e competência do mês da
+recompra, em `pendente_aprovacao`. A resposta traz `recompra.solicitacao_id`. `motivo` obrigatório
+(até 500); `recomprado_em` não no futuro.
 
 ---
 

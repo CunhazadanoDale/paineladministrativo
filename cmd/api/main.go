@@ -172,8 +172,14 @@ func executar(registrador *slog.Logger) error {
 			empresaRepository, usuarioRepository, cargoRepository,
 		),
 		receberusecases.NewRecebimentoUsecase(
-			postgres.NewTituloReceberRepository(banco), pedidoRepository, postgres.NewContaBancariaRepository(banco),
+			postgres.NewTituloReceberRepository(banco), postgres.NewAntecipacaoRepository(banco), pedidoRepository,
+			postgres.NewContaBancariaRepository(banco), postgres.NewCategoriaFinanceiraRepository(banco),
 			empresaRepository, usuarioRepository, cargoRepository,
+		),
+		receberusecases.NewAntecipacaoUsecase(
+			postgres.NewAntecipacaoRepository(banco), postgres.NewTituloReceberRepository(banco), clienteRepository,
+			postgres.NewFornecedorRepository(banco), postgres.NewContaBancariaRepository(banco),
+			postgres.NewCategoriaFinanceiraRepository(banco), empresaRepository, usuarioRepository, cargoRepository,
 		),
 		autenticacao.NovoTokenService(cfg.JWTSecret, cfg.JWTExpiracao),
 	)

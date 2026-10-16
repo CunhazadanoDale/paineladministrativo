@@ -23,6 +23,7 @@ type cenario struct {
 	titulos  portsin.TituloUseCase
 	entradas portsin.EntradaDoPedidoUseCase
 	baixas   portsin.RecebimentoUseCase
+	borderos portsin.AntecipacaoUseCase
 
 	mia     uuid.UUID
 	red     uuid.UUID
@@ -57,7 +58,11 @@ func novoCenario(t *testing.T) *cenario {
 			repoTitulos{m}, repoPedidos{m}, repoContas{m}, repoEmpresas{m}, repoUsuarios{m}, repoCargos{m},
 		),
 		baixas: receberusecases.NewRecebimentoUsecase(
-			repoTitulos{m}, repoPedidos{m}, repoContas{m}, repoEmpresas{m}, repoUsuarios{m}, repoCargos{m},
+			repoTitulos{m}, repoAntecipacoes{m}, repoPedidos{m}, repoContas{m}, repoCategorias{m}, repoEmpresas{m}, repoUsuarios{m}, repoCargos{m},
+		),
+		borderos: receberusecases.NewAntecipacaoUsecase(
+			repoAntecipacoes{m}, repoTitulos{m}, repoClientes{m}, repoFornecedores{m}, repoContas{m}, repoCategorias{m},
+			repoEmpresas{m}, repoUsuarios{m}, repoCargos{m},
 		),
 	}
 

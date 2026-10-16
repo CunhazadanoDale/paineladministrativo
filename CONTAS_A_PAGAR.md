@@ -259,8 +259,14 @@ Para M6 (devolução), M9 (recompra), M10 (comissão), M12 e M14 (parcela):
   `origem_id` com o id do seu registro; a idempotência é um índice único parcial do módulo, como
   `uq_solicitacao_recorrencia`.
 - A criação passa por uma porta mínima declarada no consumidor, satisfeita por um método novo do
-  `SolicitacaoRepository` que grava solicitação + histórico na mesma transação. A assinatura é
-  fechada com a primeira sessão consumidora (provavelmente o M6), não agora.
+  `SolicitacaoRepository` que grava solicitação + histórico na mesma transação. **Fechada pelo M9**
+  (outubro/2026): `domainsolicitacao.NovaSolicitacaoDeOrigem(DadosSolicitacaoDeOrigem, agora)` monta a
+  solicitação em `pendente_aprovacao`, já classificada, e o histórico `criada`;
+  `SolicitacaoRepository.GerarDeOrigem(ctx, solicitacao, historico) (bool, error)` grava numa
+  transação própria, idempotente por `uq_solicitacao_origem (origem, origem_id) WHERE origem NOT IN
+  ('manual', 'recorrencia')`; quem precisa gravar junto com o próprio registro usa a função interna
+  `gerarSolicitacaoDeOrigem(ctx, tx, ...)` do pacote `postgres`, como o M9. Cada consumidor
+  acrescenta o seu valor em `chk_solicitacao_origem` e em `Origem.Sistemica()`.
 - Solicitação de origem sistêmica nasce com categoria e competência, então pode ser paga sem
   classificação manual.
 - O M13 concilia o extrato com `pagamento` pela `conta_bancaria_id` e pelo `pago_em`, e o estorno

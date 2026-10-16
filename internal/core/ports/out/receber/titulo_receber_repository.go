@@ -33,6 +33,7 @@ type Baixa struct {
 	Recebimento    *domainreceber.Recebimento
 	Historico      *domainreceber.Historico
 	Entrada        *EntradaDoPedido
+	ContaDoRepasse *ContaAPagarGerada
 }
 
 type EstornoDaBaixa struct {

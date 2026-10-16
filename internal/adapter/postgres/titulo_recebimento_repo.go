@@ -31,6 +31,14 @@ type recebimentoLinha struct {
 	EstornadoEm            *time.Time `db:"estornado_em"`
 	EstornoUsuarioID       *uuid.UUID `db:"estorno_usuario_id"`
 	EstornoCriadoEm        *time.Time `db:"estorno_criado_em"`
+	RepasseID              *uuid.UUID `db:"repasse_id"`
+	RepasseAntecipacaoID   *uuid.UUID `db:"repasse_antecipacao_id"`
+	RepasseValorCentavos   *int64     `db:"repasse_valor_centavos"`
+	RepasseVencimento      *time.Time `db:"repasse_vencimento"`
+	RepasseCategoriaID     *uuid.UUID `db:"repasse_categoria_financeira_id"`
+	RepasseSolicitacaoID   *uuid.UUID `db:"repasse_solicitacao_id"`
+	RepasseUsuarioID       *uuid.UUID `db:"repasse_usuario_id"`
+	RepasseCriadoEm        *time.Time `db:"repasse_criado_em"`
 }
 
 func (r *TituloReceberRepository) Receber(ctx context.Context, baixa *portsout.Baixa) error {
@@ -59,6 +67,9 @@ func (r *TituloReceberRepository) Receber(ctx context.Context, baixa *portsout.B
 	if err := inserirHistoricoDoTitulo(ctx, tx, baixa.Historico); err != nil {
 		return err
 	}
+	if err := inserirRepasse(ctx, tx, baixa); err != nil {
+		return err
+	}
 
 	versaoDoPedido := 0
 	if entrada := baixa.Entrada; entrada != nil {
@@ -79,6 +90,9 @@ func (r *TituloReceberRepository) Receber(ctx context.Context, baixa *portsout.B
 	}
 
 	titulo.Versao = versao
+	if baixa.Recebimento.Repasse != nil {
+		baixa.Recebimento.Repasse.SolicitacaoID = baixa.ContaDoRepasse.Solicitacao.ID
+	}
 	if baixa.Entrada != nil {
 		baixa.Entrada.Pedido.Versao = versaoDoPedido
 	}
@@ -100,6 +114,7 @@ func (r *TituloReceberRepository) EstornarRecebimento(ctx context.Context, estor
 	resultado, err := tx.ExecContext(ctx, `
 		UPDATE titulo_recebimento SET estornado = true
 		WHERE id = $1 AND titulo_id = $2 AND NOT estornado AND NOT registrou_entrada_pedido
+		  AND NOT EXISTS (SELECT 1 FROM repasse_fomento WHERE recebimento_id = $1)
 	`, estorno.Recebimento.ID, estorno.Titulo.ID)
 	if err != nil {
 		return tratarErroDeGravacao(err)
@@ -142,9 +157,13 @@ func (r *TituloReceberRepository) ListarRecebimentos(ctx context.Context, titulo
 		SELECT r.id, r.titulo_id, r.tipo, r.conta_bancaria_id, r.recebido_em, r.valor_centavos, r.juros_centavos,
 		       r.desconto_centavos, r.status_titulo_anterior, r.registrou_entrada_pedido, r.estornado, r.usuario_id,
 		       r.criado_em, e.id AS estorno_id, e.motivo AS estorno_motivo, e.estornado_em,
-		       e.usuario_id AS estorno_usuario_id, e.criado_em AS estorno_criado_em
+		       e.usuario_id AS estorno_usuario_id, e.criado_em AS estorno_criado_em,
+		       f.id AS repasse_id, f.antecipacao_id AS repasse_antecipacao_id, f.valor_centavos AS repasse_valor_centavos,
+		       f.vencimento AS repasse_vencimento, f.categoria_financeira_id AS repasse_categoria_financeira_id,
+		       f.solicitacao_id AS repasse_solicitacao_id, f.usuario_id AS repasse_usuario_id, f.criado_em AS repasse_criado_em
 		FROM titulo_recebimento r
 		LEFT JOIN titulo_recebimento_estorno e ON e.recebimento_id = r.id
+		LEFT JOIN repasse_fomento f ON f.recebimento_id = r.id
 		WHERE r.titulo_id = $1
 		ORDER BY r.criado_em ASC, r.id ASC
 	`, tituloID); err != nil {
@@ -178,6 +197,19 @@ func (r *TituloReceberRepository) ListarRecebimentos(ctx context.Context, titulo
 				CriadoEm:      *linha.EstornoCriadoEm,
 			}
 		}
+		if linha.RepasseID != nil {
+			recebimento.Repasse = &domainreceber.Repasse{
+				ID:                    *linha.RepasseID,
+				RecebimentoID:         linha.ID,
+				AntecipacaoID:         *linha.RepasseAntecipacaoID,
+				ValorCentavos:         *linha.RepasseValorCentavos,
+				Vencimento:            domainreceber.DataDe(*linha.RepasseVencimento),
+				CategoriaFinanceiraID: *linha.RepasseCategoriaID,
+				SolicitacaoID:         *linha.RepasseSolicitacaoID,
+				UsuarioID:             *linha.RepasseUsuarioID,
+				CriadoEm:              *linha.RepasseCriadoEm,
+			}
+		}
 		recebimentos = append(recebimentos, recebimento)
 	}
 
@@ -194,6 +226,31 @@ func inserirRecebimento(ctx context.Context, tx *sqlx.Tx, recebimento *domainrec
 		recebimento.ValorCentavos, recebimento.JurosCentavos, recebimento.DescontoCentavos,
 		recebimento.StatusTituloAnterior.String(), recebimento.RegistrouEntradaPedido, recebimento.Estornado,
 		recebimento.UsuarioID, recebimento.CriadoEm); err != nil {
+		return tratarErroDeGravacao(err)
+	}
+
+	return nil
+}
+
+func inserirRepasse(ctx context.Context, tx *sqlx.Tx, baixa *portsout.Baixa) error {
+	repasse := baixa.Recebimento.Repasse
+	if repasse == nil {
+		return nil
+	}
+	if baixa.ContaDoRepasse == nil || baixa.ContaDoRepasse.Solicitacao == nil {
+		return domain.ErroValidacao("repasse ao fomento sem a conta a pagar")
+	}
+
+	if err := gerarContaAPagar(ctx, tx, *baixa.ContaDoRepasse); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO repasse_fomento (
+			id, recebimento_id, antecipacao_id, valor_centavos, vencimento, categoria_financeira_id, solicitacao_id,
+			usuario_id, criado_em
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`, repasse.ID, repasse.RecebimentoID, repasse.AntecipacaoID, repasse.ValorCentavos, repasse.Vencimento,
+		repasse.CategoriaFinanceiraID, baixa.ContaDoRepasse.Solicitacao.ID, repasse.UsuarioID, repasse.CriadoEm); err != nil {
 		return tratarErroDeGravacao(err)
 	}
 

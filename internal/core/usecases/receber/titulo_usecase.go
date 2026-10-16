@@ -265,28 +265,6 @@ func (u *TituloUsecaseImpl) gravar(
 	return titulo, nil
 }
 
-func (u *TituloUsecaseImpl) exigirEmpresaAtiva(ctx context.Context, perfil perfilDoUsuario, empresaID uuid.UUID) error {
-	if empresaID == uuid.Nil {
-		return domainreceber.ErroEmpresaObrigatoria()
-	}
-	if !perfil.acesso.Permite(empresaID) {
-		return erroSemAcessoAEmpresa()
-	}
-
-	empresa, err := u.empresas.Obter(ctx, empresaID)
-	if err != nil {
-		return err
-	}
-	if empresa == nil {
-		return domainreceber.ErroEmpresaNaoEncontrada()
-	}
-	if !empresa.Ativa {
-		return domainreceber.ErroEmpresaInativa()
-	}
-
-	return nil
-}
-
 func (u *TituloUsecaseImpl) exigirClienteAtivo(ctx context.Context, clienteID uuid.UUID) error {
 	if clienteID == uuid.Nil {
 		return domainreceber.ErroClienteObrigatorio()

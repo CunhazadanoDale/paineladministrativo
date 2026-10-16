@@ -33,6 +33,12 @@ func (h *RecebimentoHandler) Receber(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	repasse, err := paraRepasse(requisicao.Repasse)
+	if err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+
 	titulo, recebimento, err := h.usecase.Receber(r.Context(), portsin.ReceberInput{
 		UsuarioID:        usuario.ID,
 		TituloID:         id,
@@ -43,6 +49,7 @@ func (h *RecebimentoHandler) Receber(w http.ResponseWriter, r *http.Request) {
 		ValorCentavos:    requisicao.ValorCentavos,
 		JurosCentavos:    requisicao.JurosCentavos,
 		DescontoCentavos: requisicao.DescontoCentavos,
+		Repasse:          repasse,
 	})
 	if err != nil {
 		resposta.ResponderErro(w, err)
@@ -93,4 +100,17 @@ func (h *RecebimentoHandler) Estornar(w http.ResponseWriter, r *http.Request) {
 		EstornadoEm:   estornadoEm,
 	})
 	escreverItem(w, http.StatusOK, titulo, err, receberdto.NovoTituloResponse)
+}
+
+func paraRepasse(requisicao *receberdto.RepasseRequest) (*portsin.RepasseInput, error) {
+	if requisicao == nil {
+		return nil, nil
+	}
+
+	vencimento, err := receberdto.ParaData(requisicao.Vencimento, "vencimento do repasse")
+	if err != nil {
+		return nil, err
+	}
+
+	return &portsin.RepasseInput{Vencimento: vencimento, CategoriaFinanceiraID: requisicao.CategoriaFinanceiraID}, nil
 }

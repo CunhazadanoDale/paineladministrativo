@@ -92,7 +92,7 @@ func TestReceberTituloAntecipado(t *testing.T) {
 	titulo.Status = domainreceber.StatusAntecipado
 
 	_, _, err := titulo.Receber(dadosDoRecebimento(150000), uuid.New(), agora)
-	esperarErro(t, err, domain.ErrConflito, "repasse ao fomento")
+	esperarErro(t, err, domain.ErrValidacao, "exige o repasse ao fomento")
 
 	liquidado, _, err := titulo.Receber(domainreceber.DadosRecebimento{
 		Tipo: "fomento", RecebidoEm: data(2026, 10, 15), ValorCentavos: 150000,
@@ -162,4 +162,42 @@ func TestEstornarRecebimentoParcialMantemOStatus(t *testing.T) {
 	if titulo.Status != domainreceber.StatusCarteira || titulo.RecebidoCentavos != 0 {
 		t.Fatalf("título = %+v", titulo)
 	}
+}
+
+func TestReceberAntecipadoEmContaPropriaGeraRepasse(t *testing.T) {
+	titulo := novoTituloDeTeste(t)
+	titulo.Status = domainreceber.StatusAntecipado
+	categoria := uuid.New()
+	dados := dadosDoRecebimento(150000)
+	dados.JurosCentavos = 900
+	dados.Repasse = &domainreceber.DadosRepasse{Vencimento: data(2026, 10, 20), CategoriaFinanceiraID: categoria}
+
+	recebimento, historico, err := titulo.Receber(dados, uuid.New(), agora)
+	if err != nil {
+		t.Fatalf("Receber com repasse falhou: %v", err)
+	}
+	repasse := recebimento.Repasse
+	if repasse == nil || repasse.RecebimentoID != recebimento.ID || repasse.ValorCentavos != 150000 || repasse.CategoriaFinanceiraID != categoria {
+		t.Fatalf("repasse = %+v", repasse)
+	}
+	if titulo.Status != domainreceber.StatusRecebido || historico.ParaStatus != domainreceber.StatusRecebido {
+		t.Fatalf("título = %+v", titulo)
+	}
+
+	_, _, err = titulo.EstornarRecebimento(recebimento, "x", data(2026, 10, 15), uuid.New(), agora)
+	esperarErro(t, err, domain.ErrConflito, "gerou repasse ao fomento")
+
+	semCategoria := novoTituloDeTeste(t)
+	semCategoria.Status = domainreceber.StatusAntecipado
+	dados.Repasse = &domainreceber.DadosRepasse{Vencimento: data(2026, 10, 20)}
+	_, _, err = semCategoria.Receber(dados, uuid.New(), agora)
+	esperarErro(t, err, domain.ErrValidacao, "categoria financeira do repasse")
+	if semCategoria.RecebidoCentavos != 0 {
+		t.Fatal("o título não muda quando o repasse é inválido")
+	}
+
+	carteira := novoTituloDeTeste(t)
+	dados.Repasse = &domainreceber.DadosRepasse{Vencimento: data(2026, 10, 20), CategoriaFinanceiraID: categoria}
+	_, _, err = carteira.Receber(dados, uuid.New(), agora)
+	esperarErro(t, err, domain.ErrValidacao, "só vale para título antecipado")
 }

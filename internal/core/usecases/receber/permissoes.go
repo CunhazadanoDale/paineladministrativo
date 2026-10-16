@@ -101,6 +101,28 @@ func (p *permissoes) tituloParaAlterar(ctx context.Context, usuarioID, tituloID 
 	return titulo, nil
 }
 
+func (p *permissoes) exigirEmpresaAtiva(ctx context.Context, perfil perfilDoUsuario, empresaID uuid.UUID) error {
+	if empresaID == uuid.Nil {
+		return domainreceber.ErroEmpresaObrigatoria()
+	}
+	if !perfil.acesso.Permite(empresaID) {
+		return erroSemAcessoAEmpresa()
+	}
+
+	empresa, err := p.empresas.Obter(ctx, empresaID)
+	if err != nil {
+		return err
+	}
+	if empresa == nil {
+		return domainreceber.ErroEmpresaNaoEncontrada()
+	}
+	if !empresa.Ativa {
+		return domainreceber.ErroEmpresaInativa()
+	}
+
+	return nil
+}
+
 func erroSemAcessoAEmpresa() error {
 	return domain.ErroPermissao("perfil sem acesso a esta empresa")
 }

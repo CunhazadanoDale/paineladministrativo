@@ -8,6 +8,7 @@ import (
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	domainpedido "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/pedido"
 	domainreceber "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/receber"
+	domainsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/solicitacao"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/receber"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/receber"
 	"github.com/google/uuid"
@@ -16,22 +17,28 @@ import (
 var _ portsin.RecebimentoUseCase = (*RecebimentoUsecaseImpl)(nil)
 
 type RecebimentoUsecaseImpl struct {
-	pedidos portsout.PedidoRepository
+	pedidos      portsout.PedidoRepository
+	antecipacoes portsout.AntecipacaoRepository
 	cobranca
+	classificacaoDaContaAPagar
 	permissoes
 }
 
 func NewRecebimentoUsecase(
 	titulos portsout.TituloReceberRepository,
+	antecipacoes portsout.AntecipacaoRepository,
 	pedidos portsout.PedidoRepository,
 	contas portsout.ContaBancariaRepository,
+	categorias portsout.CategoriaFinanceiraRepository,
 	empresas portsout.EmpresaRepository,
 	usuarios portsout.UsuarioRepository,
 	cargos portsout.CargoRepository,
 ) *RecebimentoUsecaseImpl {
 	return &RecebimentoUsecaseImpl{
-		pedidos:  pedidos,
-		cobranca: cobranca{contas: contas},
+		pedidos:                    pedidos,
+		antecipacoes:               antecipacoes,
+		cobranca:                   cobranca{contas: contas},
+		classificacaoDaContaAPagar: classificacaoDaContaAPagar{categorias: categorias},
 		permissoes: permissoes{
 			usuarios: usuarios,
 			cargos:   cargos,
@@ -52,14 +59,18 @@ func (u *RecebimentoUsecaseImpl) Receber(ctx context.Context, input portsin.Rece
 
 	versaoLida, anterior := titulo.Versao, titulo.Status
 	agora := time.Now().UTC()
-	recebimento, historico, err := titulo.Receber(domainreceber.DadosRecebimento{
+	dados := domainreceber.DadosRecebimento{
 		Tipo:             input.Tipo,
 		ContaBancariaID:  input.ContaBancariaID,
 		RecebidoEm:       input.RecebidoEm,
 		ValorCentavos:    input.ValorCentavos,
 		JurosCentavos:    input.JurosCentavos,
 		DescontoCentavos: input.DescontoCentavos,
-	}, input.UsuarioID, agora)
+	}
+	if input.Repasse != nil {
+		dados.Repasse = &domainreceber.DadosRepasse{Vencimento: input.Repasse.Vencimento, CategoriaFinanceiraID: input.Repasse.CategoriaFinanceiraID}
+	}
+	recebimento, historico, err := titulo.Receber(dados, input.UsuarioID, agora)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -67,6 +78,11 @@ func (u *RecebimentoUsecaseImpl) Receber(ctx context.Context, input portsin.Rece
 		if err := u.exigirContaDeCobranca(ctx, *recebimento.ContaBancariaID, titulo.EmpresaID); err != nil {
 			return nil, nil, err
 		}
+	}
+
+	contaDoRepasse, err := u.contaDoRepasse(ctx, titulo, recebimento, input.UsuarioID, agora)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	entrada, nota, err := u.entradaDoPedido(ctx, titulo, recebimento, input.UsuarioID, agora)
@@ -84,6 +100,7 @@ func (u *RecebimentoUsecaseImpl) Receber(ctx context.Context, input portsin.Rece
 		Recebimento:    recebimento,
 		Historico:      historico,
 		Entrada:        entrada,
+		ContaDoRepasse: contaDoRepasse,
 	}); err != nil {
 		return nil, nil, err
 	}
@@ -201,4 +218,48 @@ func (u *RecebimentoUsecaseImpl) valorRecebido(ctx context.Context, tituloID uui
 	}
 
 	return total, nil
+}
+
+func (u *RecebimentoUsecaseImpl) contaDoRepasse(
+	ctx context.Context,
+	titulo *domainreceber.Titulo,
+	recebimento *domainreceber.Recebimento,
+	usuarioID uuid.UUID,
+	agora time.Time,
+) (*portsout.ContaAPagarGerada, error) {
+	repasse := recebimento.Repasse
+	if repasse == nil {
+		return nil, nil
+	}
+
+	antecipacao, err := u.antecipacoes.ObterVigenteDoTitulo(ctx, titulo.ID)
+	if err != nil {
+		return nil, err
+	}
+	if antecipacao == nil {
+		return nil, domain.ErroConflito("o título não está numa antecipação vigente")
+	}
+	if err := u.exigirCategoriaDeDespesa(ctx, repasse.CategoriaFinanceiraID); err != nil {
+		return nil, err
+	}
+	repasse.AntecipacaoID = antecipacao.ID
+
+	competencia := domainsolicitacao.CompetenciaDe(recebimento.RecebidoEm)
+	solicitacao, historico, err := domainsolicitacao.NovaSolicitacaoDeOrigem(domainsolicitacao.DadosSolicitacaoDeOrigem{
+		EmpresaID:             titulo.EmpresaID,
+		SolicitanteID:         usuarioID,
+		FornecedorID:          &antecipacao.FornecedorID,
+		CategoriaFinanceiraID: repasse.CategoriaFinanceiraID,
+		Origem:                domainsolicitacao.OrigemRepasseFomento,
+		OrigemID:              repasse.ID,
+		ValorCentavos:         repasse.ValorCentavos,
+		Vencimento:            repasse.Vencimento,
+		Competencia:           &competencia,
+		Observacao:            repasse.Observacao(titulo),
+	}, agora)
+	if err != nil {
+		return nil, err
+	}
+
+	return &portsout.ContaAPagarGerada{Solicitacao: solicitacao, Historico: historico}, nil
 }

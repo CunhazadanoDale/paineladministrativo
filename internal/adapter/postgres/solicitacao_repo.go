@@ -644,3 +644,59 @@ func unirCondicoes(condicoes []string) string {
 func limiteOffset(argumentos []any) string {
 	return " LIMIT $" + strconv.Itoa(len(argumentos)-1) + " OFFSET $" + strconv.Itoa(len(argumentos))
 }
+
+func (s *SolicitacaoRepository) GerarDeOrigem(ctx context.Context, solicitacao *domainsolicitacao.Solicitacao, historico *domainsolicitacao.Historico) (bool, error) {
+	tx, err := s.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return false, tratarErroDeGravacao(err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	criada, err := gerarSolicitacaoDeOrigem(ctx, tx, solicitacao, historico)
+	if err != nil {
+		return false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return false, tratarErroDeGravacao(err)
+	}
+
+	return criada, nil
+}
+
+func gerarSolicitacaoDeOrigem(ctx context.Context, tx *sqlx.Tx, solicitacao *domainsolicitacao.Solicitacao, historico *domainsolicitacao.Historico) (bool, error) {
+	if !solicitacao.Origem.Sistemica() || solicitacao.OrigemID == nil || solicitacao.CategoriaFinanceiraID == nil {
+		return false, domain.ErroValidacao("solicitação gerada precisa da origem e da categoria financeira")
+	}
+
+	if err := exigirEmpresaAtivaParaSolicitacao(ctx, tx, solicitacao.EmpresaID); err != nil {
+		return false, err
+	}
+	if err := exigirClassificacaoGravavel(ctx, tx, solicitacao); err != nil {
+		return false, err
+	}
+
+	resultado, err := tx.NamedExecContext(ctx, `
+		INSERT INTO solicitacao (`+colunasSolicitacao+`) VALUES (
+			:id, :solicitante_id, :empresa_id, :aprovador_id, :valor_estimado, :prazo_pagamento, :observacao,
+			:forma_pagamento, :fornecedor_id, :categoria_financeira_id, :competencia, :estimado, :origem, :origem_id,
+			:status, :rejeitacao_motivo, :aprovado_em, :rejeitado_em, :cancelado_em, :versao, :criado_em, :atualizado_em
+		)
+		ON CONFLICT (origem, origem_id) WHERE origem NOT IN ('manual', 'recorrencia') DO NOTHING
+	`, paraLinha(solicitacao))
+	if err != nil {
+		return false, tratarErroDeGravacao(err)
+	}
+	linhas, err := resultado.RowsAffected()
+	if err != nil {
+		return false, tratarErroDeGravacao(err)
+	}
+	if linhas == 0 {
+		return false, nil
+	}
+
+	if err := inserirHistorico(ctx, tx, historico); err != nil {
+		return false, tratarErroDeGravacao(err)
+	}
+
+	return true, nil
+}
