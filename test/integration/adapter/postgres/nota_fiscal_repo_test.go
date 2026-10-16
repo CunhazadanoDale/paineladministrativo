@@ -16,7 +16,17 @@ import (
 	"github.com/google/uuid"
 )
 
-var _ portsnotafiscal.ProdutoRepository = (*postgres.ProdutoRepository)(nil)
+var (
+	_ portsnotafiscal.ProdutoRepository       = (*postgres.ProdutoRepository)(nil)
+	_ portsnotafiscal.EmpresaRepository       = (*postgres.EmpresaRepository)(nil)
+	_ portsnotafiscal.ClienteRepository       = (*postgres.ClienteRepository)(nil)
+	_ portsnotafiscal.RepresentanteRepository = (*postgres.RepresentanteRepository)(nil)
+	_ portsnotafiscal.PedidoRepository        = (*postgres.PedidoRepository)(nil)
+	_ portsnotafiscal.EntregaRepository       = (*postgres.EntregaRepository)(nil)
+	_ portsnotafiscal.ArquivoRepository       = (*postgres.ArquivoRepository)(nil)
+	_ portsnotafiscal.UsuarioRepository       = (*postgres.UsuarioRepository)(nil)
+	_ portsnotafiscal.CargoRepository         = (*postgres.CargoRepository)(nil)
+)
 
 type cenarioBancoNotas struct {
 	*cenarioBancoPedidos
