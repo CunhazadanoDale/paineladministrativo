@@ -51,6 +51,21 @@ func TestEnviarArquivoValidoGuardaNoStorage(t *testing.T) {
 	}
 }
 
+func TestEnviarArquivoAceitaXMLDaNotaFiscal(t *testing.T) {
+	c := novoCenario(t)
+	dono := c.novoUsuario("Ana", false, false)
+
+	for _, tipo := range []string{"application/xml", "text/xml; charset=utf-8"} {
+		arquivo, err := c.arquivo.Enviar(c.ctx, dono, "nfe.xml", tipo, 7, strings.NewReader("<NFe/>"))
+		if err != nil {
+			t.Fatalf("tipo %q = %v", tipo, err)
+		}
+		if arquivo.ContentType != "application/xml" {
+			t.Errorf("tipo %q gravado como %q, esperado application/xml", tipo, arquivo.ContentType)
+		}
+	}
+}
+
 func TestEnviarArquivoRejeitaTiposNaoPermitidos(t *testing.T) {
 	c := novoCenario(t)
 	dono := c.novoUsuario("Ana", false, false)
