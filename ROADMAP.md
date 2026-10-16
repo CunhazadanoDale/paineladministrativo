@@ -145,7 +145,7 @@ o **F0b** pode correr junto com essas telas.
 | F-M1 | Front de empresas e filiais | M1 F0a | — | concluído |
 | F-M4 | Front de fornecedores | M4 F0a | — | concluído |
 | F-M5 | Front de contas bancárias e plano de contas | M5 F0a | — | concluído |
-| F-M2 | Front de estoque por local, lote e reserva | M2 F0a | — | em andamento (feat/front-m2-estoque) |
+| F-M2 | Front de estoque por local, lote e reserva | M2 F0a | — | concluído |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
 | M3 | Clientes e representantes | M1 | Base de clientes | concluído |
@@ -419,6 +419,36 @@ próximos fronts:
   ProdutoDetalhe, SolicitacaoFormModal, Usuarios), e o bundle passou de 500 kB (aviso do Vite, sem
   falhar o build): candidatos a code-splitting das rotas numa sessão própria.
 
+**Entregue o front do M2 (outubro/2026, branch `feat/front-m2-estoque` do front, empilhada sobre a
+`feat/front-m5-financeiro`):** para os próximos fronts (M3, M6, M8, M12):
+
+- `services/locais.js` ganhou criação, renomear (só `{ nome }`: local não tem `versao`), ativar,
+  desativar, exclusão e `listarSaldosDoLocal` (`?com_saldo=true`); `services/produtos.js` ganhou
+  `local` em `listarMovimentos`, `listarLotes`, `transferir`, `reservar`, `listarReservas` e
+  `liberarReserva` (`POST /reservas/{id}/liberar`); todas as leituras aceitam `{ sinal }`;
+- `useNomesLocais` (`app/estoque`) traduz `local_id` em nome, inclusive de local inativo, no padrão do
+  `useNomesEmpresas`; o `SeletorLocal` do F0a aceita `empresaId` para limitar o destino à empresa;
+- tela `/locais-estoque` (`modules/locais`) aberta a qualquer autenticado, com entrada na Sidebar em
+  Site & Catálogo: lista com filtros de empresa e situação; só o administrador cria (empresa ativa do
+  acesso), renomeia (empresa travada), ativa, desativa (o `400` de local com saldo aparece com
+  "Fechar") e exclui; "Ver saldos" abre os produtos do local com saldo, reservado e disponível;
+- detalhe do produto: painel de saldo por local (`useSaldoProduto`, isolado: a falha não derruba o
+  detalhe) com reservado, disponível e não alocado do grupo; movimentos com local, "origem → destino"
+  na transferência, "Anterior aos locais" nos antigos, saldo no local e filtro por local;
+  `useProdutoDetalhe` expõe `geracao`, que os painéis usam para recarregar depois de cada operação;
+- transferência (`TransferenciaModal`, administrador): origem entre os locais com disponível, destino
+  só entre os ativos da mesma empresa; o `409` de estoque recarrega o saldo sem perder o formulário;
+- reservas (`ReservasProduto`): filtro de status (ativas por padrão); o administrador cria (limitada
+  ao disponível do local), libera e baixa a reserva manual — a baixa é `POST /movimentos` com `tipo:
+  "saida"`, o mesmo local e quantidade e o `reserva_id`. Reserva de `pedido_item` aparece "Pelo pedido",
+  sem ações: **o front do M6 cria e baixa as reservas pelo pedido**;
+- lotes (`LotesProduto`) só para administrador ou financeiro: custo unitário ("Desconhecido" no
+  `null`), quantidades, valor em estoque e origem por transferência;
+- `useLocais`, `useSaldosDoLocal`, `useSaldoProduto`, `useReservasProduto` e `useLotesProduto` com
+  `AbortController`, em `modules/cancelamento.test.jsx`;
+- as falhas intermitentes de tempo da suíte completa ficaram mais frequentes com o volume de testes
+  (passam sozinhas); vale uma sessão para o `asyncUtilTimeout` ou para o pool do vitest.
+
 ### M1 — Empresas e filiais
 
 Fundação: tudo o que é financeiro, fiscal ou de estoque passa a pertencer a uma empresa.
@@ -455,8 +485,8 @@ em `ESTOQUE_LOCAIS.md`; este resumo só aponta o que os outros módulos precisam
 - **Migração de dados**: todo saldo atual vai para um local padrão por empresa, com um
   lote de custo desconhecido marcado como tal.
 
-**Entregue (outubro/2026):** API completa (fases 1 a 5 do `ESTOQUE_LOCAIS.md`); front pendente,
-depois do F0a. Para os próximos módulos:
+**Entregue (outubro/2026):** API completa (fases 1 a 5 do `ESTOQUE_LOCAIS.md`); front no F-M2.
+Para os próximos módulos:
 
 - o saldo antigo **não** foi para um local padrão: virou "não alocado" e o administrador o
   distribui com movimentos `implantacao` (decisão do usuário, independe das empresas
