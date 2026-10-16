@@ -130,7 +130,8 @@ Append-only, como `solicitacao_historico`.
 - Raiz `nfeProc` com `NFe/infNFe` e `protNFe/infProt`; `NFe` sem protocolo → `400 XML sem
   protocolo de autorização`. Parser `encoding/xml` da biblioteca padrão (não resolve entidades
   externas); limite de 10 MB do fluxo de arquivos.
-- Modelo `55` (NFC-e `65` → `400`); `infProt/cStat` `100` ou `150` (autorizada), senão `400`.
+- Modelo `55` (NFC-e `65` → `400`); `infProt/cStat` `100` ou `150` (autorizada), senão `400`;
+  ambiente de produção (`tpAmb = 1`) na nota, no protocolo e no evento: homologação → `400`.
 - Chave: 44 caracteres, `Id` do `infNFe` = `NFe` + chave = `infProt/chNFe`; dígito verificador
   módulo 11; campos embutidos coerentes com o XML (UF, ano e mês da emissão, CNPJ do emitente,
   modelo, série, número). O CNPJ da chave aceita o formato **alfanumérico** (como em `empresa`):
@@ -185,7 +186,8 @@ ficam manuais nesta versão.
 ### 3.5 Eventos
 
 - XML de evento (`procEventoNFe`) importado pelo mesmo fluxo: `POST /notas-fiscais/eventos` com
-  `arquivo_id`. A nota é achada pela `chNFe`; `cStat` `135`/`136` exigido.
+  `arquivo_id`. A nota é achada pela `chNFe`; `cStat` `135`, `136` ou `155` exigido; o autor do
+  evento precisa ser o CNPJ emitente da chave.
 - Cancelamento: nota `autorizada` → `cancelada` com guarda de status e versão; libera o vínculo
   da entrega (o índice parcial deixa outra NF ser ligada). Nas fases 1 a 5 não há título a
   tratar; a fase 6 aplica o efeito no M9.
@@ -239,9 +241,10 @@ migrations/000047_create_tabela_nota_fiscal          nota_fiscal, nota_fiscal_it
 migrations/000048_create_tabela_nota_fiscal_evento
 
 internal/core/domain/notafiscal/      chave.go, decimal.go (centavos e quantidade sem float),
-                                      natureza.go, finalidade.go, status.go, nota_fiscal.go, item.go,
-                                      duplicata.go, evento.go, xml.go (leitura do nfeProc e do
-                                      procEventoNFe para o documento de domínio)
+                                      natureza.go, finalidade.go (+ tipo de operação), status.go
+                                      (+ tipo de evento), documento.go (o que o XML diz),
+                                      xml.go (leitura do nfeProc e do procEventoNFe), nota_fiscal.go
+                                      (nota, item, duplicata, vínculos), evento.go
 internal/core/ports/out/notafiscal/   nota_fiscal_repository.go, arquivo_repository.go, storage.go,
                                       empresa_repository.go (Obter, ObterPorCNPJ, AcessoDoUsuario),
                                       cliente_repository.go (ObterPorDocumento, Criar),
@@ -256,7 +259,8 @@ internal/adapter/postgres/            nota_fiscal_repo.go; ObterPorCodigo no fim
 internal/core/usecases/solicitacao/   arquivo_usecase.go aceita XML
 internal/adapter/http/dto/notafiscal/ + handlers/notafiscal/
 cmd/api/main.go + internal/adapter/http/rotas.go   (registro, só acréscimos)
-test/fixtures/nfe/                    XMLs de exemplo (sem dados reais) para domínio, integração e e2e
+XMLs de teste gerados em código (chave com dígito calculado, sem dados reais): construtor_test.go
+  no domínio e um equivalente em test/helpers para integração e e2e
 ```
 
 Numeração de migration definida no merge (regra 4 da seção 3 do `ROADMAP.md`): a `main` está em
@@ -268,7 +272,7 @@ Numeração de migration definida no merge (regra 4 da seção 3 do `ROADMAP.md`
 
 | Fase | Entrega | Estado |
 |---|---|---|
-| **1** | Migrations + domínio (chave, decimal, natureza, nota, item, duplicata, evento, leitura do XML) + fixtures + testes | pendente |
+| **1** | Migrations 000047–000048 + domínio (chave, decimal, natureza, nota, item, duplicata, evento, leitura do XML) + testes | concluída |
 | **2** | Repositório (gravação da nota com itens e duplicatas numa transação, eventos com guarda de status e versão, vínculo, listagens; `ObterPorCodigo` e `EntregasSemNotaFiscal`) + testes de integração | pendente |
 | **3** | Usecases de importação, vínculo e eventos + XML no fluxo de arquivos + permissões (escopo por empresa, representante) + testes com fakes e de isolamento | pendente |
 | **4** | Handlers/DTOs + rotas + e2e + `API.md` | pendente |
