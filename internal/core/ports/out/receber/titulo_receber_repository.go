@@ -1,0 +1,42 @@
+package receber
+
+import (
+	"context"
+	"time"
+
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
+	domainreceber "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/receber"
+	"github.com/google/uuid"
+)
+
+type Alteracao struct {
+	Titulo            *domainreceber.Titulo
+	VersaoLida        int
+	StatusAnterior    domainreceber.Status
+	Historico         *domainreceber.Historico
+	ConferirCategoria bool
+	ConferirConta     bool
+}
+
+type TituloFiltro struct {
+	domain.PaginacaoFiltro
+	Empresa         *uuid.UUID
+	EmpresaIDs      []uuid.UUID
+	ClienteID       *uuid.UUID
+	Status          domainreceber.Status
+	Origem          domainreceber.Origem
+	OrigemID        *uuid.UUID
+	ContaBancariaID *uuid.UUID
+	VencimentoDe    *time.Time
+	VencimentoAte   *time.Time
+	VencidosEm      *time.Time
+	OrigemCancelada bool
+}
+
+type TituloReceberRepository interface {
+	Criar(ctx context.Context, titulo *domainreceber.Titulo, historico *domainreceber.Historico) error
+	Atualizar(ctx context.Context, alteracao *Alteracao) error
+	Obter(ctx context.Context, id uuid.UUID) (*domainreceber.Titulo, error)
+	Listar(ctx context.Context, filtro TituloFiltro) ([]*domainreceber.Titulo, error)
+	ListarHistorico(ctx context.Context, tituloID uuid.UUID) ([]*domainreceber.Historico, error)
+}

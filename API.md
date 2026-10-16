@@ -2253,6 +2253,117 @@ de ser lançável, recorrência desativada no meio da geração), sem impedir as
 
 ---
 
+## Contas a receber — títulos (financeiro)
+
+Título a receber de cada **empresa**, com escopo por empresa (padrão da seção 4 do `EMPRESAS.md`).
+Só **financeiro** e administrador leem e escrevem (`403 perfil sem permissão para contas a receber`
+no usecase; o middleware das rotas `financeiro` responde antes para os demais perfis). O título nasce
+`manual` por esta API ou é gerado por outro módulo (`origem` `pedido` e `nota_fiscal_duplicata`,
+fases seguintes do M9 e do M8).
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/titulos-receber` | **financeiro** | `201` título manual em `carteira` (ou `em_banco` com `conta_bancaria_id`) |
+| `GET` | `/api/v1/titulos-receber` | **financeiro** | `200` lista paginada por vencimento (`?empresa=`, `?cliente=`, `?status=`, `?origem=`, `?origem_id=`, `?conta=`, `?vencimento_de=`, `?vencimento_ate=`, `?vencidos=true`, `?origem_cancelada=true`) |
+| `GET` | `/api/v1/titulos-receber/{id}` | **financeiro** | `200` |
+| `GET` | `/api/v1/titulos-receber/{id}/historico` | **financeiro** | `200` lista (`{ "dados": [...] }`), mais antigo primeiro |
+| `PUT` | `/api/v1/titulos-receber/{id}` | **financeiro** | `200`; só título `manual` em `carteira` sem recebimento; corpo do `POST` sem `empresa_id`, `cliente_id` e `conta_bancaria_id`, com `versao` |
+| `POST` | `/api/v1/titulos-receber/{id}/prorrogar` | **financeiro** | `200`; corpo `{ "versao", "vencimento", "motivo" }`; `carteira` ou `em_banco` |
+| `POST` | `/api/v1/titulos-receber/{id}/enviar-banco` | **financeiro** | `200`; corpo `{ "versao", "conta_bancaria_id" }`; `carteira` → `em_banco` |
+| `POST` | `/api/v1/titulos-receber/{id}/retirar-banco` | **financeiro** | `200`; corpo `{ "versao": n }`; `em_banco` → `carteira`, limpa a conta de cobrança |
+| `POST` | `/api/v1/titulos-receber/{id}/boleto-enviado` | **financeiro** | `200`; corpo `{ "versao", "canal", "enviado_em" }`; só `em_banco`; não troca o status |
+| `POST` | `/api/v1/titulos-receber/{id}/cancelar` | **financeiro** | `200`; corpo `{ "versao", "motivo" }`; `carteira` ou `em_banco` sem recebimento |
+
+Corpo do `POST /titulos-receber`:
+
+```json
+{
+  "empresa_id": "…",
+  "cliente_id": "…",
+  "numero": "ALG-10",
+  "parcela": 1,
+  "vencimento": "2026-11-10",
+  "valor_centavos": 150000,
+  "categoria_financeira_id": "…",
+  "competencia": "2026-11",
+  "conta_bancaria_id": "…",
+  "observacao": "aluguel do galpão"
+}
+```
+
+| Campo | Regra |
+| --- | --- |
+| `empresa_id` | obrigatório; empresa do acesso (`403 perfil sem acesso a esta empresa`) e ativa (`400 empresa inativa não recebe título`); não muda |
+| `cliente_id` | obrigatório; cliente ativo (`400 cliente inativo não recebe título novo`); não muda |
+| `numero` / `parcela` | número obrigatório até 30; parcela de 1 a 999; repetidos na empresa e na origem (sem diferenciar maiúsculas, fora os cancelados) → `409 já existe um título com este número e parcela na empresa` |
+| `vencimento` | `AAAA-MM-DD`, não anterior a hoje (Brasília); editar sem mudar o vencimento é aceito mesmo vencido |
+| `valor_centavos` | `> 0` |
+| `categoria_financeira_id` | obrigatória no título manual; subcategoria ativa (`400 categoria financeira deve ser uma subcategoria ativa`) de natureza `receita` (`400 categoria financeira do título deve ser de receita`) |
+| `competencia` | `AAAA-MM`, opcional; omitida = mês do vencimento (DRE do título manual no M15) |
+| `conta_bancaria_id` | opcional; conta de cobrança ativa e da mesma empresa (`400 conta bancária deve ser da mesma empresa do título`); com ela o título nasce `em_banco` |
+| `observacao` | opcional, até 1000 |
+
+Resposta:
+
+```json
+{
+  "dados": {
+    "id": "…",
+    "empresa_id": "…",
+    "cliente_id": "…",
+    "origem": "manual",
+    "origem_id": null,
+    "numero": "ALG-10",
+    "parcela": 1,
+    "vencimento": "2026-11-10",
+    "valor_centavos": 150000,
+    "recebido_centavos": 0,
+    "saldo_centavos": 150000,
+    "vencido": false,
+    "categoria_financeira_id": "…",
+    "competencia": "2026-11",
+    "conta_bancaria_id": null,
+    "status": "carteira",
+    "boleto_enviado_em": null,
+    "boleto_canal": null,
+    "origem_cancelada_em": null,
+    "cancelado_motivo": null,
+    "observacao": "aluguel do galpão",
+    "usuario_id": "…",
+    "versao": 1,
+    "criado_em": "…",
+    "atualizado_em": "…"
+  }
+}
+```
+
+- `status`: `carteira`, `em_banco`, `antecipado`, `recebido`, `cancelado`. **`vencido` é derivado**
+  (`vencimento < hoje`, saldo maior que zero e status `carteira`, `em_banco` ou `antecipado`), nunca
+  gravado: `?status=vencido` → `400`; use `?vencidos=true`.
+- `vencimento` sai como `AAAA-MM-DD` e `competencia` como `AAAA-MM`; `boleto_enviado_em` é um
+  instante (RFC 3339).
+- `PUT` com os mesmos dados devolve o título sem avançar a versão nem gravar histórico.
+- Prorrogar: novo vencimento posterior ao atual e não anterior a hoje (`400`); `motivo` obrigatório
+  até 500; a competência não muda.
+- Boleto: `canal` em `email`, `whatsapp`, `portal`, `correio`, `outro`; `enviado_em` em RFC 3339
+  (`2026-10-15T09:30:00-03:00`), obrigatório e não no futuro. Registra o último envio.
+- Título com a origem cancelada (`origem_cancelada_em` preenchido) não volta ao banco (`409`).
+- Histórico (`evento`): `criado`, `gerado`, `editado`, `prorrogado`, `enviado_banco`,
+  `retirado_banco`, `boleto_enviado`, `antecipado`, `antecipacao_estornada`, `recomprado`,
+  `recebido`, `recebimento_estornado`, `cancelado`, `origem_cancelada`; cada item traz `de_status`,
+  `para_status` e `descricao`.
+
+| Situação | Status | Mensagem |
+| --- | --- | --- |
+| `versao` ausente | `400` | `erro de validação: versão do título é obrigatória` |
+| `versao` divergente | `409` | `o título foi alterado por outra pessoa; recarregue e tente de novo` |
+| Editar título gerado / fora de `carteira` / com recebimento | `409` | `só o título manual pode ser editado; ...` / `só o título em carteira pode ser editado` / `título com recebimento não pode ser editado` |
+| Transição fora do estado | `409` | `não é possível mudar o título de "<atual>" para "<novo>"` |
+| Boleto fora do banco | `409` | `só o título em banco tem boleto para enviar` |
+| Cancelar com recebimento | `409` | `título com recebimento não pode ser cancelado; estorne o recebimento antes` |
+
+---
+
 ## Exemplos
 
 ### PowerShell

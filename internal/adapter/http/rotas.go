@@ -11,6 +11,7 @@ import (
 	fornecedorhandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/fornecedor"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/lead"
 	pedidohandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/pedido"
+	receberhandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/receber"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/saude"
 	solicitacaohandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/solicitacao"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/usuarios"
@@ -23,6 +24,7 @@ import (
 	portsinfornecedor "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/fornecedor"
 	portsinlead "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/leads"
 	portsinpedido "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/pedido"
+	portsinreceber "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/receber"
 	portsinsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/solicitacao"
 	portsinusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/usuarios"
 	"github.com/jmoiron/sqlx"
@@ -64,6 +66,7 @@ func NewRouter(
 	pedidoUseCase portsinpedido.PedidoUseCase,
 	entregaUseCase portsinpedido.EntregaUseCase,
 	consultaPedidosUseCase portsinpedido.ConsultaUseCase,
+	tituloUseCase portsinreceber.TituloUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, middleware.ErrosDeRoteamento(novasRotas(
@@ -83,6 +86,7 @@ func NewRouter(
 		despesaRecorrenteUseCase,
 		resumoContasAPagarUseCase,
 		pedidoUseCase, entregaUseCase, consultaPedidosUseCase,
+		tituloUseCase,
 		tokens,
 	)))
 }
@@ -120,6 +124,7 @@ func novasRotas(
 	pedidoUseCase portsinpedido.PedidoUseCase,
 	entregaUseCase portsinpedido.EntregaUseCase,
 	consultaPedidosUseCase portsinpedido.ConsultaUseCase,
+	tituloUseCase portsinreceber.TituloUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -397,6 +402,18 @@ func novasRotas(
 	protegido("GET /api/v1/pedidos/pendencias", consultaPedidosHandler.Pendencias)
 	protegido("GET /api/v1/pedidos/prazos", consultaPedidosHandler.Prazos)
 	protegido("GET /api/v1/pedidos/cancelamentos", consultaPedidosHandler.Cancelamentos)
+
+	tituloHandler := receberhandlers.NewTituloHandler(tituloUseCase)
+	financeiro("POST /api/v1/titulos-receber", tituloHandler.Criar)
+	financeiro("GET /api/v1/titulos-receber", tituloHandler.Listar)
+	financeiro("GET /api/v1/titulos-receber/{id}", tituloHandler.Obter)
+	financeiro("GET /api/v1/titulos-receber/{id}/historico", tituloHandler.ListarHistorico)
+	financeiro("PUT /api/v1/titulos-receber/{id}", tituloHandler.Editar)
+	financeiro("POST /api/v1/titulos-receber/{id}/prorrogar", tituloHandler.Prorrogar)
+	financeiro("POST /api/v1/titulos-receber/{id}/enviar-banco", tituloHandler.EnviarAoBanco)
+	financeiro("POST /api/v1/titulos-receber/{id}/retirar-banco", tituloHandler.RetirarDoBanco)
+	financeiro("POST /api/v1/titulos-receber/{id}/boleto-enviado", tituloHandler.RegistrarEnvioBoleto)
+	financeiro("POST /api/v1/titulos-receber/{id}/cancelar", tituloHandler.Cancelar)
 
 	return mux
 }

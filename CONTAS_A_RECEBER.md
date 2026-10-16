@@ -1,6 +1,6 @@
 # Escopo — M9 Contas a receber e antecipação
 
-> **Status:** escopo fechado — decisões D1 a D6 respondidas pelo usuário (outubro/2026); fases pendentes.
+> **Status:** escopo fechado — decisões D1 a D6 respondidas pelo usuário (outubro/2026); fase 1 concluída.
 > **Objetivo:** tirar "A receber no banco" e os títulos do "Controle de NFs" das planilhas: título a
 > receber por empresa e cliente, com cobrança em banco, envio de boleto, baixa total ou parcial,
 > antecipação em borderô com fomento, recompra e repasse de pagamento feito na conta errada. Base
@@ -26,7 +26,7 @@
 | Recompra e repasse | Geram conta a pagar no M7 (`origem` `recompra` e `repasse_fomento`) na **mesma transação** da escrita do M9 (seção 6.3) |
 | Entrada do pedido | A baixa total do título de entrada registra a entrada paga do pedido (M6) na mesma transação, por porta mínima do M9 (seção 6.2) |
 | Escopo por empresa | Padrão da seção 4 do `EMPRESAS.md` em todo título, borderô e consulta |
-| Permissões | **Financeiro e administrador** leem e escrevem (D5); só o administrador exclui título manual sem movimento |
+| Permissões | **Financeiro e administrador** leem e escrevem (D5); título não é excluído, só cancelado (histórico append-only) |
 | Concorrência | `versao` no título e no borderô (contrato do M4); transições com guarda de status e versão |
 | "Hoje" | Dia no fuso de Brasília (`domainpedido.Hoje`), como o M6 |
 | Dinheiro | Centavos `BIGINT`; taxa do borderô em pontos-base (`INT`) |
@@ -45,7 +45,7 @@
 | `origem` | VARCHAR(30) | `manual`, `pedido`, `nota_fiscal_duplicata` (`chk_titulo_receber_origem`); não muda |
 | `origem_id` | UUID NULL | **sem FK**; `chk_titulo_receber_origem_id`: nulo só em `manual`; não muda |
 | `numero` | VARCHAR(30) | número do documento (`1234` da NF, `PED-57` do pedido, livre no manual); obrigatório |
-| `parcela` | SMALLINT | `>= 1`; `uq_titulo_receber_numero (empresa_id, numero, parcela) WHERE status <> 'cancelado'` |
+| `parcela` | SMALLINT | `1..999`; `uq_titulo_receber_numero (empresa_id, origem, lower(numero), parcela) WHERE status <> 'cancelado'` |
 | `vencimento` | DATE | pode ser anterior a hoje no título gerado (duplicata atrasada); no manual, não anterior a hoje |
 | `valor_centavos` | BIGINT | `> 0`; não muda depois do primeiro recebimento ou antecipação |
 | `categoria_financeira_id` | UUID NULL | FK `RESTRICT`; **obrigatória em `manual`**, nula nas outras (D6); lançável e de natureza `receita` |
@@ -56,6 +56,7 @@
 | `boleto_enviado_em` | TIMESTAMPTZ NULL | último envio registrado |
 | `boleto_canal` | VARCHAR(10) NULL | `email`, `whatsapp`, `portal`, `correio`, `outro` |
 | `origem_cancelada_em` | TIMESTAMPTZ NULL | a origem foi cancelada com o título já movimentado (seção 3.4) |
+| `cancelado_motivo` | VARCHAR(1000) NULL | obrigatório em `cancelado` (`chk_titulo_receber_cancelado_motivo`) |
 | `observacao` | VARCHAR(1000) | |
 | `usuario_id` | UUID | quem criou (ou disparou a geração) |
 | `versao` | INT | |
@@ -228,7 +229,6 @@ POST   /api/v1/titulos-receber/{id}/enviar-banco        { conta_bancaria_id, ver
 POST   /api/v1/titulos-receber/{id}/retirar-banco       { versao } (financeiro)
 POST   /api/v1/titulos-receber/{id}/boleto-enviado      { canal, enviado_em, versao } (financeiro)
 POST   /api/v1/titulos-receber/{id}/cancelar            { motivo, versao } (financeiro)
-DELETE /api/v1/titulos-receber/{id}                     manual sem nenhum movimento (administrador)
 POST   /api/v1/titulos-receber/{id}/recebimentos        { tipo, conta_bancaria_id, recebido_em, valor_centavos, juros_centavos,
                                                           desconto_centavos, versao, repasse: { vencimento, categoria_financeira_id } } (financeiro)
 GET    /api/v1/titulos-receber/{id}/recebimentos        com estornos e repasse (financeiro)
@@ -261,7 +261,8 @@ antes do período à parte, como no resumo do M7.
 
 ## 5. Permissões
 
-- Rotas em `financeiro(...)`; `DELETE` em `administrador(...)`. Sem perfil novo.
+- Rotas em `financeiro(...)`. Sem perfil novo. Não há `DELETE`: título lançado errado é cancelado,
+  e o histórico fica.
 - Regras finas em `usecases/receber/permissoes.go` (financeiro ou administrador), portas mínimas de
   usuário e cargo (só `Obter`).
 - Escopo por empresa (itens 1 a 6 da seção 4 do `EMPRESAS.md`) em título, borderô, resumo e alerta;
@@ -409,7 +410,7 @@ test/helpers + test/integration + test/e2e
 
 | Fase | Entrega | Estado |
 |---|---|---|
-| **1** | Título manual: migration 000047, domínio (origem, status, título, histórico, vencido derivado), repositório, usecase com escopo por empresa, criar/editar/prorrogar/enviar e retirar do banco/boleto/cancelar/excluir, listagem e histórico, e2e + `API.md` | pendente |
+| **1** | Título manual: migration 000047, domínio (origem, status, título, histórico, vencido derivado), repositório, usecase com escopo por empresa, criar/editar/prorrogar/enviar e retirar do banco/boleto/cancelar, listagem e histórico, e2e + `API.md` | concluída |
 | **2** | Geração por origem: `Geracao`, `GerarDeOrigem`, `CancelarPorOrigem` (contrato da seção 6.1, testes de integração de idempotência e de corrida) e título de entrada do pedido | pendente |
 | **3** | Baixa: recebimento total e parcial, estorno, registro da entrada paga do pedido na mesma transação (migration 000048) | pendente |
 | **4** | Antecipação: borderô, estorno, recompra e repasse ao fomento com a conta a pagar do M7 na mesma transação (migrations 000049–000050) | pendente |
@@ -432,6 +433,10 @@ Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates ve
 - [x] **Conta a pagar e entrada do pedido na mesma transação** da escrita do M9, por função interna
       do `postgres`, sem método novo nos ports do M6 e do M7.
 - [x] **"Hoje" em Brasília**, como o M6.
+- [x] **Sem exclusão de título** (fase 1): o cancelamento com motivo substitui o `DELETE`, para o
+      histórico nunca ser apagado.
+- [x] **Número único por empresa e origem** (fase 1), sem diferenciar maiúsculas: o número da NF não
+      colide com um título manual de mesmo número.
 - [x] **D1 — Fomento é fornecedor do M4.** Sim; o borderô aponta para `fornecedor`, e a
       recompra e o repasse viram conta a pagar desse fornecedor.
 - [x] **D2 — Origem cancelada com título movimentado.** O título antecipado, recebido ou com
