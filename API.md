@@ -2274,6 +2274,9 @@ fases seguintes do M9 e do M8).
 | `POST` | `/api/v1/titulos-receber/{id}/boleto-enviado` | **financeiro** | `200`; corpo `{ "versao", "canal", "enviado_em" }`; só `em_banco`; não troca o status |
 | `POST` | `/api/v1/titulos-receber/{id}/cancelar` | **financeiro** | `200`; corpo `{ "versao", "motivo" }`; `carteira` ou `em_banco` sem recebimento |
 | `POST` | `/api/v1/pedidos/{id}/titulo-entrada` | **financeiro** | `201` título de entrada gerado; `200` com o título que já existia; corpo `{ "vencimento", "conta_bancaria_id" }` |
+| `POST` | `/api/v1/titulos-receber/{id}/recebimentos` | **financeiro** | `201` `{ "titulo", "recebimento" }`; baixa total ou parcial |
+| `GET` | `/api/v1/titulos-receber/{id}/recebimentos` | **financeiro** | `200` lista (`{ "dados": [...] }`), com o estorno de cada um |
+| `POST` | `/api/v1/titulos-receber/{id}/recebimentos/{recebimento_id}/estorno` | **financeiro** | `200` título; corpo `{ "versao", "motivo", "estornado_em" }` |
 
 Corpo do `POST /titulos-receber`:
 
@@ -2372,6 +2375,49 @@ não é gerado de novo). Cancelar o pedido não cancela o título; o financeiro 
 | Entrada já registrada no pedido | `409` | `a entrada do pedido já foi registrada` |
 | Pedido de empresa fora do acesso | `403` | `perfil sem acesso a esta empresa` |
 | Pedido cancelado durante a geração | `409` | `origem cancelada não gera título` |
+
+### Recebimento (baixa) e estorno
+
+Corpo do `POST /titulos-receber/{id}/recebimentos`:
+
+```json
+{
+  "versao": 1,
+  "tipo": "conta",
+  "conta_bancaria_id": "…",
+  "recebido_em": "2026-10-15",
+  "valor_centavos": 95000,
+  "juros_centavos": 800,
+  "desconto_centavos": 5000
+}
+```
+
+| Campo | Regra |
+| --- | --- |
+| `tipo` | `conta` (padrão, dinheiro numa conta da empresa) ou `fomento` (título antecipado liquidado pelo cliente direto no fomento, sem conta) |
+| `conta_bancaria_id` | obrigatória em `conta`; conta ativa da mesma empresa, mesmo que diferente da conta de cobrança; proibida em `fomento` |
+| `recebido_em` | `AAAA-MM-DD`, obrigatória, não no futuro (Brasília) |
+| `valor_centavos` | `> 0`; abate o saldo e entrou no caixa |
+| `juros_centavos` | `>= 0`; juros e multa recebidos, não abatem o saldo |
+| `desconto_centavos` | `>= 0`; abate o saldo sem entrar no caixa |
+
+- `valor + desconto` não pode passar do saldo (`400 valor mais desconto passa do saldo do título (<saldo> centavos)`).
+  Quando o saldo zera, o título vira `recebido`; antes disso, o status não muda.
+- Só título `carteira`, `em_banco` ou `antecipado` recebe baixa (`409`). Título `antecipado` recebido em
+  conta própria (pagamento na conta errada) gera o repasse ao fomento: entra com a antecipação
+  (fase 4); até lá responde `409`.
+- O recebimento traz `entrada_no_caixa_centavos` (`valor + juros` em `conta`, `0` em `fomento`), que
+  é o que o M13 concilia com o extrato pela `conta_bancaria_id` e pela `recebido_em`.
+- **Título de entrada do pedido**: a baixa que zera o saldo registra a entrada paga no pedido (M6) na
+  mesma transação, com `recebido_em` como data e a soma dos `valor_centavos` como valor; o pedido ganha
+  `entrada_paga_em`, `entrada_paga_centavos` e o `prazo_limite`, e o histórico do pedido registra
+  `entrada_registrada`. O recebimento sai com `registrou_entrada_pedido = true`. Se o pedido já tinha a
+  entrada registrada pela rota do M6, ou foi cancelado, a baixa é aceita sem mexer no pedido e o
+  histórico do título avisa. Pedido alterado por outra pessoa no meio → `409` e nada é gravado.
+- Estorno: lançamento inverso (o recebimento fica `estornado = true` com o `estorno`); o saldo volta e o
+  título `recebido` volta ao status anterior à baixa. `motivo` obrigatório (até 500); `estornado_em`
+  não no futuro nem antes do recebimento. Recebimento já estornado → `409 o recebimento já foi
+  estornado`; o que registrou a entrada do pedido não é estornado (`409`).
 
 ### Erros do título
 

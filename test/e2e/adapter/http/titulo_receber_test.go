@@ -258,3 +258,109 @@ func TestFinanceiroGeraOTituloDeEntradaDoPedido(t *testing.T) {
 	conferirStatus(t, enviaComToken(t, c.servidor, http.MethodPost, caminhoCancelado+"/titulo-entrada", corpo, tokenFinanceiro), http.StatusConflict)
 	conferirStatus(t, enviaComToken(t, c.servidor, http.MethodPost, "/api/v1/pedidos/"+uuid.NewString()+"/titulo-entrada", corpo, tokenFinanceiro), http.StatusNotFound)
 }
+
+func TestFinanceiroRecebeEEstornaTitulos(t *testing.T) {
+	c := novoCenarioTitulosE2E(t)
+	tokenFinanceiro := tokenFinanceiroDasEmpresas(t, c.servidor, "Fábio MIA", "fabio@exemplo.com", c.mia)
+	tokenRed := tokenFinanceiroDasEmpresas(t, c.servidor, "Rita Red", "rita@exemplo.com", c.red)
+	hoje := domainreceber.Hoje(time.Now().UTC()).Format("2006-01-02")
+
+	titulo := c.criar(t, c.corpo(c.mia, "ALG-10"), tokenFinanceiro)
+	caminho := "/api/v1/titulos-receber/" + titulo.ID.String()
+	baixa := func(versao int, valor, juros, desconto int64) map[string]any {
+		return map[string]any{
+			"versao": versao, "conta_bancaria_id": c.contaMia, "recebido_em": hoje,
+			"valor_centavos": valor, "juros_centavos": juros, "desconto_centavos": desconto,
+		}
+	}
+
+	conferirStatus(t, enviaComToken(t, c.servidor, http.MethodPost, caminho+"/recebimentos", baixa(1, 1000, 0, 0), tokenRed), http.StatusForbidden)
+	conferirMensagem(t, enviaComToken(t, c.servidor, http.MethodPost, caminho+"/recebimentos", baixa(1, 150000, 0, 1), tokenFinanceiro),
+		http.StatusBadRequest, "erro de validação: valor mais desconto passa do saldo do título (150000 centavos)")
+	semConta := baixa(1, 1000, 0, 0)
+	delete(semConta, "conta_bancaria_id")
+	conferirMensagem(t, enviaComToken(t, c.servidor, http.MethodPost, caminho+"/recebimentos", semConta, tokenFinanceiro),
+		http.StatusBadRequest, "erro de validação: conta bancária do recebimento é obrigatória")
+
+	resposta := enviaComToken(t, c.servidor, http.MethodPost, caminho+"/recebimentos", baixa(1, 50000, 0, 0), tokenFinanceiro)
+	conferirStatus(t, resposta, http.StatusCreated)
+	parcial := decodificarEnvelope[receberdto.RecebimentoRegistradoResponse](t, resposta).Dados
+	if parcial.Titulo.Status != "carteira" || parcial.Titulo.SaldoCentavos != 100000 || parcial.Titulo.Versao != 2 || parcial.Recebimento.Tipo != "conta" {
+		t.Fatalf("baixa parcial = %+v", parcial)
+	}
+
+	resposta = enviaComToken(t, c.servidor, http.MethodPost, caminho+"/recebimentos", baixa(2, 95000, 800, 5000), tokenFinanceiro)
+	conferirStatus(t, resposta, http.StatusCreated)
+	total := decodificarEnvelope[receberdto.RecebimentoRegistradoResponse](t, resposta).Dados
+	if total.Titulo.Status != "recebido" || total.Titulo.SaldoCentavos != 0 || total.Recebimento.EntradaNoCaixaCentavos != 95800 {
+		t.Fatalf("baixa total = %+v", total)
+	}
+	conferirMensagem(t, enviaComToken(t, c.servidor, http.MethodPost, caminho+"/recebimentos", baixa(3, 1, 0, 0), tokenFinanceiro),
+		http.StatusConflict, "só o título em carteira, em banco ou antecipado recebe baixa")
+	conferirStatus(t, enviaComToken(t, c.servidor, http.MethodPost, caminho+"/cancelar", map[string]any{"versao": 3, "motivo": "x"}, tokenFinanceiro), http.StatusConflict)
+
+	caminhoDoEstorno := caminho + "/recebimentos/" + total.Recebimento.ID.String() + "/estorno"
+	conferirMensagem(t, enviaComToken(t, c.servidor, http.MethodPost, caminhoDoEstorno, map[string]any{"versao": 3, "estornado_em": hoje}, tokenFinanceiro),
+		http.StatusBadRequest, "erro de validação: motivo do estorno é obrigatório")
+	resposta = enviaComToken(t, c.servidor, http.MethodPost, caminhoDoEstorno, map[string]any{"versao": 3, "motivo": "pix devolvido", "estornado_em": hoje}, tokenFinanceiro)
+	conferirStatus(t, resposta, http.StatusOK)
+	if estornado := decodificarEnvelope[receberdto.TituloResponse](t, resposta).Dados; estornado.Status != "carteira" || estornado.SaldoCentavos != 100000 || estornado.Versao != 4 {
+		t.Fatalf("título estornado = %+v", estornado)
+	}
+	conferirMensagem(t, enviaComToken(t, c.servidor, http.MethodPost, caminhoDoEstorno, map[string]any{"versao": 4, "motivo": "de novo", "estornado_em": hoje}, tokenFinanceiro),
+		http.StatusConflict, "o recebimento já foi estornado")
+	conferirStatus(t, enviaComToken(t, c.servidor, http.MethodPost, caminho+"/recebimentos/"+uuid.NewString()+"/estorno",
+		map[string]any{"versao": 4, "motivo": "x", "estornado_em": hoje}, tokenFinanceiro), http.StatusNotFound)
+
+	resposta = enviaComToken(t, c.servidor, http.MethodGet, caminho+"/recebimentos", nil, tokenFinanceiro)
+	conferirStatus(t, resposta, http.StatusOK)
+	recebimentos := decodificarEnvelope[[]receberdto.RecebimentoResponse](t, resposta).Dados
+	if len(recebimentos) != 2 || recebimentos[0].Estornado || !recebimentos[1].Estornado || recebimentos[1].Estorno == nil ||
+		recebimentos[1].Estorno.Motivo != "pix devolvido" || recebimentos[1].Estorno.EstornadoEm != hoje {
+		t.Fatalf("recebimentos = %+v", recebimentos)
+	}
+	conferirStatus(t, enviaComToken(t, c.servidor, http.MethodGet, caminho+"/recebimentos", nil, tokenRed), http.StatusForbidden)
+}
+
+func TestBaixaDoTituloDeEntradaRegistraAEntradaNoPedido(t *testing.T) {
+	c := novoCenarioTitulosE2E(t)
+	tokenFinanceiro := tokenFinanceiroDasEmpresas(t, c.servidor, "Fábio MIA", "fabio@exemplo.com", c.mia)
+	produtoID := produtoDoTeste(t, c.servidor)
+	hoje := domainreceber.Hoje(time.Now().UTC()).Format("2006-01-02")
+
+	pedido := criarPedidoE2E(t, c.servidor, corpoDePedido(c.mia, c.clienteID, produtoID, "importacao", 10), tokenDoTeste)
+	caminhoDoPedido := "/api/v1/pedidos/" + pedido.ID.String()
+	conferirStatus(t, envia(t, c.servidor, http.MethodPost, caminhoDoPedido+"/confirmar", map[string]any{"versao": 1}), http.StatusOK)
+	resposta := enviaComToken(t, c.servidor, http.MethodPost, caminhoDoPedido+"/titulo-entrada", map[string]any{"vencimento": hoje}, tokenFinanceiro)
+	conferirStatus(t, resposta, http.StatusCreated)
+	titulo := decodificarEnvelope[receberdto.TituloResponse](t, resposta).Dados
+	caminho := "/api/v1/titulos-receber/" + titulo.ID.String()
+
+	resposta = enviaComToken(t, c.servidor, http.MethodPost, caminho+"/recebimentos", map[string]any{
+		"versao": 1, "conta_bancaria_id": c.contaMia, "recebido_em": hoje, "valor_centavos": titulo.ValorCentavos,
+	}, tokenFinanceiro)
+	conferirStatus(t, resposta, http.StatusCreated)
+	baixa := decodificarEnvelope[receberdto.RecebimentoRegistradoResponse](t, resposta).Dados
+	if !baixa.Recebimento.RegistrouEntradaPedido || baixa.Titulo.Status != "recebido" {
+		t.Fatalf("baixa = %+v", baixa)
+	}
+
+	resposta = envia(t, c.servidor, http.MethodGet, caminhoDoPedido, nil)
+	conferirStatus(t, resposta, http.StatusOK)
+	detalhe := decodificarEnvelope[pedidodto.PedidoDetalheResponse](t, resposta).Dados
+	if detalhe.EntradaPagaEm == nil || detalhe.EntradaPagaEm.Format("2006-01-02") != hoje || detalhe.EntradaPagaCentavos == nil ||
+		*detalhe.EntradaPagaCentavos != 4500 || detalhe.PrazoLimite == nil || detalhe.Versao != 3 {
+		t.Fatalf("pedido depois da baixa = %+v", detalhe)
+	}
+
+	resposta = envia(t, c.servidor, http.MethodGet, caminhoDoPedido+"/historico", nil)
+	conferirStatus(t, resposta, http.StatusOK)
+	historico := decodificarEnvelope[[]pedidodto.HistoricoResponse](t, resposta).Dados
+	if ultimo := historico[len(historico)-1]; ultimo.Acao != "entrada_registrada" || ultimo.Detalhe != "pela baixa do título PED-1" {
+		t.Fatalf("histórico do pedido = %+v", historico)
+	}
+
+	conferirMensagem(t, enviaComToken(t, c.servidor, http.MethodPost, caminho+"/recebimentos/"+baixa.Recebimento.ID.String()+"/estorno",
+		map[string]any{"versao": 2, "motivo": "x", "estornado_em": hoje}, tokenFinanceiro),
+		http.StatusConflict, "o recebimento registrou a entrada paga do pedido e não pode ser estornado")
+}

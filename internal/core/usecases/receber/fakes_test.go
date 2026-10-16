@@ -16,32 +16,35 @@ import (
 )
 
 type memoria struct {
-	usuarios   map[uuid.UUID]*domainusuarios.Usuario
-	cargos     map[uuid.UUID]*domainusuarios.Cargo
-	empresas   map[uuid.UUID]*domainempresa.Empresa
-	acessos    map[uuid.UUID]domainempresa.Acesso
-	clientes   map[uuid.UUID]*domaincliente.Cliente
-	contas     map[uuid.UUID]*domainfinanceiro.ContaBancaria
-	categorias map[uuid.UUID]*domainfinanceiro.CategoriaFinanceira
-	pedidos    map[uuid.UUID]*domainpedido.Pedido
-	geracoes   []*domainreceber.Geracao
-	titulos    map[uuid.UUID]*domainreceber.Titulo
-	historicos []*domainreceber.Historico
-	alteracoes []*portsout.Alteracao
-	filtros    []portsout.TituloFiltro
+	usuarios     map[uuid.UUID]*domainusuarios.Usuario
+	cargos       map[uuid.UUID]*domainusuarios.Cargo
+	empresas     map[uuid.UUID]*domainempresa.Empresa
+	acessos      map[uuid.UUID]domainempresa.Acesso
+	clientes     map[uuid.UUID]*domaincliente.Cliente
+	contas       map[uuid.UUID]*domainfinanceiro.ContaBancaria
+	categorias   map[uuid.UUID]*domainfinanceiro.CategoriaFinanceira
+	pedidos      map[uuid.UUID]*domainpedido.Pedido
+	geracoes     []*domainreceber.Geracao
+	baixas       []*portsout.Baixa
+	recebimentos map[uuid.UUID][]*domainreceber.Recebimento
+	titulos      map[uuid.UUID]*domainreceber.Titulo
+	historicos   []*domainreceber.Historico
+	alteracoes   []*portsout.Alteracao
+	filtros      []portsout.TituloFiltro
 }
 
 func novaMemoria() *memoria {
 	return &memoria{
-		usuarios:   map[uuid.UUID]*domainusuarios.Usuario{},
-		cargos:     map[uuid.UUID]*domainusuarios.Cargo{},
-		empresas:   map[uuid.UUID]*domainempresa.Empresa{},
-		acessos:    map[uuid.UUID]domainempresa.Acesso{},
-		clientes:   map[uuid.UUID]*domaincliente.Cliente{},
-		contas:     map[uuid.UUID]*domainfinanceiro.ContaBancaria{},
-		categorias: map[uuid.UUID]*domainfinanceiro.CategoriaFinanceira{},
-		pedidos:    map[uuid.UUID]*domainpedido.Pedido{},
-		titulos:    map[uuid.UUID]*domainreceber.Titulo{},
+		usuarios:     map[uuid.UUID]*domainusuarios.Usuario{},
+		cargos:       map[uuid.UUID]*domainusuarios.Cargo{},
+		empresas:     map[uuid.UUID]*domainempresa.Empresa{},
+		acessos:      map[uuid.UUID]domainempresa.Acesso{},
+		clientes:     map[uuid.UUID]*domaincliente.Cliente{},
+		contas:       map[uuid.UUID]*domainfinanceiro.ContaBancaria{},
+		categorias:   map[uuid.UUID]*domainfinanceiro.CategoriaFinanceira{},
+		pedidos:      map[uuid.UUID]*domainpedido.Pedido{},
+		recebimentos: map[uuid.UUID][]*domainreceber.Recebimento{},
+		titulos:      map[uuid.UUID]*domainreceber.Titulo{},
 	}
 }
 
@@ -220,4 +223,42 @@ type repoPedidos struct{ *memoria }
 
 func (r repoPedidos) Obter(_ context.Context, id uuid.UUID) (*domainpedido.Pedido, error) {
 	return copiar(r.pedidos[id]), nil
+}
+
+func (r repoTitulos) Receber(ctx context.Context, baixa *portsout.Baixa) error {
+	if err := r.Atualizar(ctx, &portsout.Alteracao{
+		Titulo: baixa.Titulo, VersaoLida: baixa.VersaoLida, StatusAnterior: baixa.StatusAnterior, Historico: baixa.Historico,
+	}); err != nil {
+		return err
+	}
+	r.memoria.baixas = append(r.memoria.baixas, baixa)
+	r.recebimentos[baixa.Titulo.ID] = append(r.recebimentos[baixa.Titulo.ID], copiar(baixa.Recebimento))
+	if baixa.Entrada != nil {
+		baixa.Entrada.Pedido.Versao++
+		r.pedidos[baixa.Entrada.Pedido.ID] = copiar(baixa.Entrada.Pedido)
+	}
+
+	return nil
+}
+
+func (r repoTitulos) EstornarRecebimento(ctx context.Context, estorno *portsout.EstornoDaBaixa) error {
+	for _, recebimento := range r.recebimentos[estorno.Titulo.ID] {
+		if recebimento.ID == estorno.Recebimento.ID {
+			recebimento.Estornado = true
+			recebimento.Estorno = estorno.Recebimento.Estorno
+		}
+	}
+
+	return r.Atualizar(ctx, &portsout.Alteracao{
+		Titulo: estorno.Titulo, VersaoLida: estorno.VersaoLida, StatusAnterior: estorno.StatusAnterior, Historico: estorno.Historico,
+	})
+}
+
+func (r repoTitulos) ListarRecebimentos(_ context.Context, tituloID uuid.UUID) ([]*domainreceber.Recebimento, error) {
+	recebimentos := make([]*domainreceber.Recebimento, 0, len(r.recebimentos[tituloID]))
+	for _, recebimento := range r.recebimentos[tituloID] {
+		recebimentos = append(recebimentos, copiar(recebimento))
+	}
+
+	return recebimentos, nil
 }

@@ -1,6 +1,6 @@
 # Escopo — M9 Contas a receber e antecipação
 
-> **Status:** escopo fechado — decisões D1 a D6 respondidas pelo usuário (outubro/2026); fases 1 e 2 concluídas.
+> **Status:** escopo fechado — decisões D1 a D6 respondidas pelo usuário (outubro/2026); fases 1 a 3 concluídas.
 > **Objetivo:** tirar "A receber no banco" e os títulos do "Controle de NFs" das planilhas: título a
 > receber por empresa e cliente, com cobrança em banco, envio de boleto, baixa total ou parcial,
 > antecipação em borderô com fomento, recompra e repasse de pagamento feito na conta errada. Base
@@ -94,6 +94,7 @@ Append-only: `titulo_id`, `evento` (`criado`, `gerado`, `editado`, `prorrogado`,
 | `juros_centavos` | BIGINT | `>= 0`; juros e multa recebidos, não abatem o saldo |
 | `desconto_centavos` | BIGINT | `>= 0`; abatimento concedido, abate o saldo sem entrar no caixa |
 | `status_titulo_anterior` | VARCHAR(12) | status para onde o título volta no estorno |
+| `registrou_entrada_pedido` | BOOLEAN | a baixa gravou a entrada paga do pedido (seção 6.2); não é estornada |
 | `estornado` | BOOLEAN | mesmo mecanismo do `pagamento` do M7 |
 | `usuario_id` / `criado_em` | | |
 
@@ -102,7 +103,7 @@ Append-only: `titulo_id`, `evento` (`criado`, `gerado`, `editado`, `prorrogado`,
   (`idx_titulo_recebimento_conta`). O tipo `fomento` não entra no caixa.
 - **Pagamento na conta errada**: título `antecipado` recebido com `tipo = conta` gera o repasse ao
   fomento (seção 2.6) na mesma transação. Título `em_banco` recebido em outra conta da empresa é só
-  uma baixa com conta divergente (a resposta traz `conta_divergente`).
+  uma baixa com outra conta (o front compara `conta_bancaria_id` do recebimento com a de cobrança).
 - Estorno (`titulo_recebimento_estorno`: `recebimento_id` único, `motivo`, `estornado_em`,
   `usuario_id`, `criado_em`): devolve o saldo, e o título volta para `status_titulo_anterior` se
   estava `recebido`. Não estorna recebimento que gerou repasse, nem a baixa que registrou a entrada do
@@ -412,7 +413,7 @@ test/helpers + test/integration + test/e2e
 |---|---|---|
 | **1** | Título manual: migration 000047, domínio (origem, status, título, histórico, vencido derivado), repositório, usecase com escopo por empresa, criar/editar/prorrogar/enviar e retirar do banco/boleto/cancelar, listagem e histórico, e2e + `API.md` | concluída |
 | **2** | Geração por origem: `Geracao`, `GerarDeOrigem`, `CancelarPorOrigem` (contrato da seção 6.1, testes de integração de idempotência e de corrida) e título de entrada do pedido | concluída |
-| **3** | Baixa: recebimento total e parcial, estorno, registro da entrada paga do pedido na mesma transação (migration 000048) | pendente |
+| **3** | Baixa: recebimento total e parcial, estorno, registro da entrada paga do pedido na mesma transação (migration 000048) | concluída |
 | **4** | Antecipação: borderô, estorno, recompra e repasse ao fomento com a conta a pagar do M7 na mesma transação (migrations 000049–000050) | pendente |
 | **5** | Visões: resumo por semana/empresa e alerta de boleto não enviado | pendente |
 | **6** | Frontend (depois do F0a): títulos, baixa, borderô, recompra, resumo e alertas | pendente |
@@ -439,6 +440,8 @@ Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates ve
       título cancelado; gerar de novo devolve o existente (`200`).
 - [x] **`travarOrigem` antes das demais travas** (fase 2): a origem é travada primeiro e cada `case`
       recusa origem cancelada; o `case` de `pedido` está pronto e o de `nota_fiscal_duplicata` é do M8.
+- [x] **`registrou_entrada_pedido` no recebimento** (fase 3): marca a baixa que gravou a entrada no
+      pedido e bloqueia o estorno dela no próprio `UPDATE`.
 - [x] **Número único por empresa e origem** (fase 1), sem diferenciar maiúsculas: o número da NF não
       colide com um título manual de mesmo número.
 - [x] **D1 — Fomento é fornecedor do M4.** Sim; o borderô aponta para `fornecedor`, e a

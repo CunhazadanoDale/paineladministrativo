@@ -18,6 +18,10 @@ func masculino(nome string) rotulo {
 	return rotulo{nome: nome}
 }
 
+func feminino(nome string) rotulo {
+	return rotulo{nome: nome, feminino: true}
+}
+
 func (r rotulo) obrigatorio() string {
 	if r.feminino {
 		return r.nome + " é obrigatória"

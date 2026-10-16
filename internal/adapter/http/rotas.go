@@ -68,6 +68,7 @@ func NewRouter(
 	consultaPedidosUseCase portsinpedido.ConsultaUseCase,
 	tituloUseCase portsinreceber.TituloUseCase,
 	entradaDoPedidoUseCase portsinreceber.EntradaDoPedidoUseCase,
+	recebimentoUseCase portsinreceber.RecebimentoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, middleware.ErrosDeRoteamento(novasRotas(
@@ -87,7 +88,7 @@ func NewRouter(
 		despesaRecorrenteUseCase,
 		resumoContasAPagarUseCase,
 		pedidoUseCase, entregaUseCase, consultaPedidosUseCase,
-		tituloUseCase, entradaDoPedidoUseCase,
+		tituloUseCase, entradaDoPedidoUseCase, recebimentoUseCase,
 		tokens,
 	)))
 }
@@ -127,6 +128,7 @@ func novasRotas(
 	consultaPedidosUseCase portsinpedido.ConsultaUseCase,
 	tituloUseCase portsinreceber.TituloUseCase,
 	entradaDoPedidoUseCase portsinreceber.EntradaDoPedidoUseCase,
+	recebimentoUseCase portsinreceber.RecebimentoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -419,6 +421,11 @@ func novasRotas(
 
 	entradaDoPedidoHandler := receberhandlers.NewEntradaDoPedidoHandler(entradaDoPedidoUseCase)
 	financeiro("POST /api/v1/pedidos/{id}/titulo-entrada", entradaDoPedidoHandler.GerarTitulo)
+
+	recebimentoHandler := receberhandlers.NewRecebimentoHandler(recebimentoUseCase)
+	financeiro("POST /api/v1/titulos-receber/{id}/recebimentos", recebimentoHandler.Receber)
+	financeiro("GET /api/v1/titulos-receber/{id}/recebimentos", recebimentoHandler.Listar)
+	financeiro("POST /api/v1/titulos-receber/{id}/recebimentos/{recebimento_id}/estorno", recebimentoHandler.Estornar)
 
 	return mux
 }

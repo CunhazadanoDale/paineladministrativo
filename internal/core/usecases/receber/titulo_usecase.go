@@ -239,23 +239,6 @@ func (u *TituloUsecaseImpl) Cancelar(ctx context.Context, input portsin.Cancelar
 	return u.gravar(ctx, input.UsuarioID, titulo, input.Versao, anterior, domainreceber.EventoCancelado, *titulo.CanceladoMotivo, false, false)
 }
 
-func (u *TituloUsecaseImpl) tituloParaAlterar(ctx context.Context, usuarioID, tituloID uuid.UUID, versao int) (*domainreceber.Titulo, error) {
-	perfil, err := u.exigeFinanceiro(ctx, usuarioID)
-	if err != nil {
-		return nil, err
-	}
-
-	titulo, err := u.tituloVisivel(ctx, perfil, tituloID)
-	if err != nil {
-		return nil, err
-	}
-	if err := titulo.ConferirVersao(versao); err != nil {
-		return nil, err
-	}
-
-	return titulo, nil
-}
-
 func (u *TituloUsecaseImpl) gravar(
 	ctx context.Context,
 	usuarioID uuid.UUID,

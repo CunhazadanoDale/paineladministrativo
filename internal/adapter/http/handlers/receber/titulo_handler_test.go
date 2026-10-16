@@ -227,3 +227,45 @@ func TestGerarTituloDeEntradaResponde201SoQuandoCria(t *testing.T) {
 		t.Fatalf("título já existente = %d", resposta.Code)
 	}
 }
+
+type recebimentoUseCaseFalso struct {
+	portsin.RecebimentoUseCase
+	titulo *domainreceber.Titulo
+	input  portsin.ReceberInput
+}
+
+func (f *recebimentoUseCaseFalso) Receber(_ context.Context, input portsin.ReceberInput) (*domainreceber.Titulo, *domainreceber.Recebimento, error) {
+	f.input = input
+	return f.titulo, &domainreceber.Recebimento{
+		ID: uuid.New(), TituloID: f.titulo.ID, Tipo: domainreceber.TipoRecebimentoConta, RecebidoEm: input.RecebidoEm,
+		ValorCentavos: input.ValorCentavos, JurosCentavos: input.JurosCentavos, StatusTituloAnterior: domainreceber.StatusCarteira,
+	}, nil
+}
+
+func TestReceberDevolveOTituloEORecebimento(t *testing.T) {
+	usecase := &recebimentoUseCaseFalso{titulo: tituloDeTeste()}
+	id, conta := uuid.New(), uuid.New()
+
+	resposta := executaProtegido(t, NewRecebimentoHandler(usecase).Receber, http.MethodPost, "/api/v1/titulos-receber/"+id.String()+"/recebimentos", id.String(),
+		`{"versao":1,"conta_bancaria_id":"`+conta.String()+`","recebido_em":"2026-10-15","valor_centavos":1000,"juros_centavos":20}`)
+
+	if resposta.Code != http.StatusCreated {
+		t.Fatalf("status %d: %s", resposta.Code, resposta.Body.String())
+	}
+	if usecase.input.TituloID != id || *usecase.input.ContaBancariaID != conta || usecase.input.JurosCentavos != 20 {
+		t.Fatalf("input = %+v", usecase.input)
+	}
+	var corpo dto.Resposta[receberdto.RecebimentoRegistradoResponse]
+	if err := json.Unmarshal(resposta.Body.Bytes(), &corpo); err != nil {
+		t.Fatalf("corpo inválido: %v", err)
+	}
+	if corpo.Dados.Recebimento.RecebidoEm != "2026-10-15" || corpo.Dados.Recebimento.EntradaNoCaixaCentavos != 1020 || corpo.Dados.Titulo.Numero != "ALG-10" {
+		t.Fatalf("resposta = %+v", corpo.Dados)
+	}
+
+	invalido := executaProtegido(t, NewRecebimentoHandler(usecase).Receber, http.MethodPost, "/api/v1/titulos-receber/"+id.String()+"/recebimentos", id.String(),
+		`{"versao":1,"recebido_em":"15/10/2026"}`)
+	if invalido.Code != http.StatusBadRequest {
+		t.Fatalf("data inválida = %d", invalido.Code)
+	}
+}

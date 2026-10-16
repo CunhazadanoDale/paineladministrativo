@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
+	domainpedido "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/pedido"
 	domainreceber "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/receber"
 	"github.com/google/uuid"
 )
@@ -16,6 +17,30 @@ type Alteracao struct {
 	Historico         *domainreceber.Historico
 	ConferirCategoria bool
 	ConferirConta     bool
+}
+
+type EntradaDoPedido struct {
+	Pedido         *domainpedido.Pedido
+	VersaoLida     int
+	StatusAnterior domainpedido.Status
+	Historico      *domainpedido.Historico
+}
+
+type Baixa struct {
+	Titulo         *domainreceber.Titulo
+	VersaoLida     int
+	StatusAnterior domainreceber.Status
+	Recebimento    *domainreceber.Recebimento
+	Historico      *domainreceber.Historico
+	Entrada        *EntradaDoPedido
+}
+
+type EstornoDaBaixa struct {
+	Titulo         *domainreceber.Titulo
+	VersaoLida     int
+	StatusAnterior domainreceber.Status
+	Recebimento    *domainreceber.Recebimento
+	Historico      *domainreceber.Historico
 }
 
 type TituloFiltro struct {
@@ -41,4 +66,7 @@ type TituloReceberRepository interface {
 	ListarHistorico(ctx context.Context, tituloID uuid.UUID) ([]*domainreceber.Historico, error)
 	GerarDeOrigem(ctx context.Context, geracao *domainreceber.Geracao) (domainreceber.ResultadoGeracao, error)
 	CancelarPorOrigem(ctx context.Context, cancelamento domainreceber.CancelamentoDeOrigem) (domainreceber.ResultadoCancelamento, error)
+	Receber(ctx context.Context, baixa *Baixa) error
+	EstornarRecebimento(ctx context.Context, estorno *EstornoDaBaixa) error
+	ListarRecebimentos(ctx context.Context, tituloID uuid.UUID) ([]*domainreceber.Recebimento, error)
 }

@@ -84,6 +84,23 @@ func (p *permissoes) tituloVisivel(ctx context.Context, perfil perfilDoUsuario, 
 	return titulo, nil
 }
 
+func (p *permissoes) tituloParaAlterar(ctx context.Context, usuarioID, tituloID uuid.UUID, versao int) (*domainreceber.Titulo, error) {
+	perfil, err := p.exigeFinanceiro(ctx, usuarioID)
+	if err != nil {
+		return nil, err
+	}
+
+	titulo, err := p.tituloVisivel(ctx, perfil, tituloID)
+	if err != nil {
+		return nil, err
+	}
+	if err := titulo.ConferirVersao(versao); err != nil {
+		return nil, err
+	}
+
+	return titulo, nil
+}
+
 func erroSemAcessoAEmpresa() error {
 	return domain.ErroPermissao("perfil sem acesso a esta empresa")
 }
