@@ -1,6 +1,6 @@
 # Escopo — M8 NF-e por XML
 
-> **Status:** escopo aprovado — pronto para implementação.
+> **Status:** API das fases 1 a 5 concluída; fase 6 (títulos) espera o M9 na `main`; front (fase 7) pendente.
 > **Objetivo:** tirar o "Controle de NFs" da planilha: a NF-e emitida pelas empresas do grupo
 > entra no sistema pelo XML autorizado, com itens, duplicatas e eventos, ligada ao cliente, ao
 > pedido e à entrega. Base para os títulos do M9 (fase final) e para a receita do M15.
@@ -280,8 +280,8 @@ Numeração de migration definida no merge (regra 4 da seção 3 do `ROADMAP.md`
 | **1** | Migrations 000047–000048 + domínio (chave, decimal, natureza, nota, item, duplicata, evento, leitura do XML) + testes | concluída |
 | **2** | Repositório (gravação da nota com itens e duplicatas numa transação, eventos com guarda de status e versão, vínculo com pedido e entrega travados com `FOR SHARE`, listagens; `IDsPorCodigos` e entregas sem NF) + testes de integração | concluída |
 | **3** | Usecases de importação, vínculo e eventos + XML no fluxo de arquivos + permissões (escopo por empresa, representante) + testes com fakes e de isolamento | concluída |
-| **4** | Handlers/DTOs + rotas + e2e + `API.md` | pendente |
-| **5** | Consultas (entregas sem NF, itens sem produto e vínculo de item) + testes + `API.md` | pendente |
+| **4** | Handlers/DTOs + rotas + e2e + `API.md` | concluída |
+| **5** | Consultas (entregas sem NF, itens sem produto e vínculo de item) + testes + `API.md` | concluída (entregue junto com as fases 2 a 4) |
 | **6** | Títulos no M9: duplicata → título (origem `nota_fiscal_duplicata`) na importação e efeito do cancelamento, pela assinatura do `CONTAS_A_RECEBER.md`; **só depois do M9 na `main`** | bloqueada (M9) |
 | **7** | Frontend: importação, lista, detalhe, vínculo e entregas sem NF (depois do F0a) | pendente |
 
