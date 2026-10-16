@@ -16,8 +16,8 @@ var _ portsin.TituloUseCase = (*TituloUsecaseImpl)(nil)
 
 type TituloUsecaseImpl struct {
 	clientes   portsout.ClienteRepository
-	contas     portsout.ContaBancariaRepository
 	categorias portsout.CategoriaFinanceiraRepository
+	cobranca
 	permissoes
 }
 
@@ -32,8 +32,8 @@ func NewTituloUsecase(
 ) *TituloUsecaseImpl {
 	return &TituloUsecaseImpl{
 		clientes:   clientes,
-		contas:     contas,
 		categorias: categorias,
+		cobranca:   cobranca{contas: contas},
 		permissoes: permissoes{
 			usuarios: usuarios,
 			cargos:   cargos,
@@ -336,24 +336,6 @@ func (u *TituloUsecaseImpl) exigirCategoriaDeReceita(ctx context.Context, catego
 	}
 	if categoria.Natureza != domainfinanceiro.NaturezaReceita {
 		return domainreceber.ErroCategoriaFinanceiraNaoEhReceita()
-	}
-
-	return nil
-}
-
-func (u *TituloUsecaseImpl) exigirContaDeCobranca(ctx context.Context, contaID, empresaID uuid.UUID) error {
-	conta, err := u.contas.Obter(ctx, contaID)
-	if err != nil {
-		return err
-	}
-	if conta == nil {
-		return domainreceber.ErroContaBancariaNaoEncontrada()
-	}
-	if conta.EmpresaID != empresaID {
-		return domainreceber.ErroContaBancariaDeOutraEmpresa()
-	}
-	if !conta.Ativa {
-		return domainreceber.ErroContaBancariaInativa()
 	}
 
 	return nil

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	pedidodto "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto/pedido"
 	receberdto "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto/receber"
 	domainreceber "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/receber"
 	"github.com/google/uuid"
@@ -195,4 +196,65 @@ func TestTitulosAReceberIsoladosPorEmpresaEPerfil(t *testing.T) {
 	if lista := decodificarPagina[receberdto.TituloResponse](t, resposta).Dados; len(lista) != 0 {
 		t.Fatalf("nenhum título está vencido: %+v", lista)
 	}
+}
+
+func TestFinanceiroGeraOTituloDeEntradaDoPedido(t *testing.T) {
+	c := novoCenarioTitulosE2E(t)
+	tokenFinanceiro := tokenFinanceiroDasEmpresas(t, c.servidor, "Fábio MIA", "fabio@exemplo.com", c.mia)
+	tokenRed := tokenFinanceiroDasEmpresas(t, c.servidor, "Rita Red", "rita@exemplo.com", c.red)
+	produtoID := produtoDoTeste(t, c.servidor)
+
+	pedido := criarPedidoE2E(t, c.servidor, corpoDePedido(c.mia, c.clienteID, produtoID, "importacao", 7), tokenDoTeste)
+	caminhoDoPedido := "/api/v1/pedidos/" + pedido.ID.String()
+	vencimento := domainreceber.Hoje(time.Now().UTC()).AddDate(0, 0, 7).Format("2006-01-02")
+	corpo := map[string]any{"vencimento": vencimento, "conta_bancaria_id": c.contaMia}
+
+	conferirMensagem(t, enviaComToken(t, c.servidor, http.MethodPost, caminhoDoPedido+"/titulo-entrada", corpo, tokenFinanceiro),
+		http.StatusConflict, "o título de entrada só é gerado para pedido confirmado e não entregue")
+	conferirStatus(t, envia(t, c.servidor, http.MethodPost, caminhoDoPedido+"/confirmar", map[string]any{"versao": 1}), http.StatusOK)
+	conferirStatus(t, enviaComToken(t, c.servidor, http.MethodPost, caminhoDoPedido+"/titulo-entrada", corpo, tokenRed), http.StatusForbidden)
+
+	resposta := enviaComToken(t, c.servidor, http.MethodPost, caminhoDoPedido+"/titulo-entrada", corpo, tokenFinanceiro)
+	conferirStatus(t, resposta, http.StatusCreated)
+	titulo := decodificarEnvelope[receberdto.TituloResponse](t, resposta).Dados
+	if titulo.Origem != "pedido" || *titulo.OrigemID != pedido.ID || titulo.Numero != "PED-1" || titulo.ValorCentavos != 3150 ||
+		titulo.Status != "em_banco" || titulo.Vencimento != vencimento || titulo.CategoriaFinanceiraID != nil {
+		t.Fatalf("título de entrada = %+v", titulo)
+	}
+
+	resposta = enviaComToken(t, c.servidor, http.MethodPost, caminhoDoPedido+"/titulo-entrada", map[string]any{"vencimento": "2027-01-01"}, tokenFinanceiro)
+	conferirStatus(t, resposta, http.StatusOK)
+	if repetido := decodificarEnvelope[receberdto.TituloResponse](t, resposta).Dados; repetido.ID != titulo.ID || repetido.Vencimento != vencimento {
+		t.Fatalf("repetir devolve o mesmo título = %+v", repetido)
+	}
+
+	resposta = enviaComToken(t, c.servidor, http.MethodGet, "/api/v1/titulos-receber?origem=pedido&origem_id="+pedido.ID.String(), nil, tokenFinanceiro)
+	conferirStatus(t, resposta, http.StatusOK)
+	if lista := decodificarPagina[receberdto.TituloResponse](t, resposta).Dados; len(lista) != 1 || lista[0].ID != titulo.ID {
+		t.Fatalf("títulos do pedido = %+v", lista)
+	}
+
+	resposta = enviaComToken(t, c.servidor, http.MethodGet, "/api/v1/titulos-receber/"+titulo.ID.String()+"/historico", nil, tokenFinanceiro)
+	conferirStatus(t, resposta, http.StatusOK)
+	if historico := decodificarEnvelope[[]receberdto.HistoricoResponse](t, resposta).Dados; len(historico) != 1 || historico[0].Evento != "gerado" {
+		t.Fatalf("histórico = %+v", historico)
+	}
+
+	conferirMensagem(t, enviaComToken(t, c.servidor, http.MethodPut, "/api/v1/titulos-receber/"+titulo.ID.String(), map[string]any{
+		"numero": "X", "parcela": 1, "vencimento": vencimento, "valor_centavos": 1, "versao": 1,
+	}, tokenFinanceiro), http.StatusConflict, "só o título manual pode ser editado; o gerado muda pela prorrogação e pela conta de cobrança")
+
+	prontaEntrega := criarPedidoE2E(t, c.servidor, corpoDePedido(c.mia, c.clienteID, produtoID, "pronta_entrega", 2), tokenDoTeste)
+	conferirMensagem(t, enviaComToken(t, c.servidor, http.MethodPost, "/api/v1/pedidos/"+prontaEntrega.ID.String()+"/titulo-entrada", corpo, tokenFinanceiro),
+		http.StatusBadRequest, "erro de validação: só o pedido de importação tem título de entrada")
+
+	cancelado := criarPedidoE2E(t, c.servidor, corpoDePedido(c.mia, c.clienteID, produtoID, "importacao", 2), tokenDoTeste)
+	caminhoCancelado := "/api/v1/pedidos/" + cancelado.ID.String()
+	conferirStatus(t, envia(t, c.servidor, http.MethodPost, caminhoCancelado+"/cancelar", map[string]any{"versao": 1, "motivo": "desistiu"}), http.StatusOK)
+	resposta = envia(t, c.servidor, http.MethodGet, caminhoCancelado, nil)
+	if detalhe := decodificarEnvelope[pedidodto.PedidoDetalheResponse](t, resposta).Dados; detalhe.Status != "cancelado" {
+		t.Fatalf("pedido = %+v", detalhe)
+	}
+	conferirStatus(t, enviaComToken(t, c.servidor, http.MethodPost, caminhoCancelado+"/titulo-entrada", corpo, tokenFinanceiro), http.StatusConflict)
+	conferirStatus(t, enviaComToken(t, c.servidor, http.MethodPost, "/api/v1/pedidos/"+uuid.NewString()+"/titulo-entrada", corpo, tokenFinanceiro), http.StatusNotFound)
 }

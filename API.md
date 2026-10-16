@@ -2273,6 +2273,7 @@ fases seguintes do M9 e do M8).
 | `POST` | `/api/v1/titulos-receber/{id}/retirar-banco` | **financeiro** | `200`; corpo `{ "versao": n }`; `em_banco` → `carteira`, limpa a conta de cobrança |
 | `POST` | `/api/v1/titulos-receber/{id}/boleto-enviado` | **financeiro** | `200`; corpo `{ "versao", "canal", "enviado_em" }`; só `em_banco`; não troca o status |
 | `POST` | `/api/v1/titulos-receber/{id}/cancelar` | **financeiro** | `200`; corpo `{ "versao", "motivo" }`; `carteira` ou `em_banco` sem recebimento |
+| `POST` | `/api/v1/pedidos/{id}/titulo-entrada` | **financeiro** | `201` título de entrada gerado; `200` com o título que já existia; corpo `{ "vencimento", "conta_bancaria_id" }` |
 
 Corpo do `POST /titulos-receber`:
 
@@ -2352,6 +2353,27 @@ Resposta:
   `retirado_banco`, `boleto_enviado`, `antecipado`, `antecipacao_estornada`, `recomprado`,
   `recebido`, `recebimento_estornado`, `cancelado`, `origem_cancelada`; cada item traz `de_status`,
   `para_status` e `descricao`.
+
+### Título de entrada do pedido
+
+`POST /api/v1/pedidos/{id}/titulo-entrada` gera o título da entrada de um pedido de **importação**
+`confirmado` ou `parcialmente_entregue`, ainda sem entrada registrada: `origem = pedido`,
+`origem_id` = id do pedido, `numero = PED-<numero do pedido>`, parcela 1, empresa e cliente do pedido,
+valor = `valor_total_centavos × entrada_bp / 10000` (arredondado para baixo), sem categoria (a
+receita vem da NF). `vencimento` (`AAAA-MM-DD`) é obrigatório e pode estar no passado;
+`conta_bancaria_id` é opcional (com ela o título nasce `em_banco`). A geração é idempotente: se o
+pedido já tem título de entrada, a resposta é `200` com ele, inclusive cancelado (o título de entrada
+não é gerado de novo). Cancelar o pedido não cancela o título; o financeiro o cancela.
+
+| Situação | Status | Mensagem |
+| --- | --- | --- |
+| Pedido de pronta entrega | `400` | `erro de validação: só o pedido de importação tem título de entrada` |
+| Pedido em `proposta`, `entregue` ou `cancelado` | `409` | `o título de entrada só é gerado para pedido confirmado e não entregue` |
+| Entrada já registrada no pedido | `409` | `a entrada do pedido já foi registrada` |
+| Pedido de empresa fora do acesso | `403` | `perfil sem acesso a esta empresa` |
+| Pedido cancelado durante a geração | `409` | `origem cancelada não gera título` |
+
+### Erros do título
 
 | Situação | Status | Mensagem |
 | --- | --- | --- |

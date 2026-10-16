@@ -196,3 +196,34 @@ func TestProrrogarConverteAData(t *testing.T) {
 		t.Fatalf("input = %+v", usecase.inputProrrog)
 	}
 }
+
+type entradaUseCaseFalso struct {
+	titulo *domainreceber.Titulo
+	criado bool
+	input  portsin.GerarTituloDeEntradaInput
+}
+
+func (f *entradaUseCaseFalso) GerarTituloDeEntrada(_ context.Context, input portsin.GerarTituloDeEntradaInput) (*domainreceber.Titulo, bool, error) {
+	f.input = input
+	return f.titulo, f.criado, nil
+}
+
+func TestGerarTituloDeEntradaResponde201SoQuandoCria(t *testing.T) {
+	id, conta := uuid.New(), uuid.New()
+	caminho := "/api/v1/pedidos/" + id.String() + "/titulo-entrada"
+	corpo := `{"vencimento":"2026-10-20","conta_bancaria_id":"` + conta.String() + `"}`
+
+	usecase := &entradaUseCaseFalso{titulo: tituloDeTeste(), criado: true}
+	resposta := executaProtegido(t, NewEntradaDoPedidoHandler(usecase).GerarTitulo, http.MethodPost, caminho, id.String(), corpo)
+	if resposta.Code != http.StatusCreated {
+		t.Fatalf("status %d: %s", resposta.Code, resposta.Body.String())
+	}
+	if usecase.input.PedidoID != id || *usecase.input.ContaBancariaID != conta || !usecase.input.Vencimento.Equal(time.Date(2026, 10, 20, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("input = %+v", usecase.input)
+	}
+
+	usecase.criado = false
+	if resposta := executaProtegido(t, NewEntradaDoPedidoHandler(usecase).GerarTitulo, http.MethodPost, caminho, id.String(), corpo); resposta.Code != http.StatusOK {
+		t.Fatalf("título já existente = %d", resposta.Code)
+	}
+}

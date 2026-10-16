@@ -18,9 +18,10 @@ import (
 )
 
 type cenario struct {
-	ctx     context.Context
-	m       *memoria
-	titulos portsin.TituloUseCase
+	ctx      context.Context
+	m        *memoria
+	titulos  portsin.TituloUseCase
+	entradas portsin.EntradaDoPedidoUseCase
 
 	mia     uuid.UUID
 	red     uuid.UUID
@@ -50,6 +51,9 @@ func novoCenario(t *testing.T) *cenario {
 		m:   m,
 		titulos: receberusecases.NewTituloUsecase(
 			repoTitulos{m}, repoClientes{m}, repoContas{m}, repoCategorias{m}, repoEmpresas{m}, repoUsuarios{m}, repoCargos{m},
+		),
+		entradas: receberusecases.NewEntradaDoPedidoUsecase(
+			repoTitulos{m}, repoPedidos{m}, repoContas{m}, repoEmpresas{m}, repoUsuarios{m}, repoCargos{m},
 		),
 	}
 

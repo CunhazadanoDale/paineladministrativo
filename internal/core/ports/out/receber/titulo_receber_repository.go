@@ -39,4 +39,6 @@ type TituloReceberRepository interface {
 	Obter(ctx context.Context, id uuid.UUID) (*domainreceber.Titulo, error)
 	Listar(ctx context.Context, filtro TituloFiltro) ([]*domainreceber.Titulo, error)
 	ListarHistorico(ctx context.Context, tituloID uuid.UUID) ([]*domainreceber.Historico, error)
+	GerarDeOrigem(ctx context.Context, geracao *domainreceber.Geracao) (domainreceber.ResultadoGeracao, error)
+	CancelarPorOrigem(ctx context.Context, cancelamento domainreceber.CancelamentoDeOrigem) (domainreceber.ResultadoCancelamento, error)
 }

@@ -261,6 +261,170 @@ func (r *TituloReceberRepository) ListarHistorico(ctx context.Context, tituloID 
 	return historicos, nil
 }
 
+func (r *TituloReceberRepository) GerarDeOrigem(ctx context.Context, geracao *domainreceber.Geracao) (domainreceber.ResultadoGeracao, error) {
+	if geracao == nil || len(geracao.Titulos) == 0 || len(geracao.Titulos) != len(geracao.Historicos) {
+		return domainreceber.ResultadoGeracao{}, domain.ErroValidacao("geração de títulos sem parcelas")
+	}
+
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return domainreceber.ResultadoGeracao{}, tratarErroDeGravacao(err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if err := travarOrigem(ctx, tx, geracao.Origem, geracao.OrigemIDs()); err != nil {
+		return domainreceber.ResultadoGeracao{}, err
+	}
+	if err := exigirEmpresaAtivaParaTitulo(ctx, tx, geracao.EmpresaID); err != nil {
+		return domainreceber.ResultadoGeracao{}, err
+	}
+	if err := exigirClienteParaTitulo(ctx, tx, geracao.ClienteID, false); err != nil {
+		return domainreceber.ResultadoGeracao{}, err
+	}
+	if err := exigirContaDeCobranca(ctx, tx, geracao.Titulos[0].ContaBancariaID, geracao.EmpresaID); err != nil {
+		return domainreceber.ResultadoGeracao{}, err
+	}
+
+	resultado := domainreceber.ResultadoGeracao{Gerados: []uuid.UUID{}, JaExistentes: []uuid.UUID{}}
+	for indice, titulo := range geracao.Titulos {
+		criado, existenteID, err := inserirTituloDeOrigem(ctx, tx, titulo)
+		if err != nil {
+			return domainreceber.ResultadoGeracao{}, err
+		}
+		if !criado {
+			resultado.JaExistentes = append(resultado.JaExistentes, existenteID)
+			continue
+		}
+		if err := inserirHistoricoDoTitulo(ctx, tx, geracao.Historicos[indice]); err != nil {
+			return domainreceber.ResultadoGeracao{}, err
+		}
+		resultado.Gerados = append(resultado.Gerados, titulo.ID)
+	}
+
+	if err := tratarErroDeGravacao(tx.Commit()); err != nil {
+		return domainreceber.ResultadoGeracao{}, err
+	}
+
+	return resultado, nil
+}
+
+func (r *TituloReceberRepository) CancelarPorOrigem(ctx context.Context, cancelamento domainreceber.CancelamentoDeOrigem) (domainreceber.ResultadoCancelamento, error) {
+	if !cancelamento.Origem.Gerada() || len(cancelamento.OrigemIDs) == 0 {
+		return domainreceber.ResultadoCancelamento{}, domain.ErroValidacao("cancelamento por origem sem origem")
+	}
+
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return domainreceber.ResultadoCancelamento{}, tratarErroDeGravacao(err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var linhas []*tituloLinha
+	if err := tx.SelectContext(ctx, &linhas, `
+		SELECT `+colunasTitulo+`
+		FROM titulo_receber
+		WHERE origem = $1 AND origem_id = ANY($2::uuid[])
+		ORDER BY id
+		FOR UPDATE
+	`, cancelamento.Origem.String(), pq.Array(textosDeIDs(cancelamento.OrigemIDs))); err != nil {
+		return domainreceber.ResultadoCancelamento{}, tratarErroDeGravacao(err)
+	}
+
+	resultado := domainreceber.ResultadoCancelamento{
+		Cancelados: []uuid.UUID{},
+		Marcados:   []uuid.UUID{},
+		Ignorados:  len(cancelamento.OrigemIDs) - len(linhas),
+	}
+	for _, linha := range linhas {
+		titulo := paraDominioTitulo(linha)
+		versaoLida, anterior := titulo.Versao, titulo.Status
+
+		efeito, historico := titulo.AplicarCancelamentoDaOrigem(cancelamento)
+		if efeito == domainreceber.EfeitoIgnorado {
+			resultado.Ignorados++
+			continue
+		}
+		if _, err := atualizarTitulo(ctx, tx, titulo, versaoLida, anterior); err != nil {
+			return domainreceber.ResultadoCancelamento{}, err
+		}
+		if err := inserirHistoricoDoTitulo(ctx, tx, historico); err != nil {
+			return domainreceber.ResultadoCancelamento{}, err
+		}
+		if efeito == domainreceber.EfeitoCancelado {
+			resultado.Cancelados = append(resultado.Cancelados, titulo.ID)
+		} else {
+			resultado.Marcados = append(resultado.Marcados, titulo.ID)
+		}
+	}
+
+	if err := tratarErroDeGravacao(tx.Commit()); err != nil {
+		return domainreceber.ResultadoCancelamento{}, err
+	}
+
+	return resultado, nil
+}
+
+func inserirTituloDeOrigem(ctx context.Context, tx *sqlx.Tx, titulo *domainreceber.Titulo) (bool, uuid.UUID, error) {
+	consulta, argumentos, err := tx.BindNamed(`
+		INSERT INTO titulo_receber (`+colunasTitulo+`) VALUES (
+			:id, :empresa_id, :cliente_id, :origem, :origem_id, :numero, :parcela, :vencimento, :valor_centavos,
+			:categoria_financeira_id, :competencia, :conta_bancaria_id, :status, :recebido_centavos, :boleto_enviado_em,
+			:boleto_canal, :origem_cancelada_em, :cancelado_motivo, :observacao, :usuario_id, :versao, :criado_em, :atualizado_em
+		)
+		ON CONFLICT (origem, origem_id) WHERE origem <> 'manual' DO NOTHING
+		RETURNING id
+	`, paraLinhaTitulo(titulo))
+	if err != nil {
+		return false, uuid.Nil, err
+	}
+
+	var id uuid.UUID
+	err = tx.GetContext(ctx, &id, consulta, argumentos...)
+	if err == nil {
+		return true, id, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return false, uuid.Nil, guardaDoTitulo.traduzir(err)
+	}
+
+	if err := tx.GetContext(ctx, &id, `SELECT id FROM titulo_receber WHERE origem = $1 AND origem_id = $2`,
+		titulo.Origem.String(), *titulo.OrigemID); err != nil {
+		return false, uuid.Nil, tratarErroDeGravacao(err)
+	}
+
+	return false, id, nil
+}
+
+func travarOrigem(ctx context.Context, tx *sqlx.Tx, origem domainreceber.Origem, origemIDs []uuid.UUID) error {
+	switch origem {
+	case domainreceber.OrigemPedido:
+		for _, pedidoID := range origemIDs {
+			if err := travarPedidoDeOrigem(ctx, tx, pedidoID); err != nil {
+				return err
+			}
+		}
+		return nil
+	default:
+		return domainreceber.ErroOrigemNaoSuportada()
+	}
+}
+
+func travarPedidoDeOrigem(ctx context.Context, tx *sqlx.Tx, pedidoID uuid.UUID) error {
+	var status string
+	err := tx.GetContext(ctx, &status, `SELECT status FROM pedido WHERE id = $1 FOR SHARE`, pedidoID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domainreceber.ErroOrigemNaoEncontrada()
+	}
+	if err != nil {
+		return tratarErroDeGravacao(err)
+	}
+	if status == "cancelado" {
+		return domainreceber.ErroOrigemCancelada()
+	}
+
+	return nil
+}
+
 func inserirTitulo(ctx context.Context, tx *sqlx.Tx, titulo *domainreceber.Titulo) error {
 	if _, err := tx.NamedExecContext(ctx, `
 		INSERT INTO titulo_receber (`+colunasTitulo+`) VALUES (

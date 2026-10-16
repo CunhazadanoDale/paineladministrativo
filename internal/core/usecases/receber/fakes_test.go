@@ -8,6 +8,7 @@ import (
 	domaincliente "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/cliente"
 	domainempresa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/empresa"
 	domainfinanceiro "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/financeiro"
+	domainpedido "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/pedido"
 	domainreceber "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/receber"
 	domainusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/usuarios"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/receber"
@@ -22,6 +23,8 @@ type memoria struct {
 	clientes   map[uuid.UUID]*domaincliente.Cliente
 	contas     map[uuid.UUID]*domainfinanceiro.ContaBancaria
 	categorias map[uuid.UUID]*domainfinanceiro.CategoriaFinanceira
+	pedidos    map[uuid.UUID]*domainpedido.Pedido
+	geracoes   []*domainreceber.Geracao
 	titulos    map[uuid.UUID]*domainreceber.Titulo
 	historicos []*domainreceber.Historico
 	alteracoes []*portsout.Alteracao
@@ -37,6 +40,7 @@ func novaMemoria() *memoria {
 		clientes:   map[uuid.UUID]*domaincliente.Cliente{},
 		contas:     map[uuid.UUID]*domainfinanceiro.ContaBancaria{},
 		categorias: map[uuid.UUID]*domainfinanceiro.CategoriaFinanceira{},
+		pedidos:    map[uuid.UUID]*domainpedido.Pedido{},
 		titulos:    map[uuid.UUID]*domainreceber.Titulo{},
 	}
 }
@@ -136,6 +140,12 @@ func (r repoTitulos) Listar(_ context.Context, filtro portsout.TituloFiltro) ([]
 		if filtro.Status != "" && titulo.Status != filtro.Status {
 			continue
 		}
+		if filtro.Origem != "" && titulo.Origem != filtro.Origem {
+			continue
+		}
+		if filtro.OrigemID != nil && (titulo.OrigemID == nil || *titulo.OrigemID != *filtro.OrigemID) {
+			continue
+		}
 		if filtro.VencidosEm != nil && !titulo.Vencido(*filtro.VencidosEm) {
 			continue
 		}
@@ -155,4 +165,59 @@ func (r repoTitulos) ListarHistorico(_ context.Context, tituloID uuid.UUID) ([]*
 	}
 
 	return historicos, nil
+}
+
+func (r repoTitulos) GerarDeOrigem(_ context.Context, geracao *domainreceber.Geracao) (domainreceber.ResultadoGeracao, error) {
+	r.memoria.geracoes = append(r.memoria.geracoes, geracao)
+
+	resultado := domainreceber.ResultadoGeracao{}
+	for indice, titulo := range geracao.Titulos {
+		existente := r.porOrigem(titulo.Origem, *titulo.OrigemID)
+		if existente != nil {
+			resultado.JaExistentes = append(resultado.JaExistentes, existente.ID)
+			continue
+		}
+		r.titulos[titulo.ID] = copiar(titulo)
+		r.historicos = append(r.historicos, geracao.Historicos[indice])
+		resultado.Gerados = append(resultado.Gerados, titulo.ID)
+	}
+
+	return resultado, nil
+}
+
+func (r repoTitulos) CancelarPorOrigem(_ context.Context, cancelamento domainreceber.CancelamentoDeOrigem) (domainreceber.ResultadoCancelamento, error) {
+	resultado := domainreceber.ResultadoCancelamento{}
+	for _, origemID := range cancelamento.OrigemIDs {
+		titulo := r.porOrigem(cancelamento.Origem, origemID)
+		if titulo == nil {
+			resultado.Ignorados++
+			continue
+		}
+		switch efeito, _ := titulo.AplicarCancelamentoDaOrigem(cancelamento); efeito {
+		case domainreceber.EfeitoCancelado:
+			resultado.Cancelados = append(resultado.Cancelados, titulo.ID)
+		case domainreceber.EfeitoMarcado:
+			resultado.Marcados = append(resultado.Marcados, titulo.ID)
+		default:
+			resultado.Ignorados++
+		}
+	}
+
+	return resultado, nil
+}
+
+func (r repoTitulos) porOrigem(origem domainreceber.Origem, origemID uuid.UUID) *domainreceber.Titulo {
+	for _, titulo := range r.titulos {
+		if titulo.Origem == origem && titulo.OrigemID != nil && *titulo.OrigemID == origemID {
+			return titulo
+		}
+	}
+
+	return nil
+}
+
+type repoPedidos struct{ *memoria }
+
+func (r repoPedidos) Obter(_ context.Context, id uuid.UUID) (*domainpedido.Pedido, error) {
+	return copiar(r.pedidos[id]), nil
 }

@@ -73,6 +73,11 @@ type CancelarRequest struct {
 	Motivo string `json:"motivo"`
 }
 
+type TituloDeEntradaRequest struct {
+	Vencimento      string     `json:"vencimento"`
+	ContaBancariaID *uuid.UUID `json:"conta_bancaria_id"`
+}
+
 type TituloResponse struct {
 	ID                    uuid.UUID  `json:"id"`
 	EmpresaID             uuid.UUID  `json:"empresa_id"`

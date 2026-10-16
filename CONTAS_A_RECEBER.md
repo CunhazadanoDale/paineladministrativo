@@ -1,6 +1,6 @@
 # Escopo — M9 Contas a receber e antecipação
 
-> **Status:** escopo fechado — decisões D1 a D6 respondidas pelo usuário (outubro/2026); fase 1 concluída.
+> **Status:** escopo fechado — decisões D1 a D6 respondidas pelo usuário (outubro/2026); fases 1 e 2 concluídas.
 > **Objetivo:** tirar "A receber no banco" e os títulos do "Controle de NFs" das planilhas: título a
 > receber por empresa e cliente, com cobrança em banco, envio de boleto, baixa total ou parcial,
 > antecipação em borderô com fomento, recompra e repasse de pagamento feito na conta errada. Base
@@ -411,7 +411,7 @@ test/helpers + test/integration + test/e2e
 | Fase | Entrega | Estado |
 |---|---|---|
 | **1** | Título manual: migration 000047, domínio (origem, status, título, histórico, vencido derivado), repositório, usecase com escopo por empresa, criar/editar/prorrogar/enviar e retirar do banco/boleto/cancelar, listagem e histórico, e2e + `API.md` | concluída |
-| **2** | Geração por origem: `Geracao`, `GerarDeOrigem`, `CancelarPorOrigem` (contrato da seção 6.1, testes de integração de idempotência e de corrida) e título de entrada do pedido | pendente |
+| **2** | Geração por origem: `Geracao`, `GerarDeOrigem`, `CancelarPorOrigem` (contrato da seção 6.1, testes de integração de idempotência e de corrida) e título de entrada do pedido | concluída |
 | **3** | Baixa: recebimento total e parcial, estorno, registro da entrada paga do pedido na mesma transação (migration 000048) | pendente |
 | **4** | Antecipação: borderô, estorno, recompra e repasse ao fomento com a conta a pagar do M7 na mesma transação (migrations 000049–000050) | pendente |
 | **5** | Visões: resumo por semana/empresa e alerta de boleto não enviado | pendente |
@@ -435,6 +435,10 @@ Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates ve
 - [x] **"Hoje" em Brasília**, como o M6.
 - [x] **Sem exclusão de título** (fase 1): o cancelamento com motivo substitui o `DELETE`, para o
       histórico nunca ser apagado.
+- [x] **Título de entrada não é regerado** (fase 2): o índice de idempotência vale também para o
+      título cancelado; gerar de novo devolve o existente (`200`).
+- [x] **`travarOrigem` antes das demais travas** (fase 2): a origem é travada primeiro e cada `case`
+      recusa origem cancelada; o `case` de `pedido` está pronto e o de `nota_fiscal_duplicata` é do M8.
 - [x] **Número único por empresa e origem** (fase 1), sem diferenciar maiúsculas: o número da NF não
       colide com um título manual de mesmo número.
 - [x] **D1 — Fomento é fornecedor do M4.** Sim; o borderô aponta para `fornecedor`, e a

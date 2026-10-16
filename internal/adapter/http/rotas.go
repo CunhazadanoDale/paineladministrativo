@@ -67,6 +67,7 @@ func NewRouter(
 	entregaUseCase portsinpedido.EntregaUseCase,
 	consultaPedidosUseCase portsinpedido.ConsultaUseCase,
 	tituloUseCase portsinreceber.TituloUseCase,
+	entradaDoPedidoUseCase portsinreceber.EntradaDoPedidoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, middleware.ErrosDeRoteamento(novasRotas(
@@ -86,7 +87,7 @@ func NewRouter(
 		despesaRecorrenteUseCase,
 		resumoContasAPagarUseCase,
 		pedidoUseCase, entregaUseCase, consultaPedidosUseCase,
-		tituloUseCase,
+		tituloUseCase, entradaDoPedidoUseCase,
 		tokens,
 	)))
 }
@@ -125,6 +126,7 @@ func novasRotas(
 	entregaUseCase portsinpedido.EntregaUseCase,
 	consultaPedidosUseCase portsinpedido.ConsultaUseCase,
 	tituloUseCase portsinreceber.TituloUseCase,
+	entradaDoPedidoUseCase portsinreceber.EntradaDoPedidoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -414,6 +416,9 @@ func novasRotas(
 	financeiro("POST /api/v1/titulos-receber/{id}/retirar-banco", tituloHandler.RetirarDoBanco)
 	financeiro("POST /api/v1/titulos-receber/{id}/boleto-enviado", tituloHandler.RegistrarEnvioBoleto)
 	financeiro("POST /api/v1/titulos-receber/{id}/cancelar", tituloHandler.Cancelar)
+
+	entradaDoPedidoHandler := receberhandlers.NewEntradaDoPedidoHandler(entradaDoPedidoUseCase)
+	financeiro("POST /api/v1/pedidos/{id}/titulo-entrada", entradaDoPedidoHandler.GerarTitulo)
 
 	return mux
 }

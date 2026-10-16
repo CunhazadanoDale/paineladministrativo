@@ -57,3 +57,15 @@ func ErroEmpresaObrigatoria() error {
 func ErroClienteObrigatorio() error {
 	return domain.ErroValidacao("cliente do título é obrigatório")
 }
+
+func ErroOrigemNaoSuportada() error {
+	return domain.ErroValidacao("origem ainda não suportada na geração de títulos")
+}
+
+func ErroOrigemNaoEncontrada() error {
+	return domain.ErroValidacao("origem do título não encontrada")
+}
+
+func ErroOrigemCancelada() error {
+	return domain.ErroConflito("origem cancelada não gera título")
+}
