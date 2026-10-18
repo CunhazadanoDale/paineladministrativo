@@ -203,6 +203,10 @@ func executar(registrador *slog.Logger) error {
 		comissaousecases.NewComissaoUsecase(
 			postgres.NewComissaoRepository(banco), representanteRepository, empresaRepository, usuarioRepository, cargoRepository,
 		),
+		comissaousecases.NewAjusteUsecase(
+			postgres.NewComissaoRepository(banco), pedidoRepository, representanteRepository, empresaRepository,
+			usuarioRepository, cargoRepository,
+		),
 		autenticacao.NovoTokenService(cfg.JWTSecret, cfg.JWTExpiracao),
 	)
 

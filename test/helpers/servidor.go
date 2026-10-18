@@ -168,6 +168,10 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 		comissaousecases.NewComissaoUsecase(
 			postgres.NewComissaoRepository(banco), representanteRepository, empresaRepository, usuarioRepository, cargoRepository,
 		),
+		comissaousecases.NewAjusteUsecase(
+			postgres.NewComissaoRepository(banco), pedidoRepository, representanteRepository, empresaRepository,
+			usuarioRepository, cargoRepository,
+		),
 		autenticacao.NovoTokenService(segredoDoTeste, time.Hour),
 	)
 

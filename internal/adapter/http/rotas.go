@@ -79,6 +79,7 @@ func NewRouter(
 	eventoNotaFiscalUseCase portsinnotafiscal.EventoUseCase,
 	percentualComissaoUseCase portsincomissao.PercentualUseCase,
 	comissaoUseCase portsincomissao.ComissaoUseCase,
+	ajusteComissaoUseCase portsincomissao.AjusteUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, middleware.ErrosDeRoteamento(novasRotas(
@@ -101,7 +102,7 @@ func NewRouter(
 		tituloUseCase, entradaDoPedidoUseCase, recebimentoUseCase, antecipacaoUseCase,
 		resumoContasAReceberUseCase,
 		notaFiscalUseCase, eventoNotaFiscalUseCase,
-		percentualComissaoUseCase, comissaoUseCase,
+		percentualComissaoUseCase, comissaoUseCase, ajusteComissaoUseCase,
 		tokens,
 	)))
 }
@@ -148,6 +149,7 @@ func novasRotas(
 	eventoNotaFiscalUseCase portsinnotafiscal.EventoUseCase,
 	percentualComissaoUseCase portsincomissao.PercentualUseCase,
 	comissaoUseCase portsincomissao.ComissaoUseCase,
+	ajusteComissaoUseCase portsincomissao.AjusteUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -480,6 +482,10 @@ func novasRotas(
 	financeiro("POST /api/v1/comissoes/apurar", comissaoHandler.Apurar)
 	financeiro("GET /api/v1/comissoes/pendencias", comissaoHandler.Pendencias)
 	protegido("GET /api/v1/comissoes", comissaoHandler.Listar)
+
+	ajusteComissaoHandler := comissaohandlers.NewAjusteHandler(ajusteComissaoUseCase)
+	financeiro("POST /api/v1/comissoes/ajustes", ajusteComissaoHandler.Criar)
+	protegido("GET /api/v1/comissoes/ajustes", ajusteComissaoHandler.Listar)
 
 	return mux
 }

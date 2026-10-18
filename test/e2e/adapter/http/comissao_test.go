@@ -5,6 +5,7 @@ package http
 import (
 	"net/http"
 	"testing"
+	"time"
 
 	clientedto "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto/cliente"
 	comissaodto "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto/comissao"
@@ -136,5 +137,85 @@ func TestFluxoDeComissaoDoPercentualAApuracao(t *testing.T) {
 	conferirStatus(t, resposta, http.StatusOK)
 	if daRed := decodificarPagina[comissaodto.ComissaoResponse](t, resposta).Dados; len(daRed) != 0 {
 		t.Errorf("o financeiro da Red não deveria ver comissões da MIA: %+v", daRed)
+	}
+}
+
+func TestAjustesDeComissaoPeloFinanceiro(t *testing.T) {
+	servidor, _ := servidorDoTeste(t)
+	mia := criarEmpresa(t, servidor, "11.222.333/0001-81", "MIA").ID
+	red := criarEmpresa(t, servidor, "33.400.004/0001-16", "Red Diamond").ID
+	produtoID := produtoDoTeste(t, servidor)
+	clienteID := clienteDoPedido(t, servidor)
+
+	idAna, tokenAna := usuarioComercial(t, servidor, "Ana Souza", "ana@exemplo.com")
+	conferirStatus(t, envia(t, servidor, http.MethodPut, "/api/v1/usuarios/"+idAna.String()+"/empresas", map[string]any{
+		"acesso_todas": false, "empresa_ids": []any{mia},
+	}), http.StatusOK)
+	_, tokenCaio := usuarioComercial(t, servidor, "Caio Lima", "caio@exemplo.com")
+	tokenFinanceiro := tokenFinanceiroDasEmpresas(t, servidor, "Fabi", "fabi@exemplo.com", mia)
+	tokenFinanceiroRed := tokenFinanceiroDasEmpresas(t, servidor, "Rui", "rui@exemplo.com", red)
+
+	resposta := envia(t, servidor, http.MethodPost, "/api/v1/representantes", map[string]any{
+		"nome": "Ana Representações", "usuario_id": idAna, "comissao_pronta_entrega_bp": 300,
+	})
+	conferirStatus(t, resposta, http.StatusCreated)
+	ana := decodificarEnvelope[clientedto.RepresentanteResponse](t, resposta).Dados
+	resposta = envia(t, servidor, http.MethodPost, "/api/v1/representantes", map[string]any{"nome": "Bia Vendas"})
+	conferirStatus(t, resposta, http.StatusCreated)
+	bia := decodificarEnvelope[clientedto.RepresentanteResponse](t, resposta).Dados
+
+	corpo := corpoDePedido(mia, clienteID, produtoID, "pronta_entrega", 10)
+	corpo["representante_id"] = ana.ID
+	pedido := criarPedidoE2E(t, servidor, corpo, tokenDoTeste)
+
+	competencia := time.Now().In(time.FixedZone("BRT", -3*60*60)).Format("2006-01")
+
+	ajuste := map[string]any{
+		"empresa_id": mia, "representante_id": ana.ID, "pedido_id": pedido.ID,
+		"competencia": competencia, "valor_centavos": -375, "motivo": "devolução de uma peça",
+	}
+	conferirStatus(t, enviaComToken(t, servidor, http.MethodPost, "/api/v1/comissoes/ajustes", ajuste, tokenCaio), http.StatusForbidden)
+	conferirStatus(t, enviaComToken(t, servidor, http.MethodPost, "/api/v1/comissoes/ajustes", ajuste, tokenFinanceiroRed), http.StatusForbidden)
+
+	ajusteDaBia := map[string]any{
+		"empresa_id": mia, "representante_id": bia.ID, "pedido_id": pedido.ID,
+		"competencia": competencia, "valor_centavos": 100, "motivo": "teste",
+	}
+	conferirMensagem(t, enviaComToken(t, servidor, http.MethodPost, "/api/v1/comissoes/ajustes", ajusteDaBia, tokenFinanceiro),
+		http.StatusBadRequest, "erro de validação: pedido do ajuste deve ser da mesma empresa e do mesmo representante")
+	futuro := map[string]any{
+		"empresa_id": mia, "representante_id": ana.ID, "competencia": "2099-01", "valor_centavos": 100, "motivo": "teste",
+	}
+	conferirStatus(t, enviaComToken(t, servidor, http.MethodPost, "/api/v1/comissoes/ajustes", futuro, tokenFinanceiro), http.StatusBadRequest)
+
+	resposta = enviaComToken(t, servidor, http.MethodPost, "/api/v1/comissoes/ajustes", ajuste, tokenFinanceiro)
+	conferirStatus(t, resposta, http.StatusCreated)
+	criado := decodificarEnvelope[comissaodto.AjusteResponse](t, resposta).Dados
+	if criado.ValorCentavos != -375 || criado.Competencia != competencia || criado.PedidoID == nil || *criado.PedidoID != pedido.ID {
+		t.Fatalf("ajuste criado = %+v", criado)
+	}
+	premio := map[string]any{
+		"empresa_id": mia, "representante_id": bia.ID, "competencia": competencia, "valor_centavos": 5000, "motivo": "prêmio de meta",
+	}
+	conferirStatus(t, enviaComToken(t, servidor, http.MethodPost, "/api/v1/comissoes/ajustes", premio, tokenFinanceiro), http.StatusCreated)
+
+	resposta = enviaComToken(t, servidor, http.MethodGet, "/api/v1/comissoes/ajustes?competencia="+competencia, nil, tokenFinanceiro)
+	conferirStatus(t, resposta, http.StatusOK)
+	if todos := decodificarPagina[comissaodto.AjusteResponse](t, resposta).Dados; len(todos) != 2 {
+		t.Errorf("ajustes do financeiro = %+v", todos)
+	}
+
+	resposta = enviaComToken(t, servidor, http.MethodGet, "/api/v1/comissoes/ajustes", nil, tokenAna)
+	conferirStatus(t, resposta, http.StatusOK)
+	if daAna := decodificarPagina[comissaodto.AjusteResponse](t, resposta).Dados; len(daAna) != 1 || daAna[0].ID != criado.ID {
+		t.Errorf("ajustes da Ana = %+v", daAna)
+	}
+	conferirStatus(t, enviaComToken(t, servidor, http.MethodGet, "/api/v1/comissoes/ajustes?representante="+bia.ID.String(), nil, tokenAna), http.StatusForbidden)
+	conferirStatus(t, enviaComToken(t, servidor, http.MethodGet, "/api/v1/comissoes/ajustes", nil, tokenCaio), http.StatusForbidden)
+
+	resposta = enviaComToken(t, servidor, http.MethodGet, "/api/v1/comissoes/ajustes", nil, tokenFinanceiroRed)
+	conferirStatus(t, resposta, http.StatusOK)
+	if daRed := decodificarPagina[comissaodto.AjusteResponse](t, resposta).Dados; len(daRed) != 0 {
+		t.Errorf("o financeiro da Red não deveria ver ajustes da MIA: %+v", daRed)
 	}
 }
