@@ -33,7 +33,20 @@ func (h *NotaFiscalHandler) Importar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	importacao, err := h.usecase.Importar(r.Context(), requisicao.ParaInput(usuario.ID))
+	if err == nil && importacao.ErroDosTitulos != nil {
+		middleware.AnotarErro(w, fmt.Errorf("geração dos títulos da nota fiscal: %w", importacao.ErroDosTitulos))
+	}
 	escreverItem(w, http.StatusCreated, importacao, err, notafiscaldto.NovaImportacaoResponse)
+}
+
+func (h *NotaFiscalHandler) SincronizarTitulos(w http.ResponseWriter, r *http.Request) {
+	usuario, id, ok := resposta.UsuarioEId(w, r)
+	if !ok {
+		return
+	}
+
+	sincronizacao, err := h.usecase.SincronizarTitulos(r.Context(), id, usuario.ID)
+	escreverItem(w, http.StatusOK, sincronizacao, err, notafiscaldto.NovaSincronizacaoTitulosResponse)
 }
 
 func (h *NotaFiscalHandler) Listar(w http.ResponseWriter, r *http.Request) {

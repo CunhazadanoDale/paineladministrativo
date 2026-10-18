@@ -15,6 +15,7 @@ const (
 	AvisoNumeroPedidoAusente = "numero_pedido_ausente"
 	AvisoItensSemProduto     = "itens_sem_produto"
 	AvisoClienteCriado       = "cliente_criado"
+	AvisoTitulosPendentes    = "titulos_pendentes"
 )
 
 type ImportarInput struct {
@@ -25,8 +26,18 @@ type ImportarInput struct {
 }
 
 type Importacao struct {
-	Nota   *domainnotafiscal.NotaFiscal
-	Avisos []string
+	Nota           *domainnotafiscal.NotaFiscal
+	Avisos         []string
+	TitulosGerados []uuid.UUID
+	ErroDosTitulos error
+}
+
+type SincronizacaoTitulos struct {
+	Gerados      []uuid.UUID
+	JaExistentes []uuid.UUID
+	Cancelados   []uuid.UUID
+	Marcados     []uuid.UUID
+	Ignorados    int
 }
 
 type VincularInput struct {
@@ -83,4 +94,5 @@ type NotaFiscalUseCase interface {
 	BaixarXML(ctx context.Context, notaFiscalID, usuarioID uuid.UUID) (*domainsolicitacao.Arquivo, io.ReadCloser, error)
 	ListarItensSemProduto(ctx context.Context, input ListarItensSemProdutoInput) ([]*domainnotafiscal.ItemPendente, error)
 	ListarEntregasSemNota(ctx context.Context, input ListarEntregasSemNotaInput) ([]*domainnotafiscal.EntregaSemNota, error)
+	SincronizarTitulos(ctx context.Context, notaFiscalID, usuarioID uuid.UUID) (*SincronizacaoTitulos, error)
 }

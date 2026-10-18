@@ -10,6 +10,7 @@ import (
 
 	notafiscaldto "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto/notafiscal"
 	pedidodto "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto/pedido"
+	receberdto "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto/receber"
 	solicitacaodto "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto/solicitacao"
 	"github.com/CunhazadanoDale/paineladministrativo.git/test/fixtures/nfe"
 	"github.com/google/uuid"
@@ -42,6 +43,15 @@ func importarNota(t *testing.T, servidor *httptest.Server, corpo map[string]any,
 	conferirStatus(t, resposta, http.StatusCreated)
 
 	return decodificarEnvelope[notafiscaldto.ImportacaoResponse](t, resposta).Dados
+}
+
+func titulosDaDuplicata(t *testing.T, servidor *httptest.Server, duplicataID uuid.UUID, token string) []receberdto.TituloResponse {
+	t.Helper()
+
+	resposta := enviaComToken(t, servidor, http.MethodGet, "/api/v1/titulos-receber?origem=nota_fiscal_duplicata&origem_id="+duplicataID.String(), nil, token)
+	conferirStatus(t, resposta, http.StatusOK)
+
+	return decodificarPagina[receberdto.TituloResponse](t, resposta).Dados
 }
 
 func TestFluxoDeNotaFiscalComPedidoEntregaECancelamento(t *testing.T) {
@@ -101,6 +111,21 @@ func TestFluxoDeNotaFiscalComPedidoEntregaECancelamento(t *testing.T) {
 	}
 	caminho := "/api/v1/notas-fiscais/" + importada.ID.String()
 
+	if len(importada.TitulosGerados) != 2 {
+		t.Fatalf("títulos gerados = %v", importada.TitulosGerados)
+	}
+	titulos := titulosDaDuplicata(t, servidor, importada.Duplicatas[0].ID, tokenFinanceiro)
+	if len(titulos) != 1 || titulos[0].Numero != "NF 1-123" || titulos[0].Parcela != 1 || titulos[0].ValorCentavos != 54500 ||
+		titulos[0].Status != "carteira" || titulos[0].ClienteID != clienteID || titulos[0].EmpresaID != mia {
+		t.Errorf("título da primeira duplicata = %+v", titulos)
+	}
+	conferirStatus(t, enviaComToken(t, servidor, http.MethodPost, caminho+"/titulos", nil, tokenComercial), http.StatusForbidden)
+	resposta = enviaComToken(t, servidor, http.MethodPost, caminho+"/titulos", nil, tokenFinanceiro)
+	conferirStatus(t, resposta, http.StatusOK)
+	if sincronizacao := decodificarEnvelope[notafiscaldto.SincronizacaoTitulosResponse](t, resposta).Dados; len(sincronizacao.Gerados) != 0 || len(sincronizacao.JaExistentes) != 2 {
+		t.Errorf("sincronizar títulos já gerados = %+v", sincronizacao)
+	}
+
 	conferirStatus(t, enviaComToken(t, servidor, http.MethodPost, "/api/v1/notas-fiscais/importacao", map[string]any{"arquivo_id": arquivoID}, tokenFinanceiro), http.StatusConflict)
 	repetida := enviarXML(t, servidor, documento.XML(), tokenFinanceiro)
 	conferirStatus(t, enviaComToken(t, servidor, http.MethodPost, "/api/v1/notas-fiscais/importacao", map[string]any{"arquivo_id": repetida}, tokenFinanceiro), http.StatusConflict)
@@ -153,8 +178,11 @@ func TestFluxoDeNotaFiscalComPedidoEntregaECancelamento(t *testing.T) {
 	resposta = enviaComToken(t, servidor, http.MethodPost, "/api/v1/notas-fiscais/eventos", map[string]any{"arquivo_id": cancelamento}, tokenFinanceiro)
 	conferirStatus(t, resposta, http.StatusCreated)
 	if evento := decodificarEnvelope[notafiscaldto.ImportacaoEventoResponse](t, resposta).Dados; evento.Evento.Tipo != "cancelamento" ||
-		evento.NotaFiscal.Status != "cancelada" || evento.NotaFiscal.Versao != 3 {
+		evento.NotaFiscal.Status != "cancelada" || evento.NotaFiscal.Versao != 3 || len(evento.TitulosCancelados) != 2 || len(evento.Avisos) != 0 {
 		t.Errorf("evento importado = %+v", evento)
+	}
+	if titulos := titulosDaDuplicata(t, servidor, importada.Duplicatas[0].ID, tokenFinanceiro); len(titulos) != 1 || titulos[0].Status != "cancelado" {
+		t.Errorf("título depois do cancelamento da NF = %+v", titulos)
 	}
 
 	resposta = enviaComToken(t, servidor, http.MethodGet, caminho+"/eventos", nil, tokenComercial)
@@ -182,7 +210,8 @@ func TestNotaFiscalEntreEmpresasEClienteCriado(t *testing.T) {
 		"arquivo_id": enviarXML(t, servidor, nfe.Nova(cnpjDaMia, cnpjDaRed, 10).XML(), tokenFinanceiro),
 	}, tokenFinanceiro)
 	if !transferencia.EntreEmpresas || transferencia.Natureza != "transferencia" || transferencia.ClienteID != nil ||
-		transferencia.EmpresaDestinatariaID == nil || *transferencia.EmpresaDestinatariaID != red || len(transferencia.Duplicatas) != 2 {
+		transferencia.EmpresaDestinatariaID == nil || *transferencia.EmpresaDestinatariaID != red || len(transferencia.Duplicatas) != 2 ||
+		len(transferencia.TitulosGerados) != 0 {
 		t.Errorf("transferência = %+v", transferencia.NotaFiscalResponse)
 	}
 
@@ -202,6 +231,11 @@ func TestNotaFiscalEntreEmpresasEClienteCriado(t *testing.T) {
 	}
 
 	semProtocolo := []byte(`<?xml version="1.0"?><NFe xmlns="http://www.portalfiscal.inf.br/nfe"></NFe>`)
+	conferirStatus(t, enviaComToken(t, servidor, http.MethodPost, "/api/v1/notas-fiscais/"+transferencia.ID.String()+"/titulos", nil, tokenFinanceiro), http.StatusBadRequest)
+	if titulos := titulosDaDuplicata(t, servidor, transferencia.Duplicatas[0].ID, tokenFinanceiro); len(titulos) != 0 {
+		t.Errorf("transferência gerou títulos: %+v", titulos)
+	}
+
 	conferirStatus(t, enviaComToken(t, servidor, http.MethodPost, "/api/v1/notas-fiscais/importacao", map[string]any{
 		"arquivo_id": enviarXML(t, servidor, semProtocolo, tokenFinanceiro),
 	}, tokenFinanceiro), http.StatusBadRequest)

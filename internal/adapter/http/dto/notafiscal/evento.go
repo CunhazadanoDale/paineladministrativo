@@ -30,8 +30,11 @@ type EventoResponse struct {
 }
 
 type ImportacaoEventoResponse struct {
-	Evento     EventoResponse     `json:"evento"`
-	NotaFiscal NotaFiscalResponse `json:"nota_fiscal"`
+	Evento            EventoResponse     `json:"evento"`
+	NotaFiscal        NotaFiscalResponse `json:"nota_fiscal"`
+	Avisos            []string           `json:"avisos"`
+	TitulosCancelados []uuid.UUID        `json:"titulos_cancelados"`
+	TitulosMarcados   []uuid.UUID        `json:"titulos_marcados"`
 }
 
 func NovoEventoResponse(evento *domainnotafiscal.Evento) EventoResponse {
@@ -59,8 +62,16 @@ func NovosEventosResponse(eventos []*domainnotafiscal.Evento) []EventoResponse {
 }
 
 func NovaImportacaoEventoResponse(importacao *portsin.ImportacaoEvento) ImportacaoEventoResponse {
+	avisos := importacao.Avisos
+	if avisos == nil {
+		avisos = []string{}
+	}
+
 	return ImportacaoEventoResponse{
-		Evento:     NovoEventoResponse(importacao.Evento),
-		NotaFiscal: NovaNotaFiscalResponse(importacao.Nota),
+		Evento:            NovoEventoResponse(importacao.Evento),
+		NotaFiscal:        NovaNotaFiscalResponse(importacao.Nota),
+		Avisos:            avisos,
+		TitulosCancelados: idsOuVazio(importacao.TitulosCancelados),
+		TitulosMarcados:   idsOuVazio(importacao.TitulosMarcados),
 	}
 }

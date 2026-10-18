@@ -59,11 +59,11 @@ func novoCenario(t *testing.T) *cenario {
 		m:   m,
 		notas: notafiscalusecases.NewNotaFiscalUsecase(
 			repoNotas{m}, repoArquivos{m}, storageFalso{m}, repoEmpresas{m}, repoClientes{m}, repoProdutos{m},
-			repoPedidos{m}, repoEntregas{m}, repoRepresentantes{m}, repoUsuarios{m}, repoCargos{m},
+			repoPedidos{m}, repoEntregas{m}, repoTitulos{m}, repoRepresentantes{m}, repoUsuarios{m}, repoCargos{m},
 		),
 		eventos: notafiscalusecases.NewEventoUsecase(
 			repoNotas{m}, repoArquivos{m}, storageFalso{m}, repoEmpresas{m}, repoClientes{m},
-			repoRepresentantes{m}, repoUsuarios{m}, repoCargos{m},
+			repoTitulos{m}, repoRepresentantes{m}, repoUsuarios{m}, repoCargos{m},
 		),
 	}
 

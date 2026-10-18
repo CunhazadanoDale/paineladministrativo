@@ -13,8 +13,12 @@ type ImportarEventoInput struct {
 }
 
 type ImportacaoEvento struct {
-	Evento *domainnotafiscal.Evento
-	Nota   *domainnotafiscal.NotaFiscal
+	Evento            *domainnotafiscal.Evento
+	Nota              *domainnotafiscal.NotaFiscal
+	Avisos            []string
+	TitulosCancelados []uuid.UUID
+	TitulosMarcados   []uuid.UUID
+	ErroDosTitulos    error
 }
 
 type EventoUseCase interface {

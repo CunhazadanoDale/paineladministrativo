@@ -153,11 +153,12 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 		),
 		notafiscalusecases.NewNotaFiscalUsecase(
 			notaFiscalRepository, arquivoRepository, armazenamento, empresaRepository, clienteRepository, produtoRepository,
-			pedidoRepository, entregaRepository, representanteRepository, usuarioRepository, cargoRepository,
+			pedidoRepository, entregaRepository, postgres.NewTituloReceberRepository(banco), representanteRepository,
+			usuarioRepository, cargoRepository,
 		),
 		notafiscalusecases.NewEventoUsecase(
 			notaFiscalRepository, arquivoRepository, armazenamento, empresaRepository, clienteRepository,
-			representanteRepository, usuarioRepository, cargoRepository,
+			postgres.NewTituloReceberRepository(banco), representanteRepository, usuarioRepository, cargoRepository,
 		),
 		autenticacao.NovoTokenService(segredoDoTeste, time.Hour),
 	)

@@ -1,10 +1,12 @@
 package notafiscal
 
 import (
+	"fmt"
 	"net/http"
 
 	notafiscaldto "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto/notafiscal"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/resposta"
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/middleware"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/notafiscal"
 )
 
@@ -28,6 +30,9 @@ func (h *EventoHandler) Importar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	importacao, err := h.usecase.Importar(r.Context(), requisicao.ParaInput(usuario.ID))
+	if err == nil && importacao.ErroDosTitulos != nil {
+		middleware.AnotarErro(w, fmt.Errorf("cancelamento dos títulos da nota fiscal: %w", importacao.ErroDosTitulos))
+	}
 	escreverItem(w, http.StatusCreated, importacao, err, notafiscaldto.NovaImportacaoEventoResponse)
 }
 

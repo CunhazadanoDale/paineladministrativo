@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"testing"
@@ -32,11 +33,14 @@ type notaUseCaseFalso struct {
 	conteudoDoXML  []byte
 	arquivoDoXML   *domainsolicitacao.Arquivo
 	notaBaixada    uuid.UUID
+	sincronizacao  *portsin.SincronizacaoTitulos
+	sincronizada   uuid.UUID
+	erroDosTitulos error
 }
 
 func (f *notaUseCaseFalso) Importar(_ context.Context, input portsin.ImportarInput) (*portsin.Importacao, error) {
 	f.inputImportar = input
-	return &portsin.Importacao{Nota: f.nota, Avisos: f.avisos}, f.erro
+	return &portsin.Importacao{Nota: f.nota, Avisos: f.avisos, ErroDosTitulos: f.erroDosTitulos}, f.erro
 }
 
 func (f *notaUseCaseFalso) Obter(context.Context, uuid.UUID, uuid.UUID) (*domainnotafiscal.NotaFiscal, error) {
@@ -74,6 +78,11 @@ func (f *notaUseCaseFalso) ListarItensSemProduto(_ context.Context, input portsi
 func (f *notaUseCaseFalso) ListarEntregasSemNota(_ context.Context, input portsin.ListarEntregasSemNotaInput) ([]*domainnotafiscal.EntregaSemNota, error) {
 	f.inputEntregas = input
 	return []*domainnotafiscal.EntregaSemNota{}, f.erro
+}
+
+func (f *notaUseCaseFalso) SincronizarTitulos(_ context.Context, notaFiscalID, _ uuid.UUID) (*portsin.SincronizacaoTitulos, error) {
+	f.sincronizada = notaFiscalID
+	return f.sincronizacao, f.erro
 }
 
 var _ portsin.NotaFiscalUseCase = (*notaUseCaseFalso)(nil)
@@ -246,5 +255,46 @@ func TestErrosDaNotaViramStatus(t *testing.T) {
 		resposta = executaProtegido(t, NewNotaFiscalHandler(usecase).BaixarXML, http.MethodGet, "/api/v1/notas-fiscais/"+id.String()+"/xml",
 			map[string]string{"id": id.String()}, "")
 		apoioteste.VerificarEnvelopeDeErro(t, resposta, status)
+	}
+}
+
+func TestSincronizarTitulosDevolveContagens(t *testing.T) {
+	gerado := uuid.New()
+	usecase := &notaUseCaseFalso{sincronizacao: &portsin.SincronizacaoTitulos{Gerados: []uuid.UUID{gerado}, Ignorados: 1}}
+	id := uuid.New()
+
+	resposta := executaProtegido(t, NewNotaFiscalHandler(usecase).SincronizarTitulos, http.MethodPost, "/api/v1/notas-fiscais/"+id.String()+"/titulos",
+		map[string]string{"id": id.String()}, "")
+
+	if resposta.Code != http.StatusOK || usecase.sincronizada != id {
+		t.Fatalf("status %d: %s", resposta.Code, resposta.Body.String())
+	}
+	var envelope dto.Resposta[notafiscaldto.SincronizacaoTitulosResponse]
+	if err := json.Unmarshal(resposta.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("corpo inválido: %v", err)
+	}
+	dados := envelope.Dados
+	if len(dados.Gerados) != 1 || dados.Gerados[0] != gerado || dados.JaExistentes == nil || dados.Cancelados == nil || dados.Ignorados != 1 {
+		t.Errorf("sincronização = %+v", dados)
+	}
+}
+
+func TestImportarComTitulosPendentesResponde201(t *testing.T) {
+	usecase := &notaUseCaseFalso{
+		nota: notaDeTeste(), avisos: []string{portsin.AvisoTitulosPendentes}, erroDosTitulos: errors.New("conexão perdida"),
+	}
+
+	resposta := executaProtegido(t, NewNotaFiscalHandler(usecase).Importar, http.MethodPost, "/api/v1/notas-fiscais/importacao", nil,
+		`{"arquivo_id":"`+uuid.NewString()+`"}`)
+
+	if resposta.Code != http.StatusCreated {
+		t.Fatalf("status %d: %s", resposta.Code, resposta.Body.String())
+	}
+	var envelope dto.Resposta[notafiscaldto.ImportacaoResponse]
+	if err := json.Unmarshal(resposta.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("corpo inválido: %v", err)
+	}
+	if len(envelope.Dados.Avisos) != 1 || envelope.Dados.Avisos[0] != portsin.AvisoTitulosPendentes || envelope.Dados.TitulosGerados == nil {
+		t.Errorf("importação = %+v", envelope.Dados)
 	}
 }

@@ -14,6 +14,7 @@ import (
 var _ portsin.EventoUseCase = (*EventoUsecaseImpl)(nil)
 
 type EventoUsecaseImpl struct {
+	geradorDeTitulos
 	leitorDeXML
 	permissoes
 }
@@ -24,11 +25,15 @@ func NewEventoUsecase(
 	storage portsout.Storage,
 	empresas portsout.EmpresaRepository,
 	clientes portsout.ClienteRepository,
+	titulos portsout.TituloReceberRepository,
 	representantes portsout.RepresentanteRepository,
 	usuarios portsout.UsuarioRepository,
 	cargos portsout.CargoRepository,
 ) *EventoUsecaseImpl {
 	return &EventoUsecaseImpl{
+		geradorDeTitulos: geradorDeTitulos{
+			titulos: titulos,
+		},
 		leitorDeXML: leitorDeXML{
 			arquivos: arquivos,
 			storage:  storage,
@@ -72,8 +77,9 @@ func (u *EventoUsecaseImpl) Importar(ctx context.Context, input portsin.Importar
 		return nil, erroSemAcessoAEmpresa()
 	}
 
+	agora := time.Now().UTC()
 	versaoLida, statusAnterior := nota.Versao, nota.Status
-	evento, err := nota.AplicarEvento(documento, input.ArquivoID, input.UsuarioID, time.Now().UTC())
+	evento, err := nota.AplicarEvento(documento, input.ArquivoID, input.UsuarioID, agora)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +93,20 @@ func (u *EventoUsecaseImpl) Importar(ctx context.Context, input portsin.Importar
 		return nil, err
 	}
 
-	return &portsin.ImportacaoEvento{Evento: evento, Nota: nota}, nil
+	importacao := &portsin.ImportacaoEvento{
+		Evento: evento, Nota: nota, Avisos: []string{}, TitulosCancelados: []uuid.UUID{}, TitulosMarcados: []uuid.UUID{},
+	}
+	if evento.Tipo == domainnotafiscal.TipoEventoCancelamento && len(nota.Duplicatas) > 0 {
+		resultado, err := u.cancelar(ctx, nota, input.UsuarioID, agora)
+		if err != nil {
+			importacao.ErroDosTitulos = err
+			importacao.Avisos = append(importacao.Avisos, portsin.AvisoTitulosPendentes)
+		} else {
+			importacao.TitulosCancelados, importacao.TitulosMarcados = resultado.Cancelados, resultado.Marcados
+		}
+	}
+
+	return importacao, nil
 }
 
 func (u *EventoUsecaseImpl) Listar(ctx context.Context, notaFiscalID, usuarioID uuid.UUID) ([]*domainnotafiscal.Evento, error) {

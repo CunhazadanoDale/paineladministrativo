@@ -407,6 +407,8 @@ func travarOrigem(ctx context.Context, tx *sqlx.Tx, origem domainreceber.Origem,
 			}
 		}
 		return nil
+	case domainreceber.OrigemNotaFiscalDuplicata:
+		return travarNotaFiscalDeOrigem(ctx, tx, origemIDs)
 	default:
 		return domainreceber.ErroOrigemNaoSuportada()
 	}
@@ -640,4 +642,44 @@ func paraDominioTitulo(linha *tituloLinha) *domainreceber.Titulo {
 	}
 
 	return titulo
+}
+
+func travarNotaFiscalDeOrigem(ctx context.Context, tx *sqlx.Tx, duplicataIDs []uuid.UUID) error {
+	var notaIDs []uuid.UUID
+	if err := tx.SelectContext(ctx, &notaIDs, `
+		SELECT nota_fiscal_id FROM nota_fiscal_duplicata WHERE id = ANY($1::uuid[])
+	`, pq.Array(textosDeIDs(duplicataIDs))); err != nil {
+		return tratarErroDeGravacao(err)
+	}
+	if len(notaIDs) != len(duplicataIDs) {
+		return domainreceber.ErroOrigemNaoEncontrada()
+	}
+
+	var notas []struct {
+		Status        string `db:"status"`
+		Natureza      string `db:"natureza"`
+		EntreEmpresas bool   `db:"entre_empresas"`
+	}
+	if err := tx.SelectContext(ctx, &notas, `
+		SELECT status, natureza, entre_empresas
+		FROM nota_fiscal
+		WHERE id = ANY($1::uuid[])
+		ORDER BY id
+		FOR SHARE
+	`, pq.Array(textosDeIDs(notaIDs))); err != nil {
+		return tratarErroDeGravacao(err)
+	}
+
+	for _, nota := range notas {
+		switch {
+		case nota.Status == "cancelada":
+			return domainreceber.ErroOrigemCancelada()
+		case nota.EntreEmpresas:
+			return domain.ErroValidacao("nota fiscal entre empresas do grupo não gera título")
+		case nota.Natureza != "venda":
+			return domain.ErroValidacao("só nota fiscal de venda gera título")
+		}
+	}
+
+	return nil
 }

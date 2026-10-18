@@ -188,11 +188,12 @@ func executar(registrador *slog.Logger) error {
 		),
 		notafiscalusecases.NewNotaFiscalUsecase(
 			notaFiscalRepository, arquivoRepository, storageArquivos, empresaRepository, clienteRepository, produtoRepository,
-			pedidoRepository, entregaRepository, representanteRepository, usuarioRepository, cargoRepository,
+			pedidoRepository, entregaRepository, postgres.NewTituloReceberRepository(banco), representanteRepository,
+			usuarioRepository, cargoRepository,
 		),
 		notafiscalusecases.NewEventoUsecase(
 			notaFiscalRepository, arquivoRepository, storageArquivos, empresaRepository, clienteRepository,
-			representanteRepository, usuarioRepository, cargoRepository,
+			postgres.NewTituloReceberRepository(banco), representanteRepository, usuarioRepository, cargoRepository,
 		),
 		autenticacao.NovoTokenService(cfg.JWTSecret, cfg.JWTExpiracao),
 	)

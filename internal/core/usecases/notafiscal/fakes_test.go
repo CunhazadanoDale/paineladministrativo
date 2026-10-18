@@ -12,6 +12,7 @@ import (
 	domainestoque "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/estoque"
 	domainnotafiscal "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/notafiscal"
 	domainpedido "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/pedido"
+	domainreceber "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/receber"
 	domainsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/solicitacao"
 	domainusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/usuarios"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/notafiscal"
@@ -37,23 +38,28 @@ type memoria struct {
 	filtroPendentes   portsout.ItemPendenteFiltro
 	filtroEntregas    portsout.EntregaSemNotaFiltro
 	conflitoNoCliente bool
+	geracoes          []*domainreceber.Geracao
+	cancelamentos     []domainreceber.CancelamentoDeOrigem
+	titulosPorOrigem  map[uuid.UUID]uuid.UUID
+	erroDosTitulos    error
 }
 
 func novaMemoria() *memoria {
 	return &memoria{
-		usuarios:       map[uuid.UUID]*domainusuarios.Usuario{},
-		cargos:         map[uuid.UUID]*domainusuarios.Cargo{},
-		empresas:       map[uuid.UUID]*domainempresa.Empresa{},
-		acessos:        map[uuid.UUID]domainempresa.Acesso{},
-		representantes: map[uuid.UUID]*domaincliente.Representante{},
-		clientes:       map[uuid.UUID]*domaincliente.Cliente{},
-		produtos:       map[uuid.UUID]*domainestoque.Produto{},
-		pedidos:        map[uuid.UUID]*domainpedido.Pedido{},
-		entregas:       map[uuid.UUID]*domainpedido.Entrega{},
-		arquivos:       map[uuid.UUID]*domainsolicitacao.Arquivo{},
-		conteudos:      map[string][]byte{},
-		daSolicitacao:  map[uuid.UUID]bool{},
-		notas:          map[uuid.UUID]*domainnotafiscal.NotaFiscal{},
+		usuarios:         map[uuid.UUID]*domainusuarios.Usuario{},
+		cargos:           map[uuid.UUID]*domainusuarios.Cargo{},
+		empresas:         map[uuid.UUID]*domainempresa.Empresa{},
+		acessos:          map[uuid.UUID]domainempresa.Acesso{},
+		representantes:   map[uuid.UUID]*domaincliente.Representante{},
+		clientes:         map[uuid.UUID]*domaincliente.Cliente{},
+		produtos:         map[uuid.UUID]*domainestoque.Produto{},
+		pedidos:          map[uuid.UUID]*domainpedido.Pedido{},
+		entregas:         map[uuid.UUID]*domainpedido.Entrega{},
+		arquivos:         map[uuid.UUID]*domainsolicitacao.Arquivo{},
+		conteudos:        map[string][]byte{},
+		daSolicitacao:    map[uuid.UUID]bool{},
+		notas:            map[uuid.UUID]*domainnotafiscal.NotaFiscal{},
+		titulosPorOrigem: map[uuid.UUID]uuid.UUID{},
 	}
 }
 
@@ -320,4 +326,45 @@ func (r repoNotas) ArquivoVinculado(_ context.Context, arquivoID uuid.UUID) (boo
 	}
 
 	return false, nil
+}
+
+type repoTitulos struct{ *memoria }
+
+func (r repoTitulos) GerarDeOrigem(_ context.Context, geracao *domainreceber.Geracao) (domainreceber.ResultadoGeracao, error) {
+	if r.erroDosTitulos != nil {
+		return domainreceber.ResultadoGeracao{}, r.erroDosTitulos
+	}
+	r.geracoes = append(r.geracoes, geracao)
+
+	resultado := domainreceber.ResultadoGeracao{Gerados: []uuid.UUID{}, JaExistentes: []uuid.UUID{}}
+	for _, titulo := range geracao.Titulos {
+		if existente, ok := r.titulosPorOrigem[*titulo.OrigemID]; ok {
+			resultado.JaExistentes = append(resultado.JaExistentes, existente)
+			continue
+		}
+		r.titulosPorOrigem[*titulo.OrigemID] = titulo.ID
+		resultado.Gerados = append(resultado.Gerados, titulo.ID)
+	}
+
+	return resultado, nil
+}
+
+func (r repoTitulos) CancelarPorOrigem(_ context.Context, cancelamento domainreceber.CancelamentoDeOrigem) (domainreceber.ResultadoCancelamento, error) {
+	if r.erroDosTitulos != nil {
+		return domainreceber.ResultadoCancelamento{}, r.erroDosTitulos
+	}
+	r.cancelamentos = append(r.cancelamentos, cancelamento)
+
+	resultado := domainreceber.ResultadoCancelamento{Cancelados: []uuid.UUID{}, Marcados: []uuid.UUID{}}
+	for _, origemID := range cancelamento.OrigemIDs {
+		titulo, ok := r.titulosPorOrigem[origemID]
+		if !ok {
+			resultado.Ignorados++
+			continue
+		}
+		resultado.Cancelados = append(resultado.Cancelados, titulo)
+		delete(r.titulosPorOrigem, origemID)
+	}
+
+	return resultado, nil
 }

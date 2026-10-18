@@ -2578,6 +2578,7 @@ sem produto (`403`).
 | `POST` | `/api/v1/notas-fiscais/eventos` | **financeiro** | `201` `{ "evento": {...}, "nota_fiscal": {...} }` |
 | `GET` | `/api/v1/notas-fiscais/{id}/eventos` | autenticado | `200` lista (`{ "dados": [...] }`), mais antigo primeiro |
 | `GET` | `/api/v1/entregas/sem-nota-fiscal` | autenticado | `200` lista paginada (`?empresa=`, `?cliente=`) |
+| `POST` | `/api/v1/notas-fiscais/{id}/titulos` | **financeiro** | `200` sincroniza os títulos a receber da nota (sem corpo) |
 
 ### Importação
 
@@ -2615,8 +2616,8 @@ XML → `400`.
 **Natureza**: `transferencia` (entre empresas) › `devolucao` (`finNFe = 4`) › `remessa` (CFOP
 predominante de remessa: `5116/5117/6116/6117`, `5905/6905`, `5910`–`5917`, `6910`–`6917`,
 `5923/6923`, `5934/6934`, `5949/6949`) › `venda` (inclusive o simples faturamento `5922/6922`). O CFOP
-predominante é o do item de maior valor. Só `venda` vai virar título no contas a receber (fase
-seguinte do M8, depois do M9); as duplicatas são guardadas em todas as naturezas.
+predominante é o do item de maior valor. Só `venda` gera título no contas a receber (seção
+"Títulos a receber da nota"); as duplicatas são guardadas em todas as naturezas.
 
 **Itens**: o produto é resolvido pelo `codigo` (`cProd`); item sem produto entra com `produto_id =
 null` e aparece em `itens-sem-produto`. A NF **não move estoque** (a saída é a da entrega).
@@ -2628,6 +2629,7 @@ null` e aparece em `itens-sem-produto`. A NF **não move estoque** (a saída é 
 | `itens_sem_produto` | algum item não achou produto pelo código |
 | `numero_pedido_ausente` | o cliente exige número de pedido na NF e o XML não traz `xPed` |
 | `cliente_criado` | o cliente foi criado a partir do destinatário |
+| `titulos_pendentes` | a nota foi gravada, mas a geração dos títulos falhou; refaça com `POST /notas-fiscais/{id}/titulos` |
 
 Resposta (resumo):
 
@@ -2650,7 +2652,8 @@ Resposta (resumo):
       "pedido_cliente": null
     }],
     "duplicatas": [{ "id": "…", "numero": "001", "vencimento": "2026-11-09T00:00:00Z", "valor_centavos": 54500 }],
-    "avisos": ["itens_sem_produto"]
+    "avisos": ["itens_sem_produto"],
+    "titulos_gerados": ["…", "…"]
   }
 }
 ```
@@ -2677,13 +2680,41 @@ Envie o XML do evento (`procEventoNFe`) por `POST /api/v1/arquivos` e importe co
 foi importada) e o autor do evento precisa ser o CNPJ emitente (`400`).
 
 - **Cancelamento**: nota `autorizada` → `cancelada` (avança a `versao`); a entrega volta a aparecer
-  em `entregas/sem-nota-fiscal`. Cancelar de novo → `409`.
+  em `entregas/sem-nota-fiscal` e os títulos das duplicatas são cancelados no contas a receber
+  (seção abaixo). Cancelar de novo → `409`. A resposta traz também `avisos`,
+  `titulos_cancelados` e `titulos_marcados`.
 - **Carta de correção**: só registra o texto (`justificativa`); mesma sequência repetida → `409`;
   nota cancelada não recebe (`409`).
 
 `GET /entregas/sem-nota-fiscal` lista entregas `saiu` ou `entregue` sem NF autorizada, mais antigas
 primeiro, com `entrega_id`, `pedido_id`, `pedido_numero`, `empresa_id`, `cliente_id`, `status`,
 `saiu_em`, `entregue_em` e `transportadora`; o representante com login vê só as dos próprios pedidos.
+
+### Títulos a receber da nota
+
+Nota de `venda`, autorizada, com cliente e com duplicatas gera **um título por duplicata** no contas a
+receber (`origem = nota_fiscal_duplicata`, `origem_id` = id da duplicata), na própria importação:
+número `NF <série>-<número>`, parcela pela ordem de vencimento, valor e vencimento da duplicata,
+situação `carteira`, sem conta de cobrança. Os títulos aparecem em
+`GET /api/v1/titulos-receber?origem=nota_fiscal_duplicata&origem_id=<duplicata>` e seguem as regras
+do contas a receber (empresa, cliente, número, valor e competência vêm da nota e não são editáveis).
+Remessa, devolução e nota entre empresas do grupo não geram título.
+
+Nota e títulos são gravados em transações separadas: se a geração falhar, a nota fica gravada, a
+importação responde `201` com o aviso `titulos_pendentes` e a causa vai para o log da requisição.
+
+O **cancelamento** da nota (evento `110111`) cancela os títulos ainda em `carteira` ou `em_banco` sem
+recebimento; título antecipado, recebido ou com recebimento parcial não muda de situação e ganha
+`origem_cancelada_em` para o financeiro resolver. O cancelamento da nota nunca é recusado por causa dos
+títulos; se a parte dos títulos falhar, o evento responde `201` com o aviso `titulos_pendentes`.
+
+`POST /api/v1/notas-fiscais/{id}/titulos` (financeiro, sem corpo) refaz o que faltou e pode ser
+chamado quantas vezes for preciso: nota autorizada de venda gera os títulos que ainda não existem;
+nota cancelada cancela os títulos das duplicatas; outra nota → `400`.
+
+```json
+{ "dados": { "gerados": [], "ja_existentes": ["…", "…"], "cancelados": [], "marcados": [], "ignorados": 0 } }
+```
 
 ---
 

@@ -459,6 +459,7 @@ func novasRotas(
 	financeiro("PUT /api/v1/notas-fiscais/{id}/vinculo", notaFiscalHandler.Vincular)
 	financeiro("PUT /api/v1/notas-fiscais/{id}/itens/{numero}/produto", notaFiscalHandler.VincularProduto)
 	protegido("GET /api/v1/entregas/sem-nota-fiscal", notaFiscalHandler.ListarEntregasSemNota)
+	financeiro("POST /api/v1/notas-fiscais/{id}/titulos", notaFiscalHandler.SincronizarTitulos)
 
 	eventoNotaFiscalHandler := notafiscalhandlers.NewEventoHandler(eventoNotaFiscalUseCase)
 	financeiro("POST /api/v1/notas-fiscais/eventos", eventoNotaFiscalHandler.Importar)

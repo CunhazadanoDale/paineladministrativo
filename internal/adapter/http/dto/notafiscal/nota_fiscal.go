@@ -109,7 +109,16 @@ type NotaFiscalDetalheResponse struct {
 
 type ImportacaoResponse struct {
 	NotaFiscalDetalheResponse
-	Avisos []string `json:"avisos"`
+	Avisos         []string    `json:"avisos"`
+	TitulosGerados []uuid.UUID `json:"titulos_gerados"`
+}
+
+type SincronizacaoTitulosResponse struct {
+	Gerados      []uuid.UUID `json:"gerados"`
+	JaExistentes []uuid.UUID `json:"ja_existentes"`
+	Cancelados   []uuid.UUID `json:"cancelados"`
+	Marcados     []uuid.UUID `json:"marcados"`
+	Ignorados    int         `json:"ignorados"`
 }
 
 type ItemPendenteResponse struct {
@@ -206,7 +215,29 @@ func NovaImportacaoResponse(importacao *portsin.Importacao) ImportacaoResponse {
 		avisos = []string{}
 	}
 
-	return ImportacaoResponse{NotaFiscalDetalheResponse: NovaNotaFiscalDetalheResponse(importacao.Nota), Avisos: avisos}
+	return ImportacaoResponse{
+		NotaFiscalDetalheResponse: NovaNotaFiscalDetalheResponse(importacao.Nota),
+		Avisos:                    avisos,
+		TitulosGerados:            idsOuVazio(importacao.TitulosGerados),
+	}
+}
+
+func NovaSincronizacaoTitulosResponse(sincronizacao *portsin.SincronizacaoTitulos) SincronizacaoTitulosResponse {
+	return SincronizacaoTitulosResponse{
+		Gerados:      idsOuVazio(sincronizacao.Gerados),
+		JaExistentes: idsOuVazio(sincronizacao.JaExistentes),
+		Cancelados:   idsOuVazio(sincronizacao.Cancelados),
+		Marcados:     idsOuVazio(sincronizacao.Marcados),
+		Ignorados:    sincronizacao.Ignorados,
+	}
+}
+
+func idsOuVazio(ids []uuid.UUID) []uuid.UUID {
+	if ids == nil {
+		return []uuid.UUID{}
+	}
+
+	return ids
 }
 
 func NovosItensPendentesResponse(pendentes []*domainnotafiscal.ItemPendente) []ItemPendenteResponse {

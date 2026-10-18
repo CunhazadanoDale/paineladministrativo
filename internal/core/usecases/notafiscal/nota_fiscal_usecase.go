@@ -22,6 +22,7 @@ type NotaFiscalUsecaseImpl struct {
 	produtos portsout.ProdutoRepository
 	pedidos  portsout.PedidoRepository
 	entregas portsout.EntregaRepository
+	geradorDeTitulos
 	leitorDeXML
 	permissoes
 }
@@ -35,6 +36,7 @@ func NewNotaFiscalUsecase(
 	produtos portsout.ProdutoRepository,
 	pedidos portsout.PedidoRepository,
 	entregas portsout.EntregaRepository,
+	titulos portsout.TituloReceberRepository,
 	representantes portsout.RepresentanteRepository,
 	usuarios portsout.UsuarioRepository,
 	cargos portsout.CargoRepository,
@@ -43,6 +45,9 @@ func NewNotaFiscalUsecase(
 		produtos: produtos,
 		pedidos:  pedidos,
 		entregas: entregas,
+		geradorDeTitulos: geradorDeTitulos{
+			titulos: titulos,
+		},
 		leitorDeXML: leitorDeXML{
 			arquivos: arquivos,
 			storage:  storage,
@@ -138,7 +143,57 @@ func (u *NotaFiscalUsecaseImpl) Importar(ctx context.Context, input portsin.Impo
 		return nil, err
 	}
 
-	return &portsin.Importacao{Nota: nota, Avisos: avisosDaImportacao(nota, destino)}, nil
+	importada := &portsin.Importacao{Nota: nota, Avisos: avisosDaImportacao(nota, destino), TitulosGerados: []uuid.UUID{}}
+	if nota.GeraTitulos() {
+		resultado, err := u.gerar(ctx, nota, input.UsuarioID, agora)
+		if err != nil {
+			importada.ErroDosTitulos = err
+			importada.Avisos = append(importada.Avisos, portsin.AvisoTitulosPendentes)
+		} else {
+			importada.TitulosGerados = resultado.Gerados
+		}
+	}
+
+	return importada, nil
+}
+
+func (u *NotaFiscalUsecaseImpl) SincronizarTitulos(ctx context.Context, notaFiscalID, usuarioID uuid.UUID) (*portsin.SincronizacaoTitulos, error) {
+	perfil, err := u.exigeFinanceiro(ctx, usuarioID)
+	if err != nil {
+		return nil, err
+	}
+
+	nota, err := u.notaVisivel(ctx, perfil, notaFiscalID)
+	if err != nil {
+		return nil, err
+	}
+
+	agora := time.Now().UTC()
+	sincronizacao := &portsin.SincronizacaoTitulos{
+		Gerados: []uuid.UUID{}, JaExistentes: []uuid.UUID{}, Cancelados: []uuid.UUID{}, Marcados: []uuid.UUID{},
+	}
+
+	switch {
+	case nota.Status == domainnotafiscal.StatusCancelada:
+		if len(nota.Duplicatas) == 0 {
+			return sincronizacao, nil
+		}
+		resultado, err := u.cancelar(ctx, nota, usuarioID, agora)
+		if err != nil {
+			return nil, err
+		}
+		sincronizacao.Cancelados, sincronizacao.Marcados, sincronizacao.Ignorados = resultado.Cancelados, resultado.Marcados, resultado.Ignorados
+	case nota.GeraTitulos():
+		resultado, err := u.gerar(ctx, nota, usuarioID, agora)
+		if err != nil {
+			return nil, err
+		}
+		sincronizacao.Gerados, sincronizacao.JaExistentes = resultado.Gerados, resultado.JaExistentes
+	default:
+		return nil, domain.ErroValidacao("só nota fiscal de venda, autorizada e com duplicatas gera títulos")
+	}
+
+	return sincronizacao, nil
 }
 
 func (u *NotaFiscalUsecaseImpl) Obter(ctx context.Context, notaFiscalID, usuarioID uuid.UUID) (*domainnotafiscal.NotaFiscal, error) {
