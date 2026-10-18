@@ -12,6 +12,7 @@ import (
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/postgres"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/storage/disco"
 	clienteusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/cliente"
+	comissaousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/comissao"
 	empresausecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/empresa"
 	estoqueusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/estoque"
 	financeirousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/financeiro"
@@ -159,6 +160,13 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 		notafiscalusecases.NewEventoUsecase(
 			notaFiscalRepository, arquivoRepository, armazenamento, empresaRepository, clienteRepository,
 			postgres.NewTituloReceberRepository(banco), representanteRepository, usuarioRepository, cargoRepository,
+		),
+		comissaousecases.NewPercentualUsecase(
+			postgres.NewComissaoRepository(banco), pedidoRepository, representanteRepository, empresaRepository,
+			usuarioRepository, cargoRepository,
+		),
+		comissaousecases.NewComissaoUsecase(
+			postgres.NewComissaoRepository(banco), representanteRepository, empresaRepository, usuarioRepository, cargoRepository,
 		),
 		autenticacao.NovoTokenService(segredoDoTeste, time.Hour),
 	)
