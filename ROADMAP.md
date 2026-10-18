@@ -117,7 +117,7 @@ Onda 2      ├── M2 Estoque por local, lote e reserva
 Onda 3   M6 Pedidos de venda e entregas      (M1 M2 M3)
          M7 Contas a pagar                   (M1 M4 M5)
                  │
-Onda 4   M8 NF-e por XML                     (M2 M3 M6)
+Onda 4   M8 NF-e por XML                     (M2 M3 M6; fase final: M9)
          M9 Contas a receber e antecipação   (M3 M5)
          M10 Comissões                       (M3 M6)
          M11 Propostas e tabela de preços    (M3 M6)
@@ -130,7 +130,8 @@ Onda 6   M15 DRE e painéis                   (M2 M7 M8 M9 M13)
 ```
 
 Módulos da mesma onda podem ser feitos em paralelo por sessões diferentes (no máximo três
-ao mesmo tempo, regra 10 da seção 3).
+ao mesmo tempo, regra 10 da seção 3). M8 e M9 correm juntos pelo acordo de títulos da seção 5
+("Coordenação M8 × M9"): só a fase final do M8 espera o M9 estar na `main`.
 
 A trilha **F0** (correções do front) corre em paralelo às ondas, numa sessão própria no repo
 do front. O **F0a** precisa estar concluído antes do front de qualquer módulo a partir do M1;
@@ -143,6 +144,7 @@ o **F0b** pode correr junto com essas telas.
 | F0b | Correções do front — qualidade | F0a | — | concluído |
 | F-M1 | Front de empresas e filiais | M1 F0a | — | concluído |
 | F-M4 | Front de fornecedores | M4 F0a | — | concluído |
+| F-M5 | Front de contas bancárias e plano de contas | M5 F0a | — | em andamento (feat/front-m5-financeiro) |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
 | M3 | Clientes e representantes | M1 | Base de clientes | concluído |
@@ -150,8 +152,8 @@ o **F0b** pode correr junto com essas telas.
 | M5 | Contas bancárias e plano de contas | M1 | classificação manual dos extratos | concluído |
 | M6 | Pedidos de venda e entregas | M1 M2 M3 | Vendas futuras, Entregas de importação, Pendências de envio | concluído |
 | M7 | Contas a pagar | M1 M4 M5 | Painel financeiro (contas a pagar) | concluído |
-| M8 | NF-e por XML | M2 M3 M6 | Controle de NFs | pendente |
-| M9 | Contas a receber e antecipação | M3 M5 | A receber no banco, títulos do Controle de NFs | pendente |
+| M8 | NF-e por XML | M2 M3 M6 (fase final: M9) | Controle de NFs | pendente |
+| M9 | Contas a receber e antecipação | M3 M5 | A receber no banco, títulos do Controle de NFs | concluído |
 | M10 | Comissões | M3 M6 | comissões calculadas à mão | pendente |
 | M11 | Propostas e tabela de preços | M3 M6 | orçamentos em documento, guia de modelos de venda | pendente |
 | M12 | Importações | M2 M4 M6 M7 | parte de Entregas de importação e do painel financeiro | pendente |
@@ -633,6 +635,33 @@ Evolução do módulo `solicitacao` (mesmo pacote; o fluxo de aprovação contin
   sistema registra o valor do documento fiscal e o valor do pedido; diferença entre
   eles é tratada com a contabilidade, não modelada como recurso.
 
+#### Coordenação M8 × M9
+
+Acordo fechado (outubro/2026) para as duas sessões correrem em paralelo:
+
+- **O M9 é dono do título.** `titulo_receber` tem `origem` + `origem_id` no padrão da
+  `solicitacao` do M7: valores `manual`, `pedido` e `nota_fiscal_duplicata`, todos já no
+  `chk_titulo_receber_origem` desde a primeira migration do M9; `origem_id` **sem FK**, porque
+  `nota_fiscal_duplicata` nasce no M8; idempotência por índice único parcial em
+  `(origem, origem_id) WHERE origem <> 'manual'`.
+- **O M9 expõe a geração por origem.** Um método do `TituloReceberRepository` no padrão de
+  `GerarDeRecorrencia` (trava o que precisa com `FOR SHARE`, `INSERT ... ON CONFLICT DO
+  NOTHING`, histórico na mesma transação), para o consumidor declarar a porta mínima. A
+  assinatura, e o que acontece com o título quando a origem é cancelada, ficam fechadas no
+  escopo do M9 (primeira entrega da sessão) e o M8 as lê de lá; mudança depois disso é
+  combinada com o usuário.
+- **O M8 só guarda as duplicatas até o M9 chegar.** As fases do M8 gravam
+  `nota_fiscal_duplicata` sem gerar títulos. A geração (e o efeito do cancelamento da NF nos
+  títulos) é a **última fase do M8**, que só começa depois que o M9 estiver mergeado na
+  `main` e a branch do M8 for atualizada com ela.
+- **O pedido (M6) é tocado pelos dois, por porta mínima própria.** O M8 vincula NF ↔ pedido
+  ↔ entrega e o M9 registra a entrada paga do pedido na baixa do título de entrada. Cada um
+  declara a sua porta em `core/ports/out/<consumidor>/`, sem acrescentar métodos ao port do
+  M6; métodos novos no `adapter/postgres` do pedido entram só no fim do arquivo (regra 5 da
+  seção 3).
+- **Sem outros cruzamentos.** A recompra do M9 gera conta a pagar no M7 (o M8 não toca na
+  `solicitacao`); criar cliente a partir da NF é só do M8.
+
 ### M9 — Contas a receber e antecipação
 
 - **Título**: `titulo_receber` (empresa, cliente, origem NF/pedido/manual, número,
@@ -646,6 +675,29 @@ Evolução do módulo `solicitacao` (mesmo pacote; o fluxo de aprovação contin
 - **Pagamento na conta errada**: registro de recebimento em conta diferente da
   cobrança, que gera a obrigação de repasse ao fomento.
 - **Baixa**: total ou parcial, com conta bancária e data.
+- **Coordenação com o M8**: o título, a origem `nota_fiscal_duplicata` e a geração por origem
+  são do M9 e seguem o acordo em "Coordenação M8 × M9" (seção do M8).
+
+**Entregue (outubro/2026):** API completa (fases 1 a 5 do `CONTAS_A_RECEBER.md`); front pendente
+(fase 6), depois do F0a. Para os próximos módulos:
+
+- **M8 (última fase)**: a porta mínima tem só `GerarDeOrigem` e `CancelarPorOrigem` do
+  `TituloReceberRepository` (seção 6.1 do `CONTAS_A_RECEBER.md`); o M8 acrescenta o `case
+  OrigemNotaFiscalDuplicata` em `travarOrigem` (`titulo_receber_repo.go`), travando a `nota_fiscal`
+  com `FOR SHARE` e recusando NF cancelada ou entre empresas do grupo. Cancelar a NF chama
+  `CancelarPorOrigem`, que cancela os títulos sem movimento e marca `origem_cancelada_em` nos
+  movimentados, sem nunca recusar;
+- a conta a pagar gerada por outro módulo está fechada no M7 (`NovaSolicitacaoDeOrigem`,
+  `SolicitacaoRepository.GerarDeOrigem` e `gerarSolicitacaoDeOrigem` para gravar na mesma
+  transação, `uq_solicitacao_origem`): M10, M12 e M14 acrescentam a própria origem em
+  `chk_solicitacao_origem` e em `Origem.Sistemica()`;
+- **M13**: concilia `titulo_recebimento` (tipo `conta`, por `conta_bancaria_id` + `recebido_em`,
+  entrada no caixa = valor + juros) e o crédito do borderô (`antecipacao.conta_bancaria_id` +
+  `operado_em`, valor líquido); a projeção usa o saldo dos títulos `carteira` e `em_banco`;
+- **M15**: título `manual` entra na DRE por `competencia` + categoria; títulos de NF e de pedido ficam
+  fora (a receita vem da NF); juros recebidos e encargos do borderô (bruto − líquido) são resultado
+  financeiro; recompra e repasse entram pela conta a pagar do M7;
+- "hoje" do módulo é o dia no fuso de Brasília (`domainreceber.Hoje`).
 
 ### M10 — Comissões
 
@@ -715,7 +767,14 @@ Somente leitura; nenhum dado digitado aqui.
 - [x] **Empresa faturadora** (outubro/2026): escolhida no pedido entre as empresas ativas no
       acesso do usuário, sem regra automática; vale para M6 e M8.
 - [ ] **Transferências entre empresas**: tratamento fiscal com a contabilidade (afeta
-      M8 e M15).
+      M8 e M15). Faltam: tipo de nota emitida entre as empresas, se gera título e conta a
+      pagar entre elas, se entra como receita na DRE da empresa vendedora e se move estoque
+      entre os locais (e por qual custo).
+      **Regra provisória** (outubro/2026, até a contabilidade responder): o M8 importa a NF
+      cujo destinatário tem CNPJ de empresa cadastrada e a marca como **entre empresas do
+      grupo**, sem gerar título, conta a pagar nem movimento de estoque; o M15 a deixa fora da
+      receita. Com essa regra o M8 pode ser reservado; o efeito definitivo vira fase própria
+      quando a decisão chegar.
 - [x] **Representante é usuário?** Vínculo opcional (outubro/2026): `representante` é cadastro
       próprio que pode apontar para um `usuario`; o representante com login vê só os próprios
       clientes, pedidos e comissões; sem login, existe só para cálculo (afeta M3, M6, M10).

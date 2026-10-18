@@ -9,18 +9,20 @@ import (
 type Origem string
 
 const (
-	OrigemManual      Origem = "manual"
-	OrigemRecorrencia Origem = "recorrencia"
+	OrigemManual         Origem = "manual"
+	OrigemRecorrencia    Origem = "recorrencia"
+	OrigemRecompra       Origem = "recompra"
+	OrigemRepasseFomento Origem = "repasse_fomento"
 )
 
 func NovaOrigem(valor string) (Origem, error) {
 	origem := Origem(strings.ToLower(strings.TrimSpace(valor)))
 
 	switch origem {
-	case OrigemManual, OrigemRecorrencia:
+	case OrigemManual, OrigemRecorrencia, OrigemRecompra, OrigemRepasseFomento:
 		return origem, nil
 	default:
-		return "", domain.ErroValidacao("origem deve ser manual ou recorrencia")
+		return "", domain.ErroValidacao("origem deve ser manual, recorrencia, recompra ou repasse_fomento")
 	}
 }
 
@@ -30,4 +32,8 @@ func OrigemDe(valor string) Origem {
 
 func (o Origem) String() string {
 	return string(o)
+}
+
+func (o Origem) Sistemica() bool {
+	return o == OrigemRecompra || o == OrigemRepasseFomento
 }

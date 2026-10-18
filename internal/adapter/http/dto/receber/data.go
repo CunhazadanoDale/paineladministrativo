@@ -1,0 +1,38 @@
+package receber
+
+import (
+	"strings"
+	"time"
+
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
+)
+
+const formatoData = "2006-01-02"
+
+func ParaData(valor, campo string) (time.Time, error) {
+	valor = strings.TrimSpace(valor)
+	if valor == "" {
+		return time.Time{}, nil
+	}
+	if data, err := time.Parse(formatoData, valor); err == nil {
+		return data, nil
+	}
+
+	return time.Time{}, domain.ErroValidacao(campo + " deve estar no formato AAAA-MM-DD")
+}
+
+func ParaMomento(valor, campo string) (time.Time, error) {
+	valor = strings.TrimSpace(valor)
+	if valor == "" {
+		return time.Time{}, nil
+	}
+	if momento, err := time.Parse(time.RFC3339, valor); err == nil {
+		return momento, nil
+	}
+
+	return time.Time{}, domain.ErroValidacao(campo + " deve estar no formato RFC 3339 (AAAA-MM-DDThh:mm:ssZ)")
+}
+
+func formatarData(valor time.Time) string {
+	return valor.Format(formatoData)
+}
