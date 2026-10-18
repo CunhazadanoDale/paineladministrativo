@@ -556,7 +556,10 @@ Fluxo: **solicitante → aprovador designado → financeiro**.
 
 Desde o M7 a solicitação é a **conta a pagar** do grupo. Os campos de classificação são
 opcionais na criação; o `prazo_pagamento` é o vencimento. As despesas fixas entram pela seção
-"Despesas recorrentes", que gera as solicitações com `origem = recorrencia`.
+"Despesas recorrentes", que gera as solicitações com `origem = recorrencia`. O M9 gera as
+contas a pagar da recompra de título antecipado (`origem = recompra`) e do repasse ao fomento
+(`origem = repasse_fomento`): elas nascem em `pendente_aprovacao`, já com fornecedor (o fomento),
+categoria e competência, e seguem o fluxo de aprovação normal.
 
 ### Estados
 
@@ -639,7 +642,7 @@ Filtros de conta a pagar, combináveis com qualquer escopo (valor inválido → 
 | `fornecedor=<uuid>` | fornecedor da solicitação |
 | `categoria=<uuid>` | categoria financeira |
 | `competencia=AAAA-MM` | competência (`erro de validação: competência deve estar no formato AAAA-MM`) |
-| `origem=manual\|recorrencia` | origem da solicitação |
+| `origem=manual\|recorrencia\|recompra\|repasse_fomento` | origem da solicitação |
 | `vencimento_de=AAAA-MM-DD` / `vencimento_ate=AAAA-MM-DD` | intervalo do `prazo_pagamento`, inclusivo (`erro de validação: consulta vencimento_de deve estar no formato AAAA-MM-DD`; final antes do inicial → `400 erro de validação: vencimento final não pode ser anterior ao inicial`) |
 | `vencidas=true` | `pendente_aprovacao` ou `aprovado` com vencimento antes de hoje (UTC); aceita `true`/`false`/`1`/`0`, outro valor → `400 erro de validação: consulta vencidas deve ser true ou false` |
 
@@ -2250,6 +2253,307 @@ rejeitada ou cancelada depois: a geração não recria a conta (para recriar, la
 
 `recusadas` lista as recorrências que não puderam gerar (fornecedor inativo, categoria que deixou
 de ser lançável, recorrência desativada no meio da geração), sem impedir as outras.
+
+---
+
+## Contas a receber — títulos (financeiro)
+
+Título a receber de cada **empresa**, com escopo por empresa (padrão da seção 4 do `EMPRESAS.md`).
+Só **financeiro** e administrador leem e escrevem (`403 perfil sem permissão para contas a receber`
+no usecase; o middleware das rotas `financeiro` responde antes para os demais perfis). O título nasce
+`manual` por esta API ou é gerado por outro módulo (`origem` `pedido` e `nota_fiscal_duplicata`,
+fases seguintes do M9 e do M8).
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/titulos-receber` | **financeiro** | `201` título manual em `carteira` (ou `em_banco` com `conta_bancaria_id`) |
+| `GET` | `/api/v1/titulos-receber` | **financeiro** | `200` lista paginada por vencimento (`?empresa=`, `?cliente=`, `?status=`, `?origem=`, `?origem_id=`, `?conta=`, `?vencimento_de=`, `?vencimento_ate=`, `?vencidos=true`, `?origem_cancelada=true`) |
+| `GET` | `/api/v1/titulos-receber/{id}` | **financeiro** | `200` |
+| `GET` | `/api/v1/titulos-receber/{id}/historico` | **financeiro** | `200` lista (`{ "dados": [...] }`), mais antigo primeiro |
+| `PUT` | `/api/v1/titulos-receber/{id}` | **financeiro** | `200`; só título `manual` em `carteira` sem recebimento; corpo do `POST` sem `empresa_id`, `cliente_id` e `conta_bancaria_id`, com `versao` |
+| `POST` | `/api/v1/titulos-receber/{id}/prorrogar` | **financeiro** | `200`; corpo `{ "versao", "vencimento", "motivo" }`; `carteira` ou `em_banco` |
+| `POST` | `/api/v1/titulos-receber/{id}/enviar-banco` | **financeiro** | `200`; corpo `{ "versao", "conta_bancaria_id" }`; `carteira` → `em_banco` |
+| `POST` | `/api/v1/titulos-receber/{id}/retirar-banco` | **financeiro** | `200`; corpo `{ "versao": n }`; `em_banco` → `carteira`, limpa a conta de cobrança |
+| `POST` | `/api/v1/titulos-receber/{id}/boleto-enviado` | **financeiro** | `200`; corpo `{ "versao", "canal", "enviado_em" }`; só `em_banco`; não troca o status |
+| `POST` | `/api/v1/titulos-receber/{id}/cancelar` | **financeiro** | `200`; corpo `{ "versao", "motivo" }`; `carteira` ou `em_banco` sem recebimento |
+| `POST` | `/api/v1/pedidos/{id}/titulo-entrada` | **financeiro** | `201` título de entrada gerado; `200` com o título que já existia; corpo `{ "vencimento", "conta_bancaria_id" }` |
+| `POST` | `/api/v1/titulos-receber/{id}/recebimentos` | **financeiro** | `201` `{ "titulo", "recebimento" }`; baixa total ou parcial |
+| `GET` | `/api/v1/titulos-receber/{id}/recebimentos` | **financeiro** | `200` lista (`{ "dados": [...] }`), com o estorno de cada um |
+| `POST` | `/api/v1/titulos-receber/{id}/recebimentos/{recebimento_id}/estorno` | **financeiro** | `200` título; corpo `{ "versao", "motivo", "estornado_em" }` |
+
+Corpo do `POST /titulos-receber`:
+
+```json
+{
+  "empresa_id": "…",
+  "cliente_id": "…",
+  "numero": "ALG-10",
+  "parcela": 1,
+  "vencimento": "2026-11-10",
+  "valor_centavos": 150000,
+  "categoria_financeira_id": "…",
+  "competencia": "2026-11",
+  "conta_bancaria_id": "…",
+  "observacao": "aluguel do galpão"
+}
+```
+
+| Campo | Regra |
+| --- | --- |
+| `empresa_id` | obrigatório; empresa do acesso (`403 perfil sem acesso a esta empresa`) e ativa (`400 empresa inativa não recebe título`); não muda |
+| `cliente_id` | obrigatório; cliente ativo (`400 cliente inativo não recebe título novo`); não muda |
+| `numero` / `parcela` | número obrigatório até 30; parcela de 1 a 999; repetidos na empresa e na origem (sem diferenciar maiúsculas, fora os cancelados) → `409 já existe um título com este número e parcela na empresa` |
+| `vencimento` | `AAAA-MM-DD`, não anterior a hoje (Brasília); editar sem mudar o vencimento é aceito mesmo vencido |
+| `valor_centavos` | `> 0` |
+| `categoria_financeira_id` | obrigatória no título manual; subcategoria ativa (`400 categoria financeira deve ser uma subcategoria ativa`) de natureza `receita` (`400 categoria financeira do título deve ser de receita`) |
+| `competencia` | `AAAA-MM`, opcional; omitida = mês do vencimento (DRE do título manual no M15) |
+| `conta_bancaria_id` | opcional; conta de cobrança ativa e da mesma empresa (`400 conta bancária deve ser da mesma empresa do título`); com ela o título nasce `em_banco` |
+| `observacao` | opcional, até 1000 |
+
+Resposta:
+
+```json
+{
+  "dados": {
+    "id": "…",
+    "empresa_id": "…",
+    "cliente_id": "…",
+    "origem": "manual",
+    "origem_id": null,
+    "numero": "ALG-10",
+    "parcela": 1,
+    "vencimento": "2026-11-10",
+    "valor_centavos": 150000,
+    "recebido_centavos": 0,
+    "saldo_centavos": 150000,
+    "vencido": false,
+    "categoria_financeira_id": "…",
+    "competencia": "2026-11",
+    "conta_bancaria_id": null,
+    "status": "carteira",
+    "boleto_enviado_em": null,
+    "boleto_canal": null,
+    "origem_cancelada_em": null,
+    "cancelado_motivo": null,
+    "observacao": "aluguel do galpão",
+    "usuario_id": "…",
+    "versao": 1,
+    "criado_em": "…",
+    "atualizado_em": "…"
+  }
+}
+```
+
+- `status`: `carteira`, `em_banco`, `antecipado`, `recebido`, `cancelado`. **`vencido` é derivado**
+  (`vencimento < hoje`, saldo maior que zero e status `carteira`, `em_banco` ou `antecipado`), nunca
+  gravado: `?status=vencido` → `400`; use `?vencidos=true`.
+- `vencimento` sai como `AAAA-MM-DD` e `competencia` como `AAAA-MM`; `boleto_enviado_em` é um
+  instante (RFC 3339).
+- `PUT` com os mesmos dados devolve o título sem avançar a versão nem gravar histórico.
+- Prorrogar: novo vencimento posterior ao atual e não anterior a hoje (`400`); `motivo` obrigatório
+  até 500; a competência não muda.
+- Boleto: `canal` em `email`, `whatsapp`, `portal`, `correio`, `outro`; `enviado_em` em RFC 3339
+  (`2026-10-15T09:30:00-03:00`), obrigatório e não no futuro. Registra o último envio.
+- Título com a origem cancelada (`origem_cancelada_em` preenchido) não volta ao banco (`409`).
+- Histórico (`evento`): `criado`, `gerado`, `editado`, `prorrogado`, `enviado_banco`,
+  `retirado_banco`, `boleto_enviado`, `antecipado`, `antecipacao_estornada`, `recomprado`,
+  `recebido`, `recebimento_estornado`, `cancelado`, `origem_cancelada`; cada item traz `de_status`,
+  `para_status` e `descricao`.
+
+### Título de entrada do pedido
+
+`POST /api/v1/pedidos/{id}/titulo-entrada` gera o título da entrada de um pedido de **importação**
+`confirmado` ou `parcialmente_entregue`, ainda sem entrada registrada: `origem = pedido`,
+`origem_id` = id do pedido, `numero = PED-<numero do pedido>`, parcela 1, empresa e cliente do pedido,
+valor = `valor_total_centavos × entrada_bp / 10000` (arredondado para baixo), sem categoria (a
+receita vem da NF). `vencimento` (`AAAA-MM-DD`) é obrigatório e pode estar no passado;
+`conta_bancaria_id` é opcional (com ela o título nasce `em_banco`). A geração é idempotente: se o
+pedido já tem título de entrada, a resposta é `200` com ele, inclusive cancelado (o título de entrada
+não é gerado de novo). Cancelar o pedido não cancela o título; o financeiro o cancela.
+
+| Situação | Status | Mensagem |
+| --- | --- | --- |
+| Pedido de pronta entrega | `400` | `erro de validação: só o pedido de importação tem título de entrada` |
+| Pedido em `proposta`, `entregue` ou `cancelado` | `409` | `o título de entrada só é gerado para pedido confirmado e não entregue` |
+| Entrada já registrada no pedido | `409` | `a entrada do pedido já foi registrada` |
+| Pedido de empresa fora do acesso | `403` | `perfil sem acesso a esta empresa` |
+| Pedido cancelado durante a geração | `409` | `origem cancelada não gera título` |
+
+### Recebimento (baixa) e estorno
+
+Corpo do `POST /titulos-receber/{id}/recebimentos`:
+
+```json
+{
+  "versao": 1,
+  "tipo": "conta",
+  "conta_bancaria_id": "…",
+  "recebido_em": "2026-10-15",
+  "valor_centavos": 95000,
+  "juros_centavos": 800,
+  "desconto_centavos": 5000
+}
+```
+
+| Campo | Regra |
+| --- | --- |
+| `tipo` | `conta` (padrão, dinheiro numa conta da empresa) ou `fomento` (título antecipado liquidado pelo cliente direto no fomento, sem conta) |
+| `conta_bancaria_id` | obrigatória em `conta`; conta ativa da mesma empresa, mesmo que diferente da conta de cobrança; proibida em `fomento` |
+| `recebido_em` | `AAAA-MM-DD`, obrigatória, não no futuro (Brasília) |
+| `valor_centavos` | `> 0`; abate o saldo e entrou no caixa |
+| `juros_centavos` | `>= 0`; juros e multa recebidos, não abatem o saldo |
+| `desconto_centavos` | `>= 0`; abate o saldo sem entrar no caixa |
+
+- `valor + desconto` não pode passar do saldo (`400 valor mais desconto passa do saldo do título (<saldo> centavos)`).
+  Quando o saldo zera, o título vira `recebido`; antes disso, o status não muda.
+- Só título `carteira`, `em_banco` ou `antecipado` recebe baixa (`409`).
+- **Pagamento na conta errada**: título `antecipado` recebido com `tipo = conta` exige
+  `"repasse": { "vencimento", "categoria_financeira_id" }` no corpo (`400` sem ele). Na mesma
+  transação da baixa, o M9 grava o repasse (valor = `valor_centavos`, sem juros) e gera a conta a pagar
+  ao fomento no M7 (`origem = repasse_fomento`, categoria lançável de `despesa`, competência do mês
+  do recebimento). O recebimento traz `repasse` com o `solicitacao_id`; o que gerou repasse não é
+  estornado (`409`). `repasse` em título que não está antecipado → `400`.
+- O recebimento traz `entrada_no_caixa_centavos` (`valor + juros` em `conta`, `0` em `fomento`), que
+  é o que o M13 concilia com o extrato pela `conta_bancaria_id` e pela `recebido_em`.
+- **Título de entrada do pedido**: a baixa que zera o saldo registra a entrada paga no pedido (M6) na
+  mesma transação, com `recebido_em` como data e a soma dos `valor_centavos` como valor; o pedido ganha
+  `entrada_paga_em`, `entrada_paga_centavos` e o `prazo_limite`, e o histórico do pedido registra
+  `entrada_registrada`. O recebimento sai com `registrou_entrada_pedido = true`. Se o pedido já tinha a
+  entrada registrada pela rota do M6, ou foi cancelado, a baixa é aceita sem mexer no pedido e o
+  histórico do título avisa. Pedido alterado por outra pessoa no meio → `409` e nada é gravado.
+- Estorno: lançamento inverso (o recebimento fica `estornado = true` com o `estorno`); o saldo volta e o
+  título `recebido` volta ao status anterior à baixa. `motivo` obrigatório (até 500); `estornado_em`
+  não no futuro nem antes do recebimento. Recebimento já estornado → `409 o recebimento já foi
+  estornado`; o que registrou a entrada do pedido não é estornado (`409`).
+
+### Erros do título
+
+| Situação | Status | Mensagem |
+| --- | --- | --- |
+| `versao` ausente | `400` | `erro de validação: versão do título é obrigatória` |
+| `versao` divergente | `409` | `o título foi alterado por outra pessoa; recarregue e tente de novo` |
+| Editar título gerado / fora de `carteira` / com recebimento | `409` | `só o título manual pode ser editado; ...` / `só o título em carteira pode ser editado` / `título com recebimento não pode ser editado` |
+| Transição fora do estado | `409` | `não é possível mudar o título de "<atual>" para "<novo>"` |
+| Boleto fora do banco | `409` | `só o título em banco tem boleto para enviar` |
+| Cancelar com recebimento | `409` | `título com recebimento não pode ser cancelado; estorne o recebimento antes` |
+
+---
+
+## Antecipações (borderô, recompra e repasse)
+
+Antecipação de títulos com uma empresa de fomento, que é um **fornecedor** do M4. Só **financeiro** e
+administrador, com escopo por empresa.
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/antecipacoes` | **financeiro** | `201` borderô `ativa`; os títulos passam a `antecipado` |
+| `GET` | `/api/v1/antecipacoes` | **financeiro** | `200` lista paginada, mais recente primeiro (`?empresa=`, `?fornecedor=`, `?status=ativa\|estornada`, `?de=`, `?ate=`) |
+| `GET` | `/api/v1/antecipacoes/{id}` | **financeiro** | `200` com os títulos |
+| `POST` | `/api/v1/antecipacoes/{id}/estorno` | **financeiro** | `200`; corpo `{ "versao", "motivo" }` |
+| `POST` | `/api/v1/titulos-receber/{id}/recompra` | **financeiro** | `201` `{ "titulo", "recompra" }` |
+
+Corpo do `POST /antecipacoes`:
+
+```json
+{
+  "empresa_id": "…",
+  "fornecedor_id": "…",
+  "numero": "B-77",
+  "operado_em": "2026-10-15",
+  "taxa_bp": 300,
+  "valor_liquido_centavos": 294000,
+  "conta_bancaria_id": "…",
+  "titulo_ids": ["…", "…"]
+}
+```
+
+| Campo | Regra |
+| --- | --- |
+| `empresa_id` | empresa do acesso e ativa; todos os títulos são dela |
+| `fornecedor_id` | o fomento; fornecedor ativo (`400 fomento inativo não recebe antecipação`) |
+| `numero` | opcional, até 30 (número do borderô no fomento) |
+| `operado_em` | `AAAA-MM-DD`, não no futuro |
+| `taxa_bp` | taxa ao mês em pontos-base, informativa, `0..10000` |
+| `valor_liquido_centavos` | creditado na conta; `> 0` e no máximo o bruto |
+| `conta_bancaria_id` | conta ativa da empresa onde o líquido entrou (o M13 concilia por ela e por `operado_em`) |
+| `titulo_ids` | de 1 a 200 títulos `carteira` ou `em_banco`, com saldo, sem origem cancelada, sem repetir |
+
+- `valor_bruto_centavos` é a soma dos saldos dos títulos; `encargos_centavos` = bruto − líquido (o M15
+  os lê como resultado financeiro). Cada título guarda o valor antecipado e o status anterior em
+  `titulos[]`.
+- Cliente com `proibe_antecipacao` (M3) bloqueia o borderô inteiro:
+  `400 cliente não permite antecipação: <nome do cliente>`, conferido também na transação.
+- Título já antecipado em outro borderô → `409`.
+- **Estorno do borderô** (lançamento errado): só se nenhum título foi recebido nem recomprado (`409`);
+  os títulos voltam ao status anterior e a antecipação fica `estornada` com `estorno_motivo` (até
+  500) e `estornado_em`. `versao` divergente → `409 a antecipação foi alterada por outra pessoa; ...`.
+
+### Recompra
+
+Corpo do `POST /titulos-receber/{id}/recompra`:
+
+```json
+{
+  "versao": 2,
+  "recomprado_em": "2026-10-15",
+  "encargos_centavos": 4500,
+  "vencimento": "2026-10-20",
+  "categoria_financeira_id": "…",
+  "motivo": "cliente não pagou"
+}
+```
+
+Só título `antecipado` numa antecipação vigente (`409`). Na mesma transação: o título volta para
+`carteira` (a empresa cobra o cliente de novo), sai do borderô, e o M7 ganha a conta a pagar ao
+fomento com `origem = recompra`, valor = saldo do título + encargos, a `categoria_financeira_id`
+informada (subcategoria ativa de `despesa`, senão `400`), vencimento informado e competência do mês da
+recompra, em `pendente_aprovacao`. A resposta traz `recompra.solicitacao_id`. `motivo` obrigatório
+(até 500); `recomprado_em` não no futuro.
+
+---
+
+## Contas a receber — resumo e alerta de boleto (financeiro)
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/contas-a-receber/resumo` | **financeiro** | `200` (`?de=`, `?ate=`, `?empresa=`) |
+| `GET` | `/api/v1/titulos-receber/boletos-pendentes` | **financeiro** | `200` lista paginada de títulos (`?dias=5`, `?empresa=`) |
+
+**Resumo**: saldos (`valor − recebido`) dos títulos em aberto por **semana** (segunda a domingo, pelo
+vencimento) e por **empresa**, em três colunas sem sobreposição: `a_receber` (`carteira` e `em_banco` a
+vencer), `antecipado` (a vencer, só informativo: o dinheiro já entrou pelo borderô) e `vencido`
+(as três situações, vencidas). Os vencidos antes do início do período saem à parte em `atrasados`, por
+empresa, e entram no total de vencido. Período padrão de 8 semanas a partir da segunda-feira atual
+(Brasília); intervalo máximo de 1 ano; fim antes do início → `400`. Só as empresas do acesso;
+`?empresa=` fora do acesso → `403`.
+
+```json
+{
+  "dados": {
+    "de": "2026-10-12",
+    "ate": "2026-12-06",
+    "semanas": [
+      {
+        "semana": "2026-10-19",
+        "empresa_id": "…",
+        "a_receber": { "quantidade": 2, "saldo_centavos": 270000 },
+        "antecipado": { "quantidade": 1, "saldo_centavos": 150000 },
+        "vencido": { "quantidade": 0, "saldo_centavos": 0 }
+      }
+    ],
+    "atrasados": [{ "empresa_id": "…", "vencido": { "quantidade": 1, "saldo_centavos": 150000 } }],
+    "totais": {
+      "a_receber": { "quantidade": 2, "saldo_centavos": 270000 },
+      "antecipado": { "quantidade": 1, "saldo_centavos": 150000 },
+      "vencido": { "quantidade": 2, "saldo_centavos": 300000 }
+    }
+  }
+}
+```
+
+**Boletos pendentes**: títulos `em_banco` sem envio de boleto registrado e com vencimento até
+`hoje + dias` (padrão `5`, de `0` a `90`, senão `400`), inclusive os já vencidos, ordenados por
+vencimento. Registrar o envio (`POST /titulos-receber/{id}/boleto-enviado`) tira o título da lista.
 
 ---
 

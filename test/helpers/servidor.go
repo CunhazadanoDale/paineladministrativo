@@ -19,6 +19,7 @@ import (
 	leadusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/lead"
 	notafiscalusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/notafiscal"
 	pedidousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/pedido"
+	receberusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/receber"
 	solicitacaousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/solicitacao"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/usuarios"
 	"github.com/jmoiron/sqlx"
@@ -128,6 +129,27 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 		),
 		pedidousecases.NewConsultaUsecase(
 			postgres.NewPedidoConsultaRepository(banco), representanteRepository, empresaRepository, usuarioRepository, cargoRepository,
+		),
+		receberusecases.NewTituloUsecase(
+			postgres.NewTituloReceberRepository(banco), clienteRepository, postgres.NewContaBancariaRepository(banco),
+			postgres.NewCategoriaFinanceiraRepository(banco), empresaRepository, usuarioRepository, cargoRepository,
+		),
+		receberusecases.NewEntradaDoPedidoUsecase(
+			postgres.NewTituloReceberRepository(banco), pedidoRepository, postgres.NewContaBancariaRepository(banco),
+			empresaRepository, usuarioRepository, cargoRepository,
+		),
+		receberusecases.NewRecebimentoUsecase(
+			postgres.NewTituloReceberRepository(banco), postgres.NewAntecipacaoRepository(banco), pedidoRepository,
+			postgres.NewContaBancariaRepository(banco), postgres.NewCategoriaFinanceiraRepository(banco),
+			empresaRepository, usuarioRepository, cargoRepository,
+		),
+		receberusecases.NewAntecipacaoUsecase(
+			postgres.NewAntecipacaoRepository(banco), postgres.NewTituloReceberRepository(banco), clienteRepository,
+			postgres.NewFornecedorRepository(banco), postgres.NewContaBancariaRepository(banco),
+			postgres.NewCategoriaFinanceiraRepository(banco), empresaRepository, usuarioRepository, cargoRepository,
+		),
+		receberusecases.NewResumoContasAReceberUsecase(
+			postgres.NewContasAReceberResumoRepository(banco), empresaRepository, usuarioRepository, cargoRepository,
 		),
 		notafiscalusecases.NewNotaFiscalUsecase(
 			notaFiscalRepository, arquivoRepository, armazenamento, empresaRepository, clienteRepository, produtoRepository,

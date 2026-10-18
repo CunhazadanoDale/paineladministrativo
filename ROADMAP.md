@@ -144,7 +144,9 @@ o **F0b** pode correr junto com essas telas.
 | F0b | Correções do front — qualidade | F0a | — | concluído |
 | F-M1 | Front de empresas e filiais | M1 F0a | — | concluído |
 | F-M4 | Front de fornecedores | M4 F0a | — | concluído |
-| F-M5 | Front de contas bancárias e plano de contas | M5 F0a | — | em andamento (feat/front-m5-financeiro) |
+| F-M5 | Front de contas bancárias e plano de contas | M5 F0a | — | concluído |
+| F-M2 | Front de estoque por local, lote e reserva | M2 F0a | — | concluído |
+| F-M3 | Front de clientes e representantes | M3 F0a | — | em andamento (feat/front-m3-clientes) |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
 | M3 | Clientes e representantes | M1 | Base de clientes | concluído |
@@ -153,7 +155,7 @@ o **F0b** pode correr junto com essas telas.
 | M6 | Pedidos de venda e entregas | M1 M2 M3 | Vendas futuras, Entregas de importação, Pendências de envio | concluído |
 | M7 | Contas a pagar | M1 M4 M5 | Painel financeiro (contas a pagar) | concluído |
 | M8 | NF-e por XML | M2 M3 M6 (fase final: M9) | Controle de NFs | em andamento (feat/m8-notas-fiscais) |
-| M9 | Contas a receber e antecipação | M3 M5 | A receber no banco, títulos do Controle de NFs | pendente |
+| M9 | Contas a receber e antecipação | M3 M5 | A receber no banco, títulos do Controle de NFs | concluído |
 | M10 | Comissões | M3 M6 | comissões calculadas à mão | pendente |
 | M11 | Propostas e tabela de preços | M3 M6 | orçamentos em documento, guia de modelos de venda | pendente |
 | M12 | Importações | M2 M4 M6 M7 | parte de Entregas de importação e do painel financeiro | pendente |
@@ -377,6 +379,77 @@ Ordem sugerida, cada um como sessão própria (regra 8 da seção 3):
 - `useFornecedores` com `AbortController`, em `modules/cancelamento.test.jsx`; a recarga do
   formulário é cancelada quando o modal fecha (coberta em `Fornecedores.test.jsx`).
 
+**Entregue o front do M5 (outubro/2026, branch `feat/front-m5-financeiro` do front):** as duas telas
+ficam em `modules/financeiro` (nome do módulo na API), com um `Financeiro.css` próprio. Para os
+próximos fronts:
+
+- `services/contasBancarias.js` (lista com `empresa`, `banco`, `tipo`, `ativa`; detalhe; criação;
+  `atualizarContaBancaria` manda só `{ apelido, versao }`; ativar/desativar com `{ versao }`; exclusão;
+  `listarBancos` para o catálogo de `GET /bancos`) e `services/categoriasFinanceiras.js`
+  (`obterArvoreFinanceira({ ativas })` para `GET /categorias-financeiras/arvore`; criação que tira
+  `natureza` e `linha_dre` da subcategoria; `atualizarCategoriaFinanceira` manda só
+  `{ nome, codigo, ordem, versao }`); todas as leituras aceitam `{ sinal }`;
+- **seletores prontos para M7, M9, M13 e M14**: `SeletorBanco` (`modules/financeiro`, sobre o
+  `SeletorRemoto`, catálogo pela API, sem lista fixa no front); para escolher categoria de lançamento
+  use `obterArvoreFinanceira({ ativas: true })` e ofereça só as subcategorias com `lancavel`, filtrando
+  pela natureza do lançamento; para escolher conta use `listarTodas('/api/v1/contas-bancarias',
+  { empresa, ativa: true })` com a empresa do lançamento (a leitura é só do financeiro);
+- `planoContasUtils.js` traz `NATUREZAS`, `LINHAS_DRE` (com as naturezas aceitas por linha, a mesma
+  tabela do `chk_categoria_financeira_natureza_linha`), `rotuloDaNatureza`, `rotuloDaLinha` e
+  `linhasDaNatureza`; o M15 pode reaproveitar os rótulos das linhas da DRE.
+  `contasBancariasUtils.js` traz `TIPOS_CONTA`, `rotuloDoTipo` e a validação de agência, conta e
+  dígitos;
+- tela `/contas-bancarias` só para financeiro ou administrador (rota e entrada na Sidebar; a Sidebar
+  ganhou o filtro `financeiro: true` ao lado de `admin` e `comercial`): lista paginada com filtros de
+  empresa (`SeletorEmpresa` com inativas), banco, tipo e situação; empresa pelo `useNomesEmpresas`;
+  criação com empresa ativa do acesso, banco, tipo, agência, conta e dígitos em campos próprios
+  (pontos e espaços tirados, dígito em maiúsculas, dígito vazio não vai no corpo); a edição mostra os
+  dados imutáveis e muda só o apelido;
+- tela `/plano-de-contas` para qualquer autenticado, com entrada na Sidebar: árvore em tabela (raiz
+  e subcategorias recuadas) com código, natureza, linha da DRE herdada, selo "Lançável" e filtro "Só
+  ativas"; o financeiro cria raiz (linha da DRE limitada à natureza escolhida, aviso de
+  `compra_mercadoria` fora do resultado), cria subcategoria pela raiz (mostra o que herda), edita
+  nome, código e ordem (código apagado vai `null`, porque o `PUT` substitui os editáveis) e
+  ativa/desativa; só o administrador exclui;
+- versão otimista no padrão do M4 nas duas telas: `AvisoConflito` no formulário com recarga do
+  registro por `GET /{id}` cancelada ao fechar, e na lista para o ativar/desativar. Os `409` sem
+  "recarregue" (conta ou apelido repetidos, nome ou código repetidos, raiz com subcategorias ativas)
+  ficam como erro comum; os `400` de empresa inativa e de pai inativo aparecem com "Fechar";
+- `useContasBancarias` e `usePlanoContas` com `AbortController`, em `modules/cancelamento.test.jsx`;
+- a suíte completa às vezes estoura o tempo em testes antigos que passam sozinhos (Login,
+  ProdutoDetalhe, SolicitacaoFormModal, Usuarios), e o bundle passou de 500 kB (aviso do Vite, sem
+  falhar o build): candidatos a code-splitting das rotas numa sessão própria.
+
+**Entregue o front do M2 (outubro/2026, branch `feat/front-m2-estoque` do front, empilhada sobre a
+`feat/front-m5-financeiro`):** para os próximos fronts (M3, M6, M8, M12):
+
+- `services/locais.js` ganhou criação, renomear (só `{ nome }`: local não tem `versao`), ativar,
+  desativar, exclusão e `listarSaldosDoLocal` (`?com_saldo=true`); `services/produtos.js` ganhou
+  `local` em `listarMovimentos`, `listarLotes`, `transferir`, `reservar`, `listarReservas` e
+  `liberarReserva` (`POST /reservas/{id}/liberar`); todas as leituras aceitam `{ sinal }`;
+- `useNomesLocais` (`app/estoque`) traduz `local_id` em nome, inclusive de local inativo, no padrão do
+  `useNomesEmpresas`; o `SeletorLocal` do F0a aceita `empresaId` para limitar o destino à empresa;
+- tela `/locais-estoque` (`modules/locais`) aberta a qualquer autenticado, com entrada na Sidebar em
+  Site & Catálogo: lista com filtros de empresa e situação; só o administrador cria (empresa ativa do
+  acesso), renomeia (empresa travada), ativa, desativa (o `400` de local com saldo aparece com
+  "Fechar") e exclui; "Ver saldos" abre os produtos do local com saldo, reservado e disponível;
+- detalhe do produto: painel de saldo por local (`useSaldoProduto`, isolado: a falha não derruba o
+  detalhe) com reservado, disponível e não alocado do grupo; movimentos com local, "origem → destino"
+  na transferência, "Anterior aos locais" nos antigos, saldo no local e filtro por local;
+  `useProdutoDetalhe` expõe `geracao`, que os painéis usam para recarregar depois de cada operação;
+- transferência (`TransferenciaModal`, administrador): origem entre os locais com disponível, destino
+  só entre os ativos da mesma empresa; o `409` de estoque recarrega o saldo sem perder o formulário;
+- reservas (`ReservasProduto`): filtro de status (ativas por padrão); o administrador cria (limitada
+  ao disponível do local), libera e baixa a reserva manual — a baixa é `POST /movimentos` com `tipo:
+  "saida"`, o mesmo local e quantidade e o `reserva_id`. Reserva de `pedido_item` aparece "Pelo pedido",
+  sem ações: **o front do M6 cria e baixa as reservas pelo pedido**;
+- lotes (`LotesProduto`) só para administrador ou financeiro: custo unitário ("Desconhecido" no
+  `null`), quantidades, valor em estoque e origem por transferência;
+- `useLocais`, `useSaldosDoLocal`, `useSaldoProduto`, `useReservasProduto` e `useLotesProduto` com
+  `AbortController`, em `modules/cancelamento.test.jsx`;
+- as falhas intermitentes de tempo da suíte completa ficaram mais frequentes com o volume de testes
+  (passam sozinhas); vale uma sessão para o `asyncUtilTimeout` ou para o pool do vitest.
+
 ### M1 — Empresas e filiais
 
 Fundação: tudo o que é financeiro, fiscal ou de estoque passa a pertencer a uma empresa.
@@ -413,8 +486,8 @@ em `ESTOQUE_LOCAIS.md`; este resumo só aponta o que os outros módulos precisam
 - **Migração de dados**: todo saldo atual vai para um local padrão por empresa, com um
   lote de custo desconhecido marcado como tal.
 
-**Entregue (outubro/2026):** API completa (fases 1 a 5 do `ESTOQUE_LOCAIS.md`); front pendente,
-depois do F0a. Para os próximos módulos:
+**Entregue (outubro/2026):** API completa (fases 1 a 5 do `ESTOQUE_LOCAIS.md`); front no F-M2.
+Para os próximos módulos:
 
 - o saldo antigo **não** foi para um local padrão: virou "não alocado" e o administrador o
   distribui com movimentos `implantacao` (decisão do usuário, independe das empresas
@@ -509,7 +582,7 @@ outros módulos precisam saber.
   `financeiro(...)` criado pelo M4); exclusão só pelo administrador; versão otimista.
 - **Saldo inicial** das contas fica no M13.
 
-**Entregue (outubro/2026):** API completa (fases 1 a 4 do `FINANCEIRO.md`); front pendente. Para
+**Entregue (outubro/2026):** API completa (fases 1 a 4 do `FINANCEIRO.md`); front no F-M5. Para
 os próximos módulos:
 
 - M7, M9 e M13 apontam para `conta_bancaria.id` e `categoria_financeira.id` com FK `RESTRICT` e
@@ -677,6 +750,27 @@ Acordo fechado (outubro/2026) para as duas sessões correrem em paralelo:
 - **Baixa**: total ou parcial, com conta bancária e data.
 - **Coordenação com o M8**: o título, a origem `nota_fiscal_duplicata` e a geração por origem
   são do M9 e seguem o acordo em "Coordenação M8 × M9" (seção do M8).
+
+**Entregue (outubro/2026):** API completa (fases 1 a 5 do `CONTAS_A_RECEBER.md`); front pendente
+(fase 6), depois do F0a. Para os próximos módulos:
+
+- **M8 (última fase)**: a porta mínima tem só `GerarDeOrigem` e `CancelarPorOrigem` do
+  `TituloReceberRepository` (seção 6.1 do `CONTAS_A_RECEBER.md`); o M8 acrescenta o `case
+  OrigemNotaFiscalDuplicata` em `travarOrigem` (`titulo_receber_repo.go`), travando a `nota_fiscal`
+  com `FOR SHARE` e recusando NF cancelada ou entre empresas do grupo. Cancelar a NF chama
+  `CancelarPorOrigem`, que cancela os títulos sem movimento e marca `origem_cancelada_em` nos
+  movimentados, sem nunca recusar;
+- a conta a pagar gerada por outro módulo está fechada no M7 (`NovaSolicitacaoDeOrigem`,
+  `SolicitacaoRepository.GerarDeOrigem` e `gerarSolicitacaoDeOrigem` para gravar na mesma
+  transação, `uq_solicitacao_origem`): M10, M12 e M14 acrescentam a própria origem em
+  `chk_solicitacao_origem` e em `Origem.Sistemica()`;
+- **M13**: concilia `titulo_recebimento` (tipo `conta`, por `conta_bancaria_id` + `recebido_em`,
+  entrada no caixa = valor + juros) e o crédito do borderô (`antecipacao.conta_bancaria_id` +
+  `operado_em`, valor líquido); a projeção usa o saldo dos títulos `carteira` e `em_banco`;
+- **M15**: título `manual` entra na DRE por `competencia` + categoria; títulos de NF e de pedido ficam
+  fora (a receita vem da NF); juros recebidos e encargos do borderô (bruto − líquido) são resultado
+  financeiro; recompra e repasse entram pela conta a pagar do M7;
+- "hoje" do módulo é o dia no fuso de Brasília (`domainreceber.Hoje`).
 
 ### M10 — Comissões
 

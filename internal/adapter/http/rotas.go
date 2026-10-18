@@ -12,6 +12,7 @@ import (
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/lead"
 	notafiscalhandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/notafiscal"
 	pedidohandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/pedido"
+	receberhandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/receber"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/saude"
 	solicitacaohandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/solicitacao"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/usuarios"
@@ -25,6 +26,7 @@ import (
 	portsinlead "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/leads"
 	portsinnotafiscal "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/notafiscal"
 	portsinpedido "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/pedido"
+	portsinreceber "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/receber"
 	portsinsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/solicitacao"
 	portsinusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/usuarios"
 	"github.com/jmoiron/sqlx"
@@ -66,6 +68,11 @@ func NewRouter(
 	pedidoUseCase portsinpedido.PedidoUseCase,
 	entregaUseCase portsinpedido.EntregaUseCase,
 	consultaPedidosUseCase portsinpedido.ConsultaUseCase,
+	tituloUseCase portsinreceber.TituloUseCase,
+	entradaDoPedidoUseCase portsinreceber.EntradaDoPedidoUseCase,
+	recebimentoUseCase portsinreceber.RecebimentoUseCase,
+	antecipacaoUseCase portsinreceber.AntecipacaoUseCase,
+	resumoContasAReceberUseCase portsinreceber.ResumoContasAReceberUseCase,
 	notaFiscalUseCase portsinnotafiscal.NotaFiscalUseCase,
 	eventoNotaFiscalUseCase portsinnotafiscal.EventoUseCase,
 	tokens portsinautenticacao.TokenService,
@@ -87,6 +94,8 @@ func NewRouter(
 		despesaRecorrenteUseCase,
 		resumoContasAPagarUseCase,
 		pedidoUseCase, entregaUseCase, consultaPedidosUseCase,
+		tituloUseCase, entradaDoPedidoUseCase, recebimentoUseCase, antecipacaoUseCase,
+		resumoContasAReceberUseCase,
 		notaFiscalUseCase, eventoNotaFiscalUseCase,
 		tokens,
 	)))
@@ -125,6 +134,11 @@ func novasRotas(
 	pedidoUseCase portsinpedido.PedidoUseCase,
 	entregaUseCase portsinpedido.EntregaUseCase,
 	consultaPedidosUseCase portsinpedido.ConsultaUseCase,
+	tituloUseCase portsinreceber.TituloUseCase,
+	entradaDoPedidoUseCase portsinreceber.EntradaDoPedidoUseCase,
+	recebimentoUseCase portsinreceber.RecebimentoUseCase,
+	antecipacaoUseCase portsinreceber.AntecipacaoUseCase,
+	resumoContasAReceberUseCase portsinreceber.ResumoContasAReceberUseCase,
 	notaFiscalUseCase portsinnotafiscal.NotaFiscalUseCase,
 	eventoNotaFiscalUseCase portsinnotafiscal.EventoUseCase,
 	tokens portsinautenticacao.TokenService,
@@ -404,6 +418,37 @@ func novasRotas(
 	protegido("GET /api/v1/pedidos/pendencias", consultaPedidosHandler.Pendencias)
 	protegido("GET /api/v1/pedidos/prazos", consultaPedidosHandler.Prazos)
 	protegido("GET /api/v1/pedidos/cancelamentos", consultaPedidosHandler.Cancelamentos)
+
+	tituloHandler := receberhandlers.NewTituloHandler(tituloUseCase)
+	financeiro("POST /api/v1/titulos-receber", tituloHandler.Criar)
+	financeiro("GET /api/v1/titulos-receber", tituloHandler.Listar)
+	financeiro("GET /api/v1/titulos-receber/{id}", tituloHandler.Obter)
+	financeiro("GET /api/v1/titulos-receber/{id}/historico", tituloHandler.ListarHistorico)
+	financeiro("PUT /api/v1/titulos-receber/{id}", tituloHandler.Editar)
+	financeiro("POST /api/v1/titulos-receber/{id}/prorrogar", tituloHandler.Prorrogar)
+	financeiro("POST /api/v1/titulos-receber/{id}/enviar-banco", tituloHandler.EnviarAoBanco)
+	financeiro("POST /api/v1/titulos-receber/{id}/retirar-banco", tituloHandler.RetirarDoBanco)
+	financeiro("POST /api/v1/titulos-receber/{id}/boleto-enviado", tituloHandler.RegistrarEnvioBoleto)
+	financeiro("POST /api/v1/titulos-receber/{id}/cancelar", tituloHandler.Cancelar)
+
+	entradaDoPedidoHandler := receberhandlers.NewEntradaDoPedidoHandler(entradaDoPedidoUseCase)
+	financeiro("POST /api/v1/pedidos/{id}/titulo-entrada", entradaDoPedidoHandler.GerarTitulo)
+
+	recebimentoHandler := receberhandlers.NewRecebimentoHandler(recebimentoUseCase)
+	financeiro("POST /api/v1/titulos-receber/{id}/recebimentos", recebimentoHandler.Receber)
+	financeiro("GET /api/v1/titulos-receber/{id}/recebimentos", recebimentoHandler.Listar)
+	financeiro("POST /api/v1/titulos-receber/{id}/recebimentos/{recebimento_id}/estorno", recebimentoHandler.Estornar)
+
+	antecipacaoHandler := receberhandlers.NewAntecipacaoHandler(antecipacaoUseCase)
+	financeiro("POST /api/v1/antecipacoes", antecipacaoHandler.Criar)
+	financeiro("GET /api/v1/antecipacoes", antecipacaoHandler.Listar)
+	financeiro("GET /api/v1/antecipacoes/{id}", antecipacaoHandler.Obter)
+	financeiro("POST /api/v1/antecipacoes/{id}/estorno", antecipacaoHandler.Estornar)
+	financeiro("POST /api/v1/titulos-receber/{id}/recompra", antecipacaoHandler.Recomprar)
+
+	financeiro("GET /api/v1/titulos-receber/boletos-pendentes", tituloHandler.BoletosPendentes)
+	resumoContasAReceberHandler := receberhandlers.NewResumoContasAReceberHandler(resumoContasAReceberUseCase)
+	financeiro("GET /api/v1/contas-a-receber/resumo", resumoContasAReceberHandler.Consultar)
 
 	notaFiscalHandler := notafiscalhandlers.NewNotaFiscalHandler(notaFiscalUseCase)
 	financeiro("POST /api/v1/notas-fiscais/importacao", notaFiscalHandler.Importar)

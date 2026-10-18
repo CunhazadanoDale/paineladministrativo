@@ -1,6 +1,6 @@
 # Escopo — M2 Estoque por local, lote e reserva
 
-> **Status:** API concluída (fases 1 a 5); frontend (fase 6) pendente, depois da trilha F0.
+> **Status:** API e frontend concluídos (fases 1 a 6).
 > **Objetivo:** o saldo de cada produto passa a existir por local de estoque, cada local
 > pertence a uma empresa, toda entrada vira lote com custo e toda saída consome lote por
 > FIFO; reservas separam o que já está comprometido do que está disponível.
@@ -316,7 +316,7 @@ cmd/api/main.go + internal/adapter/http/rotas.go   (registro, só acréscimos)
 | **3** | Usecases de locais, saldo por local, lotes e transferência + escopo por empresa na listagem de movimentos e no resumo + testes com fakes e de isolamento | concluída |
 | **4** | Handlers/DTOs + rotas novas + e2e + `API.md`; depois a virada da movimentação: `local_id` obrigatório (com `implantacao` e custo), migration 000032 e remoção do caminho antigo sem local | concluída |
 | **5** | Reservas (migration 000033, domínio, repo, usecase, rotas, port para o M6) + vitrine pelo disponível | concluída |
-| **6** | Frontend: locais, saldo por local, movimentação com local e custo, transferência, reservas (depois da F0) | pendente |
+| **6** | Frontend: locais, saldo por local, movimentação com local e custo, transferência, reservas (depois da F0) | concluída |
 
 ---
 
