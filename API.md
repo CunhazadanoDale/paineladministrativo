@@ -642,7 +642,7 @@ Filtros de conta a pagar, combináveis com qualquer escopo (valor inválido → 
 | `fornecedor=<uuid>` | fornecedor da solicitação |
 | `categoria=<uuid>` | categoria financeira |
 | `competencia=AAAA-MM` | competência (`erro de validação: competência deve estar no formato AAAA-MM`) |
-| `origem=manual\|recorrencia\|recompra\|repasse_fomento` | origem da solicitação |
+| `origem=manual\|recorrencia\|recompra\|repasse_fomento\|comissao` | origem da solicitação |
 | `vencimento_de=AAAA-MM-DD` / `vencimento_ate=AAAA-MM-DD` | intervalo do `prazo_pagamento`, inclusivo (`erro de validação: consulta vencimento_de deve estar no formato AAAA-MM-DD`; final antes do inicial → `400 erro de validação: vencimento final não pode ser anterior ao inicial`) |
 | `vencidas=true` | `pendente_aprovacao` ou `aprovado` com vencimento antes de hoje (UTC); aceita `true`/`false`/`1`/`0`, outro valor → `400 erro de validação: consulta vencidas deve ser true ou false` |
 
@@ -1707,6 +1707,7 @@ Nome único sem diferenciar acento e maiúscula (`409 já existe um grupo de cli
 | `GET` | `/api/v1/representantes/{id}` | comercial | `200` |
 | `PUT` | `/api/v1/representantes/{id}` | **administrador** | `200` |
 | `PATCH` | `/api/v1/representantes/{id}/ativar` / `desativar` | **administrador** | `200` |
+| `PUT` | `/api/v1/representantes/{id}/fornecedor` | **administrador** | `200`; corpo `{ "fornecedor_id": "…" }` ou `null` para tirar |
 
 ```json
 {
@@ -1730,6 +1731,11 @@ Representante inativo não recebe cliente novo. O `PUT` substitui o cadastro int
 vínculo: `PUT` sem `usuario_id` desfaz o vínculo, e esse usuário (se tiver perfil comercial)
 passa a ver todos os clientes. A paginação vale também para o representante com login, que vê
 só o próprio cadastro na primeira página.
+
+`fornecedor_id` (na resposta) é o fornecedor do M4 que recebe a conta a pagar do fechamento de
+comissões; sem ele o representante não fecha (seção Comissões). Ele é definido só pela rota própria
+`PUT /representantes/{id}/fornecedor`: o `PUT` do cadastro não o altera. Fornecedor inexistente →
+`400 erro de validação: registro relacionado não encontrado`.
 
 ---
 
@@ -2733,9 +2739,12 @@ Escopo por empresa (padrão da seção 4 do `EMPRESAS.md`); escopo e decisões e
 | `PUT` | `/api/v1/pedidos/{id}/comissao` | **comercial** (representante com login não define) | `200`; corpo `{ "percentual_bp", "versao" }`; só antes da primeira saída de entrega |
 | `POST` | `/api/v1/comissoes/apurar` | **financeiro** | `200` resultado; corpo opcional `{ "empresa_id", "competencia" }` |
 | `GET` | `/api/v1/comissoes/pendencias` | **financeiro** | `200` lista paginada das entregas que saíram e ainda não foram apuradas (`?empresa=`, `?competencia=`) |
-| `GET` | `/api/v1/comissoes` | **financeiro** ou representante com login (só as próprias) | `200` lista paginada (`?empresa=`, `?representante=`, `?pedido=`, `?competencia=AAAA-MM`), mais recente primeiro |
+| `GET` | `/api/v1/comissoes` | **financeiro** ou representante com login (só as próprias) | `200` lista paginada (`?empresa=`, `?representante=`, `?pedido=`, `?competencia=AAAA-MM`, `?aberta=`), mais recente primeiro |
 | `POST` | `/api/v1/comissoes/ajustes` | **financeiro** | `201` ajuste |
-| `GET` | `/api/v1/comissoes/ajustes` | **financeiro** ou representante com login (só os próprios) | `200` lista paginada (`?empresa=`, `?representante=`, `?pedido=`, `?competencia=AAAA-MM`), mais recente primeiro |
+| `GET` | `/api/v1/comissoes/ajustes` | **financeiro** ou representante com login (só os próprios) | `200` lista paginada (`?empresa=`, `?representante=`, `?pedido=`, `?competencia=AAAA-MM`, `?aberto=`), mais recente primeiro |
+| `POST` | `/api/v1/comissoes/fechamentos` | **financeiro** | `200` resultado; corpo `{ "empresa_id", "competencia", "categoria_financeira_id", "representante_id" }` |
+| `GET` | `/api/v1/comissoes/fechamentos` | **financeiro** ou representante com login (só os próprios) | `200` lista paginada (`?empresa=`, `?representante=`, `?competencia=`), mais recente primeiro |
+| `GET` | `/api/v1/comissoes/fechamentos/{id}` | **financeiro** ou o representante do fechamento | `200` fechamento com `comissoes` e `ajustes` |
 
 ### Percentual do pedido
 
@@ -2804,6 +2813,44 @@ exclusão, e desfazer é lançar o ajuste inverso. Entra no fechamento da compet
 - `pedido_id` opcional; quando vier, o pedido precisa ser da mesma empresa e do mesmo representante;
 - o representante pode estar inativo (a comissão continua devida).
 
+### Fechamento
+
+Fecha o mês de uma empresa: um fechamento por representante, com as comissões e os ajustes **em
+aberto** de competência até a informada (o que ficou de meses anteriores entra junto), e uma conta a
+pagar no M7 gerada na mesma transação.
+
+- `competencia` precisa ser de mês já encerrado em Brasília (`400` no mês corrente);
+- `categoria_financeira_id`: subcategoria ativa de `despesa` (sugestão: debaixo de `despesa_variavel`);
+- antes de somar, a rota apura as saídas pendentes da empresa até a competência (`apuracao` na
+  resposta); se sobrarem mais de 500 entregas, responde `409` e pede para apurar antes;
+- representante com total ≤ 0, sem `fornecedor_id`, ou que já tenha fechamento na competência vai para
+  `falhas` com o motivo, e os demais seguem; com `representante_id`, sem saldo aberto → `400`;
+- a conta a pagar nasce `pendente_aprovacao`, `origem = comissao`, `origem_id` = fechamento, em nome do
+  fornecedor do representante, com a categoria e a competência do fechamento e vencimento no **dia 15
+  do mês seguinte** à competência; segue o fluxo normal do M7;
+- fechamento não é desfeito: correção depois vira ajuste num mês seguinte. `status_conta_a_pagar` mostra
+  em que pé está a conta a pagar (`pago` quando paga).
+
+```json
+{
+  "dados": {
+    "competencia": "2026-09",
+    "apuracao": { "apuradas": ["…"], "ja_existentes": 0, "falhas": [], "restam_entregas": false },
+    "fechados": [
+      {
+        "id": "…", "empresa_id": "…", "representante_id": "…", "competencia": "2026-09",
+        "comissoes_centavos": 180, "ajustes_centavos": -100, "total_centavos": 80, "vencimento": "2026-10-15",
+        "categoria_financeira_id": "…", "solicitacao_id": "…", "status_conta_a_pagar": "pendente_aprovacao",
+        "usuario_id": "…", "criado_em": "2026-10-02T12:00:00Z"
+      }
+    ],
+    "falhas": [{ "representante_id": "…", "motivo": "erro de validação: representante sem fornecedor; …" }]
+  }
+}
+```
+
+Comissões e ajustes ganham `fechamento_id` (nulo enquanto abertos) e os filtros `?aberta=` / `?aberto=`.
+
 ### Erros das comissões
 
 | Situação | Status | Mensagem |
@@ -2819,6 +2866,10 @@ exclusão, e desfazer é lançar o ajuste inverso. Entra no fechamento da compet
 | Ajuste em competência futura | `400` | `erro de validação: competência do ajuste não pode ser posterior ao mês corrente` |
 | Pedido do ajuste de outra empresa ou representante | `400` | `erro de validação: pedido do ajuste deve ser da mesma empresa e do mesmo representante` |
 | Representante do ajuste inexistente | `400` | `erro de validação: representante do ajuste não encontrado` |
+| Fechamento do mês corrente | `400` | `erro de validação: só é possível fechar competência de mês já encerrado` |
+| Fechamento de representante sem saldo | `400` | `erro de validação: nada a pagar ao representante na competência` |
+| Mais de 500 entregas a apurar | `409` | `há mais entregas a apurar na competência; apure e feche de novo` |
+| Fechamento inexistente | `404` | `registro não encontrado: fechamento não encontrado` |
 
 ---
 

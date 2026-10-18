@@ -175,8 +175,9 @@ coluna nova no `pedido`**, o que deixa o M11 livre para mexer no pedido em paral
 ### 6.2 Representante (M3)
 
 Porta mínima `Obter` e `ObterPorUsuario`. Se D7 for aceita, migration do M10 acrescenta
-`representante.fornecedor_id UUID NULL` (FK `fornecedor` `RESTRICT`), editável pelo administrador no
-cadastro do representante — o único acréscimo ao M3 (domínio, DTO e `API.md` do representante).
+`representante.fornecedor_id UUID NULL` (FK `fornecedor` `RESTRICT`), definido pelo administrador em
+`PUT /representantes/{id}/fornecedor` — o único acréscimo ao M3 (domínio, repositório, usecase, DTO,
+rota e `API.md` do representante).
 
 ### 6.3 Conta a pagar (M7)
 
@@ -232,7 +233,7 @@ test/helpers + test/integration + test/e2e
 |---|---|---|
 | **1** | Percentual do pedido e apuração: migration 000053, domínio, repositório, usecase com escopo por empresa e representante, `GET/PUT /pedidos/{id}/comissao`, `POST /comissoes/apurar`, listagem e pendências, integração de idempotência e corrida, e2e + `API.md` | concluída |
 | **2** | Ajustes (migration 000054): domínio, usecase, repositório, `POST/GET /comissoes/ajustes`, integração, e2e + `API.md` | concluída |
-| **3** | Fechamento com conta a pagar no M7 na mesma transação, `representante.fornecedor_id` (migration 000055) | pendente |
+| **3** | Fechamento com conta a pagar no M7 na mesma transação, `representante.fornecedor_id` (migration 000055), `PUT /representantes/{id}/fornecedor`, filtros de abertas, integração, e2e + `API.md` | concluída |
 | **4** | Resumo por representante e visão do representante com login | pendente |
 | **5** | Frontend (percentual no pedido, apuração, ajustes, fechamento, "minhas comissões") | pendente |
 
@@ -252,6 +253,15 @@ Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates ve
 - [x] **Definição para outro representante não vale** (fase 1): é substituída pela próxima definição ou
       pelo padrão na apuração, em vez de virar pendência sem saída depois da primeira saída.
 - [x] **Representante com login nunca define a própria comissão** (fase 1), mesmo com cargo comercial.
+- [x] **Fornecedor do representante em rota própria** (fase 3): `PUT /representantes/{id}/fornecedor`, só
+      administrador; o `PUT` do cadastro não mexe nele, para o front do M3 (que não conhece o campo) não
+      apagá-lo ao salvar.
+- [x] **Só fecha mês encerrado** (fase 3): a competência precisa ser anterior ao mês corrente em
+      Brasília, para o mês não fechar com saídas ainda por vir.
+- [x] **Fechamento apura antes** (fase 3) as saídas da empresa até a competência e recusa (`409`) se
+      sobrarem mais de 500; representante sem fornecedor, sem saldo positivo ou já fechado vira `falha`
+      e os demais seguem. A transação trava comissões e ajustes abertos (`FOR UPDATE`) e confere a soma
+      lida antes, para dois fechamentos simultâneos não pagarem duas vezes.
 - [x] **Ajuste aceita representante inativo** (fase 2): a comissão continua devida; o pedido, quando
       informado, é travado com `FOR SHARE` e precisa ser da mesma empresa e do mesmo representante.
 - [x] **D1 — Quando a comissão nasce.** Decidido: na **saída** da entrega (onde o M6 já conta o
