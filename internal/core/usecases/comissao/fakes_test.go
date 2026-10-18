@@ -33,10 +33,12 @@ type memoria struct {
 	percentuais    map[uuid.UUID]*domaincomissao.PercentualPedido
 	entregas       []*domaincomissao.EntregaParaApurar
 	comissoes      []*domaincomissao.Comissao
+	ajustes        []*domaincomissao.Ajuste
 	saidas         map[uuid.UUID]bool
 
 	ultimoFiltroEntregas portsout.EntregaFiltro
 	ultimoFiltro         portsout.ComissaoFiltro
+	ultimoFiltroAjustes  portsout.AjusteFiltro
 	versaoLida           *int
 	falhaNaGravacao      map[uuid.UUID]error
 }
@@ -122,6 +124,18 @@ func (r repoComissoes) Listar(_ context.Context, filtro portsout.ComissaoFiltro)
 	r.m.ultimoFiltro = filtro
 
 	return r.m.comissoes, nil
+}
+
+func (r repoComissoes) CriarAjuste(_ context.Context, ajuste *domaincomissao.Ajuste) error {
+	r.m.ajustes = append(r.m.ajustes, ajuste)
+
+	return nil
+}
+
+func (r repoComissoes) ListarAjustes(_ context.Context, filtro portsout.AjusteFiltro) ([]*domaincomissao.Ajuste, error) {
+	r.m.ultimoFiltroAjustes = filtro
+
+	return r.m.ajustes, nil
 }
 
 type repoPedidos struct{ m *memoria }

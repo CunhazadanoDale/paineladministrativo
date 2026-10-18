@@ -22,6 +22,7 @@ type cenario struct {
 	m           *memoria
 	percentuais portsin.PercentualUseCase
 	comissoes   portsin.ComissaoUseCase
+	ajustes     portsin.AjusteUseCase
 
 	mia uuid.UUID
 	red uuid.UUID
@@ -49,6 +50,9 @@ func novoCenario(t *testing.T) *cenario {
 		),
 		comissoes: comissaousecases.NewComissaoUsecase(
 			repoComissoes{m}, repoRepresentantes{m}, repoEmpresas{m}, repoUsuarios{m}, repoCargos{m},
+		),
+		ajustes: comissaousecases.NewAjusteUsecase(
+			repoComissoes{m}, repoPedidos{m}, repoRepresentantes{m}, repoEmpresas{m}, repoUsuarios{m}, repoCargos{m},
 		),
 		mia: uuid.New(),
 		red: uuid.New(),

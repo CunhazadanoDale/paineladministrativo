@@ -25,10 +25,21 @@ type ComissaoFiltro struct {
 	Competencia     *domaincomissao.Competencia
 }
 
+type AjusteFiltro struct {
+	domain.PaginacaoFiltro
+	Empresa         *uuid.UUID
+	EmpresaIDs      []uuid.UUID
+	RepresentanteID *uuid.UUID
+	PedidoID        *uuid.UUID
+	Competencia     *domaincomissao.Competencia
+}
+
 type ComissaoRepository interface {
 	ObterPercentual(ctx context.Context, pedidoID uuid.UUID) (*domaincomissao.PercentualPedido, error)
 	DefinirPercentual(ctx context.Context, percentual *domaincomissao.PercentualPedido, versaoLida *int) error
 	ListarEntregasParaApurar(ctx context.Context, filtro EntregaFiltro) ([]*domaincomissao.EntregaParaApurar, error)
 	GravarApuracao(ctx context.Context, apuracao *domaincomissao.Apuracao) (bool, error)
 	Listar(ctx context.Context, filtro ComissaoFiltro) ([]*domaincomissao.Comissao, error)
+	CriarAjuste(ctx context.Context, ajuste *domaincomissao.Ajuste) error
+	ListarAjustes(ctx context.Context, filtro AjusteFiltro) ([]*domaincomissao.Ajuste, error)
 }

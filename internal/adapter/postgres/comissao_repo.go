@@ -482,3 +482,138 @@ func paraLinhaComissao(comissao *domaincomissao.Comissao) *comissaoLinha {
 		CriadoEm:        comissao.CriadoEm,
 	}
 }
+
+type ajusteLinha struct {
+	ID              uuid.UUID  `db:"id"`
+	EmpresaID       uuid.UUID  `db:"empresa_id"`
+	RepresentanteID uuid.UUID  `db:"representante_id"`
+	PedidoID        *uuid.UUID `db:"pedido_id"`
+	Competencia     time.Time  `db:"competencia"`
+	ValorCentavos   int64      `db:"valor_centavos"`
+	Motivo          string     `db:"motivo"`
+	UsuarioID       uuid.UUID  `db:"usuario_id"`
+	CriadoEm        time.Time  `db:"criado_em"`
+}
+
+const colunasAjuste = `
+	id, empresa_id, representante_id, pedido_id, competencia, valor_centavos, motivo, usuario_id, criado_em
+`
+
+func (r *ComissaoRepository) CriarAjuste(ctx context.Context, ajuste *domaincomissao.Ajuste) error {
+	if ajuste == nil {
+		return domain.ErroValidacao("ajuste de comissão não informado")
+	}
+
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return tratarErroDeGravacao(err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if ajuste.PedidoID != nil {
+		if err := exigirPedidoDoAjuste(ctx, tx, ajuste); err != nil {
+			return err
+		}
+	}
+
+	if _, err := tx.NamedExecContext(ctx, `
+		INSERT INTO comissao_ajuste (`+colunasAjuste+`) VALUES (
+			:id, :empresa_id, :representante_id, :pedido_id, :competencia, :valor_centavos, :motivo, :usuario_id, :criado_em
+		)
+	`, paraLinhaAjuste(ajuste)); err != nil {
+		return tratarErroDeGravacao(err)
+	}
+
+	return tratarErroDeGravacao(tx.Commit())
+}
+
+func (r *ComissaoRepository) ListarAjustes(ctx context.Context, filtro portsout.AjusteFiltro) ([]*domaincomissao.Ajuste, error) {
+	filtro.PaginacaoFiltro = filtro.Normalizada()
+	offset := (filtro.Page - 1) * filtro.Size
+
+	condicoes := make([]string, 0, 5)
+	argumentos := make([]any, 0, 7)
+	adicionar := func(expressao string, valor any) {
+		argumentos = append(argumentos, valor)
+		condicoes = append(condicoes, expressao+" $"+strconv.Itoa(len(argumentos)))
+	}
+
+	if filtro.Empresa != nil {
+		adicionar("empresa_id =", *filtro.Empresa)
+	}
+	if filtro.EmpresaIDs != nil {
+		argumentos = append(argumentos, pq.Array(textosDeIDs(filtro.EmpresaIDs)))
+		condicoes = append(condicoes, "empresa_id = ANY($"+strconv.Itoa(len(argumentos))+"::uuid[])")
+	}
+	if filtro.RepresentanteID != nil {
+		adicionar("representante_id =", *filtro.RepresentanteID)
+	}
+	if filtro.PedidoID != nil {
+		adicionar("pedido_id =", *filtro.PedidoID)
+	}
+	if filtro.Competencia != nil {
+		adicionar("competencia =", filtro.Competencia.Inicio())
+	}
+
+	query := `SELECT ` + colunasAjuste + ` FROM comissao_ajuste`
+	if len(condicoes) > 0 {
+		query += ` WHERE ` + unirCondicoes(condicoes)
+	}
+	argumentos = append(argumentos, filtro.Size, offset)
+	query += ` ORDER BY competencia DESC, criado_em DESC, id DESC` + limiteOffset(argumentos)
+
+	var linhas []*ajusteLinha
+	if err := r.db.SelectContext(ctx, &linhas, query, argumentos...); err != nil {
+		return nil, tratarErroDeConsulta(err)
+	}
+
+	ajustes := make([]*domaincomissao.Ajuste, 0, len(linhas))
+	for _, linha := range linhas {
+		ajustes = append(ajustes, &domaincomissao.Ajuste{
+			ID:              linha.ID,
+			EmpresaID:       linha.EmpresaID,
+			RepresentanteID: linha.RepresentanteID,
+			PedidoID:        linha.PedidoID,
+			Competencia:     domaincomissao.CompetenciaDe(linha.Competencia),
+			ValorCentavos:   linha.ValorCentavos,
+			Motivo:          linha.Motivo,
+			UsuarioID:       linha.UsuarioID,
+			CriadoEm:        linha.CriadoEm,
+		})
+	}
+
+	return ajustes, nil
+}
+
+func exigirPedidoDoAjuste(ctx context.Context, tx *sqlx.Tx, ajuste *domaincomissao.Ajuste) error {
+	var pedido struct {
+		EmpresaID       uuid.UUID  `db:"empresa_id"`
+		RepresentanteID *uuid.UUID `db:"representante_id"`
+	}
+	err := tx.GetContext(ctx, &pedido, `SELECT empresa_id, representante_id FROM pedido WHERE id = $1 FOR SHARE`, *ajuste.PedidoID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domaincomissao.ErroPedidoDoAjusteNaoEncontrado()
+	}
+	if err != nil {
+		return tratarErroDeGravacao(err)
+	}
+	if pedido.EmpresaID != ajuste.EmpresaID || pedido.RepresentanteID == nil || *pedido.RepresentanteID != ajuste.RepresentanteID {
+		return domaincomissao.ErroPedidoDeOutraEmpresaOuRepresentante()
+	}
+
+	return nil
+}
+
+func paraLinhaAjuste(ajuste *domaincomissao.Ajuste) *ajusteLinha {
+	return &ajusteLinha{
+		ID:              ajuste.ID,
+		EmpresaID:       ajuste.EmpresaID,
+		RepresentanteID: ajuste.RepresentanteID,
+		PedidoID:        ajuste.PedidoID,
+		Competencia:     ajuste.Competencia.Inicio(),
+		ValorCentavos:   ajuste.ValorCentavos,
+		Motivo:          ajuste.Motivo,
+		UsuarioID:       ajuste.UsuarioID,
+		CriadoEm:        ajuste.CriadoEm,
+	}
+}
