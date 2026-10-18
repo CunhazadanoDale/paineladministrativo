@@ -19,6 +19,7 @@ type Ajuste struct {
 	Competencia     Competencia
 	ValorCentavos   int64
 	Motivo          string
+	FechamentoID    *uuid.UUID
 	UsuarioID       uuid.UUID
 	CriadoEm        time.Time
 }

@@ -49,3 +49,35 @@ func ErroPedidoDoAjusteNaoEncontrado() error {
 func ErroPedidoDeOutraEmpresaOuRepresentante() error {
 	return domain.ErroValidacao("pedido do ajuste deve ser da mesma empresa e do mesmo representante")
 }
+
+func ErroNadaAPagar() error {
+	return domain.ErroValidacao("nada a pagar ao representante na competência")
+}
+
+func ErroFechamentoNaoEncontrado() error {
+	return domain.ErroNaoEncontrado("fechamento não encontrado")
+}
+
+func ErroFechamentoRepetido() error {
+	return domain.ErroConflito("já existe fechamento deste representante na competência")
+}
+
+func ErroSaldoMudouNoFechamento() error {
+	return domain.ErroConflito("as comissões em aberto mudaram durante o fechamento; feche de novo")
+}
+
+func ErroContaAPagarJaGerada() error {
+	return domain.ErroConflito("a conta a pagar deste fechamento já foi gerada")
+}
+
+func ErroRepresentanteSemFornecedor() error {
+	return domain.ErroValidacao("representante sem fornecedor; defina o fornecedor do representante antes de fechar")
+}
+
+func ErroApuracaoPendente() error {
+	return domain.ErroConflito("há mais entregas a apurar na competência; apure e feche de novo")
+}
+
+func ErroRepresentanteDoFechamentoNaoEncontrado() error {
+	return domain.ErroValidacao("representante do fechamento não encontrado")
+}

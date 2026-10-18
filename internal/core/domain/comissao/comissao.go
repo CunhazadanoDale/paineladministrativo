@@ -23,6 +23,7 @@ type Comissao struct {
 	BaseCentavos    int64
 	Percentual      domaincliente.Percentual
 	ValorCentavos   int64
+	FechamentoID    *uuid.UUID
 	UsuarioID       uuid.UUID
 	CriadoEm        time.Time
 }
