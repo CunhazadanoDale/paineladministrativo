@@ -148,7 +148,7 @@ func TestGerarDeOrigemRecusaOrigemInvalida(t *testing.T) {
 	esperarErro(t, err, domain.ErrValidacao, "origem do título não encontrada")
 
 	_, err = c.titulos.GerarDeOrigem(c.ctx, c.geracao(t, domainreceber.OrigemNotaFiscalDuplicata, nil, parcelaDoPedido(uuid.New(), "1234")))
-	esperarErro(t, err, domain.ErrValidacao, "origem ainda não suportada")
+	esperarErro(t, err, domain.ErrValidacao, "origem do título não encontrada")
 
 	if ids := c.listar(t, portsreceber.TituloFiltro{}); len(ids) != 0 {
 		t.Fatalf("nenhum título deveria existir: %v", ids)

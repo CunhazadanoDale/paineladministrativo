@@ -17,6 +17,7 @@ import (
 	financeirousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/financeiro"
 	fornecedorusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/fornecedor"
 	leadusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/lead"
+	notafiscalusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/notafiscal"
 	pedidousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/pedido"
 	receberusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/receber"
 	solicitacaousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/solicitacao"
@@ -50,6 +51,7 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 	representanteRepository := postgres.NewRepresentanteRepository(banco)
 	pedidoRepository := postgres.NewPedidoRepository(banco)
 	entregaRepository := postgres.NewEntregaRepository(banco)
+	notaFiscalRepository := postgres.NewNotaFiscalRepository(banco)
 	clienteUsecase := clienteusecases.NewClienteUsecase(
 		clienteRepository, clienteGrupoRepository, representanteRepository, empresaRepository,
 		postgres.NewLeadRepository(banco), usuarioRepository, cargoRepository,
@@ -148,6 +150,15 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 		),
 		receberusecases.NewResumoContasAReceberUsecase(
 			postgres.NewContasAReceberResumoRepository(banco), empresaRepository, usuarioRepository, cargoRepository,
+		),
+		notafiscalusecases.NewNotaFiscalUsecase(
+			notaFiscalRepository, arquivoRepository, armazenamento, empresaRepository, clienteRepository, produtoRepository,
+			pedidoRepository, entregaRepository, postgres.NewTituloReceberRepository(banco), representanteRepository,
+			usuarioRepository, cargoRepository,
+		),
+		notafiscalusecases.NewEventoUsecase(
+			notaFiscalRepository, arquivoRepository, armazenamento, empresaRepository, clienteRepository,
+			postgres.NewTituloReceberRepository(banco), representanteRepository, usuarioRepository, cargoRepository,
 		),
 		autenticacao.NovoTokenService(segredoDoTeste, time.Hour),
 	)

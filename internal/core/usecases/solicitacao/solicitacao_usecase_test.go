@@ -132,6 +132,25 @@ func TestCriarSolicitacaoComArquivoJaVinculadoRecebeErroDeValidacao(t *testing.T
 	}
 }
 
+func TestCriarSolicitacaoComArquivoXMLRecebeErroDeValidacao(t *testing.T) {
+	c := novoCenario(t)
+	ana := c.novoUsuario("Ana", false, false)
+	arquivo := c.enviarArquivo(t, ana, "nfe.xml", "application/xml")
+
+	_, err := c.solicitacao.Criar(c.ctx, portsin.CriarSolicitacaoInput{
+		SolicitanteID:  ana,
+		EmpresaID:      c.empresaID,
+		ValorCentavos:  10000,
+		PrazoPagamento: time.Now().UTC().AddDate(0, 0, 1),
+		Observacao:     "observação",
+		FormaPagamento: "pix",
+		ArquivoIDs:     []uuid.UUID{arquivo.ID},
+	})
+	if !errors.Is(err, domain.ErrValidacao) {
+		t.Errorf("XML anexado = %v, esperado erro de validação", err)
+	}
+}
+
 func TestCriarSolicitacaoComArquivoRepetidoRecebeErroDeValidacao(t *testing.T) {
 	c := novoCenario(t)
 	ana := c.novoUsuario("Ana", false, false)

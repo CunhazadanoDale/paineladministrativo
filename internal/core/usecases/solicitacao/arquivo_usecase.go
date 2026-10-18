@@ -15,7 +15,10 @@ import (
 	"github.com/google/uuid"
 )
 
-const tamanhoMaximoNomeArquivo = 255
+const (
+	tamanhoMaximoNomeArquivo = 255
+	contentTypeXML           = "application/xml"
+)
 
 var _ portsin.ArquivoUseCase = (*ArquivoUsecaseImpl)(nil)
 
@@ -256,11 +259,13 @@ func normalizarContentType(contentType string) (string, error) {
 	tipo := strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0]))
 
 	switch tipo {
-	case "application/pdf", "image/png", "image/jpeg", "image/webp":
+	case "application/pdf", "image/png", "image/jpeg", "image/webp", contentTypeXML:
 		return tipo, nil
+	case "text/xml":
+		return contentTypeXML, nil
 	case "":
 		return "", domain.ErroValidacao("tipo do arquivo não informado")
 	default:
-		return "", domain.ErroValidacao("tipo de arquivo não permitido: use PDF, PNG, JPEG ou WebP")
+		return "", domain.ErroValidacao("tipo de arquivo não permitido: use PDF, PNG, JPEG, WebP ou XML")
 	}
 }

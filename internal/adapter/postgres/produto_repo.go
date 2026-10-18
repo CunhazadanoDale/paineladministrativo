@@ -12,6 +12,7 @@ import (
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/estoque"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 )
 
 var _ portsout.ProdutoRepository = (*ProdutoRepository)(nil)
@@ -330,4 +331,27 @@ func escaparBusca(busca string) string {
 	busca = strings.ReplaceAll(busca, `_`, `\_`)
 
 	return busca
+}
+
+func (p *ProdutoRepository) IDsPorCodigos(ctx context.Context, codigos []string) (map[string]uuid.UUID, error) {
+	encontrados := make(map[string]uuid.UUID, len(codigos))
+	if len(codigos) == 0 {
+		return encontrados, nil
+	}
+
+	var linhas []struct {
+		ID     uuid.UUID `db:"id"`
+		Codigo string    `db:"codigo"`
+	}
+	if err := p.db.SelectContext(ctx, &linhas,
+		`SELECT id, codigo FROM produto WHERE codigo = ANY($1::text[])`, pq.Array(codigos),
+	); err != nil {
+		return nil, err
+	}
+
+	for _, linha := range linhas {
+		encontrados[linha.Codigo] = linha.ID
+	}
+
+	return encontrados, nil
 }
