@@ -84,7 +84,7 @@
 | `competencia` | DATE | dia 1; não posterior ao mês corrente |
 | `valor_centavos` | BIGINT | `<> 0`; negativo reduz |
 | `motivo` | VARCHAR(1000) | obrigatório |
-| `fechamento_id` | UUID NULL | nulo = aberto |
+| `fechamento_id` | UUID NULL | nulo = aberto (fase 3) |
 | `usuario_id`, `criado_em` | | |
 
 ### 2.4 `comissao_fechamento`
@@ -231,7 +231,7 @@ test/helpers + test/integration + test/e2e
 | Fase | Entrega | Estado |
 |---|---|---|
 | **1** | Percentual do pedido e apuração: migration 000053, domínio, repositório, usecase com escopo por empresa e representante, `GET/PUT /pedidos/{id}/comissao`, `POST /comissoes/apurar`, listagem e pendências, integração de idempotência e corrida, e2e + `API.md` | concluída |
-| **2** | Ajustes (migration 000054) | pendente |
+| **2** | Ajustes (migration 000054): domínio, usecase, repositório, `POST/GET /comissoes/ajustes`, integração, e2e + `API.md` | concluída |
 | **3** | Fechamento com conta a pagar no M7 na mesma transação, `representante.fornecedor_id` (migration 000055) | pendente |
 | **4** | Resumo por representante e visão do representante com login | pendente |
 | **5** | Frontend (percentual no pedido, apuração, ajustes, fechamento, "minhas comissões") | pendente |
@@ -252,6 +252,8 @@ Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates ve
 - [x] **Definição para outro representante não vale** (fase 1): é substituída pela próxima definição ou
       pelo padrão na apuração, em vez de virar pendência sem saída depois da primeira saída.
 - [x] **Representante com login nunca define a própria comissão** (fase 1), mesmo com cargo comercial.
+- [x] **Ajuste aceita representante inativo** (fase 2): a comissão continua devida; o pedido, quando
+      informado, é travado com `FOR SHARE` e precisa ser da mesma empresa e do mesmo representante.
 - [x] **D1 — Quando a comissão nasce.** Decidido: na **saída** da entrega (onde o M6 já conta o
       entregue e baixa o estoque; entrega que saiu não é desfeita). Alternativas: na conclusão
       (`entregue`, data de recebimento pelo cliente) ou no **recebimento do título** (comissão só sobre o

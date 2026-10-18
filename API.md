@@ -2734,6 +2734,8 @@ Escopo por empresa (padrão da seção 4 do `EMPRESAS.md`); escopo e decisões e
 | `POST` | `/api/v1/comissoes/apurar` | **financeiro** | `200` resultado; corpo opcional `{ "empresa_id", "competencia" }` |
 | `GET` | `/api/v1/comissoes/pendencias` | **financeiro** | `200` lista paginada das entregas que saíram e ainda não foram apuradas (`?empresa=`, `?competencia=`) |
 | `GET` | `/api/v1/comissoes` | **financeiro** ou representante com login (só as próprias) | `200` lista paginada (`?empresa=`, `?representante=`, `?pedido=`, `?competencia=AAAA-MM`), mais recente primeiro |
+| `POST` | `/api/v1/comissoes/ajustes` | **financeiro** | `201` ajuste |
+| `GET` | `/api/v1/comissoes/ajustes` | **financeiro** ou representante com login (só os próprios) | `200` lista paginada (`?empresa=`, `?representante=`, `?pedido=`, `?competencia=AAAA-MM`), mais recente primeiro |
 
 ### Percentual do pedido
 
@@ -2780,6 +2782,28 @@ Item da lista de comissões:
 }
 ```
 
+### Ajustes
+
+Lançamento manual, positivo ou negativo, para o que a apuração não cobre: devolução de mercadoria,
+desconto concedido depois da saída, prêmio, correção de erro. É append-only: não há edição nem
+exclusão, e desfazer é lançar o ajuste inverso. Entra no fechamento da competência informada (fase 3).
+
+```json
+{
+  "empresa_id": "…",
+  "representante_id": "…",
+  "pedido_id": "…",
+  "competencia": "2026-10",
+  "valor_centavos": -375,
+  "motivo": "devolução de uma peça"
+}
+```
+
+- `valor_centavos` diferente de zero; `motivo` obrigatório, até 1000 caracteres;
+- `competencia` no formato `AAAA-MM`, nunca posterior ao mês corrente em Brasília;
+- `pedido_id` opcional; quando vier, o pedido precisa ser da mesma empresa e do mesmo representante;
+- o representante pode estar inativo (a comissão continua devida).
+
 ### Erros das comissões
 
 | Situação | Status | Mensagem |
@@ -2791,6 +2815,10 @@ Item da lista de comissões:
 | Representante com login no `PUT` | `403` | `representante não define a própria comissão` |
 | Comissão de outro representante | `403` | `comissão de outro representante` |
 | Comercial sem financeiro na lista | `403` | `perfil sem permissão para ver comissões` |
+| Ajuste com valor zero | `400` | `erro de validação: valor do ajuste não pode ser zero` |
+| Ajuste em competência futura | `400` | `erro de validação: competência do ajuste não pode ser posterior ao mês corrente` |
+| Pedido do ajuste de outra empresa ou representante | `400` | `erro de validação: pedido do ajuste deve ser da mesma empresa e do mesmo representante` |
+| Representante do ajuste inexistente | `400` | `erro de validação: representante do ajuste não encontrado` |
 
 ---
 
