@@ -231,3 +231,24 @@ func (h *TituloHandler) Cancelar(w http.ResponseWriter, r *http.Request) {
 	})
 	escreverItem(w, http.StatusOK, titulo, err, receberdto.NovoTituloResponse)
 }
+
+func (h *TituloHandler) BoletosPendentes(w http.ResponseWriter, r *http.Request) {
+	usuario, ok := resposta.UsuarioDoContexto(w, r)
+	if !ok {
+		return
+	}
+
+	input := portsin.BoletosPendentesInput{UsuarioID: usuario.ID, Filtro: resposta.ConsultaPaginacao(r)}
+	var err error
+	if input.Empresa, err = resposta.ConsultaUUID(r, "empresa"); err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+	if input.Dias, err = consultaDias(r); err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+
+	titulos, err := h.usecase.BoletosPendentes(r.Context(), input)
+	escreverPagina(w, input.Filtro, titulos, err, receberdto.NovoTituloResponses)
+}

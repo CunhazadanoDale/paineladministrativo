@@ -159,6 +159,10 @@ func (r repoTitulos) Listar(_ context.Context, filtro portsout.TituloFiltro) ([]
 		if filtro.VencidosEm != nil && !titulo.Vencido(*filtro.VencidosEm) {
 			continue
 		}
+		if filtro.BoletoPendenteAte != nil && (titulo.Status != domainreceber.StatusEmBanco || titulo.BoletoEnviadoEm != nil ||
+			titulo.Vencimento.After(*filtro.BoletoPendenteAte)) {
+			continue
+		}
 		titulos = append(titulos, copiar(titulo))
 	}
 	sort.Slice(titulos, func(i, j int) bool { return titulos[i].Vencimento.Before(titulos[j].Vencimento) })

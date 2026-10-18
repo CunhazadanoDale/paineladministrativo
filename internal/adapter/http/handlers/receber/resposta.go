@@ -2,6 +2,7 @@ package receber
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto"
@@ -57,4 +58,18 @@ func consultaVerdadeira(r *http.Request, nome string) (bool, error) {
 	}
 
 	return *valor, nil
+}
+
+func consultaDias(r *http.Request) (*int, error) {
+	valor := resposta.ConsultaTexto(r, "dias")
+	if valor == "" {
+		return nil, nil
+	}
+
+	dias, err := strconv.Atoi(valor)
+	if err != nil {
+		return nil, domain.ErroValidacao("parâmetro dias deve ser um número inteiro")
+	}
+
+	return &dias, nil
 }

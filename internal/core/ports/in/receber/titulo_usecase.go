@@ -85,6 +85,13 @@ type ListarTitulosInput struct {
 	Filtro          domain.PaginacaoFiltro
 }
 
+type BoletosPendentesInput struct {
+	UsuarioID uuid.UUID
+	Empresa   *uuid.UUID
+	Dias      *int
+	Filtro    domain.PaginacaoFiltro
+}
+
 type TituloUseCase interface {
 	Criar(ctx context.Context, input CriarTituloInput) (*domainreceber.Titulo, error)
 	Obter(ctx context.Context, tituloID, usuarioID uuid.UUID) (*domainreceber.Titulo, error)
@@ -96,4 +103,5 @@ type TituloUseCase interface {
 	RetirarDoBanco(ctx context.Context, input TransicaoTituloInput) (*domainreceber.Titulo, error)
 	RegistrarEnvioBoleto(ctx context.Context, input RegistrarEnvioBoletoInput) (*domainreceber.Titulo, error)
 	Cancelar(ctx context.Context, input CancelarTituloInput) (*domainreceber.Titulo, error)
+	BoletosPendentes(ctx context.Context, input BoletosPendentesInput) ([]*domainreceber.Titulo, error)
 }

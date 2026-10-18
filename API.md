@@ -2512,6 +2512,51 @@ recompra, em `pendente_aprovacao`. A resposta traz `recompra.solicitacao_id`. `m
 
 ---
 
+## Contas a receber — resumo e alerta de boleto (financeiro)
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/contas-a-receber/resumo` | **financeiro** | `200` (`?de=`, `?ate=`, `?empresa=`) |
+| `GET` | `/api/v1/titulos-receber/boletos-pendentes` | **financeiro** | `200` lista paginada de títulos (`?dias=5`, `?empresa=`) |
+
+**Resumo**: saldos (`valor − recebido`) dos títulos em aberto por **semana** (segunda a domingo, pelo
+vencimento) e por **empresa**, em três colunas sem sobreposição: `a_receber` (`carteira` e `em_banco` a
+vencer), `antecipado` (a vencer, só informativo: o dinheiro já entrou pelo borderô) e `vencido`
+(as três situações, vencidas). Os vencidos antes do início do período saem à parte em `atrasados`, por
+empresa, e entram no total de vencido. Período padrão de 8 semanas a partir da segunda-feira atual
+(Brasília); intervalo máximo de 1 ano; fim antes do início → `400`. Só as empresas do acesso;
+`?empresa=` fora do acesso → `403`.
+
+```json
+{
+  "dados": {
+    "de": "2026-10-12",
+    "ate": "2026-12-06",
+    "semanas": [
+      {
+        "semana": "2026-10-19",
+        "empresa_id": "…",
+        "a_receber": { "quantidade": 2, "saldo_centavos": 270000 },
+        "antecipado": { "quantidade": 1, "saldo_centavos": 150000 },
+        "vencido": { "quantidade": 0, "saldo_centavos": 0 }
+      }
+    ],
+    "atrasados": [{ "empresa_id": "…", "vencido": { "quantidade": 1, "saldo_centavos": 150000 } }],
+    "totais": {
+      "a_receber": { "quantidade": 2, "saldo_centavos": 270000 },
+      "antecipado": { "quantidade": 1, "saldo_centavos": 150000 },
+      "vencido": { "quantidade": 2, "saldo_centavos": 300000 }
+    }
+  }
+}
+```
+
+**Boletos pendentes**: títulos `em_banco` sem envio de boleto registrado e com vencimento até
+`hoje + dias` (padrão `5`, de `0` a `90`, senão `400`), inclusive os já vencidos, ordenados por
+vencimento. Registrar o envio (`POST /titulos-receber/{id}/boleto-enviado`) tira o título da lista.
+
+---
+
 ## Exemplos
 
 ### PowerShell

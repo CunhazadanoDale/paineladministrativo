@@ -131,6 +131,30 @@ func (u *TituloUsecaseImpl) Listar(ctx context.Context, input portsin.ListarTitu
 	return u.titulos.Listar(ctx, filtro)
 }
 
+func (u *TituloUsecaseImpl) BoletosPendentes(ctx context.Context, input portsin.BoletosPendentesInput) ([]*domainreceber.Titulo, error) {
+	perfil, err := u.exigeFinanceiro(ctx, input.UsuarioID)
+	if err != nil {
+		return nil, err
+	}
+
+	escopo, err := perfil.escopo(input.Empresa)
+	if err != nil {
+		return nil, err
+	}
+
+	limite, err := domainreceber.LimiteDoAlertaDeBoleto(input.Dias, time.Now().UTC())
+	if err != nil {
+		return nil, err
+	}
+
+	return u.titulos.Listar(ctx, portsout.TituloFiltro{
+		PaginacaoFiltro:   input.Filtro.Normalizada(),
+		Empresa:           escopo.empresa,
+		EmpresaIDs:        escopo.empresaIDs,
+		BoletoPendenteAte: &limite,
+	})
+}
+
 func (u *TituloUsecaseImpl) ListarHistorico(ctx context.Context, tituloID, usuarioID uuid.UUID) ([]*domainreceber.Historico, error) {
 	if _, err := u.Obter(ctx, tituloID, usuarioID); err != nil {
 		return nil, err

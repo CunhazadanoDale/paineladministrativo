@@ -46,17 +46,18 @@ type EstornoDaBaixa struct {
 
 type TituloFiltro struct {
 	domain.PaginacaoFiltro
-	Empresa         *uuid.UUID
-	EmpresaIDs      []uuid.UUID
-	ClienteID       *uuid.UUID
-	Status          domainreceber.Status
-	Origem          domainreceber.Origem
-	OrigemID        *uuid.UUID
-	ContaBancariaID *uuid.UUID
-	VencimentoDe    *time.Time
-	VencimentoAte   *time.Time
-	VencidosEm      *time.Time
-	OrigemCancelada bool
+	Empresa           *uuid.UUID
+	EmpresaIDs        []uuid.UUID
+	ClienteID         *uuid.UUID
+	Status            domainreceber.Status
+	Origem            domainreceber.Origem
+	OrigemID          *uuid.UUID
+	ContaBancariaID   *uuid.UUID
+	VencimentoDe      *time.Time
+	VencimentoAte     *time.Time
+	VencidosEm        *time.Time
+	OrigemCancelada   bool
+	BoletoPendenteAte *time.Time
 }
 
 type TituloReceberRepository interface {

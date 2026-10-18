@@ -208,6 +208,9 @@ func (r *TituloReceberRepository) Listar(ctx context.Context, filtro portsout.Ti
 	if filtro.OrigemCancelada {
 		condicoes = append(condicoes, "origem_cancelada_em IS NOT NULL")
 	}
+	if filtro.BoletoPendenteAte != nil {
+		adicionar("status = 'em_banco' AND boleto_enviado_em IS NULL AND vencimento <=", *filtro.BoletoPendenteAte)
+	}
 
 	query := `SELECT ` + colunasTitulo + ` FROM titulo_receber`
 	if len(condicoes) > 0 {
