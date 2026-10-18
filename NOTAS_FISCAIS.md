@@ -137,6 +137,9 @@ Append-only, como `solicitacao_historico`.
   modelo, série, número). O CNPJ da chave aceita o formato **alfanumérico** (como em `empresa`):
   cada caractere vale seu código ASCII − 48 no cálculo do dígito.
 - Destinatário com `idEstrangeiro` → `400` (o cliente exige CPF/CNPJ).
+- Nota de entrada própria (`tpNF = 0`) só é aceita como devolução (`finNFe = 4`); outra entrada
+  (compra de produtor rural, retorno, importação) → `400`, para não virar venda nem título.
+- O XML importado não pode virar anexo de solicitação (a solicitação recusa arquivo XML).
 - O arquivo precisa ser do usuário que importa (`403`), ter tipo XML (`400`), não estar vinculado a
   solicitação (`400`) nem a outra nota ou evento (`409`).
 - Empresa emitente inativa → `400` (padrão do `EMPRESAS.md`).
@@ -166,7 +169,7 @@ Só `venda` entra como receita no M15 e gera título na fase 6; `remessa`, `tran
 ### 3.3.1 Itens sem produto
 
 Item cujo `codigo` não bate com nenhum `produto.codigo` é gravado com `produto_id NULL` e
-aparece em `GET /notas-fiscais/itens-sem-produto`. O financeiro liga depois
+aparece em `GET /notas-fiscais/itens-sem-produto` enquanto a nota estiver autorizada. O financeiro liga depois
 (`PUT /notas-fiscais/{id}/itens/{numero}/produto`); a nota nunca é recusada por isso.
 
 ### 3.3.2 Devolução
