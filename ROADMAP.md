@@ -154,7 +154,7 @@ o **F0b** pode correr junto com essas telas.
 | M5 | Contas bancárias e plano de contas | M1 | classificação manual dos extratos | concluído |
 | M6 | Pedidos de venda e entregas | M1 M2 M3 | Vendas futuras, Entregas de importação, Pendências de envio | concluído |
 | M7 | Contas a pagar | M1 M4 M5 | Painel financeiro (contas a pagar) | concluído |
-| M8 | NF-e por XML | M2 M3 M6 (fase final: M9) | Controle de NFs | em andamento (feat/m8-notas-fiscais) |
+| M8 | NF-e por XML | M2 M3 M6 (fase final: M9) | Controle de NFs | concluído |
 | M9 | Contas a receber e antecipação | M3 M5 | A receber no banco, títulos do Controle de NFs | concluído |
 | M10 | Comissões | M3 M6 | comissões calculadas à mão | pendente |
 | M11 | Propostas e tabela de preços | M3 M6 | orçamentos em documento, guia de modelos de venda | pendente |
@@ -734,6 +734,25 @@ Acordo fechado (outubro/2026) para as duas sessões correrem em paralelo:
   seção 3).
 - **Sem outros cruzamentos.** A recompra do M9 gera conta a pagar no M7 (o M8 não toca na
   `solicitacao`); criar cliente a partir da NF é só do M8.
+
+**Entregue (outubro/2026):** API completa (fases 1 a 6 do `NOTAS_FISCAIS.md`); front pendente
+(fase 7), depois do F0a. Para os próximos módulos:
+
+- a NF entra pelo XML autorizado (`nfeProc`) enviado em `POST /arquivos` e importado em
+  `POST /notas-fiscais/importacao`; o sistema não emite NF-e e não confere a assinatura XMLDSig
+  (autenticidade pela chave e pelo protocolo da SEFAZ). Só NF emitida por empresa do grupo;
+- `nota_fiscal.natureza` é `venda`, `remessa`, `transferencia` ou `devolucao` (seção 3.3 do
+  `NOTAS_FISCAIS.md`). **O M15 usa só `venda` autorizada como receita**, por `emitida_em` (fuso de
+  Brasília) e `valor_total_centavos`; `entre_empresas = true` fica fora da receita pela regra
+  provisória da seção 6;
+- a NF **não move estoque** (a saída é a da entrega do M6); o vínculo NF ↔ pedido ↔ entrega é
+  manual (`pedido_id`, `entrega_id`), com no máximo uma NF autorizada por entrega;
+- itens guardam `quantidade_decimilesimos` (`qCom` × 10⁴) e `produto_id` resolvido pelo `codigo`
+  (nulo quando não acha, listado em `itens-sem-produto`); o M10 pode cruzar NF e pedido por eles;
+- só `venda` gera títulos (um por duplicata, origem `nota_fiscal_duplicata`); cancelar a NF por
+  evento cancela os títulos pelo `CancelarPorOrigem`, e `POST /notas-fiscais/{id}/titulos` refaz
+  o que tiver falhado (idempotente);
+- migrations `000051` e `000052` (renumeradas depois do M9).
 
 ### M9 — Contas a receber e antecipação
 

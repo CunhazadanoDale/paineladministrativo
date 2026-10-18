@@ -323,10 +323,11 @@ type ResultadoCancelamento struct {
   FOR SHARE`, recusa cancelado). Cada parcela entra com `INSERT ... ON CONFLICT (origem, origem_id)
   WHERE origem <> 'manual' DO NOTHING RETURNING id`; a que já existia vai para `JaExistentes` (com o
   id do título existente) e não grava histórico. Rodar de novo é seguro.
-- **A trava da origem `nota_fiscal_duplicata` é do M8**: na última fase ele acrescenta o `case` em
-  `travarOrigem` (no fim de `titulo_receber_repo.go`, regra 5 da seção 3 do `ROADMAP.md`), travando
-  a `nota_fiscal` com `FOR SHARE` e recusando NF cancelada ou entre empresas do grupo. Até lá, gerar
-  com essa origem responde `400 origem ainda não suportada na geração de títulos`.
+- **A trava da origem `nota_fiscal_duplicata` é do M8** (entregue na fase 6 do `NOTAS_FISCAIS.md`):
+  o `case` em `travarOrigem` chama `travarNotaFiscalDeOrigem` (no fim de `titulo_receber_repo.go`),
+  que acha as notas das duplicatas, trava a `nota_fiscal` com `FOR SHARE` e recusa duplicata
+  inexistente (`400 origem do título não encontrada`), NF cancelada (`409 origem cancelada não gera
+  título`), NF entre empresas do grupo e NF que não é venda (`400`).
 - `CancelarPorOrigem` trava os títulos das origens (`FOR UPDATE`, ordem por `id`) e aplica a seção
   3.4. O M8 chama depois de gravar o evento de cancelamento da NF; a corrida com a geração é fechada
   pela trava da `nota_fiscal` (o cancelamento a trava com `FOR UPDATE` no M8).

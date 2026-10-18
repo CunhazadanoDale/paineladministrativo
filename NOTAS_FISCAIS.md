@@ -1,6 +1,6 @@
 # Escopo — M8 NF-e por XML
 
-> **Status:** API das fases 1 a 5 concluída; fase 6 (títulos) espera o M9 na `main`; front (fase 7) pendente.
+> **Status:** API concluída (fases 1 a 6, com os títulos no M9); front (fase 7) pendente, depois do F0a.
 > **Objetivo:** tirar o "Controle de NFs" da planilha: a NF-e emitida pelas empresas do grupo
 > entra no sistema pelo XML autorizado, com itens, duplicatas e eventos, ligada ao cliente, ao
 > pedido e à entrega. Base para os títulos do M9 (fase final) e para a receita do M15.
@@ -216,6 +216,7 @@ GET    /api/v1/notas-fiscais/{id}/eventos
 GET    /api/v1/notas-fiscais/itens-sem-produto  itens com produto_id NULL; ?empresa=
 PUT    /api/v1/notas-fiscais/{id}/itens/{numero}/produto  { versao, produto_id }
 GET    /api/v1/entregas/sem-nota-fiscal         entregas `saiu`/`entregue` sem NF autorizada; ?empresa= ?cliente=
+POST   /api/v1/notas-fiscais/{id}/titulos       sincroniza os títulos a receber (gera os que faltam ou cancela)
 ```
 
 `POST /api/v1/arquivos` passa a aceitar `application/xml` e `text/xml` (gravado como
@@ -238,8 +239,8 @@ GET    /api/v1/entregas/sem-nota-fiscal         entregas `saiu`/`entregue` sem N
 ## 6. Estrutura de código
 
 ```
-migrations/000047_create_tabela_nota_fiscal          nota_fiscal, nota_fiscal_item, nota_fiscal_duplicata
-migrations/000048_create_tabela_nota_fiscal_evento
+migrations/000051_create_tabela_nota_fiscal          nota_fiscal, nota_fiscal_item, nota_fiscal_duplicata
+migrations/000052_create_tabela_nota_fiscal_evento
 
 internal/core/domain/notafiscal/      chave.go, decimal.go (centavos e quantidade sem float),
                                       natureza.go, finalidade.go (+ tipo de operação), status.go
@@ -251,7 +252,8 @@ internal/core/ports/out/notafiscal/   nota_fiscal_repository.go, arquivo_reposit
                                       cliente_repository.go (ObterPorDocumento, Criar),
                                       produto_repository.go (Obter, IDsPorCodigos),
                                       pedido_repository.go (Obter), entrega_repository.go (Obter),
-                                      representante_repository.go, usuario_repository.go, cargo_repository.go
+                                      representante_repository.go, usuario_repository.go, cargo_repository.go,
+                                      titulo_receber_repository.go (GerarDeOrigem, CancelarPorOrigem do M9)
 internal/core/ports/in/notafiscal/    nota_fiscal_usecase.go, evento_usecase.go
 internal/core/usecases/notafiscal/    nota_fiscal_usecase.go (importação, vínculos, consultas),
                                       destino.go (empresa do grupo ou cliente, criado se faltar),
@@ -267,8 +269,8 @@ test/fixtures/nfe/                    gerador de XML de NF-e e de evento para us
                                       dígito calculado, sem dados reais); o domínio tem o próprio
                                       construtor_test.go
 ```
-
-Numeração de migration definida no merge (regra 4 da seção 3 do `ROADMAP.md`): a `main` está em
+Numeração de migration definida no merge (regra 4 da seção 3 do `ROADMAP.md`): o M9 entrou primeiro na
+`main` com `000047` a `000050`, e o M8 foi renumerado para `000051` e `000052`. Renumerar de novo se outro módulo entrar antes.
 `000046` e o M9 também começa em `000047`; quem mergear depois renumera.
 
 ---
@@ -277,12 +279,12 @@ Numeração de migration definida no merge (regra 4 da seção 3 do `ROADMAP.md`
 
 | Fase | Entrega | Estado |
 |---|---|---|
-| **1** | Migrations 000047–000048 + domínio (chave, decimal, natureza, nota, item, duplicata, evento, leitura do XML) + testes | concluída |
+| **1** | Migrations 000051–000052 (000047–000048 até o merge do M9) + domínio (chave, decimal, natureza, nota, item, duplicata, evento, leitura do XML) + testes | concluída |
 | **2** | Repositório (gravação da nota com itens e duplicatas numa transação, eventos com guarda de status e versão, vínculo com pedido e entrega travados com `FOR SHARE`, listagens; `IDsPorCodigos` e entregas sem NF) + testes de integração | concluída |
 | **3** | Usecases de importação, vínculo e eventos + XML no fluxo de arquivos + permissões (escopo por empresa, representante) + testes com fakes e de isolamento | concluída |
 | **4** | Handlers/DTOs + rotas + e2e + `API.md` | concluída |
 | **5** | Consultas (entregas sem NF, itens sem produto e vínculo de item) + testes + `API.md` | concluída (entregue junto com as fases 2 a 4) |
-| **6** | Títulos no M9: duplicata → título (origem `nota_fiscal_duplicata`) na importação e efeito do cancelamento, pela assinatura do `CONTAS_A_RECEBER.md`; **só depois do M9 na `main`** | bloqueada (M9) |
+| **6** | Títulos no M9: duplicata → título (origem `nota_fiscal_duplicata`) na importação, cancelamento dos títulos com a NF, `travarNotaFiscalDeOrigem` no repositório do M9 e `POST /notas-fiscais/{id}/titulos`; migrations renumeradas para 000051–000052 | concluída |
 | **7** | Frontend: importação, lista, detalhe, vínculo e entregas sem NF (depois do F0a) | pendente |
 
 O efeito definitivo das notas entre empresas é uma fase futura, aberta quando a contabilidade
