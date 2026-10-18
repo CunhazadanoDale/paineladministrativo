@@ -154,8 +154,13 @@ o **F0b** pode correr junto com essas telas.
 | M5 | Contas bancárias e plano de contas | M1 | classificação manual dos extratos | concluído |
 | M6 | Pedidos de venda e entregas | M1 M2 M3 | Vendas futuras, Entregas de importação, Pendências de envio | concluído |
 | M7 | Contas a pagar | M1 M4 M5 | Painel financeiro (contas a pagar) | concluído |
+<<<<<<< HEAD
 | M8 | NF-e por XML | M2 M3 M6 (fase final: M9) | Controle de NFs | em andamento (feat/m8-notas-fiscais) |
 | M9 | Contas a receber e antecipação | M3 M5 | A receber no banco, títulos do Controle de NFs | pendente |
+=======
+| M8 | NF-e por XML | M2 M3 M6 (fase final: M9) | Controle de NFs | pendente |
+| M9 | Contas a receber e antecipação | M3 M5 | A receber no banco, títulos do Controle de NFs | concluído |
+>>>>>>> abf1bba521e47afe6cd5eaa4c438bf0374030ef7
 | M10 | Comissões | M3 M6 | comissões calculadas à mão | pendente |
 | M11 | Propostas e tabela de preços | M3 M6 | orçamentos em documento, guia de modelos de venda | pendente |
 | M12 | Importações | M2 M4 M6 M7 | parte de Entregas de importação e do painel financeiro | pendente |
@@ -750,6 +755,27 @@ Acordo fechado (outubro/2026) para as duas sessões correrem em paralelo:
 - **Baixa**: total ou parcial, com conta bancária e data.
 - **Coordenação com o M8**: o título, a origem `nota_fiscal_duplicata` e a geração por origem
   são do M9 e seguem o acordo em "Coordenação M8 × M9" (seção do M8).
+
+**Entregue (outubro/2026):** API completa (fases 1 a 5 do `CONTAS_A_RECEBER.md`); front pendente
+(fase 6), depois do F0a. Para os próximos módulos:
+
+- **M8 (última fase)**: a porta mínima tem só `GerarDeOrigem` e `CancelarPorOrigem` do
+  `TituloReceberRepository` (seção 6.1 do `CONTAS_A_RECEBER.md`); o M8 acrescenta o `case
+  OrigemNotaFiscalDuplicata` em `travarOrigem` (`titulo_receber_repo.go`), travando a `nota_fiscal`
+  com `FOR SHARE` e recusando NF cancelada ou entre empresas do grupo. Cancelar a NF chama
+  `CancelarPorOrigem`, que cancela os títulos sem movimento e marca `origem_cancelada_em` nos
+  movimentados, sem nunca recusar;
+- a conta a pagar gerada por outro módulo está fechada no M7 (`NovaSolicitacaoDeOrigem`,
+  `SolicitacaoRepository.GerarDeOrigem` e `gerarSolicitacaoDeOrigem` para gravar na mesma
+  transação, `uq_solicitacao_origem`): M10, M12 e M14 acrescentam a própria origem em
+  `chk_solicitacao_origem` e em `Origem.Sistemica()`;
+- **M13**: concilia `titulo_recebimento` (tipo `conta`, por `conta_bancaria_id` + `recebido_em`,
+  entrada no caixa = valor + juros) e o crédito do borderô (`antecipacao.conta_bancaria_id` +
+  `operado_em`, valor líquido); a projeção usa o saldo dos títulos `carteira` e `em_banco`;
+- **M15**: título `manual` entra na DRE por `competencia` + categoria; títulos de NF e de pedido ficam
+  fora (a receita vem da NF); juros recebidos e encargos do borderô (bruto − líquido) são resultado
+  financeiro; recompra e repasse entram pela conta a pagar do M7;
+- "hoje" do módulo é o dia no fuso de Brasília (`domainreceber.Hoje`).
 
 ### M10 — Comissões
 

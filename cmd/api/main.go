@@ -26,6 +26,7 @@ import (
 	fornecedorusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/fornecedor"
 	leadusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/lead"
 	pedidousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/pedido"
+	receberusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/receber"
 	solicitacaousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/solicitacao"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/usuarios"
 )
@@ -161,6 +162,27 @@ func executar(registrador *slog.Logger) error {
 		),
 		pedidousecases.NewConsultaUsecase(
 			postgres.NewPedidoConsultaRepository(banco), representanteRepository, empresaRepository, usuarioRepository, cargoRepository,
+		),
+		receberusecases.NewTituloUsecase(
+			postgres.NewTituloReceberRepository(banco), clienteRepository, postgres.NewContaBancariaRepository(banco),
+			postgres.NewCategoriaFinanceiraRepository(banco), empresaRepository, usuarioRepository, cargoRepository,
+		),
+		receberusecases.NewEntradaDoPedidoUsecase(
+			postgres.NewTituloReceberRepository(banco), pedidoRepository, postgres.NewContaBancariaRepository(banco),
+			empresaRepository, usuarioRepository, cargoRepository,
+		),
+		receberusecases.NewRecebimentoUsecase(
+			postgres.NewTituloReceberRepository(banco), postgres.NewAntecipacaoRepository(banco), pedidoRepository,
+			postgres.NewContaBancariaRepository(banco), postgres.NewCategoriaFinanceiraRepository(banco),
+			empresaRepository, usuarioRepository, cargoRepository,
+		),
+		receberusecases.NewAntecipacaoUsecase(
+			postgres.NewAntecipacaoRepository(banco), postgres.NewTituloReceberRepository(banco), clienteRepository,
+			postgres.NewFornecedorRepository(banco), postgres.NewContaBancariaRepository(banco),
+			postgres.NewCategoriaFinanceiraRepository(banco), empresaRepository, usuarioRepository, cargoRepository,
+		),
+		receberusecases.NewResumoContasAReceberUsecase(
+			postgres.NewContasAReceberResumoRepository(banco), empresaRepository, usuarioRepository, cargoRepository,
 		),
 		autenticacao.NovoTokenService(cfg.JWTSecret, cfg.JWTExpiracao),
 	)
