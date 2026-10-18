@@ -1,7 +1,7 @@
 # Escopo — M10 Comissões
 
-> **Status:** escopo em revisão — decisões D1 a D8 (seção 10) aguardando o usuário; nenhuma linha de
-> código antes das respostas (regra 11 da seção 3 do `ROADMAP.md`).
+> **Status:** escopo fechado — decisões D1 a D8 respondidas pelo usuário (outubro/2026): todas as
+> recomendações aceitas; API em andamento.
 > **Objetivo:** tirar o cálculo de comissões da mão: comissão do representante apurada pela saída das
 > entregas do pedido (M6), proporcional ao entregue, com ajustes, fechamento mensal por representante
 > e empresa, e a conta a pagar do fechamento gerada no M7 com vencimento no dia 15. Base para a linha
@@ -13,7 +13,7 @@
 
 ## 1. Visão geral
 
-| Tema | Decisão (proposta; as marcadas com Dn dependem da seção 10) |
+| Tema | Decisão |
 |---|---|
 | Módulo | Pacote novo `comissao`: `domain/comissao`, `ports/in|out/comissao`, `usecases/comissao`; rotas `/api/v1/comissoes` e `/api/v1/pedidos/{id}/comissao` |
 | Fato gerador (D1) | A **saída** da entrega (`POST /entregas/{id}/saiu`): é onde o M6 soma `pedido_item.quantidade_entregue` e baixa o estoque. Entrega que saiu não volta (`saiu` → só `entregue`), então a comissão nasce sobre fato definitivo |
@@ -51,8 +51,8 @@
 - Sem linha manual, a primeira apuração grava a linha `padrao` com o percentual do representante
   naquele momento: mudar o padrão do representante depois não muda pedido já apurado.
 - Se o representante do pedido mudar (só é possível em `proposta`) depois de uma linha `manual`, a
-  linha é descartada na próxima definição; a apuração recusa a entrega cujo pedido tenha linha de
-  outro representante (`409`, listado em `GET /comissoes/apurar` como pendência).
+  linha deixa de valer: a leitura sugere o padrão do representante novo, a próxima definição a
+  substitui e, se nenhuma definição vier, a apuração a troca pelo padrão do representante do pedido.
 
 ### 2.2 `comissao` — uma por entrega
 
@@ -66,8 +66,8 @@
 | `competencia` | DATE | dia 1 do mês do `entrega.saiu_em` |
 | `base_centavos` | BIGINT | `> 0` |
 | `percentual_bp` | INT | cópia do `pedido_comissao` na apuração |
-| `valor_centavos` | BIGINT | `round(base × percentual / 10000)`; `>= 0` (percentual zero gera comissão zero, para a entrega não voltar à apuração) |
-| `fechamento_id` | UUID NULL | FK `comissao_fechamento`; nulo = aberta |
+| `valor_centavos` | BIGINT | `round(base × percentual / 10000)`; `0..base` (percentual zero gera comissão zero, para a entrega não voltar à apuração) |
+| `fechamento_id` | UUID NULL | FK `comissao_fechamento` (fase 3); nulo = aberta |
 | `usuario_id` | UUID | quem apurou |
 | `criado_em` | TIMESTAMPTZ | |
 
@@ -112,9 +112,12 @@
 
 1. Seleciona entregas com `status IN ('saiu','entregue')`, sem `comissao`, cujo pedido tem representante,
    até a competência informada (padrão: todas), no acesso do usuário.
-2. Por entrega, trava entrega e pedido (`FOR SHARE`), resolve o percentual (2.1), calcula a base pelos
-   itens da entrega e grava com `INSERT ... ON CONFLICT (entrega_id) DO NOTHING`.
-3. Responde `{ apuradas, ja_existentes, pendencias }`; rodar de novo é seguro.
+2. Por entrega, numa transação própria: trava entrega e pedido (`FOR SHARE`) e confere o representante,
+   grava o percentual padrão quando o pedido não tem um vigente, trava o `pedido_comissao` (`FOR SHARE`)
+   e confere que é o usado no cálculo, e grava com `INSERT ... ON CONFLICT (entrega_id) DO NOTHING`.
+3. Até 500 entregas por chamada. Responde `{ apuradas, ja_existentes, falhas, restam_entregas }`: erro de
+   negócio de uma entrega vira `falha` com o motivo e as demais seguem; erro de infraestrutura
+   interrompe com `500`. Rodar de novo é seguro.
 
 ### 3.2 Fechamento
 
@@ -135,8 +138,8 @@ GET    /api/v1/pedidos/{id}/comissao              percentual vigente ou o que se
 PUT    /api/v1/pedidos/{id}/comissao              { percentual_bp, versao? } (comercial; antes da primeira saída)
 
 POST   /api/v1/comissoes/apurar                   { empresa_id?, competencia? } (financeiro)
-GET    /api/v1/comissoes                          ?empresa= ?representante= ?pedido= ?competencia= ?aberta= (financeiro; representante: só as suas)
-GET    /api/v1/comissoes/pendencias               entregas que não apuram e o motivo (financeiro)
+GET    /api/v1/comissoes                          ?empresa= ?representante= ?pedido= ?competencia= (financeiro; representante: só as suas); ?aberta= na fase 3
+GET    /api/v1/comissoes/pendencias               ?empresa= ?competencia= — entregas que saíram e ainda não foram apuradas (financeiro)
 
 POST   /api/v1/comissoes/ajustes                  { empresa_id, representante_id, pedido_id?, competencia, valor_centavos, motivo } (financeiro)
 GET    /api/v1/comissoes/ajustes                  ?empresa= ?representante= ?competencia= ?aberto= (financeiro; representante: só os seus)
@@ -227,7 +230,7 @@ test/helpers + test/integration + test/e2e
 
 | Fase | Entrega | Estado |
 |---|---|---|
-| **1** | Percentual do pedido e apuração: migration 000053, domínio, repositório, usecase com escopo por empresa e representante, `GET/PUT /pedidos/{id}/comissao`, `POST /comissoes/apurar`, listagem e pendências, integração de idempotência e corrida, e2e + `API.md` | pendente |
+| **1** | Percentual do pedido e apuração: migration 000053, domínio, repositório, usecase com escopo por empresa e representante, `GET/PUT /pedidos/{id}/comissao`, `POST /comissoes/apurar`, listagem e pendências, integração de idempotência e corrida, e2e + `API.md` | concluída |
 | **2** | Ajustes (migration 000054) | pendente |
 | **3** | Fechamento com conta a pagar no M7 na mesma transação, `representante.fornecedor_id` (migration 000055) | pendente |
 | **4** | Resumo por representante e visão do representante com login | pendente |
@@ -244,37 +247,41 @@ Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates ve
 - [x] **Representante com login vê só as próprias comissões** (decisão da seção 6 do `ROADMAP.md`).
 - [x] **Conta a pagar por `gerarSolicitacaoDeOrigem`** na transação do fechamento (contrato do M7 fechado
       pelo M9).
-
-## 10. Decisões pendentes (levar ao usuário)
-
-Cada item traz a recomendação e a alternativa.
-
-- [ ] **D1 — Quando a comissão nasce.** Recomendado: na **saída** da entrega (onde o M6 já conta o
+- [x] **Uma transação por entrega na apuração** (fase 1): uma entrega com problema não bloqueia as
+      outras e aparece em `falhas`; o limite de 500 por chamada evita requisição longa.
+- [x] **Definição para outro representante não vale** (fase 1): é substituída pela próxima definição ou
+      pelo padrão na apuração, em vez de virar pendência sem saída depois da primeira saída.
+- [x] **Representante com login nunca define a própria comissão** (fase 1), mesmo com cargo comercial.
+- [x] **D1 — Quando a comissão nasce.** Decidido: na **saída** da entrega (onde o M6 já conta o
       entregue e baixa o estoque; entrega que saiu não é desfeita). Alternativas: na conclusão
       (`entregue`, data de recebimento pelo cliente) ou no **recebimento do título** (comissão só sobre o
       que o cliente pagou — protege contra inadimplência, mas amarra o M10 ao M9 e às baixas parciais).
-- [ ] **D2 — Onde fica o percentual sobrescrito.** Recomendado: tabela própria `pedido_comissao` do M10,
+- [x] **D2 — Onde fica o percentual sobrescrito.** Decidido: tabela própria `pedido_comissao` do M10,
       editável até a primeira saída, com cópia do padrão do representante na primeira apuração.
       Alternativa: coluna `comissao_bp` no `pedido`, editada no `PUT` da proposta — mais natural na tela,
       mas mexe no domínio e no repositório do M6 e conflita com o M11.
-- [ ] **D3 — Base de cálculo.** Recomendado: preço dos produtos que saíram (sem frete, sem impostos da
+- [x] **D3 — Base de cálculo.** Decidido: preço dos produtos que saíram (sem frete, sem impostos da
       NF). Alternativa: valor da NF de venda vinculada à entrega (inclui impostos e só existe depois da
       importação do XML).
-- [ ] **D4 — Como a comissão é gerada.** Recomendado: apuração idempotente sob demanda (e automática no
+- [x] **D4 — Como a comissão é gerada.** Decidido: apuração idempotente sob demanda (e automática no
       fechamento), sem tocar no fluxo de saída do M6. Alternativa: gerar na mesma transação da saída —
       comissão aparece na hora, mas exige mudar `PedidoRepository.Gravar` e o usecase do pedido.
-- [ ] **D5 — Fechamento.** Recomendado: um por representante × empresa × mês da saída, comissões e
+- [x] **D5 — Fechamento.** Decidido: um por representante × empresa × mês da saída, comissões e
       ajustes em aberto de meses anteriores entram no próximo fechamento, conta a pagar em
-      `pendente_aprovacao` vencendo dia 15 do mês seguinte, categoria escolhida no fechamento. Confirmar
-      o dia 15 do **mês seguinte** e se a conta nasce `pendente_aprovacao` ou já aprovada.
-- [ ] **D6 — Devolução e correção.** Recomendado: ajuste manual com motivo (o M6 não tem devolução de
+      `pendente_aprovacao` vencendo dia 15 do **mês seguinte** à competência, categoria escolhida no
+      fechamento.
+- [x] **D6 — Devolução e correção.** Decidido: ajuste manual com motivo (o M6 não tem devolução de
       mercadoria; a NF de `devolucao` do M8 não move estoque). Alternativa: estornar automaticamente a
       partir da NF de devolução — depende da decisão aberta de transferências e do vínculo NF ↔ entrega.
-- [ ] **D7 — Favorecido da conta a pagar.** Recomendado: `representante.fornecedor_id` obrigatório para
+- [x] **D7 — Favorecido da conta a pagar.** Decidido: `representante.fornecedor_id` obrigatório para
       fechar (o representante é cadastrado também como fornecedor, PF ou PJ, no M4), o que dá documento
       e conciliação no M13. Alternativa: conta a pagar sem fornecedor, com o representante só na
       observação — a mesma dúvida da pendência 12 (devolução do pedido cancelado); a resposta vale para
       as duas.
-- [ ] **D8 — Quem vê comissões além do financeiro.** Recomendado: o comercial **não** vê valores de
+- [x] **D8 — Quem vê comissões além do financeiro.** Decidido: o comercial **não** vê valores de
       comissão, só define o percentual do pedido; o representante com login vê as próprias.
       Alternativa: comercial lê tudo (gestor comercial acompanhando a equipe).
+
+## 10. Decisões pendentes
+
+Sem abertos.

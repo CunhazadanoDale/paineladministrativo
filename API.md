@@ -2720,6 +2720,80 @@ nota cancelada cancela os títulos das duplicatas; outra nota → `400`.
 
 ---
 
+## Comissões
+
+Comissão do representante por **entrega** que saiu (`saiu` ou `entregue`), proporcional ao que saiu:
+base = soma de `quantidade × preco_unitario_centavos` dos itens da entrega (sem frete), valor = base ×
+percentual / 10000, arredondado meio centavo para cima. Pedido sem representante não gera comissão.
+Escopo por empresa (padrão da seção 4 do `EMPRESAS.md`); escopo e decisões em `COMISSOES.md`.
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/pedidos/{id}/comissao` | comercial, financeiro ou o representante do pedido | `200` percentual vigente; sem definição, o padrão do representante com `definido: false` |
+| `PUT` | `/api/v1/pedidos/{id}/comissao` | **comercial** (representante com login não define) | `200`; corpo `{ "percentual_bp", "versao" }`; só antes da primeira saída de entrega |
+| `POST` | `/api/v1/comissoes/apurar` | **financeiro** | `200` resultado; corpo opcional `{ "empresa_id", "competencia" }` |
+| `GET` | `/api/v1/comissoes/pendencias` | **financeiro** | `200` lista paginada das entregas que saíram e ainda não foram apuradas (`?empresa=`, `?competencia=`) |
+| `GET` | `/api/v1/comissoes` | **financeiro** ou representante com login (só as próprias) | `200` lista paginada (`?empresa=`, `?representante=`, `?pedido=`, `?competencia=AAAA-MM`), mais recente primeiro |
+
+### Percentual do pedido
+
+O percentual padrão vem do representante pelo modelo do pedido (`comissao_pronta_entrega_bp` ou
+`comissao_importacao_bp`). O comercial pode sobrescrevê-lo enquanto nenhuma entrega do pedido saiu; a
+primeira definição dispensa `versao`, as seguintes exigem a `versao` lida (`400` sem ela, `409` se outra
+pessoa gravou antes). Sem definição manual, a primeira apuração grava o padrão daquele momento:
+mudar o padrão do representante depois não muda pedido já apurado. Definição feita para outro
+representante (o representante do pedido mudou na proposta) deixa de valer e é substituída.
+
+```json
+{
+  "dados": {
+    "pedido_id": "…",
+    "representante_id": "…",
+    "percentual_bp": 450,
+    "origem": "manual",
+    "definido": true,
+    "versao": 2,
+    "usuario_id": "…",
+    "atualizado_em": "2026-10-18T21:10:00Z"
+  }
+}
+```
+
+### Apuração
+
+Grava uma comissão por entrega, idempotente (`uq_comissao_entrega`): rodar de novo só apura o que
+falta. Sem `competencia`, apura todas as saídas pendentes do acesso do usuário; com ela, as saídas até o
+fim do mês informado. Cada chamada apura até 500 entregas (`restam_entregas: true` quando sobrou).
+Entrega que não apura entra em `falhas` com o motivo, e as demais seguem.
+
+```json
+{ "dados": { "apuradas": ["…"], "ja_existentes": 0, "falhas": [], "restam_entregas": false } }
+```
+
+Item da lista de comissões:
+
+```json
+{
+  "id": "…", "empresa_id": "…", "representante_id": "…", "pedido_id": "…", "entrega_id": "…",
+  "competencia": "2026-10", "base_centavos": 6000, "percentual_bp": 450, "valor_centavos": 270,
+  "usuario_id": "…", "criado_em": "2026-10-18T21:15:00Z"
+}
+```
+
+### Erros das comissões
+
+| Situação | Status | Mensagem |
+| --- | --- | --- |
+| Pedido sem representante | `400` | `erro de validação: pedido sem representante não tem comissão` |
+| Pedido cancelado | `409` | `pedido cancelado não muda a comissão` |
+| Depois da primeira saída | `409` | `a comissão do pedido não muda depois da primeira saída de entrega` |
+| Versão divergente | `409` | `a comissão do pedido foi alterada por outra pessoa; recarregue e tente de novo` |
+| Representante com login no `PUT` | `403` | `representante não define a própria comissão` |
+| Comissão de outro representante | `403` | `comissão de outro representante` |
+| Comercial sem financeiro na lista | `403` | `perfil sem permissão para ver comissões` |
+
+---
+
 ## Exemplos
 
 ### PowerShell
