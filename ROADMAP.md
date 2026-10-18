@@ -147,6 +147,7 @@ o **F0b** pode correr junto com essas telas.
 | F-M5 | Front de contas bancárias e plano de contas | M5 F0a | — | concluído |
 | F-M2 | Front de estoque por local, lote e reserva | M2 F0a | — | concluído |
 | F-M3 | Front de clientes e representantes | M3 F0a | — | concluído |
+| F-M6 | Front de pedidos de venda e entregas | M6 F-M2 F-M3 | — | em andamento (feat/front-m6-pedidos) |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
 | M3 | Clientes e representantes | M1 | Base de clientes | concluído |
@@ -156,7 +157,7 @@ o **F0b** pode correr junto com essas telas.
 | M7 | Contas a pagar | M1 M4 M5 | Painel financeiro (contas a pagar) | concluído |
 | M8 | NF-e por XML | M2 M3 M6 (fase final: M9) | Controle de NFs | concluído |
 | M9 | Contas a receber e antecipação | M3 M5 | A receber no banco, títulos do Controle de NFs | concluído |
-| M10 | Comissões | M3 M6 | comissões calculadas à mão | pendente |
+| M10 | Comissões | M3 M6 | comissões calculadas à mão | em andamento (feat/m10-comissoes) |
 | M11 | Propostas e tabela de preços | M3 M6 | orçamentos em documento, guia de modelos de venda | pendente |
 | M12 | Importações | M2 M4 M6 M7 | parte de Entregas de importação e do painel financeiro | pendente |
 | M13 | Caixa e conciliação | M5 M7 M9 | Caixa do mês, Fluxo de caixa diário | pendente |
