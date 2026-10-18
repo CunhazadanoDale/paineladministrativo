@@ -33,6 +33,7 @@ type representanteLinha struct {
 	Telefone              *string    `db:"telefone"`
 	ComissaoProntaEntrega int        `db:"comissao_pronta_entrega_bp"`
 	ComissaoImportacao    int        `db:"comissao_importacao_bp"`
+	FornecedorID          *uuid.UUID `db:"fornecedor_id"`
 	Ativo                 bool       `db:"ativo"`
 	CriadoEm              time.Time  `db:"criado_em"`
 	AtualizadoEm          time.Time  `db:"atualizado_em"`
@@ -40,18 +41,18 @@ type representanteLinha struct {
 
 const colunasRepresentante = `
 	id, nome, nome_busca, documento, usuario_id, email, telefone,
-	comissao_pronta_entrega_bp, comissao_importacao_bp, ativo, criado_em, atualizado_em
+	comissao_pronta_entrega_bp, comissao_importacao_bp, fornecedor_id, ativo, criado_em, atualizado_em
 `
 
 func (r *RepresentanteRepository) Criar(ctx context.Context, representante *domaincliente.Representante) (uuid.UUID, error) {
 	if _, err := r.db.NamedExecContext(ctx, `
 		INSERT INTO representante (
 			id, nome, nome_busca, documento, usuario_id, email, telefone,
-			comissao_pronta_entrega_bp, comissao_importacao_bp, ativo, criado_em, atualizado_em
+			comissao_pronta_entrega_bp, comissao_importacao_bp, fornecedor_id, ativo, criado_em, atualizado_em
 		)
 		VALUES (
 			:id, :nome, :nome_busca, :documento, :usuario_id, :email, :telefone,
-			:comissao_pronta_entrega_bp, :comissao_importacao_bp, :ativo, :criado_em, :atualizado_em
+			:comissao_pronta_entrega_bp, :comissao_importacao_bp, :fornecedor_id, :ativo, :criado_em, :atualizado_em
 		)
 	`, paraLinhaRepresentante(representante)); err != nil {
 		return uuid.Nil, tratarErroDeGravacao(err)
@@ -133,11 +134,13 @@ func (r *RepresentanteRepository) Atualizar(ctx context.Context, representante *
 		    comissao_pronta_entrega_bp = $7,
 		    comissao_importacao_bp = $8,
 		    ativo = $9,
-		    atualizado_em = $10
+		    atualizado_em = $10,
+		    fornecedor_id = $12
 		WHERE id = $11
 	`,
 		linha.Nome, linha.NomeBusca, linha.Documento, linha.UsuarioID, linha.Email, linha.Telefone,
 		linha.ComissaoProntaEntrega, linha.ComissaoImportacao, linha.Ativo, linha.AtualizadoEm, linha.ID,
+		linha.FornecedorID,
 	)
 
 	return linhasAfetadas(resultado, err)
@@ -173,6 +176,7 @@ func paraLinhaRepresentante(representante *domaincliente.Representante) represen
 		Telefone:              representante.Telefone,
 		ComissaoProntaEntrega: representante.ComissaoProntaEntrega.PontosBase(),
 		ComissaoImportacao:    representante.ComissaoImportacao.PontosBase(),
+		FornecedorID:          representante.FornecedorID,
 		Ativo:                 representante.Ativo,
 		CriadoEm:              representante.CriadoEm,
 		AtualizadoEm:          representante.AtualizadoEm,
@@ -195,6 +199,7 @@ func paraDominioRepresentante(linha *representanteLinha) *domaincliente.Represen
 		Telefone:              linha.Telefone,
 		ComissaoProntaEntrega: domaincliente.PercentualDe(linha.ComissaoProntaEntrega),
 		ComissaoImportacao:    domaincliente.PercentualDe(linha.ComissaoImportacao),
+		FornecedorID:          linha.FornecedorID,
 		Ativo:                 linha.Ativo,
 		CriadoEm:              linha.CriadoEm,
 		AtualizadoEm:          linha.AtualizadoEm,

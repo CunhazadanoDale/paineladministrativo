@@ -18,6 +18,7 @@ type Representante struct {
 	Telefone              *string
 	ComissaoProntaEntrega Percentual
 	ComissaoImportacao    Percentual
+	FornecedorID          *uuid.UUID
 	Ativo                 bool
 	CriadoEm              time.Time
 	AtualizadoEm          time.Time
@@ -76,6 +77,15 @@ func (r *Representante) Alterar(dados DadosRepresentante, agora time.Time) error
 	r.AtualizadoEm = agora
 
 	return nil
+}
+
+func (r *Representante) DefinirFornecedor(fornecedorID *uuid.UUID, agora time.Time) {
+	if fornecedorID != nil && *fornecedorID == uuid.Nil {
+		fornecedorID = nil
+	}
+
+	r.FornecedorID = fornecedorID
+	r.AtualizadoEm = agora
 }
 
 func (r *Representante) Ativar(agora time.Time) {

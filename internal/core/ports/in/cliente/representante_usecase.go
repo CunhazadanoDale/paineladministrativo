@@ -29,6 +29,12 @@ type AlterarRepresentanteInput struct {
 	Dados           DadosRepresentanteInput
 }
 
+type DefinirFornecedorInput struct {
+	UsuarioID       uuid.UUID
+	RepresentanteID uuid.UUID
+	FornecedorID    *uuid.UUID
+}
+
 type ListarRepresentantesInput struct {
 	UsuarioID uuid.UUID
 	Busca     string
@@ -43,4 +49,5 @@ type RepresentanteUseCase interface {
 	Alterar(ctx context.Context, input AlterarRepresentanteInput) (*domaincliente.Representante, error)
 	Ativar(ctx context.Context, representanteID, usuarioID uuid.UUID) (*domaincliente.Representante, error)
 	Desativar(ctx context.Context, representanteID, usuarioID uuid.UUID) (*domaincliente.Representante, error)
+	DefinirFornecedor(ctx context.Context, input DefinirFornecedorInput) (*domaincliente.Representante, error)
 }

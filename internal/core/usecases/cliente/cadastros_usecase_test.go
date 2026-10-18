@@ -171,3 +171,37 @@ func TestObrasDoCliente(t *testing.T) {
 		t.Errorf("obter obra inexistente = %v, esperado não encontrado", err)
 	}
 }
+
+func TestDefinirFornecedorDoRepresentanteSoPeloAdministradorEPreservaNoAlterar(t *testing.T) {
+	c := novoCenario(t)
+	jose := c.novoRepresentante(t, "José Vendas", nil)
+	fornecedorID := uuid.New()
+
+	if _, err := c.representantes.DefinirFornecedor(c.ctx, portsin.DefinirFornecedorInput{
+		UsuarioID: c.comercial, RepresentanteID: jose.ID, FornecedorID: &fornecedorID,
+	}); !errors.Is(err, domain.ErrPermissao) {
+		t.Fatalf("comercial definindo fornecedor = %v, esperado erro de permissão", err)
+	}
+
+	definido, err := c.representantes.DefinirFornecedor(c.ctx, portsin.DefinirFornecedorInput{
+		UsuarioID: c.administrador, RepresentanteID: jose.ID, FornecedorID: &fornecedorID,
+	})
+	if err != nil || definido.FornecedorID == nil || *definido.FornecedorID != fornecedorID {
+		t.Fatalf("definir fornecedor = %+v (%v)", definido, err)
+	}
+
+	alterado, err := c.representantes.Alterar(c.ctx, portsin.AlterarRepresentanteInput{
+		UsuarioID: c.administrador, RepresentanteID: jose.ID,
+		Dados: portsin.DadosRepresentanteInput{Nome: "José Representações", ComissaoProntaEntregaBP: 300},
+	})
+	if err != nil || alterado.FornecedorID == nil || *alterado.FornecedorID != fornecedorID {
+		t.Fatalf("o PUT do cadastro não deveria apagar o fornecedor: %+v (%v)", alterado, err)
+	}
+
+	limpo, err := c.representantes.DefinirFornecedor(c.ctx, portsin.DefinirFornecedorInput{
+		UsuarioID: c.administrador, RepresentanteID: jose.ID, FornecedorID: &uuid.Nil,
+	})
+	if err != nil || limpo.FornecedorID != nil {
+		t.Fatalf("limpar fornecedor = %+v (%v)", limpo, err)
+	}
+}

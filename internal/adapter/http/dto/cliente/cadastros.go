@@ -61,6 +61,10 @@ func (r RepresentanteRequest) ParaDados() portsin.DadosRepresentanteInput {
 	}
 }
 
+type DefinirFornecedorRequest struct {
+	FornecedorID *uuid.UUID `json:"fornecedor_id"`
+}
+
 type RepresentanteResponse struct {
 	ID                      uuid.UUID  `json:"id"`
 	Nome                    string     `json:"nome"`
@@ -71,6 +75,7 @@ type RepresentanteResponse struct {
 	Telefone                *string    `json:"telefone"`
 	ComissaoProntaEntregaBP int        `json:"comissao_pronta_entrega_bp"`
 	ComissaoImportacaoBP    int        `json:"comissao_importacao_bp"`
+	FornecedorID            *uuid.UUID `json:"fornecedor_id"`
 	Ativo                   bool       `json:"ativo"`
 	CriadoEm                time.Time  `json:"criado_em"`
 	AtualizadoEm            time.Time  `json:"atualizado_em"`
@@ -85,6 +90,7 @@ func NovoRepresentanteResponse(item *domaincliente.Representante) RepresentanteR
 		Telefone:                item.Telefone,
 		ComissaoProntaEntregaBP: item.ComissaoProntaEntrega.PontosBase(),
 		ComissaoImportacaoBP:    item.ComissaoImportacao.PontosBase(),
+		FornecedorID:            item.FornecedorID,
 		Ativo:                   item.Ativo,
 		CriadoEm:                item.CriadoEm,
 		AtualizadoEm:            item.AtualizadoEm,
