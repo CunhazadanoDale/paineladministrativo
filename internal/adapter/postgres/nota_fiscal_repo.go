@@ -400,7 +400,7 @@ func (r *NotaFiscalRepository) ListarItensSemProduto(ctx context.Context, filtro
 	filtro.PaginacaoFiltro = filtro.Normalizada()
 	offset := (filtro.Page - 1) * filtro.Size
 
-	condicoes := []string{"i.produto_id IS NULL"}
+	condicoes := []string{"i.produto_id IS NULL", "n.status = 'autorizada'"}
 	argumentos := make([]any, 0, 4)
 	if filtro.Empresa != nil {
 		argumentos = append(argumentos, *filtro.Empresa)

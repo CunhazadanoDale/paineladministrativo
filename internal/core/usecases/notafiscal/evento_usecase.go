@@ -96,7 +96,7 @@ func (u *EventoUsecaseImpl) Importar(ctx context.Context, input portsin.Importar
 	importacao := &portsin.ImportacaoEvento{
 		Evento: evento, Nota: nota, Avisos: []string{}, TitulosCancelados: []uuid.UUID{}, TitulosMarcados: []uuid.UUID{},
 	}
-	if evento.Tipo == domainnotafiscal.TipoEventoCancelamento && len(nota.Duplicatas) > 0 {
+	if evento.Tipo == domainnotafiscal.TipoEventoCancelamento && nota.PodeTerTitulos() {
 		resultado, err := u.cancelar(ctx, nota, input.UsuarioID, agora)
 		if err != nil {
 			importacao.ErroDosTitulos = err

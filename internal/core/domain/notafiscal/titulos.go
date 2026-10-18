@@ -8,9 +8,12 @@ import (
 	"github.com/google/uuid"
 )
 
+func (n *NotaFiscal) PodeTerTitulos() bool {
+	return n.Natureza.GeraTitulo() && !n.EntreEmpresas && n.ClienteID != nil && len(n.Duplicatas) > 0
+}
+
 func (n *NotaFiscal) GeraTitulos() bool {
-	return n.Status == StatusAutorizada && n.Natureza.GeraTitulo() && !n.EntreEmpresas &&
-		n.ClienteID != nil && len(n.Duplicatas) > 0
+	return n.Status == StatusAutorizada && n.PodeTerTitulos()
 }
 
 func (n *NotaFiscal) NumeroDoTitulo() string {

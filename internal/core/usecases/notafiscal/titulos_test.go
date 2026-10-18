@@ -138,6 +138,24 @@ func TestCancelamentoComFalhaNosTitulosAvisa(t *testing.T) {
 	}
 }
 
+func TestCancelamentoDeRemessaNaoChamaOsTitulos(t *testing.T) {
+	c := novoCenario(t)
+	documento := c.notaDaMia(130)
+	documento.Itens[0].CFOP, documento.Itens[1].CFOP = "5116", "5116"
+	nota := c.importar(t, c.financeiro, documento).Nota
+
+	if _, err := c.importarEvento(c.financeiro, nfe.Cancelamento(documento.Chave(), cnpjMia)); err != nil {
+		t.Fatalf("cancelamento = %v", err)
+	}
+	sincronizacao, err := c.notas.SincronizarTitulos(c.ctx, nota.ID, c.financeiro)
+	if err != nil || len(sincronizacao.Cancelados) != 0 {
+		t.Errorf("sincronizar remessa cancelada = %+v, %v", sincronizacao, err)
+	}
+	if len(c.m.cancelamentos) != 0 {
+		t.Errorf("remessa cancelada chamou o cancelamento de títulos %d vezes", len(c.m.cancelamentos))
+	}
+}
+
 func TestCartaDeCorrecaoNaoMexeNosTitulos(t *testing.T) {
 	c := novoCenario(t)
 	documento := c.notaDaMia(129)

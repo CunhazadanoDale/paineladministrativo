@@ -302,6 +302,9 @@ func TestNotaFiscalRepositoryCancelaPorEventoELiberaAEntrega(t *testing.T) {
 	if lida := c.obterNota(t, nota.ID); lida.Status != domainnotafiscal.StatusCancelada || lida.Versao != versao+1 {
 		t.Errorf("nota cancelada = %q versão %d", lida.Status, lida.Versao)
 	}
+	if pendentes, err := c.notas.ListarItensSemProduto(c.ctx, portsnotafiscal.ItemPendenteFiltro{}); err != nil || len(pendentes) != 0 {
+		t.Errorf("itens sem produto de nota cancelada = %d, %v", len(pendentes), err)
+	}
 	eventos, err := c.notas.ListarEventos(c.ctx, nota.ID)
 	if err != nil || len(eventos) != 1 || eventos[0].Tipo != domainnotafiscal.TipoEventoCancelamento || eventos[0].Justificativa != "Erro de valor" {
 		t.Errorf("eventos = %+v, %v", eventos, err)

@@ -175,7 +175,7 @@ func (u *NotaFiscalUsecaseImpl) SincronizarTitulos(ctx context.Context, notaFisc
 
 	switch {
 	case nota.Status == domainnotafiscal.StatusCancelada:
-		if len(nota.Duplicatas) == 0 {
+		if !nota.PodeTerTitulos() {
 			return sincronizacao, nil
 		}
 		resultado, err := u.cancelar(ctx, nota, usuarioID, agora)

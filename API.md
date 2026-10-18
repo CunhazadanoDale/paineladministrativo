@@ -674,7 +674,7 @@ Filtros de conta a pagar, combináveis com qualquer escopo (valor inválido → 
 | `categoria_financeira_id` | opcional. Subcategoria ativa de natureza `despesa` (plano de contas) |
 | `competencia` | opcional, `AAAA-MM` (de `2000-01` a `2099-12`). Padrão: o mês do `prazo_pagamento` |
 | `estimado` | opcional, padrão `false`. `true` quando o valor é previsão (conta de consumo) |
-| `arquivo_ids` | opcional. Cada anexo tem que existir, pertencer ao solicitante, aparecer uma vez só e não estar em outra solicitação |
+| `arquivo_ids` | opcional. Cada anexo tem que existir, pertencer ao solicitante, aparecer uma vez só, não estar em outra solicitação e não ser XML (o XML é exclusivo da importação de NF-e) |
 
 **Objeto de solicitação:**
 
@@ -998,7 +998,7 @@ O upload é `multipart/form-data` com **um campo só**: `arquivo`.
 | Tamanho máximo | 10MB por arquivo (`413 arquivo excede o limite de 10MB`) |
 | Arquivo ausente no armazenamento | `404` `registro não encontrado: arquivo não encontrado no armazenamento` (registro existe, mas o conteúdo sumiu do disco ou do bucket) |
 | Tempo de transferência | até 5 minutos no envio (`POST /api/v1/arquivos`) e no download (`GET /api/v1/arquivos/{id}` e `GET /api/v1/publico/imagens/{id}`); as demais rotas têm 15 segundos para ler a requisição e escrever a resposta |
-| Tipos aceitos | `application/pdf`, `image/png`, `image/jpeg`, `image/webp`, `application/xml` (`text/xml` é gravado como `application/xml`; usado pela importação de NF-e) |
+| Tipos aceitos | `application/pdf`, `image/png`, `image/jpeg`, `image/webp`, `application/xml` (`text/xml` é gravado como `application/xml`; só para a importação de NF-e, não vira anexo de solicitação) |
 | Nome | obrigatório, no máximo 255 caracteres |
 | Chave no storage | `{proprietario_id}/{uuid}/{nome}` |
 
@@ -2603,6 +2603,7 @@ sem produto (`403`).
 | emitente fora do acesso | `403 perfil sem acesso a esta empresa` |
 | chave já importada | `409 já existe uma nota fiscal com esta chave de acesso` |
 | destinatário estrangeiro (`idEstrangeiro`) | `400` |
+| nota de entrada (`tpNF = 0`) que não é devolução (`finNFe` diferente de `4`) | `400` |
 
 A assinatura digital do XML não é conferida; a autenticidade vem da chave e do protocolo da SEFAZ.
 
@@ -2620,7 +2621,8 @@ predominante é o do item de maior valor. Só `venda` gera título no contas a r
 "Títulos a receber da nota"); as duplicatas são guardadas em todas as naturezas.
 
 **Itens**: o produto é resolvido pelo `codigo` (`cProd`); item sem produto entra com `produto_id =
-null` e aparece em `itens-sem-produto`. A NF **não move estoque** (a saída é a da entrega).
+null` e aparece em `itens-sem-produto` enquanto a nota estiver autorizada. A NF **não move estoque**
+(a saída é a da entrega).
 
 `avisos` da importação:
 

@@ -24,23 +24,24 @@ type duplicataXML struct {
 }
 
 type nfeXML struct {
-	cnpjEmitente   string
-	destinoTag     string
-	destino        string
-	finalidade     string
-	tipoOperacao   string
-	ambiente       string
-	modelo         string
-	statusProt     string
-	emissao        string
-	dhEmi          string
-	numero         int
-	serie          int
-	itens          []itemXML
-	duplicatas     []duplicataXML
-	pedidoCompra   string
-	semProtocolo   bool
-	chaveProtocolo string
+	cnpjEmitente      string
+	destinoTag        string
+	destino           string
+	finalidade        string
+	tipoOperacao      string
+	ambiente          string
+	modelo            string
+	statusProt        string
+	emissao           string
+	dhEmi             string
+	numero            int
+	serie             int
+	itens             []itemXML
+	duplicatas        []duplicataXML
+	pedidoCompra      string
+	semProtocolo      bool
+	semBlocoProtocolo bool
+	chaveProtocolo    string
 }
 
 func novaNFeXML() nfeXML {
@@ -125,6 +126,10 @@ func (n nfeXML) bytes() []byte {
 
 	if n.semProtocolo {
 		return []byte(`<?xml version="1.0" encoding="UTF-8"?>` + nfe)
+	}
+
+	if n.semBlocoProtocolo {
+		return []byte(`<?xml version="1.0" encoding="UTF-8"?><nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">` + nfe + `</nfeProc>`)
 	}
 
 	chaveProtocolo := chave

@@ -108,25 +108,27 @@ func TestLerNFeAceitaEmitenteAlfanumerico(t *testing.T) {
 
 func TestLerNFeRecusaXMLInvalido(t *testing.T) {
 	casos := map[string]func(*nfeXML){
-		"sem protocolo":          func(x *nfeXML) { x.semProtocolo = true },
-		"homologação":            func(x *nfeXML) { x.ambiente = "2" },
-		"não autorizada":         func(x *nfeXML) { x.statusProt = "302" },
-		"nfc-e":                  func(x *nfeXML) { x.modelo = "65" },
-		"protocolo de outra":     func(x *nfeXML) { x.chaveProtocolo = chaveDe(cnpjEmitente, "2026-10-10", 1, 999, "55") },
-		"destinatário inválido":  func(x *nfeXML) { x.destino = "11444777000162" },
-		"estrangeiro":            func(x *nfeXML) { x.destinoTag = "idEstrangeiro"; x.destino = "AB123" },
-		"sem itens":              func(x *nfeXML) { x.itens = nil },
-		"item repetido":          func(x *nfeXML) { x.itens[1].numero = "1" },
-		"quantidade zero":        func(x *nfeXML) { x.itens[0].quantidade = "0" },
-		"valor com três casas":   func(x *nfeXML) { x.itens[0].valor = "1.005" },
-		"cfop inválido":          func(x *nfeXML) { x.itens[0].cfop = "51A2" },
-		"duplicata repetida":     func(x *nfeXML) { x.duplicatas[1].numero = "001" },
-		"duplicata zerada":       func(x *nfeXML) { x.duplicatas[0].valor = "0.00" },
-		"vencimento inválido":    func(x *nfeXML) { x.duplicatas[0].vencimento = "09/11/2026" },
-		"emissão sem fuso":       func(x *nfeXML) { x.dhEmi = "2026-10-10T09:30:00" },
-		"pedido do item longo":   func(x *nfeXML) { x.itens[0].pedido = strings.Repeat("P", 61) },
-		"emissão fora da chave":  func(x *nfeXML) { x.dhEmi = "2026-09-10T09:30:00-03:00" },
-		"finalidade inexistente": func(x *nfeXML) { x.finalidade = "9" },
+		"sem protocolo":               func(x *nfeXML) { x.semProtocolo = true },
+		"homologação":                 func(x *nfeXML) { x.ambiente = "2" },
+		"não autorizada":              func(x *nfeXML) { x.statusProt = "302" },
+		"nfc-e":                       func(x *nfeXML) { x.modelo = "65" },
+		"protocolo de outra":          func(x *nfeXML) { x.chaveProtocolo = chaveDe(cnpjEmitente, "2026-10-10", 1, 999, "55") },
+		"destinatário inválido":       func(x *nfeXML) { x.destino = "11444777000162" },
+		"estrangeiro":                 func(x *nfeXML) { x.destinoTag = "idEstrangeiro"; x.destino = "AB123" },
+		"sem itens":                   func(x *nfeXML) { x.itens = nil },
+		"item repetido":               func(x *nfeXML) { x.itens[1].numero = "1" },
+		"quantidade zero":             func(x *nfeXML) { x.itens[0].quantidade = "0" },
+		"valor com três casas":        func(x *nfeXML) { x.itens[0].valor = "1.005" },
+		"cfop inválido":               func(x *nfeXML) { x.itens[0].cfop = "51A2" },
+		"duplicata repetida":          func(x *nfeXML) { x.duplicatas[1].numero = "001" },
+		"duplicata zerada":            func(x *nfeXML) { x.duplicatas[0].valor = "0.00" },
+		"vencimento inválido":         func(x *nfeXML) { x.duplicatas[0].vencimento = "09/11/2026" },
+		"emissão sem fuso":            func(x *nfeXML) { x.dhEmi = "2026-10-10T09:30:00" },
+		"pedido do item longo":        func(x *nfeXML) { x.itens[0].pedido = strings.Repeat("P", 61) },
+		"emissão fora da chave":       func(x *nfeXML) { x.dhEmi = "2026-09-10T09:30:00-03:00" },
+		"finalidade inexistente":      func(x *nfeXML) { x.finalidade = "9" },
+		"entrada que não é devolução": func(x *nfeXML) { x.tipoOperacao = "0" },
+		"sem protNFe":                 func(x *nfeXML) { x.semBlocoProtocolo = true },
 	}
 
 	for nome, ajuste := range casos {
@@ -203,5 +205,39 @@ func TestLerEventoRecusaInvalido(t *testing.T) {
 
 	if _, err := domainnotafiscal.LerEvento(novaNFeXML().bytes()); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("NF-e como evento = %v, esperado validação", err)
+	}
+}
+
+func TestLerNFeAceitaEntradaDeDevolucao(t *testing.T) {
+	xml := novaNFeXML()
+	xml.tipoOperacao = "0"
+	xml.finalidade = "4"
+
+	documento, err := domainnotafiscal.LerNFe(xml.bytes())
+	if err != nil {
+		t.Fatalf("LerNFe = %v", err)
+	}
+	if documento.TipoOperacao != domainnotafiscal.TipoOperacaoEntrada || documento.Finalidade != domainnotafiscal.FinalidadeDevolucao {
+		t.Errorf("tipo %q finalidade %q", documento.TipoOperacao, documento.Finalidade)
+	}
+}
+
+func TestLerNFeExplicaOMotivoDaRecusa(t *testing.T) {
+	casos := map[string]struct {
+		ajuste func(*nfeXML)
+		trecho string
+	}{
+		"sem protNFe":                 {func(x *nfeXML) { x.semBlocoProtocolo = true }, "sem protocolo de autorização"},
+		"entrada que não é devolução": {func(x *nfeXML) { x.tipoOperacao = "0" }, "só é aceita como devolução"},
+		"homologação":                 {func(x *nfeXML) { x.ambiente = "2" }, "homologação"},
+	}
+
+	for nome, caso := range casos {
+		xml := novaNFeXML()
+		caso.ajuste(&xml)
+		_, err := domainnotafiscal.LerNFe(xml.bytes())
+		if err == nil || !strings.Contains(err.Error(), caso.trecho) {
+			t.Errorf("%s: erro = %v, esperado %q", nome, err, caso.trecho)
+		}
 	}
 }

@@ -197,6 +197,9 @@ func LerNFe(conteudo []byte) (*Documento, error) {
 	if documento.Finalidade, err = FinalidadeDoCodigo(infNFe.Ide.FinNFe); err != nil {
 		return nil, err
 	}
+	if documento.TipoOperacao == TipoOperacaoEntrada && documento.Finalidade != FinalidadeDevolucao {
+		return nil, domain.ErroValidacao("nota de entrada emitida pela empresa só é aceita como devolução (finNFe 4)")
+	}
 	if documento.NaturezaOperacao, err = textoObrigatorio(infNFe.Ide.NatOp, "natureza da operação (natOp)", tamanhoMaximoNaturezaOp); err != nil {
 		return nil, err
 	}
@@ -531,6 +534,9 @@ func numeroPedidoCliente(compra string, itens []ItemDocumento) (*string, error) 
 }
 
 func autorizacao(prot infProtXML, chave Chave) (string, time.Time, error) {
+	if prot == (infProtXML{}) {
+		return "", time.Time{}, domain.ErroValidacao("XML sem protocolo de autorização: envie o nfeProc autorizado")
+	}
 	if strings.TrimSpace(prot.TpAmb) != ambienteProducao {
 		return "", time.Time{}, domain.ErroValidacao("nota emitida em homologação não é aceita")
 	}

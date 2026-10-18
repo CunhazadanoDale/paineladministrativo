@@ -56,4 +56,10 @@ func TestGeraTitulosSoNaVendaAutorizadaComDuplicatas(t *testing.T) {
 			t.Errorf("%s não deveria gerar títulos", nome)
 		}
 	}
+
+	cancelada := notaDoTeste(t)
+	cancelada.Status = domainnotafiscal.StatusCancelada
+	if !cancelada.PodeTerTitulos() {
+		t.Error("venda cancelada ainda pode ter títulos a cancelar")
+	}
 }
