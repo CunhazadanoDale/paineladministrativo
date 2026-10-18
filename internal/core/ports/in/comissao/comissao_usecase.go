@@ -27,6 +27,7 @@ type ListarComissoesInput struct {
 	RepresentanteID *uuid.UUID
 	PedidoID        *uuid.UUID
 	Competencia     string
+	Aberta          *bool
 	Filtro          domain.PaginacaoFiltro
 }
 

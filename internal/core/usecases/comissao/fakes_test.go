@@ -7,6 +7,7 @@ import (
 	domaincliente "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/cliente"
 	domaincomissao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/comissao"
 	domainempresa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/empresa"
+	domainfinanceiro "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/financeiro"
 	domainpedido "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/pedido"
 	domainusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/usuarios"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/comissao"
@@ -14,12 +15,13 @@ import (
 )
 
 var (
-	_ portsout.ComissaoRepository      = repoComissoes{}
-	_ portsout.PedidoRepository        = repoPedidos{}
-	_ portsout.RepresentanteRepository = repoRepresentantes{}
-	_ portsout.EmpresaRepository       = repoEmpresas{}
-	_ portsout.UsuarioRepository       = repoUsuarios{}
-	_ portsout.CargoRepository         = repoCargos{}
+	_ portsout.ComissaoRepository            = repoComissoes{}
+	_ portsout.PedidoRepository              = repoPedidos{}
+	_ portsout.RepresentanteRepository       = repoRepresentantes{}
+	_ portsout.EmpresaRepository             = repoEmpresas{}
+	_ portsout.UsuarioRepository             = repoUsuarios{}
+	_ portsout.CargoRepository               = repoCargos{}
+	_ portsout.CategoriaFinanceiraRepository = repoCategorias{}
 )
 
 var errBancoFora = errors.New("banco fora do ar")
@@ -34,11 +36,18 @@ type memoria struct {
 	entregas       []*domaincomissao.EntregaParaApurar
 	comissoes      []*domaincomissao.Comissao
 	ajustes        []*domaincomissao.Ajuste
+	empresas       map[uuid.UUID]*domainempresa.Empresa
+	categorias     map[uuid.UUID]*domainfinanceiro.CategoriaFinanceira
+	saldos         []domaincomissao.SaldoAberto
+	fechamentos    []*portsout.GravacaoFechamento
+	falhaNoFechar  map[uuid.UUID]error
 	saidas         map[uuid.UUID]bool
 
 	ultimoFiltroEntregas portsout.EntregaFiltro
 	ultimoFiltro         portsout.ComissaoFiltro
 	ultimoFiltroAjustes  portsout.AjusteFiltro
+	ultimoFiltroSaldos   portsout.SaldoFiltro
+	ultimoFiltroFechados portsout.FechamentoFiltro
 	versaoLida           *int
 	falhaNaGravacao      map[uuid.UUID]error
 }
@@ -53,6 +62,9 @@ func novaMemoria() *memoria {
 		percentuais:     make(map[uuid.UUID]*domaincomissao.PercentualPedido),
 		saidas:          make(map[uuid.UUID]bool),
 		falhaNaGravacao: make(map[uuid.UUID]error),
+		empresas:        make(map[uuid.UUID]*domainempresa.Empresa),
+		categorias:      make(map[uuid.UUID]*domainfinanceiro.CategoriaFinanceira),
+		falhaNoFechar:   make(map[uuid.UUID]error),
 	}
 }
 
@@ -138,6 +150,59 @@ func (r repoComissoes) ListarAjustes(_ context.Context, filtro portsout.AjusteFi
 	return r.m.ajustes, nil
 }
 
+func (r repoComissoes) SaldosAbertos(_ context.Context, filtro portsout.SaldoFiltro) ([]domaincomissao.SaldoAberto, error) {
+	r.m.ultimoFiltroSaldos = filtro
+
+	saldos := make([]domaincomissao.SaldoAberto, 0, len(r.m.saldos))
+	for _, saldo := range r.m.saldos {
+		if filtro.RepresentanteID == nil || *filtro.RepresentanteID == saldo.RepresentanteID {
+			saldos = append(saldos, saldo)
+		}
+	}
+
+	return saldos, nil
+}
+
+func (r repoComissoes) Fechar(_ context.Context, gravacao *portsout.GravacaoFechamento) error {
+	if err := r.m.falhaNoFechar[gravacao.Fechamento.RepresentanteID]; err != nil {
+		return err
+	}
+	r.m.fechamentos = append(r.m.fechamentos, gravacao)
+
+	return nil
+}
+
+func (r repoComissoes) ObterFechamento(_ context.Context, id uuid.UUID) (*domaincomissao.Fechamento, error) {
+	for _, gravacao := range r.m.fechamentos {
+		if gravacao.Fechamento.ID == id {
+			return gravacao.Fechamento, nil
+		}
+	}
+
+	return nil, nil
+}
+
+func (r repoComissoes) ListarFechamentos(_ context.Context, filtro portsout.FechamentoFiltro) ([]*domaincomissao.Fechamento, error) {
+	r.m.ultimoFiltroFechados = filtro
+
+	fechamentos := make([]*domaincomissao.Fechamento, 0, len(r.m.fechamentos))
+	for _, gravacao := range r.m.fechamentos {
+		fechamentos = append(fechamentos, gravacao.Fechamento)
+	}
+
+	return fechamentos, nil
+}
+
+func (r repoComissoes) ItensDoFechamento(context.Context, uuid.UUID) ([]*domaincomissao.Comissao, []*domaincomissao.Ajuste, error) {
+	return r.m.comissoes, r.m.ajustes, nil
+}
+
+type repoCategorias struct{ m *memoria }
+
+func (r repoCategorias) Obter(_ context.Context, id uuid.UUID) (*domainfinanceiro.CategoriaFinanceira, error) {
+	return r.m.categorias[id], nil
+}
+
 type repoPedidos struct{ m *memoria }
 
 func (r repoPedidos) Obter(_ context.Context, id uuid.UUID) (*domainpedido.Pedido, error) {
@@ -161,6 +226,10 @@ func (r repoRepresentantes) ObterPorUsuario(_ context.Context, usuarioID uuid.UU
 }
 
 type repoEmpresas struct{ m *memoria }
+
+func (r repoEmpresas) Obter(_ context.Context, id uuid.UUID) (*domainempresa.Empresa, error) {
+	return r.m.empresas[id], nil
+}
 
 func (r repoEmpresas) AcessoDoUsuario(_ context.Context, usuarioID uuid.UUID) (domainempresa.Acesso, error) {
 	return r.m.acessos[usuarioID], nil

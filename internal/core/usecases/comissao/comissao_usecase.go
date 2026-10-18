@@ -4,22 +4,19 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"time"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
-	domaincliente "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/cliente"
 	domaincomissao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/comissao"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/comissao"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/comissao"
 	"github.com/google/uuid"
 )
 
-const limiteDaApuracao = 500
-
 var _ portsin.ComissaoUseCase = (*ComissaoUsecaseImpl)(nil)
 
 type ComissaoUsecaseImpl struct {
 	comissoes portsout.ComissaoRepository
+	apuracao  apurador
 	permissoes
 }
 
@@ -32,6 +29,7 @@ func NewComissaoUsecase(
 ) *ComissaoUsecaseImpl {
 	return &ComissaoUsecaseImpl{
 		comissoes: comissoes,
+		apuracao:  apurador{comissoes: comissoes, representantes: representantes},
 		permissoes: permissoes{
 			usuarios:       usuarios,
 			cargos:         cargos,
@@ -51,42 +49,8 @@ func (u *ComissaoUsecaseImpl) Apurar(ctx context.Context, input portsin.ApurarIn
 	if err != nil {
 		return domaincomissao.ResultadoApuracao{}, err
 	}
-	filtro.PaginacaoFiltro = domain.PaginacaoFiltro{Page: 1, Size: limiteDaApuracao + 1}
 
-	entregas, err := u.comissoes.ListarEntregasParaApurar(ctx, filtro)
-	if err != nil {
-		return domaincomissao.ResultadoApuracao{}, err
-	}
-
-	resultado := domaincomissao.ResultadoApuracao{Apuradas: []uuid.UUID{}, Falhas: []domaincomissao.FalhaApuracao{}}
-	if len(entregas) > limiteDaApuracao {
-		entregas = entregas[:limiteDaApuracao]
-		resultado.RestamEntregas = true
-	}
-
-	representantes := make(map[uuid.UUID]*domaincliente.Representante)
-	for _, entrega := range entregas {
-		apuracao, err := u.apuracaoDaEntrega(ctx, entrega, representantes, input.UsuarioID)
-		if err == nil {
-			var criada bool
-			criada, err = u.comissoes.GravarApuracao(ctx, apuracao)
-			if err == nil && criada {
-				resultado.Apuradas = append(resultado.Apuradas, apuracao.Comissao.ID)
-			}
-			if err == nil && !criada {
-				resultado.JaExistentes++
-			}
-		}
-		if err == nil {
-			continue
-		}
-		if !erroDeNegocio(err) {
-			return domaincomissao.ResultadoApuracao{}, err
-		}
-		resultado.Falhas = append(resultado.Falhas, domaincomissao.FalhaApuracao{EntregaID: entrega.EntregaID, Motivo: err.Error()})
-	}
-
-	return resultado, nil
+	return u.apuracao.apurar(ctx, filtro, input.UsuarioID)
 }
 
 func (u *ComissaoUsecaseImpl) Pendencias(ctx context.Context, input portsin.PendenciasInput) ([]*domaincomissao.EntregaParaApurar, error) {
@@ -121,34 +85,13 @@ func (u *ComissaoUsecaseImpl) Listar(ctx context.Context, input portsin.ListarCo
 		EmpresaIDs:      escopo.empresaIDs,
 		RepresentanteID: escopo.representanteID,
 		PedidoID:        input.PedidoID,
+		Aberta:          input.Aberta,
 	}
 	if filtro.Competencia, err = competenciaOpcional(input.Competencia); err != nil {
 		return nil, err
 	}
 
 	return u.comissoes.Listar(ctx, filtro)
-}
-
-func (u *ComissaoUsecaseImpl) apuracaoDaEntrega(
-	ctx context.Context,
-	entrega *domaincomissao.EntregaParaApurar,
-	representantes map[uuid.UUID]*domaincliente.Representante,
-	usuarioID uuid.UUID,
-) (*domaincomissao.Apuracao, error) {
-	var representante *domaincliente.Representante
-	if !entrega.Percentual.VigentePara(entrega.RepresentanteID) {
-		var carregado bool
-		representante, carregado = representantes[entrega.RepresentanteID]
-		if !carregado {
-			var err error
-			if representante, err = u.representantes.Obter(ctx, entrega.RepresentanteID); err != nil {
-				return nil, err
-			}
-			representantes[entrega.RepresentanteID] = representante
-		}
-	}
-
-	return domaincomissao.NovaApuracao(*entrega, representante, usuarioID, time.Now().UTC())
 }
 
 func filtroDeEntregas(perfil perfilDoUsuario, empresa *uuid.UUID, competencia string) (portsout.EntregaFiltro, error) {

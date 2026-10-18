@@ -96,6 +96,7 @@ func (u *AjusteUsecaseImpl) Listar(ctx context.Context, input portsin.ListarAjus
 		EmpresaIDs:      escopo.empresaIDs,
 		RepresentanteID: escopo.representanteID,
 		PedidoID:        input.PedidoID,
+		Aberto:          input.Aberto,
 	}
 	if filtro.Competencia, err = competenciaOpcional(input.Competencia); err != nil {
 		return nil, err

@@ -39,17 +39,18 @@ type percentualPedidoLinha struct {
 }
 
 type comissaoLinha struct {
-	ID              uuid.UUID `db:"id"`
-	EmpresaID       uuid.UUID `db:"empresa_id"`
-	RepresentanteID uuid.UUID `db:"representante_id"`
-	PedidoID        uuid.UUID `db:"pedido_id"`
-	EntregaID       uuid.UUID `db:"entrega_id"`
-	Competencia     time.Time `db:"competencia"`
-	BaseCentavos    int64     `db:"base_centavos"`
-	PercentualBP    int       `db:"percentual_bp"`
-	ValorCentavos   int64     `db:"valor_centavos"`
-	UsuarioID       uuid.UUID `db:"usuario_id"`
-	CriadoEm        time.Time `db:"criado_em"`
+	ID              uuid.UUID  `db:"id"`
+	EmpresaID       uuid.UUID  `db:"empresa_id"`
+	RepresentanteID uuid.UUID  `db:"representante_id"`
+	PedidoID        uuid.UUID  `db:"pedido_id"`
+	EntregaID       uuid.UUID  `db:"entrega_id"`
+	Competencia     time.Time  `db:"competencia"`
+	BaseCentavos    int64      `db:"base_centavos"`
+	PercentualBP    int        `db:"percentual_bp"`
+	ValorCentavos   int64      `db:"valor_centavos"`
+	FechamentoID    *uuid.UUID `db:"fechamento_id"`
+	UsuarioID       uuid.UUID  `db:"usuario_id"`
+	CriadoEm        time.Time  `db:"criado_em"`
 }
 
 type entregaParaApurarLinha struct {
@@ -81,7 +82,7 @@ const colunasPercentualPedido = `
 
 const colunasComissao = `
 	id, empresa_id, representante_id, pedido_id, entrega_id, competencia, base_centavos, percentual_bp,
-	valor_centavos, usuario_id, criado_em
+	valor_centavos, fechamento_id, usuario_id, criado_em
 `
 
 func (r *ComissaoRepository) ObterPercentual(ctx context.Context, pedidoID uuid.UUID) (*domaincomissao.PercentualPedido, error) {
@@ -243,7 +244,7 @@ func (r *ComissaoRepository) GravarApuracao(ctx context.Context, apuracao *domai
 	consulta, argumentos, err := tx.BindNamed(`
 		INSERT INTO comissao (`+colunasComissao+`) VALUES (
 			:id, :empresa_id, :representante_id, :pedido_id, :entrega_id, :competencia, :base_centavos, :percentual_bp,
-			:valor_centavos, :usuario_id, :criado_em
+			:valor_centavos, :fechamento_id, :usuario_id, :criado_em
 		)
 		ON CONFLICT (entrega_id) DO NOTHING
 		RETURNING id
@@ -293,6 +294,9 @@ func (r *ComissaoRepository) Listar(ctx context.Context, filtro portsout.Comissa
 	}
 	if filtro.Competencia != nil {
 		adicionar("competencia =", filtro.Competencia.Inicio())
+	}
+	if filtro.Aberta != nil {
+		condicoes = append(condicoes, condicaoDeAberto(*filtro.Aberta))
 	}
 
 	query := `SELECT ` + colunasComissao + ` FROM comissao`
@@ -462,6 +466,7 @@ func paraDominioComissao(linha *comissaoLinha) *domaincomissao.Comissao {
 		BaseCentavos:    linha.BaseCentavos,
 		Percentual:      domaincliente.PercentualDe(linha.PercentualBP),
 		ValorCentavos:   linha.ValorCentavos,
+		FechamentoID:    linha.FechamentoID,
 		UsuarioID:       linha.UsuarioID,
 		CriadoEm:        linha.CriadoEm,
 	}
@@ -478,6 +483,7 @@ func paraLinhaComissao(comissao *domaincomissao.Comissao) *comissaoLinha {
 		BaseCentavos:    comissao.BaseCentavos,
 		PercentualBP:    comissao.Percentual.PontosBase(),
 		ValorCentavos:   comissao.ValorCentavos,
+		FechamentoID:    comissao.FechamentoID,
 		UsuarioID:       comissao.UsuarioID,
 		CriadoEm:        comissao.CriadoEm,
 	}
@@ -491,12 +497,13 @@ type ajusteLinha struct {
 	Competencia     time.Time  `db:"competencia"`
 	ValorCentavos   int64      `db:"valor_centavos"`
 	Motivo          string     `db:"motivo"`
+	FechamentoID    *uuid.UUID `db:"fechamento_id"`
 	UsuarioID       uuid.UUID  `db:"usuario_id"`
 	CriadoEm        time.Time  `db:"criado_em"`
 }
 
 const colunasAjuste = `
-	id, empresa_id, representante_id, pedido_id, competencia, valor_centavos, motivo, usuario_id, criado_em
+	id, empresa_id, representante_id, pedido_id, competencia, valor_centavos, motivo, fechamento_id, usuario_id, criado_em
 `
 
 func (r *ComissaoRepository) CriarAjuste(ctx context.Context, ajuste *domaincomissao.Ajuste) error {
@@ -518,7 +525,7 @@ func (r *ComissaoRepository) CriarAjuste(ctx context.Context, ajuste *domaincomi
 
 	if _, err := tx.NamedExecContext(ctx, `
 		INSERT INTO comissao_ajuste (`+colunasAjuste+`) VALUES (
-			:id, :empresa_id, :representante_id, :pedido_id, :competencia, :valor_centavos, :motivo, :usuario_id, :criado_em
+			:id, :empresa_id, :representante_id, :pedido_id, :competencia, :valor_centavos, :motivo, :fechamento_id, :usuario_id, :criado_em
 		)
 	`, paraLinhaAjuste(ajuste)); err != nil {
 		return tratarErroDeGravacao(err)
@@ -554,6 +561,9 @@ func (r *ComissaoRepository) ListarAjustes(ctx context.Context, filtro portsout.
 	if filtro.Competencia != nil {
 		adicionar("competencia =", filtro.Competencia.Inicio())
 	}
+	if filtro.Aberto != nil {
+		condicoes = append(condicoes, condicaoDeAberto(*filtro.Aberto))
+	}
 
 	query := `SELECT ` + colunasAjuste + ` FROM comissao_ajuste`
 	if len(condicoes) > 0 {
@@ -567,22 +577,7 @@ func (r *ComissaoRepository) ListarAjustes(ctx context.Context, filtro portsout.
 		return nil, tratarErroDeConsulta(err)
 	}
 
-	ajustes := make([]*domaincomissao.Ajuste, 0, len(linhas))
-	for _, linha := range linhas {
-		ajustes = append(ajustes, &domaincomissao.Ajuste{
-			ID:              linha.ID,
-			EmpresaID:       linha.EmpresaID,
-			RepresentanteID: linha.RepresentanteID,
-			PedidoID:        linha.PedidoID,
-			Competencia:     domaincomissao.CompetenciaDe(linha.Competencia),
-			ValorCentavos:   linha.ValorCentavos,
-			Motivo:          linha.Motivo,
-			UsuarioID:       linha.UsuarioID,
-			CriadoEm:        linha.CriadoEm,
-		})
-	}
-
-	return ajustes, nil
+	return paraDominioAjustes(linhas), nil
 }
 
 func exigirPedidoDoAjuste(ctx context.Context, tx *sqlx.Tx, ajuste *domaincomissao.Ajuste) error {
@@ -604,6 +599,34 @@ func exigirPedidoDoAjuste(ctx context.Context, tx *sqlx.Tx, ajuste *domaincomiss
 	return nil
 }
 
+func paraDominioAjustes(linhas []*ajusteLinha) []*domaincomissao.Ajuste {
+	ajustes := make([]*domaincomissao.Ajuste, 0, len(linhas))
+	for _, linha := range linhas {
+		ajustes = append(ajustes, &domaincomissao.Ajuste{
+			ID:              linha.ID,
+			EmpresaID:       linha.EmpresaID,
+			RepresentanteID: linha.RepresentanteID,
+			PedidoID:        linha.PedidoID,
+			Competencia:     domaincomissao.CompetenciaDe(linha.Competencia),
+			ValorCentavos:   linha.ValorCentavos,
+			Motivo:          linha.Motivo,
+			FechamentoID:    linha.FechamentoID,
+			UsuarioID:       linha.UsuarioID,
+			CriadoEm:        linha.CriadoEm,
+		})
+	}
+
+	return ajustes
+}
+
+func condicaoDeAberto(aberto bool) string {
+	if aberto {
+		return "fechamento_id IS NULL"
+	}
+
+	return "fechamento_id IS NOT NULL"
+}
+
 func paraLinhaAjuste(ajuste *domaincomissao.Ajuste) *ajusteLinha {
 	return &ajusteLinha{
 		ID:              ajuste.ID,
@@ -613,6 +636,7 @@ func paraLinhaAjuste(ajuste *domaincomissao.Ajuste) *ajusteLinha {
 		Competencia:     ajuste.Competencia.Inicio(),
 		ValorCentavos:   ajuste.ValorCentavos,
 		Motivo:          ajuste.Motivo,
+		FechamentoID:    ajuste.FechamentoID,
 		UsuarioID:       ajuste.UsuarioID,
 		CriadoEm:        ajuste.CriadoEm,
 	}

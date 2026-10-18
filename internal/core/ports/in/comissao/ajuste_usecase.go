@@ -19,6 +19,7 @@ type ListarAjustesInput struct {
 	RepresentanteID *uuid.UUID
 	PedidoID        *uuid.UUID
 	Competencia     string
+	Aberto          *bool
 	Filtro          domain.PaginacaoFiltro
 }
 

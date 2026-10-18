@@ -23,6 +23,7 @@ type cenario struct {
 	percentuais portsin.PercentualUseCase
 	comissoes   portsin.ComissaoUseCase
 	ajustes     portsin.AjusteUseCase
+	fechamentos portsin.FechamentoUseCase
 
 	mia uuid.UUID
 	red uuid.UUID
@@ -51,12 +52,18 @@ func novoCenario(t *testing.T) *cenario {
 		comissoes: comissaousecases.NewComissaoUsecase(
 			repoComissoes{m}, repoRepresentantes{m}, repoEmpresas{m}, repoUsuarios{m}, repoCargos{m},
 		),
+		fechamentos: comissaousecases.NewFechamentoUsecase(
+			repoComissoes{m}, repoCategorias{m}, repoRepresentantes{m}, repoEmpresas{m}, repoUsuarios{m}, repoCargos{m},
+		),
 		ajustes: comissaousecases.NewAjusteUsecase(
 			repoComissoes{m}, repoPedidos{m}, repoRepresentantes{m}, repoEmpresas{m}, repoUsuarios{m}, repoCargos{m},
 		),
 		mia: uuid.New(),
 		red: uuid.New(),
 	}
+
+	c.m.empresas[c.mia] = &domainempresa.Empresa{ID: c.mia, Ativa: true}
+	c.m.empresas[c.red] = &domainempresa.Empresa{ID: c.red, Ativa: true}
 
 	c.administrador = c.novoUsuario(true, false, false, domainempresa.AcessoTotal())
 	c.financeiro = c.novoUsuario(false, true, false, acessoA(c.mia))
