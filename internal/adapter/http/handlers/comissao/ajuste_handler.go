@@ -55,6 +55,10 @@ func (h *AjusteHandler) Listar(w http.ResponseWriter, r *http.Request) {
 		resposta.ResponderErro(w, err)
 		return
 	}
+	if input.Aberto, err = resposta.ConsultaBooleanaOpcional(r, "aberto"); err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
 
 	ajustes, err := h.usecase.Listar(r.Context(), input)
 	escreverPagina(w, input.Filtro, ajustes, err, comissaodto.NovoAjusteResponses)

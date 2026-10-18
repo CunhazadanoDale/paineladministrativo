@@ -79,6 +79,10 @@ func (h *ComissaoHandler) Listar(w http.ResponseWriter, r *http.Request) {
 		resposta.ResponderErro(w, err)
 		return
 	}
+	if input.Aberta, err = resposta.ConsultaBooleanaOpcional(r, "aberta"); err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
 
 	comissoes, err := h.usecase.Listar(r.Context(), input)
 	escreverPagina(w, input.Filtro, comissoes, err, comissaodto.NovoComissaoResponses)

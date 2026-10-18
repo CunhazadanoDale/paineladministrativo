@@ -35,6 +35,7 @@ type AjusteResponse struct {
 	Competencia     string     `json:"competencia"`
 	ValorCentavos   int64      `json:"valor_centavos"`
 	Motivo          string     `json:"motivo"`
+	FechamentoID    *uuid.UUID `json:"fechamento_id"`
 	UsuarioID       uuid.UUID  `json:"usuario_id"`
 	CriadoEm        time.Time  `json:"criado_em"`
 }
@@ -48,6 +49,7 @@ func NovoAjusteResponse(item *domaincomissao.Ajuste) AjusteResponse {
 		Competencia:     item.Competencia.String(),
 		ValorCentavos:   item.ValorCentavos,
 		Motivo:          item.Motivo,
+		FechamentoID:    item.FechamentoID,
 		UsuarioID:       item.UsuarioID,
 		CriadoEm:        item.CriadoEm,
 	}

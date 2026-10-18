@@ -62,17 +62,18 @@ type EntregaPendenteResponse struct {
 }
 
 type ComissaoResponse struct {
-	ID              uuid.UUID `json:"id"`
-	EmpresaID       uuid.UUID `json:"empresa_id"`
-	RepresentanteID uuid.UUID `json:"representante_id"`
-	PedidoID        uuid.UUID `json:"pedido_id"`
-	EntregaID       uuid.UUID `json:"entrega_id"`
-	Competencia     string    `json:"competencia"`
-	BaseCentavos    int64     `json:"base_centavos"`
-	PercentualBP    int       `json:"percentual_bp"`
-	ValorCentavos   int64     `json:"valor_centavos"`
-	UsuarioID       uuid.UUID `json:"usuario_id"`
-	CriadoEm        time.Time `json:"criado_em"`
+	ID              uuid.UUID  `json:"id"`
+	EmpresaID       uuid.UUID  `json:"empresa_id"`
+	RepresentanteID uuid.UUID  `json:"representante_id"`
+	PedidoID        uuid.UUID  `json:"pedido_id"`
+	EntregaID       uuid.UUID  `json:"entrega_id"`
+	Competencia     string     `json:"competencia"`
+	BaseCentavos    int64      `json:"base_centavos"`
+	PercentualBP    int        `json:"percentual_bp"`
+	ValorCentavos   int64      `json:"valor_centavos"`
+	FechamentoID    *uuid.UUID `json:"fechamento_id"`
+	UsuarioID       uuid.UUID  `json:"usuario_id"`
+	CriadoEm        time.Time  `json:"criado_em"`
 }
 
 func NovoPercentualResponse(item *domaincomissao.PercentualPedido) PercentualResponse {
@@ -141,6 +142,7 @@ func NovoComissaoResponses(itens []*domaincomissao.Comissao) []ComissaoResponse 
 			BaseCentavos:    item.BaseCentavos,
 			PercentualBP:    item.Percentual.PontosBase(),
 			ValorCentavos:   item.ValorCentavos,
+			FechamentoID:    item.FechamentoID,
 			UsuarioID:       item.UsuarioID,
 			CriadoEm:        item.CriadoEm,
 		})
