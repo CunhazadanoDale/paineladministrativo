@@ -146,7 +146,7 @@ o **F0b** pode correr junto com essas telas.
 | F-M4 | Front de fornecedores | M4 F0a | — | concluído |
 | F-M5 | Front de contas bancárias e plano de contas | M5 F0a | — | concluído |
 | F-M2 | Front de estoque por local, lote e reserva | M2 F0a | — | concluído |
-| F-M3 | Front de clientes e representantes | M3 F0a | — | em andamento (feat/front-m3-clientes) |
+| F-M3 | Front de clientes e representantes | M3 F0a | — | concluído |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
 | M3 | Clientes e representantes | M1 | Base de clientes | concluído |
@@ -450,6 +450,36 @@ próximos fronts:
 - as falhas intermitentes de tempo da suíte completa ficaram mais frequentes com o volume de testes
   (passam sozinhas); vale uma sessão para o `asyncUtilTimeout` ou para o pool do vitest.
 
+**Entregue o front do M3 (outubro/2026, branch `feat/front-m3-clientes` do front):** telas em
+`modules/clientes`. Para os próximos fronts (M6, M8, M9, M10):
+
+- `requisitar` aceita `tipoConteudo` para mandar corpo cru (usado no CSV); `services/clientes.js`
+  (clientes, obras, `converterLead`, `importarClientes(arquivo, { simular })`),
+  `services/clienteGrupos.js` e `services/representantes.js`, com `listarTodosGrupos` e
+  `listarTodosRepresentantes` para seletor; o `PUT` do cliente tira o `documento`;
+- **para o M6**: `ClienteFormModal` reaproveitável (cria, edita e converte lead pela prop `inicial`);
+  `useCadastrosCliente(comercial)` carrega grupos e, só para o comercial, representantes, com
+  `nomeGrupo`/`nomeRepresentante`; vínculo inativo já gravado aparece "(inativo)" e é mantido; as obras
+  (`listarObras(clienteId, { ativas: 'true' })`) são o endereço de entrega, montado por `enderecoDaObra`;
+- `clientesUtils.js`: percentual em pontos-base (`formatarPercentual`, `paraPontosBase`,
+  `pontosBaseParaTexto`, `erroDoPercentual` — **base do M10**), `TIPOS_CLIENTE`,
+  `erroDoTipoComDocumento` (pf ⇔ CPF), CEP e o cabeçalho fixo da importação;
+- `/clientes` aberta a qualquer autenticado (o comercial escreve, só o administrador exclui e importa;
+  quem não é comercial vê "Com representante", porque não lê representantes); `/clientes/:id` com dados,
+  regras comerciais, link para o lead de origem e obras (o comercial cria, edita e ativa/desativa; cliente
+  inativo não recebe obra); `/grupos-clientes` aberta a todos; `/representantes` só para o comercial, com
+  escrita do administrador (vínculo a usuário pela lista de usuários e aviso de que tirar o login desfaz o
+  vínculo); entradas na Sidebar em Comercial;
+- conversão de lead (`ConversaoLead`, no detalhe do lead): procura o cliente pelo `?lead=` e mostra o link;
+  sem cliente, abre o cadastro preenchido com nome, e-mail e telefone do lead;
+- importação (`ImportacaoClientesModal`, administrador): simular sem gravar, importar, relatório das linhas
+  rejeitadas e recusa local de arquivo acima de 5 MB;
+- M3 não tem `versao`: os `409` (documento, nome, usuário vinculado) são erro comum do formulário;
+- `useGruposClientes`, `useRepresentantes`, `useClientes`, `useCadastrosCliente`, `useClienteDetalhe`,
+  `useObrasCliente` e `useClienteDoLead` com `AbortController`, em `modules/cancelamento.test.jsx`;
+- as falhas de tempo intermitentes da suíte completa continuam (passam sozinhas); segue valendo a sessão
+  proposta para estabilizar a configuração do vitest.
+
 ### M1 — Empresas e filiais
 
 Fundação: tudo o que é financeiro, fiscal ou de estoque passa a pertencer a uma empresa.
@@ -522,7 +552,7 @@ outros módulos precisam saber.
 - **Importação inicial**: `POST /api/v1/clientes/importacao` (CSV) para carregar a base
   atual, com relatório de linhas rejeitadas.
 
-**Entregue (outubro/2026):** API completa (fases 1 a 5 do `CLIENTES.md`); front pendente. Para
+**Entregue (outubro/2026):** API completa (fases 1 a 5 do `CLIENTES.md`); front no F-M3. Para
 os próximos módulos:
 
 - cliente é do **grupo** (sem `empresa_id`), com documento obrigatório e único: o M8 resolve o
