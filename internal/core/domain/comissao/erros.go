@@ -37,3 +37,15 @@ func ErroPercentualMudouNaApuracao() error {
 func ErroRepresentanteMudouNaApuracao() error {
 	return domain.ErroConflito("o representante do pedido mudou durante a apuração; apure de novo")
 }
+
+func ErroRepresentanteDoAjusteNaoEncontrado() error {
+	return domain.ErroValidacao("representante do ajuste não encontrado")
+}
+
+func ErroPedidoDoAjusteNaoEncontrado() error {
+	return domain.ErroValidacao("pedido do ajuste não encontrado")
+}
+
+func ErroPedidoDeOutraEmpresaOuRepresentante() error {
+	return domain.ErroValidacao("pedido do ajuste deve ser da mesma empresa e do mesmo representante")
+}
