@@ -21,10 +21,11 @@ func esperarErroDaProposta(t *testing.T, err error, sentinela error, trecho stri
 
 func TestPropostaGravaPrecoDeTabelaCondicoesEFrete(t *testing.T) {
 	c := novoCenario(t)
-	c.m.precosTabela[c.cimento.ID.String()+"pronta_entrega"] = 1800
+	c.m.precosTabela[c.cimento.ID.String()+"importacao"] = 1800
 	entrada, prazo, frete := 2000, 45, int64(9000)
 	validade := domainpedido.Hoje(time.Now().UTC()).AddDate(0, 0, 7)
 	dados := c.dados()
+	dados.Modelo = "importacao"
 	dados.EntradaBP, dados.PrazoBoletoDias = &entrada, &prazo
 	dados.FreteTipo, dados.FreteEstimadoCentavos = "CIF", &frete
 	dados.Validade = &validade
@@ -115,4 +116,32 @@ func TestDocumentoDaPropostaJuntaAsPartesDoPedido(t *testing.T) {
 	if modelos := c.pedidos.ModelosDeVenda(c.ctx); len(modelos) != 2 {
 		t.Fatalf("modelos = %+v", modelos)
 	}
+}
+
+func TestEntradaSoNaImportacaoEPrazoSemEntradaContaDaConfirmacao(t *testing.T) {
+	c := novoCenario(t)
+	entrada := 1000
+	dados := c.dados()
+	dados.EntradaBP = &entrada
+	_, err := c.pedidos.Criar(c.ctx, portsin.CriarPedidoInput{UsuarioID: c.comercial, EmpresaID: c.mia, Dados: dados})
+	esperarErroDaProposta(t, err, domain.ErrValidacao, "entrada só vale na importação")
+
+	semEntrada := 0
+	importacao := c.dados()
+	importacao.Modelo = "importacao"
+	importacao.EntradaBP = &semEntrada
+	pedido := c.criar(t, c.comercial, c.mia, importacao)
+	confirmado, err := c.pedidos.Confirmar(c.ctx, portsin.TransicaoPedidoInput{UsuarioID: c.comercial, PedidoID: pedido.ID, Versao: pedido.Versao})
+	if err != nil {
+		t.Fatalf("Confirmar: %v", err)
+	}
+	esperado := domainpedido.Hoje(time.Now().UTC()).AddDate(0, 0, 120)
+	if confirmado.PrazoLimite == nil || !confirmado.PrazoLimite.Equal(esperado) {
+		t.Fatalf("prazo-limite = %v, esperado %v", confirmado.PrazoLimite, esperado)
+	}
+
+	_, err = c.pedidos.RegistrarEntrada(c.ctx, portsin.RegistrarEntradaInput{
+		UsuarioID: c.financeiro, PedidoID: confirmado.ID, Versao: confirmado.Versao, PagaEm: time.Now().UTC(), ValorCentavos: 100,
+	})
+	esperarErroDaProposta(t, err, domain.ErrValidacao, "não tem entrada")
 }

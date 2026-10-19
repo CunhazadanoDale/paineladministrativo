@@ -11,7 +11,7 @@ ALTER TABLE pedido
     ADD CONSTRAINT chk_pedido_frete_cif CHECK (frete_tipo IS DISTINCT FROM 'cif' OR frete_estimado_centavos IS NOT NULL);
 
 UPDATE pedido
-SET validade = (criado_em AT TIME ZONE 'America/Sao_Paulo')::date + 15
+SET validade = (now() AT TIME ZONE 'America/Sao_Paulo')::date + 15
 WHERE status = 'proposta';
 
 ALTER TABLE pedido

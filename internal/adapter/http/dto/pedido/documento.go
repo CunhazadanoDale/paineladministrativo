@@ -86,7 +86,7 @@ func NovoDocumentoPropostaResponse(documento *domainpedido.DocumentoProposta) Do
 		PedidoID:            documento.PedidoID,
 		Numero:              documento.Numero,
 		Revisao:             documento.Revisao,
-		Identificacao:       identificacaoDaProposta(documento.Numero, documento.Revisao),
+		Identificacao:       identificacaoDoDocumento(documento.Status, documento.Numero, documento.Revisao),
 		Status:              documento.Status.String(),
 		Modelo:              documento.Modelo.String(),
 		EmitidoEm:           documento.EmitidoEm.Format(formatoData),
@@ -141,6 +141,11 @@ func NovoModeloDeVendaResponses(modelos []domainpedido.ModeloDeVenda) []ModeloDe
 	return respostas
 }
 
-func identificacaoDaProposta(numero, revisao int) string {
-	return "Proposta " + strconv.Itoa(numero) + "-R" + strconv.Itoa(revisao)
+func identificacaoDoDocumento(status domainpedido.Status, numero, revisao int) string {
+	tipo := "Pedido "
+	if status == domainpedido.StatusProposta {
+		tipo = "Proposta "
+	}
+
+	return tipo + strconv.Itoa(numero) + "-R" + strconv.Itoa(revisao)
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto"
 	pedidodto "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto/pedido"
@@ -40,5 +41,23 @@ func TestModelosDeVendaListaAsCondicoesPadrao(t *testing.T) {
 	}
 	if registrador.Code != http.StatusOK || len(corpo.Dados) != 2 || corpo.Dados[1].Modelo != "importacao" || corpo.Dados[1].Condicao.EntradaBP != 3000 {
 		t.Fatalf("status %d, modelos %+v", registrador.Code, corpo.Dados)
+	}
+}
+
+func TestDocumentoDePedidoConfirmadoNaoSeChamaProposta(t *testing.T) {
+	pedido := pedidoDeTeste(t)
+	pedido.Numero = 8
+	if err := pedido.Confirmar(time.Now().UTC()); err != nil {
+		t.Fatalf("Confirmar: %v", err)
+	}
+	handler := NewPedidoHandler(&pedidoUseCaseFalso{pedido: pedido})
+
+	registrador := executaProtegido(t, handler.Documento, http.MethodGet, "/api/v1/pedidos/x/proposta", pedido.ID.String(), "")
+	var corpo dto.Resposta[pedidodto.DocumentoPropostaResponse]
+	if err := json.Unmarshal(registrador.Body.Bytes(), &corpo); err != nil {
+		t.Fatalf("corpo inválido: %v", err)
+	}
+	if corpo.Dados.Identificacao != "Pedido 8-R1" || corpo.Dados.Vencida {
+		t.Fatalf("documento = %+v", corpo.Dados)
 	}
 }

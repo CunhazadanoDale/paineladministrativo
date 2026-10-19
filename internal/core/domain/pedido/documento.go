@@ -159,8 +159,14 @@ func NovoDocumentoProposta(p *Pedido, partes PartesDoDocumento, agora time.Time)
 		if item.PrecoTabela != nil {
 			tabela := item.PrecoTabela.Centavos()
 			linha.PrecoTabelaCentavos = &tabela
-			if desconto, err := PrecoDe(tabela - item.PrecoUnitario.Centavos()).Vezes(item.Quantidade); err == nil && desconto > 0 {
-				documento.DescontoCentavos, _ = somarCentavos(documento.DescontoCentavos, desconto)
+			if tabela > item.PrecoUnitario.Centavos() {
+				desconto, err := PrecoDe(tabela - item.PrecoUnitario.Centavos()).Vezes(item.Quantidade)
+				if err != nil {
+					return nil, err
+				}
+				if documento.DescontoCentavos, err = somarCentavos(documento.DescontoCentavos, desconto); err != nil {
+					return nil, err
+				}
 			}
 		}
 		documento.Itens = append(documento.Itens, linha)

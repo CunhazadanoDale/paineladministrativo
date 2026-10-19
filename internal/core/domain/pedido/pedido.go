@@ -130,6 +130,9 @@ func (p *Pedido) Confirmar(agora time.Time) error {
 		return err
 	}
 
+	if p.Modelo == ModeloImportacao && !p.Condicao.TemEntrada() {
+		p.PrazoLimite = p.Condicao.PrazoLimiteDaEntrada(Hoje(agora))
+	}
 	p.AtualizadoEm = agora
 
 	return nil
@@ -139,6 +142,8 @@ func (p *Pedido) RegistrarEntrada(pagaEm time.Time, centavos int64, agora time.T
 	switch {
 	case p.Modelo != ModeloImportacao:
 		return domain.ErroValidacao("só o pedido de importação tem entrada")
+	case !p.Condicao.TemEntrada():
+		return domain.ErroValidacao("a condição deste pedido não tem entrada; o prazo de entrega conta da confirmação")
 	case !p.Status.EmAtendimento():
 		return domain.ErroConflito("a entrada só é registrada em pedido confirmado e não entregue")
 	case p.EntradaPagaEm != nil:
@@ -291,7 +296,7 @@ func (p *Pedido) aplicarDados(dados DadosPedido, agora time.Time) error {
 	if err != nil {
 		return err
 	}
-	validade, err := validadeDaProposta(dados.Validade, agora)
+	validade, err := validadeDaProposta(dados.Validade, p.Validade, agora)
 	if err != nil {
 		return err
 	}
@@ -336,14 +341,15 @@ func (p *Pedido) aplicarDados(dados DadosPedido, agora time.Time) error {
 	return nil
 }
 
-func validadeDaProposta(informada *time.Time, agora time.Time) (time.Time, error) {
+func validadeDaProposta(informada, atual *time.Time, agora time.Time) (time.Time, error) {
 	hoje := Hoje(agora)
 	if informada == nil || informada.IsZero() {
 		return hoje.AddDate(0, 0, validadePadraoDias), nil
 	}
 
 	validade := DataDe(*informada)
-	if validade.Before(hoje) {
+	mantida := atual != nil && validade.Equal(*atual)
+	if validade.Before(hoje) && !mantida {
 		return time.Time{}, domain.ErroValidacao("validade da proposta não pode ser anterior a hoje")
 	}
 

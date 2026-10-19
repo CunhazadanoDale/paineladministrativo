@@ -151,3 +151,22 @@ func TestFreteEstimadoEPrecoDeTabelaDoItem(t *testing.T) {
 	_, err = domainpedido.NovoPedido(uuid.New(), uuid.New(), dados)
 	esperarErro(t, err, domain.ErrValidacao, "preço de tabela do item")
 }
+
+func TestPutQueMantemAValidadeDeUmaPropostaVencidaEhAceito(t *testing.T) {
+	pedido := novoPedidoDeTeste(t, domainpedido.ModeloProntaEntrega)
+	depois := pedido.Validade.AddDate(0, 0, 3).Add(15 * time.Hour)
+	mesma := *pedido.Validade
+
+	dados := dadosDeTeste(domainpedido.ModeloProntaEntrega)
+	dados.Validade = &mesma
+	if err := pedido.Alterar(dados, depois); err != nil {
+		t.Fatalf("manter a validade lida deveria ser aceito: %v", err)
+	}
+	if !pedido.Validade.Equal(mesma) || !pedido.Vencida(depois) {
+		t.Fatalf("validade = %v, vencida = %v", pedido.Validade, pedido.Vencida(depois))
+	}
+
+	outraNoPassado := mesma.AddDate(0, 0, -1)
+	dados.Validade = &outraNoPassado
+	esperarErro(t, pedido.Alterar(dados, depois), domain.ErrValidacao, "não pode ser anterior a hoje")
+}

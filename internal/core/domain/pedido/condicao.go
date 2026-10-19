@@ -52,6 +52,9 @@ func NovaCondicao(modelo Modelo, input *CondicaoInput) (Condicao, error) {
 	}
 
 	if input.EntradaBP != nil {
+		if modelo != ModeloImportacao && *input.EntradaBP != 0 {
+			return Condicao{}, domain.ErroValidacao("entrada só vale na importação; a pronta entrega é paga no boleto")
+		}
 		entrada, err := domaincliente.NovoPercentual(*input.EntradaBP)
 		if err != nil {
 			return Condicao{}, domain.ErroValidacao("entrada deve estar entre 0 e 10000 pontos-base (0% a 100%)")
@@ -95,6 +98,10 @@ func (c Condicao) PrazoBoletoDias() *int {
 
 func (c Condicao) PrazoEntregaDias() *int {
 	return copiarInteiro(c.prazoEntregaDias)
+}
+
+func (c Condicao) TemEntrada() bool {
+	return c.entrada.PontosBase() > 0
 }
 
 func (c Condicao) PrazoLimiteDaEntrada(pagaEm time.Time) *time.Time {

@@ -40,7 +40,7 @@ func (u *PedidoUsecaseImpl) partesDoDocumento(ctx context.Context, pedido *domai
 		return domainpedido.PartesDoDocumento{}, err
 	}
 	if empresa == nil {
-		return domainpedido.PartesDoDocumento{}, domain.ErroValidacao("empresa do pedido não encontrada")
+		return domainpedido.PartesDoDocumento{}, domain.ErroNaoEncontrado("empresa do pedido não encontrada")
 	}
 
 	cliente, err := u.clientes.Obter(ctx, pedido.ClienteID)
@@ -48,7 +48,7 @@ func (u *PedidoUsecaseImpl) partesDoDocumento(ctx context.Context, pedido *domai
 		return domainpedido.PartesDoDocumento{}, err
 	}
 	if cliente == nil {
-		return domainpedido.PartesDoDocumento{}, domain.ErroValidacao("cliente do pedido não encontrado")
+		return domainpedido.PartesDoDocumento{}, domain.ErroNaoEncontrado("cliente do pedido não encontrado")
 	}
 
 	partes := domainpedido.PartesDoDocumento{
