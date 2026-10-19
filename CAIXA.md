@@ -1,7 +1,7 @@
 # Escopo — M13 Caixa e conciliação
 
 > **Status:** escopo fechado — decisões D1 a D15 respondidas pelo usuário (outubro/2026): todas as
-> recomendações aceitas, com OFX como único formato (D4); fases 1 a 3 concluídas (saldo inicial, importação de extrato, conciliação, classificação e transferência).
+> recomendações aceitas, com OFX como único formato (D4); fases 1 a 4 concluídas (saldo inicial, importação de extrato, conciliação, classificação, transferência e fechamento mensal).
 > **Objetivo:** tirar o "Caixa do mês" e o "Fluxo de caixa diário" das planilhas: extrato bancário
 > importado por conta (OFX), conciliado com os pagamentos do M7 e os recebimentos e borderôs do
 > M9, linhas sem par classificadas no plano de contas, fechamento mensal por conta com divergência
@@ -243,6 +243,7 @@ POST   /api/v1/conciliacoes/{id}/desfazer            { motivo }
 GET    /api/v1/caixa/lancamentos                     ?empresa= ?conta= ?de= ?ate= — lançamentos de caixa (classificações)
 GET    /api/v1/caixa/transferencias                  ?empresa= ?conta= ?de= ?ate= — transferências entre contas
 GET    /api/v1/caixa/pendencias-sistema              ?conta= ?de= ?ate= — pagamentos, recebimentos, borderôs e pontas de transferência sem linha
+GET    /api/v1/caixa/fechamentos/previa              ?conta= ?competencia=AAAA-MM — o que o fechamento gravaria e o que o impede
 POST   /api/v1/caixa/fechamentos                     { conta_bancaria_id, competencia, saldo_banco_centavos? }
 GET    /api/v1/caixa/fechamentos                     ?conta= ?empresa= ?competencia=
 GET    /api/v1/caixa/fechamentos/{id}                com divergências
@@ -349,7 +350,7 @@ test/helpers + test/integration + test/e2e
 | **1** | Abertura e importação de extrato OFX (migrations 000059–000060): domínio com parser, tipos no upload, repositório, usecase com escopo por empresa, rotas de abertura, importação, lista e saldos; integração de idempotência; e2e + `API.md` | concluída |
 | **2** | Conciliação com M7 e M9 (migration 000061): consultas de movimentos do sistema, sugestões, conciliação manual e automática, desfazer, invalidação por estorno, pendências do sistema; integração de corrida; e2e + `API.md` | concluída |
 | **3** | Classificação e transferência entre contas (migration 000062): `lancamento_caixa`, estorno pelo desfazer, `transferencia_conta` com as duas pontas; e2e + `API.md` | concluída |
-| **4** | Fechamento mensal e reabertura (migration 000063), bloqueio de importação em mês fechado; e2e + `API.md` | pendente |
+| **4** | Fechamento mensal e reabertura (migration 000063), bloqueio de importação em mês fechado; e2e + `API.md` | concluída |
 | **5** | Projeção diária e movimento diário realizado; e2e + `API.md` | pendente |
 | **6** | Frontend (abertura, importação, tela de conciliação, fechamento, projeção) | pendente |
 
@@ -455,6 +456,24 @@ Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates ve
       ponta é conciliada pela conciliação manual ou automática, como qualquer movimento.
 - [x] **Fase 3 — consultas** (implementação): `GET /caixa/lancamentos` e `GET /caixa/transferencias`
       paginadas, por empresa, conta e período, incluindo os estornados (com `estornado`).
+- [x] **Fase 4 — prévia** (implementação): `GET /caixa/fechamentos/previa` mostra o que o fechamento
+      gravaria (saldos, pendências, conciliações invalidadas, saldo do banco e movimentos do sistema sem
+      linha) e `pode_fechar`; só vale para a próxima competência da sequência, inclusive o mês corrente.
+- [x] **Fase 4 — sequência** (implementação): a primeira competência é o mês do dia seguinte ao corte
+      (corte no meio do mês fecha o mês parcial); depois, sempre o mês seguinte ao último fechamento
+      vigente. Competência no formato `AAAA-MM`.
+- [x] **Fase 4 — saldo do banco** (implementação): vem do corpo ou do `LEDGERBAL` da importação mais
+      recente com data no último dia do mês; o fechamento grava os dois iguais
+      (`chk_caixa_fechamento_saldo_banco`).
+- [x] **Fase 4 — travas** (implementação): fechar e reabrir travam a conta com `FOR NO KEY UPDATE` e
+      recalculam o mês na transação (`409` se mudou); conciliar, classificar, transferir e desfazer travam a
+      conta com `FOR SHARE` e recusam linha de mês fechado (`409`); a importação ignora linha de mês
+      fechado (`mes_fechado`) e recusa se o mês fechar no meio; o saldo inicial não muda com fechamento
+      vigente.
+- [x] **Fase 4 — reabertura** (implementação): só do último mês fechado da conta (`409` com mês seguinte
+      fechado), pelo administrador, com motivo; o histórico fica com `vigente = false`.
+- [x] **Fase 4 — divergências** (D11): o detalhe do fechamento recalcula na leitura as conciliações
+      invalidadas por estorno posterior e os movimentos do sistema do mês sem linha no extrato.
 - [x] **Fase 1 — OFX não é anexo** (implementação): como o XML da NF-e, arquivo OFX não pode ser anexado a
       solicitação; o upload aceita `.ofx` mesmo quando o navegador manda `application/octet-stream`.
 

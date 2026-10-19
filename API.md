@@ -3076,6 +3076,11 @@ corte. Escopo por empresa pela conta bancária (padrão da seção 4 do `EMPRESA
 | `POST` | `/api/v1/extratos/lancamentos/{id}/transferencia` | **financeiro** | `201` transferência entre contas e a conciliação |
 | `GET` | `/api/v1/caixa/lancamentos` | **financeiro** | `200` lista paginada dos lançamentos de caixa (`?empresa=`, `?conta=`, `?de=`, `?ate=`) |
 | `GET` | `/api/v1/caixa/transferencias` | **financeiro** | `200` lista paginada das transferências entre contas (`?empresa=`, `?conta=`, `?de=`, `?ate=`) |
+| `GET` | `/api/v1/caixa/fechamentos/previa` | **financeiro** | `200` prévia do fechamento (`?conta=` e `?competencia=AAAA-MM` obrigatórios) |
+| `POST` | `/api/v1/caixa/fechamentos` | **financeiro** | `201` fechamento do mês da conta |
+| `GET` | `/api/v1/caixa/fechamentos` | **financeiro** | `200` lista paginada (`?empresa=`, `?conta=`, `?competencia=AAAA-MM`), mais recente primeiro |
+| `GET` | `/api/v1/caixa/fechamentos/{id}` | **financeiro** | `200` fechamento com as divergências |
+| `POST` | `/api/v1/caixa/fechamentos/{id}/reabrir` | **administrador** | `200` fechamento reaberto |
 
 ### Saldo inicial
 
@@ -3108,7 +3113,7 @@ corte. Escopo por empresa pela conta bancária (padrão da seção 4 do `EMPRESA
 - Cada linha tem um identificador (`FITID` + data + valor + ocorrência no arquivo; sem `FITID`, a
   descrição entra no lugar): linha já importada por outro arquivo conta como `repetidas` e não é gravada
   de novo. Linha com valor zero, data até o corte ou data futura vai em `ignoradas` com o `motivo`
-  (`valor_zero`, `anterior_ao_saldo_inicial`, `data_futura`).
+  (`valor_zero`, `anterior_ao_saldo_inicial`, `mes_fechado`, `data_futura`).
 - Arquivo em Windows-1252 é convertido para UTF-8; descrição vem do `MEMO` (senão `NAME`), documento do
   `CHECKNUM` (senão `REFNUM`). O saldo do `LEDGERBAL` fica guardado como saldo do banco.
 
@@ -3290,6 +3295,62 @@ A linha de uma das pontas cria a transferência, já conciliada a ela (`modo = t
 
 `GET /caixa/lancamentos` e `GET /caixa/transferencias` listam os registros das contas no acesso (a
 transferência aparece para quem vê a origem ou o destino), incluindo os estornados.
+
+### Fechamento mensal
+
+Um por conta e mês (`competencia` em `AAAA-MM`), em sequência: o primeiro é o mês do dia seguinte ao
+corte do saldo inicial, e cada um depois é o mês seguinte ao último fechamento vigente. Só fecha mês
+encerrado em Brasília.
+
+**Prévia** (`GET /caixa/fechamentos/previa?conta=&competencia=`), também para o mês corrente:
+
+```json
+{
+  "dados": {
+    "conta_bancaria_id": "…", "competencia": "2026-09", "saldo_inicial_centavos": 100000,
+    "entradas_centavos": 10000, "saidas_centavos": 1290, "saldo_final_centavos": 108710,
+    "saldo_banco_centavos": 108710, "lancamentos_pendentes": 0, "conciliacoes_invalidadas": 0,
+    "pode_fechar": true, "movimentos_sem_linha": []
+  }
+}
+```
+
+`saldo_inicial_centavos` é o saldo inicial da conta (primeiro mês) ou o saldo final do fechamento anterior.
+`saldo_banco_centavos` é o `LEDGERBAL` da importação mais recente com data no último dia do mês (`null` se
+não houver). `movimentos_sem_linha` são os pagamentos, recebimentos, borderôs e pontas de transferência do
+mês sem linha no extrato: aparecem como divergência, mas não impedem o fechamento.
+
+**Fechar** (`POST /caixa/fechamentos`):
+
+```json
+{ "conta_bancaria_id": "…", "competencia": "2026-09", "saldo_banco_centavos": 108710 }
+```
+
+| Regra | Resposta |
+| --- | --- |
+| competência antes do saldo inicial, mês não encerrado, formato inválido | `400` |
+| conta sem saldo inicial | `400 erro de validação: conta sem saldo inicial; informe a abertura antes de importar o extrato` |
+| mês já fechado / mês anterior ainda aberto | `409 mês já fechado nesta conta` / `409 feche antes o mês de MM/AAAA` |
+| linha do mês pendente ou conciliação invalidada | `409 o mês tem N lançamento(s) pendente(s) e M conciliação(ões) invalidada(s); …` |
+| sem `saldo_banco_centavos` e sem `LEDGERBAL` do último dia | `400 erro de validação: informe o saldo do banco no fim do mês; …` |
+| saldo calculado diferente do saldo do banco | `409 saldo calculado (1087,10) diferente do saldo do banco (1087,60); diferença de 0,50` |
+| extrato, conciliações ou saldo inicial mudaram entre a leitura e a gravação | `409` (recarregue a prévia) |
+
+Resposta `201` e detalhe (`GET /caixa/fechamentos/{id}`): os campos do fechamento (`id`,
+`conta_bancaria_id`, `competencia`, `saldo_inicial_centavos`, `entradas_centavos`, `saidas_centavos`,
+`saldo_final_centavos`, `saldo_banco_centavos`, `vigente`, `reaberto_em`, `reaberto_por`,
+`motivo_reabertura`, `usuario_id`, `criado_em`) mais as divergências recalculadas na leitura:
+`conciliacoes_invalidadas` (estorno feito no M7 ou no M9 depois do fechamento) e `movimentos_sem_linha`.
+
+**Mês fechado** trava o caixa daquela conta naquele mês: conciliar, classificar, transferir ou desfazer
+conciliação de linha do mês → `409 mês fechado nesta conta; reabra o fechamento para alterar`; a
+importação ignora as linhas do mês (motivo `mes_fechado`); o saldo inicial não muda enquanto houver
+fechamento vigente (`409 a conta já tem mês fechado; reabra os fechamentos para mudar o saldo inicial`).
+O M7 e o M9 não são bloqueados: o que mudar lá aparece como divergência no detalhe.
+
+**Reabrir** (`POST /caixa/fechamentos/{id}/reabrir`, administrador): `{ "motivo": "…" }`. Só o último mês
+fechado da conta (`409 reabra antes os meses seguintes desta conta`); reabrir de novo → `409 fechamento já
+reaberto`. O registro fica com `vigente = false` e o mês volta a aceitar alterações.
 
 ### Saldos por conta
 
