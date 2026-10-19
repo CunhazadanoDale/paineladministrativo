@@ -1,7 +1,7 @@
 # Escopo — M13 Caixa e conciliação
 
 > **Status:** escopo fechado — decisões D1 a D15 respondidas pelo usuário (outubro/2026): todas as
-> recomendações aceitas, com OFX como único formato (D4); fases 1 e 2 concluídas (saldo inicial, importação de extrato e conciliação).
+> recomendações aceitas, com OFX como único formato (D4); fases 1 a 3 concluídas (saldo inicial, importação de extrato, conciliação, classificação e transferência).
 > **Objetivo:** tirar o "Caixa do mês" e o "Fluxo de caixa diário" das planilhas: extrato bancário
 > importado por conta (OFX), conciliado com os pagamentos do M7 e os recebimentos e borderôs do
 > M9, linhas sem par classificadas no plano de contas, fechamento mensal por conta com divergência
@@ -97,7 +97,7 @@
 | Campo (`conciliacao_item`) | Tipo | Observações |
 |---|---|---|
 | `conciliacao_id` | UUID | FK |
-| `alvo_tipo` | VARCHAR(20) | `pagamento`, `recebimento`, `antecipacao`, `lancamento_caixa`, `transferencia` |
+| `alvo_tipo` | VARCHAR(30) | `pagamento`, `recebimento`, `antecipacao`, `lancamento_caixa`, `transferencia_saida`, `transferencia_entrada` |
 | `alvo_id` | UUID | sem FK (aponta para tabelas diferentes), conferido com trava na transação |
 | `valor_centavos` | BIGINT | com sinal, igual ao efeito do alvo no caixa |
 | `vigente` | BOOLEAN | cópia do da conciliação, para o índice; `uq_conciliacao_item_alvo_vigente (alvo_tipo, alvo_id) WHERE vigente` |
@@ -121,8 +121,8 @@
 | `usuario_id`, `criado_em` | | |
 
 - Nasce só a partir de uma linha do extrato (D6), conciliado a ela na mesma transação.
-- Desfazer a conciliação de classificação desfaz o lançamento (fica registrado como `estornado`, com
-  `lancamento_caixa_estorno` no padrão do `pagamento_estorno`).
+- Desfazer a conciliação de classificação desfaz o lançamento: `estornado = true` na mesma transação; o
+  motivo, a data e quem desfez ficam na conciliação desfeita. O M15 ignora lançamento estornado.
 
 ### 2.6 `transferencia_conta`
 
@@ -134,11 +134,16 @@
 | `valor_centavos` | BIGINT | `> 0` |
 | `entre_empresas` | BOOLEAN | contas de empresas diferentes (D8) |
 | `categoria_financeira_id` | UUID | natureza `transferencia` (linha `entre_contas`) |
+| `descricao` | VARCHAR(255) | a da linha, ou a informada |
+| `estornado` | BOOLEAN | `true` quando a conciliação que a criou é desfeita |
 | `usuario_id`, `criado_em` | | |
 
 - Criada a partir da linha de uma das pontas (débito na origem ou crédito no destino), que já é
   conciliada a ela. A outra ponta aparece como pendência do sistema até a linha correspondente chegar
-  e ser conciliada (`alvo_tipo = transferencia`, com o sinal da ponta).
+  e ser conciliada (`transferencia_saida` na origem, com valor negativo; `transferencia_entrada` no
+  destino, com valor positivo).
+- Desfazer a conciliação que criou a transferência a estorna; se a outra ponta já estava conciliada, a
+  conciliação dela fica `invalidada` (mesmo tratamento do D12).
 
 ### 2.7 `caixa_fechamento`
 
@@ -231,10 +236,12 @@ GET    /api/v1/extratos/lancamentos                  ?conta= (obrigatória) ?de=
 GET    /api/v1/extratos/lancamentos/{id}/sugestoes
 POST   /api/v1/extratos/lancamentos/{id}/conciliacao     { itens: [{ tipo, id }] }
 POST   /api/v1/extratos/lancamentos/{id}/classificacao   { categoria_financeira_id, descricao? }
-POST   /api/v1/extratos/lancamentos/{id}/transferencia   { conta_contraparte_id }
+POST   /api/v1/extratos/lancamentos/{id}/transferencia   { conta_contraparte_id, categoria_financeira_id, descricao? }
 POST   /api/v1/extratos/conciliar-automatico         { conta_bancaria_id, de, ate }
 POST   /api/v1/conciliacoes/{id}/desfazer            { motivo }
 
+GET    /api/v1/caixa/lancamentos                     ?empresa= ?conta= ?de= ?ate= — lançamentos de caixa (classificações)
+GET    /api/v1/caixa/transferencias                  ?empresa= ?conta= ?de= ?ate= — transferências entre contas
 GET    /api/v1/caixa/pendencias-sistema              ?conta= ?de= ?ate= — pagamentos, recebimentos, borderôs e pontas de transferência sem linha
 POST   /api/v1/caixa/fechamentos                     { conta_bancaria_id, competencia, saldo_banco_centavos? }
 GET    /api/v1/caixa/fechamentos                     ?conta= ?empresa= ?competencia=
@@ -341,7 +348,7 @@ test/helpers + test/integration + test/e2e
 |---|---|---|
 | **1** | Abertura e importação de extrato OFX (migrations 000059–000060): domínio com parser, tipos no upload, repositório, usecase com escopo por empresa, rotas de abertura, importação, lista e saldos; integração de idempotência; e2e + `API.md` | concluída |
 | **2** | Conciliação com M7 e M9 (migration 000061): consultas de movimentos do sistema, sugestões, conciliação manual e automática, desfazer, invalidação por estorno, pendências do sistema; integração de corrida; e2e + `API.md` | concluída |
-| **3** | Classificação e transferência entre contas (migration 000062): `lancamento_caixa`, estorno pelo desfazer, `transferencia_conta` com as duas pontas; e2e + `API.md` | pendente |
+| **3** | Classificação e transferência entre contas (migration 000062): `lancamento_caixa`, estorno pelo desfazer, `transferencia_conta` com as duas pontas; e2e + `API.md` | concluída |
 | **4** | Fechamento mensal e reabertura (migration 000063), bloqueio de importação em mês fechado; e2e + `API.md` | pendente |
 | **5** | Projeção diária e movimento diário realizado; e2e + `API.md` | pendente |
 | **6** | Frontend (abertura, importação, tela de conciliação, fechamento, projeção) | pendente |
@@ -437,6 +444,17 @@ Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates ve
       conciliação, mesmo desfeita, não é desfeita, porque o histórico da conciliação aponta para a linha.
 - [x] **Fase 2 — pagamentos sem conta** (D14): rota própria `GET /caixa/pagamentos-sem-conta`, por
       empresa e período.
+- [x] **Fase 3 — estorno do lançamento de caixa** (implementação): coluna `estornado` no próprio
+      `lancamento_caixa` e na `transferencia_conta`, gravada pelo desfazer da conciliação que os criou; sem
+      tabela de estorno, porque o motivo e o autor já ficam na conciliação desfeita.
+- [x] **Fase 3 — tipos das pontas da transferência** (implementação): `transferencia_saida` e
+      `transferencia_entrada`, um alvo por ponta, para o índice único de alvo vigente valer em cada lado;
+      `conciliacao_item.alvo_tipo` passa a `VARCHAR(30)` na migration 000062.
+- [x] **Fase 3 — transferência** (implementação): exige categoria lançável de natureza `transferencia`,
+      conta da outra ponta ativa (conferida na transação) e acesso do usuário às duas empresas; a outra
+      ponta é conciliada pela conciliação manual ou automática, como qualquer movimento.
+- [x] **Fase 3 — consultas** (implementação): `GET /caixa/lancamentos` e `GET /caixa/transferencias`
+      paginadas, por empresa, conta e período, incluindo os estornados (com `estornado`).
 - [x] **Fase 1 — OFX não é anexo** (implementação): como o XML da NF-e, arquivo OFX não pode ser anexado a
       solicitação; o upload aceita `.ofx` mesmo quando o navegador manda `application/octet-stream`.
 

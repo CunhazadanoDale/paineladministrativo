@@ -3072,6 +3072,10 @@ corte. Escopo por empresa pela conta bancária (padrão da seção 4 do `EMPRESA
 | `POST` | `/api/v1/conciliacoes/{id}/desfazer` | **financeiro** | `200` conciliação desfeita |
 | `GET` | `/api/v1/caixa/pendencias-sistema` | **financeiro** | `200` lista paginada dos movimentos do sistema sem par no extrato (`?conta=` obrigatório, `?de=`, `?ate=`) |
 | `GET` | `/api/v1/caixa/pagamentos-sem-conta` | **financeiro** | `200` lista paginada dos pagamentos sem conta bancária (`?empresa=`, `?de=`, `?ate=`) |
+| `POST` | `/api/v1/extratos/lancamentos/{id}/classificacao` | **financeiro** | `201` lançamento de caixa e a conciliação |
+| `POST` | `/api/v1/extratos/lancamentos/{id}/transferencia` | **financeiro** | `201` transferência entre contas e a conciliação |
+| `GET` | `/api/v1/caixa/lancamentos` | **financeiro** | `200` lista paginada dos lançamentos de caixa (`?empresa=`, `?conta=`, `?de=`, `?ate=`) |
+| `GET` | `/api/v1/caixa/transferencias` | **financeiro** | `200` lista paginada das transferências entre contas (`?empresa=`, `?conta=`, `?de=`, `?ate=`) |
 
 ### Saldo inicial
 
@@ -3158,6 +3162,7 @@ Liga um lançamento do extrato aos movimentos que o sistema já registrou na **m
 | Movimento (`tipo`) | Origem | Valor no caixa | Data |
 | --- | --- | --- | --- |
 | `pagamento` | pagamento da conta a pagar (M7), inclusive comissão, recompra e repasse | `- valor` | dia do `pago_em` em Brasília |
+| `transferencia_saida` / `transferencia_entrada` | a outra ponta de uma transferência entre contas (abaixo) | `- valor` / `valor` | data da transferência |
 | `recebimento` | baixa do título a receber do tipo `conta` (M9) | `valor + juros` | `recebido_em` |
 | `antecipacao` | crédito do borderô (M9) | `valor_liquido_centavos` | `operado_em` |
 
@@ -3229,6 +3234,62 @@ pendentes. Desfazer de novo → `409 conciliação já desfeita`.
 
 **Pagamentos sem conta** (`GET /caixa/pagamentos-sem-conta`): pagamentos não estornados registrados
 antes do M7, sem `conta_bancaria_id`. Ficam fora da conciliação e só aparecem nesta lista.
+
+### Linhas sem par: classificação
+
+Tarifa, IOF, juros e rendimento não têm movimento no M7 nem no M9: a linha é classificada no plano de
+contas e vira um **lançamento de caixa**, já conciliado a ela (`modo = classificacao`).
+
+```json
+{ "categoria_financeira_id": "…", "descricao": "Tarifa do pacote" }
+```
+
+- Categoria lançável (subcategoria ativa): `despesa` em débito, `receita` em crédito; `transferencia` → `400`
+  (use a transferência). A natureza é conferida de novo na transação.
+- `descricao` é opcional (padrão: a da linha). `competencia` é o mês da data da linha, fixo.
+- Resposta `201`: `{ "lancamento_caixa": {...}, "conciliacao": {...} }`, com o lançamento:
+
+```json
+{
+  "id": "…", "empresa_id": "…", "conta_bancaria_id": "…", "data": "2026-10-05", "valor_centavos": -1290,
+  "categoria_financeira_id": "…", "competencia": "2026-10", "descricao": "Tarifa do pacote",
+  "estornado": false, "usuario_id": "…", "criado_em": "2026-10-19T13:00:00Z"
+}
+```
+
+- Desfazer a conciliação (`POST /conciliacoes/{id}/desfazer`) estorna o lançamento (`estornado = true`) e
+  a linha volta a pendente. O M15 lê os lançamentos não estornados por `competencia` e `linha_dre`.
+
+### Transferência entre contas
+
+A linha de uma das pontas cria a transferência, já conciliada a ela (`modo = transferencia`):
+
+```json
+{ "conta_contraparte_id": "…", "categoria_financeira_id": "…", "descricao": "Aplicação" }
+```
+
+- Débito → origem é a conta da linha; crédito → destino é a conta da linha. `valor_centavos` da
+  transferência é sempre positivo.
+- Categoria lançável de natureza `transferencia` (linha `entre_contas`), fora da DRE. Conta da outra ponta
+  ativa, diferente da linha e no acesso do usuário (`403` sem acesso). Contas de empresas diferentes →
+  `entre_empresas = true` (regra provisória: sem título nem conta a pagar entre elas).
+- A outra ponta aparece em `pendencias-sistema` e nas sugestões da conta dela como `transferencia_entrada`
+  (no destino, valor positivo) ou `transferencia_saida` (na origem, valor negativo), e é conciliada pela
+  conciliação manual ou automática.
+- Desfazer a conciliação que criou a transferência a estorna (`estornado = true`); se a outra ponta já
+  estava conciliada, a conciliação dela fica `invalidada`.
+- Resposta `201`: `{ "transferencia": {...}, "conciliacao": {...} }`, com a transferência:
+
+```json
+{
+  "id": "…", "conta_origem_id": "…", "conta_destino_id": "…", "data": "2026-10-05", "valor_centavos": 100000,
+  "entre_empresas": false, "categoria_financeira_id": "…", "descricao": "Aplicação", "estornado": false,
+  "usuario_id": "…", "criado_em": "2026-10-19T13:00:00Z"
+}
+```
+
+`GET /caixa/lancamentos` e `GET /caixa/transferencias` listam os registros das contas no acesso (a
+transferência aparece para quem vê a origem ou o destino), incluindo os estornados.
 
 ### Saldos por conta
 
