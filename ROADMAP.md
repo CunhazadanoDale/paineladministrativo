@@ -153,6 +153,7 @@ o **F0b** pode correr junto com essas telas.
 | F-M8 | Front de NF-e por XML | M8 F-M6 F-M9 | — | concluído |
 | F-M10 | Front de comissões | M10 F-M6 F-M7 | — | concluído |
 | F-M11 | Front de propostas e tabela de preços | M11 F-M6 | — | concluído |
+| F-M13 | Front de caixa e conciliação | M13 F-M5 F-M7 F-M9 | — | em andamento (feat/front-m13-caixa) |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
 | M3 | Clientes e representantes | M1 | Base de clientes | concluído |
@@ -164,7 +165,7 @@ o **F0b** pode correr junto com essas telas.
 | M9 | Contas a receber e antecipação | M3 M5 | A receber no banco, títulos do Controle de NFs | concluído |
 | M10 | Comissões | M3 M6 | comissões calculadas à mão | concluído |
 | M11 | Propostas e tabela de preços | M3 M6 | orçamentos em documento, guia de modelos de venda | concluído |
-| M12 | Importações | M2 M4 M6 M7 | parte de Entregas de importação e do painel financeiro | pendente |
+| M12 | Importações | M2 M4 M6 M7 | parte de Entregas de importação e do painel financeiro | em andamento (feat/m12-importacoes) |
 | M13 | Caixa e conciliação | M5 M7 M9 | Caixa do mês, Fluxo de caixa diário | concluído |
 | M14 | Dívidas e empréstimos | M4 M5 M7 | Dívidas do grupo | pendente |
 | M15 | DRE e painéis | M2 M7 M8 M9 M13 | DRE, Faturamento, Relatório semanal | pendente |
