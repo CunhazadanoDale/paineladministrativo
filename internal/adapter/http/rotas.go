@@ -90,6 +90,7 @@ func NewRouter(
 	extratoUseCase portsincaixa.ExtratoUseCase,
 	saldoCaixaUseCase portsincaixa.SaldoUseCase,
 	conciliacaoUseCase portsincaixa.ConciliacaoUseCase,
+	lancamentoCaixaUseCase portsincaixa.LancamentoCaixaUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, middleware.ErrosDeRoteamento(novasRotas(
@@ -116,6 +117,7 @@ func NewRouter(
 		tabelaPrecoUseCase,
 		aberturaCaixaUseCase, extratoUseCase, saldoCaixaUseCase,
 		conciliacaoUseCase,
+		lancamentoCaixaUseCase,
 		tokens,
 	)))
 }
@@ -169,6 +171,7 @@ func novasRotas(
 	extratoUseCase portsincaixa.ExtratoUseCase,
 	saldoCaixaUseCase portsincaixa.SaldoUseCase,
 	conciliacaoUseCase portsincaixa.ConciliacaoUseCase,
+	lancamentoCaixaUseCase portsincaixa.LancamentoCaixaUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -543,6 +546,12 @@ func novasRotas(
 	financeiro("POST /api/v1/conciliacoes/{id}/desfazer", conciliacaoHandler.Desfazer)
 	financeiro("GET /api/v1/caixa/pendencias-sistema", conciliacaoHandler.Pendencias)
 	financeiro("GET /api/v1/caixa/pagamentos-sem-conta", conciliacaoHandler.PagamentosSemConta)
+
+	lancamentoCaixaHandler := caixahandlers.NewLancamentoCaixaHandler(lancamentoCaixaUseCase)
+	financeiro("POST /api/v1/extratos/lancamentos/{id}/classificacao", lancamentoCaixaHandler.Classificar)
+	financeiro("POST /api/v1/extratos/lancamentos/{id}/transferencia", lancamentoCaixaHandler.Transferir)
+	financeiro("GET /api/v1/caixa/lancamentos", lancamentoCaixaHandler.Listar)
+	financeiro("GET /api/v1/caixa/transferencias", lancamentoCaixaHandler.ListarTransferencias)
 
 	return mux
 }

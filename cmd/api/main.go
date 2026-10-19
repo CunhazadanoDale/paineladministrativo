@@ -229,6 +229,11 @@ func executar(registrador *slog.Logger) error {
 			postgres.NewConciliacaoRepository(banco), postgres.NewContaBancariaRepository(banco), empresaRepository,
 			usuarioRepository, cargoRepository,
 		),
+		caixausecases.NewLancamentoCaixaUsecase(
+			postgres.NewLancamentoCaixaRepository(banco), postgres.NewConciliacaoRepository(banco),
+			postgres.NewCategoriaFinanceiraRepository(banco), postgres.NewContaBancariaRepository(banco), empresaRepository,
+			usuarioRepository, cargoRepository,
+		),
 		autenticacao.NovoTokenService(cfg.JWTSecret, cfg.JWTExpiracao),
 	)
 

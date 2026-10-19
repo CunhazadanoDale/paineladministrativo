@@ -254,3 +254,66 @@ func TestPendenciasExigemConta(t *testing.T) {
 		t.Errorf("input = %+v", usecase.pendencias)
 	}
 }
+
+type lancamentoCaixaUseCaseFalso struct {
+	portsin.LancamentoCaixaUseCase
+	classificar portsin.ClassificarInput
+	listar      portsin.ListarCaixaInput
+}
+
+func (f *lancamentoCaixaUseCaseFalso) Classificar(_ context.Context, input portsin.ClassificarInput) (*domaincaixa.Classificacao, error) {
+	f.classificar = input
+
+	lancamento := &domaincaixa.LancamentoCaixa{
+		ID: uuid.New(), Data: time.Date(2026, 10, 5, 0, 0, 0, 0, time.UTC), Competencia: time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC),
+		ValorCentavos: -1290, CategoriaFinanceiraID: input.CategoriaFinanceiraID, Descricao: "Tarifa",
+	}
+
+	return &domaincaixa.Classificacao{
+		Lancamento: lancamento,
+		Conciliacao: &domaincaixa.Conciliacao{
+			ID: uuid.New(), ExtratoLancamentoID: input.LancamentoID, Modo: domaincaixa.ConciliacaoClassificacao, Vigente: true,
+			Itens: []domaincaixa.ItemConciliacao{{Tipo: domaincaixa.MovimentoLancamentoCaixa, AlvoID: lancamento.ID, ValorCentavos: -1290}},
+		},
+	}, nil
+}
+
+func (f *lancamentoCaixaUseCaseFalso) Listar(_ context.Context, input portsin.ListarCaixaInput) ([]*domaincaixa.LancamentoCaixa, error) {
+	f.listar = input
+
+	return nil, nil
+}
+
+func TestClassificarLinhaRespondeLancamentoEConciliacao(t *testing.T) {
+	usecase := &lancamentoCaixaUseCaseFalso{}
+	handler := NewLancamentoCaixaHandler(usecase)
+	lancamentoID, categoriaID := uuid.New(), uuid.New()
+
+	registrador := executaProtegido(t, handler.Classificar, http.MethodPost, "/api/v1/extratos/lancamentos/x/classificacao", lancamentoID.String(),
+		`{"categoria_financeira_id":"`+categoriaID.String()+`","descricao":"Tarifa"}`)
+	corpo := registrador.Body.String()
+	if registrador.Code != http.StatusCreated || !strings.Contains(corpo, `"competencia":"2026-10"`) ||
+		!strings.Contains(corpo, `"modo":"classificacao"`) || !strings.Contains(corpo, `"tipo":"lancamento_caixa"`) {
+		t.Fatalf("status %d: %s", registrador.Code, corpo)
+	}
+	if usecase.classificar.LancamentoID != lancamentoID || usecase.classificar.CategoriaFinanceiraID != categoriaID || usecase.classificar.Descricao != "Tarifa" {
+		t.Errorf("input = %+v", usecase.classificar)
+	}
+}
+
+func TestListarLancamentosDeCaixaLeOsFiltros(t *testing.T) {
+	usecase := &lancamentoCaixaUseCaseFalso{}
+	handler := NewLancamentoCaixaHandler(usecase)
+	contaID := uuid.New()
+
+	registrador := executaProtegido(t, handler.Listar, http.MethodGet, "/api/v1/caixa/lancamentos?conta="+contaID.String()+"&de=2026-10-01", "", "")
+	if registrador.Code != http.StatusOK || !strings.Contains(registrador.Body.String(), `"dados":[]`) {
+		t.Fatalf("status %d: %s", registrador.Code, registrador.Body.String())
+	}
+	if usecase.listar.ContaBancariaID == nil || *usecase.listar.ContaBancariaID != contaID || usecase.listar.De == nil || usecase.listar.Ate != nil {
+		t.Errorf("input = %+v", usecase.listar)
+	}
+
+	invalida := executaProtegido(t, handler.Listar, http.MethodGet, "/api/v1/caixa/lancamentos?empresa=x", "", "")
+	apoioteste.VerificarEnvelopeDeErro(t, invalida, http.StatusBadRequest)
+}
