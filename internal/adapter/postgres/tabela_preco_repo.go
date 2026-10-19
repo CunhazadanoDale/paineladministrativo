@@ -217,3 +217,20 @@ func paraLinhaTabelaPrecoItem(item *domaintabelapreco.Item) *tabelaPrecoItemLinh
 		CriadoEm:      item.CriadoEm,
 	}
 }
+
+func (r *TabelaPrecoRepository) PrecoVigente(ctx context.Context, produtoID uuid.UUID, modelo domainpedido.Modelo, data time.Time) (*int64, error) {
+	var preco *int64
+	if err := r.db.GetContext(ctx, &preco, `
+		SELECT COALESCE(
+			(SELECT preco_centavos FROM tabela_preco_item
+			 WHERE produto_id = $1 AND modelo = $2 AND vigente_de <= $3
+			 ORDER BY vigente_de DESC
+			 LIMIT 1),
+			(SELECT preco FROM produto WHERE id = $1)
+		)
+	`, produtoID, modelo.String(), data); err != nil {
+		return nil, tratarErroDeConsulta(err)
+	}
+
+	return preco, nil
+}

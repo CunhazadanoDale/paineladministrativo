@@ -157,8 +157,8 @@ func executar(registrador *slog.Logger) error {
 		),
 		pedidousecases.NewPedidoUsecase(
 			pedidoRepository, entregaRepository, clienteRepository, clienteObraRepository, representanteRepository,
-			produtoRepository, empresaRepository, estoqueRepository, reservaRepository, localRepository,
-			usuarioRepository, cargoRepository,
+			produtoRepository, postgres.NewTabelaPrecoRepository(banco), empresaRepository, estoqueRepository,
+			reservaRepository, localRepository, usuarioRepository, cargoRepository,
 		),
 		pedidousecases.NewEntregaUsecase(
 			pedidoRepository, entregaRepository, representanteRepository, empresaRepository,

@@ -3,6 +3,7 @@ package pedido
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
@@ -19,6 +20,7 @@ type PedidoUsecaseImpl struct {
 	clientes portsout.ClienteRepository
 	obras    portsout.ObraRepository
 	produtos portsout.ProdutoRepository
+	precos   portsout.PrecoTabelaRepository
 	entregas portsout.EntregaRepository
 	estoqueDoPedido
 	permissoes
@@ -31,6 +33,7 @@ func NewPedidoUsecase(
 	obras portsout.ObraRepository,
 	representantes portsout.RepresentanteRepository,
 	produtos portsout.ProdutoRepository,
+	precos portsout.PrecoTabelaRepository,
 	empresas portsout.EmpresaRepository,
 	estoque portsout.EstoqueRepository,
 	reservas portsout.ReservaRepository,
@@ -42,6 +45,7 @@ func NewPedidoUsecase(
 		clientes: clientes,
 		obras:    obras,
 		produtos: produtos,
+		precos:   precos,
 		entregas: entregas,
 		estoqueDoPedido: estoqueDoPedido{
 			estoque:  estoque,
@@ -464,21 +468,54 @@ func (u *PedidoUsecaseImpl) dadosValidados(
 		return domainpedido.DadosPedido{}, err
 	}
 
-	itens, err := u.itensValidados(ctx, atual, input.Itens)
+	itens, err := u.itensValidados(ctx, atual, modelo, input.Itens)
+	if err != nil {
+		return domainpedido.DadosPedido{}, err
+	}
+
+	frete, err := freteEstimado(input.FreteTipo, input.FreteEstimadoCentavos)
 	if err != nil {
 		return domainpedido.DadosPedido{}, err
 	}
 
 	return domainpedido.DadosPedido{
-		ClienteID:           cliente.ID,
-		ObraID:              obraID,
-		RepresentanteID:     representanteID,
-		Modelo:              modelo,
+		ClienteID:       cliente.ID,
+		ObraID:          obraID,
+		RepresentanteID: representanteID,
+		Modelo:          modelo,
+		Condicao: &domainpedido.CondicaoInput{
+			EntradaBP:        input.EntradaBP,
+			PrazoBoletoDias:  input.PrazoBoletoDias,
+			PrazoEntregaDias: input.PrazoEntregaDias,
+		},
+		Validade:            input.Validade,
+		Frete:               frete,
 		PrazoLimite:         input.PrazoLimite,
 		NumeroPedidoCliente: input.NumeroPedidoCliente,
 		Observacoes:         input.Observacoes,
 		Itens:               itens,
 	}, nil
+}
+
+func freteEstimado(tipo string, centavos *int64) (*domainpedido.Frete, error) {
+	if strings.TrimSpace(tipo) == "" {
+		if centavos != nil {
+			return nil, domain.ErroValidacao("informe o tipo do frete estimado (cif ou fob)")
+		}
+
+		return nil, nil
+	}
+
+	tipoFrete, err := domainpedido.NovoTipoFrete(tipo)
+	if err != nil {
+		return nil, err
+	}
+	frete, err := domainpedido.NovoFrete(tipoFrete, centavos)
+	if err != nil {
+		return nil, err
+	}
+
+	return &frete, nil
 }
 
 func (u *PedidoUsecaseImpl) obraValidada(ctx context.Context, atual *domainpedido.Pedido, clienteID uuid.UUID, obraID *uuid.UUID) (*uuid.UUID, error) {
@@ -523,7 +560,10 @@ func (u *PedidoUsecaseImpl) exigirRepresentanteAtivo(ctx context.Context, atual 
 	return nil
 }
 
-func (u *PedidoUsecaseImpl) itensValidados(ctx context.Context, atual *domainpedido.Pedido, itens []portsin.ItemInput) ([]domainpedido.ItemInput, error) {
+func (u *PedidoUsecaseImpl) itensValidados(
+	ctx context.Context, atual *domainpedido.Pedido, modelo domainpedido.Modelo, itens []portsin.ItemInput,
+) ([]domainpedido.ItemInput, error) {
+	hoje := domainpedido.Hoje(time.Now().UTC())
 	jaNoPedido := make(map[uuid.UUID]bool)
 	if atual != nil {
 		for _, item := range atual.Itens {
@@ -546,10 +586,20 @@ func (u *PedidoUsecaseImpl) itensValidados(ctx context.Context, atual *domainped
 			}
 		}
 
+		var precoTabela *int64
+		if item.ProdutoID != uuid.Nil {
+			preco, err := u.precos.PrecoVigente(ctx, item.ProdutoID, modelo, hoje)
+			if err != nil {
+				return nil, err
+			}
+			precoTabela = preco
+		}
+
 		validados = append(validados, domainpedido.ItemInput{
 			ProdutoID:             item.ProdutoID,
 			Quantidade:            item.Quantidade,
 			PrecoUnitarioCentavos: item.PrecoUnitarioCentavos,
+			PrecoTabelaCentavos:   precoTabela,
 		})
 	}
 

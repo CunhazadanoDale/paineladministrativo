@@ -122,8 +122,8 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 		),
 		pedidousecases.NewPedidoUsecase(
 			pedidoRepository, entregaRepository, clienteRepository, clienteObraRepository, representanteRepository,
-			produtoRepository, empresaRepository, estoqueRepository, reservaRepository, localRepository,
-			usuarioRepository, cargoRepository,
+			produtoRepository, postgres.NewTabelaPrecoRepository(banco), empresaRepository, estoqueRepository,
+			reservaRepository, localRepository, usuarioRepository, cargoRepository,
 		),
 		pedidousecases.NewEntregaUsecase(
 			pedidoRepository, entregaRepository, representanteRepository, empresaRepository,

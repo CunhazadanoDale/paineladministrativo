@@ -17,14 +17,20 @@ type ItemInput struct {
 }
 
 type DadosPedidoInput struct {
-	ClienteID           uuid.UUID
-	ObraID              *uuid.UUID
-	RepresentanteID     *uuid.UUID
-	Modelo              string
-	PrazoLimite         *time.Time
-	NumeroPedidoCliente *string
-	Observacoes         string
-	Itens               []ItemInput
+	ClienteID             uuid.UUID
+	ObraID                *uuid.UUID
+	RepresentanteID       *uuid.UUID
+	Modelo                string
+	EntradaBP             *int
+	PrazoBoletoDias       *int
+	PrazoEntregaDias      *int
+	Validade              *time.Time
+	FreteTipo             string
+	FreteEstimadoCentavos *int64
+	PrazoLimite           *time.Time
+	NumeroPedidoCliente   *string
+	Observacoes           string
+	Itens                 []ItemInput
 }
 
 type CriarPedidoInput struct {

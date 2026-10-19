@@ -48,6 +48,10 @@ type pedidoLinha struct {
 	EntradaBP              int        `db:"entrada_bp"`
 	PrazoBoletoDias        *int       `db:"prazo_boleto_dias"`
 	PrazoEntregaDias       *int       `db:"prazo_entrega_dias"`
+	Validade               *time.Time `db:"validade"`
+	Revisao                int        `db:"revisao"`
+	FreteTipo              *string    `db:"frete_tipo"`
+	FreteEstimadoCentavos  *int64     `db:"frete_estimado_centavos"`
 	PrazoLimite            *time.Time `db:"prazo_limite"`
 	NumeroPedidoCliente    *string    `db:"numero_pedido_cliente"`
 	Observacoes            string     `db:"observacoes"`
@@ -69,6 +73,7 @@ type pedidoItemLinha struct {
 	ProdutoID             uuid.UUID `db:"produto_id"`
 	Quantidade            int       `db:"quantidade"`
 	PrecoUnitarioCentavos int64     `db:"preco_unitario_centavos"`
+	PrecoTabelaCentavos   *int64    `db:"preco_tabela_centavos"`
 	QuantidadeEntregue    int       `db:"quantidade_entregue"`
 	CriadoEm              time.Time `db:"criado_em"`
 }
@@ -88,11 +93,13 @@ const colunasPedido = `
 	id, empresa_id, numero, cliente_id, obra_id, representante_id, modelo, entrada_bp,
 	prazo_boleto_dias, prazo_entrega_dias, prazo_limite, numero_pedido_cliente, observacoes,
 	status, valor_total_centavos, entrada_paga_em, entrada_paga_centavos, cancelado_motivo,
-	valor_a_devolver_centavos, usuario_id, versao, criado_em, atualizado_em
+	valor_a_devolver_centavos, usuario_id, versao, criado_em, atualizado_em, validade, revisao, frete_tipo,
+	frete_estimado_centavos
 `
 
 const colunasPedidoItem = `
-	id, pedido_id, produto_id, quantidade, preco_unitario_centavos, quantidade_entregue, criado_em
+	id, pedido_id, produto_id, quantidade, preco_unitario_centavos, quantidade_entregue, criado_em,
+	preco_tabela_centavos
 `
 
 func (r *PedidoRepository) Gravar(ctx context.Context, gravacao *portsout.Gravacao) error {
@@ -291,7 +298,8 @@ func inserirPedido(ctx context.Context, tx *sqlx.Tx, pedido *domainpedido.Pedido
 			:id, :empresa_id, :numero, :cliente_id, :obra_id, :representante_id, :modelo, :entrada_bp,
 			:prazo_boleto_dias, :prazo_entrega_dias, :prazo_limite, :numero_pedido_cliente, :observacoes,
 			:status, :valor_total_centavos, :entrada_paga_em, :entrada_paga_centavos, :cancelado_motivo,
-			:valor_a_devolver_centavos, :usuario_id, :versao, :criado_em, :atualizado_em
+			:valor_a_devolver_centavos, :usuario_id, :versao, :criado_em, :atualizado_em, :validade, :revisao, :frete_tipo,
+			:frete_estimado_centavos
 		)
 	`, linha); err != nil {
 		return 0, tratarErroDeGravacao(err)
@@ -322,6 +330,10 @@ func atualizarPedido(ctx context.Context, tx *sqlx.Tx, gravacao *portsout.Gravac
 		    cancelado_motivo = $15,
 		    valor_a_devolver_centavos = $16,
 		    atualizado_em = $17,
+		    validade = $21,
+		    revisao = $22,
+		    frete_tipo = $23,
+		    frete_estimado_centavos = $24,
 		    versao = versao + 1
 		WHERE id = $18
 		  AND versao = $19
@@ -333,6 +345,7 @@ func atualizarPedido(ctx context.Context, tx *sqlx.Tx, gravacao *portsout.Gravac
 		linha.Observacoes, linha.Status, linha.ValorTotalCentavos, linha.EntradaPagaEm,
 		linha.EntradaPagaCentavos, linha.CanceladoMotivo, linha.ValorADevolverCentavos, linha.AtualizadoEm,
 		linha.ID, gravacao.VersaoLida, gravacao.StatusAnterior.String(),
+		linha.Validade, linha.Revisao, linha.FreteTipo, linha.FreteEstimadoCentavos,
 	)
 }
 
@@ -363,7 +376,10 @@ func gravarItens(ctx context.Context, tx *sqlx.Tx, gravacao *portsout.Gravacao) 
 	for _, item := range pedido.Itens {
 		if _, err := tx.NamedExecContext(ctx, `
 			INSERT INTO pedido_item (`+colunasPedidoItem+`)
-			VALUES (:id, :pedido_id, :produto_id, :quantidade, :preco_unitario_centavos, :quantidade_entregue, :criado_em)
+			VALUES (
+				:id, :pedido_id, :produto_id, :quantidade, :preco_unitario_centavos, :quantidade_entregue, :criado_em,
+				:preco_tabela_centavos
+			)
 		`, paraLinhaPedidoItem(pedido.ID, item)); err != nil {
 			return tratarErroDeGravacao(err)
 		}
@@ -393,7 +409,7 @@ func inserirHistoricoDoPedido(ctx context.Context, tx *sqlx.Tx, historico *domai
 }
 
 func paraLinhaPedido(pedido *domainpedido.Pedido) pedidoLinha {
-	return pedidoLinha{
+	linha := pedidoLinha{
 		ID:                     pedido.ID,
 		EmpresaID:              pedido.EmpresaID,
 		Numero:                 pedido.Numero,
@@ -417,11 +433,20 @@ func paraLinhaPedido(pedido *domainpedido.Pedido) pedidoLinha {
 		Versao:                 pedido.Versao,
 		CriadoEm:               pedido.CriadoEm,
 		AtualizadoEm:           pedido.AtualizadoEm,
+		Validade:               pedido.Validade,
+		Revisao:                pedido.Revisao,
 	}
+	if pedido.Frete != nil {
+		tipo := pedido.Frete.Tipo().String()
+		linha.FreteTipo = &tipo
+		linha.FreteEstimadoCentavos = pedido.Frete.Centavos()
+	}
+
+	return linha
 }
 
 func paraLinhaPedidoItem(pedidoID uuid.UUID, item *domainpedido.Item) pedidoItemLinha {
-	return pedidoItemLinha{
+	linha := pedidoItemLinha{
 		ID:                    item.ID,
 		PedidoID:              pedidoID,
 		ProdutoID:             item.ProdutoID,
@@ -430,10 +455,16 @@ func paraLinhaPedidoItem(pedidoID uuid.UUID, item *domainpedido.Item) pedidoItem
 		QuantidadeEntregue:    item.QuantidadeEntregue,
 		CriadoEm:              item.CriadoEm,
 	}
+	if item.PrecoTabela != nil {
+		preco := item.PrecoTabela.Centavos()
+		linha.PrecoTabelaCentavos = &preco
+	}
+
+	return linha
 }
 
 func paraDominioPedido(linha *pedidoLinha) *domainpedido.Pedido {
-	return &domainpedido.Pedido{
+	pedido := &domainpedido.Pedido{
 		ID:                     linha.ID,
 		EmpresaID:              linha.EmpresaID,
 		Numero:                 linha.Numero,
@@ -455,11 +486,19 @@ func paraDominioPedido(linha *pedidoLinha) *domainpedido.Pedido {
 		Versao:                 linha.Versao,
 		CriadoEm:               linha.CriadoEm,
 		AtualizadoEm:           linha.AtualizadoEm,
+		Validade:               dataDoBanco(linha.Validade),
+		Revisao:                linha.Revisao,
 	}
+	if linha.FreteTipo != nil {
+		frete := domainpedido.FreteDe(domainpedido.TipoFreteDe(*linha.FreteTipo), linha.FreteEstimadoCentavos)
+		pedido.Frete = &frete
+	}
+
+	return pedido
 }
 
 func paraDominioPedidoItem(linha *pedidoItemLinha) *domainpedido.Item {
-	return &domainpedido.Item{
+	item := &domainpedido.Item{
 		ID:                 linha.ID,
 		PedidoID:           linha.PedidoID,
 		ProdutoID:          linha.ProdutoID,
@@ -468,6 +507,12 @@ func paraDominioPedidoItem(linha *pedidoItemLinha) *domainpedido.Item {
 		QuantidadeEntregue: linha.QuantidadeEntregue,
 		CriadoEm:           linha.CriadoEm,
 	}
+	if linha.PrecoTabelaCentavos != nil {
+		preco := domainpedido.PrecoDe(*linha.PrecoTabelaCentavos)
+		item.PrecoTabela = &preco
+	}
+
+	return item
 }
 
 func dataDoBanco(valor *time.Time) *time.Time {

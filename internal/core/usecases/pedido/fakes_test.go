@@ -5,6 +5,7 @@ import (
 	"maps"
 	"slices"
 	"sort"
+	"time"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	domaincliente "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/cliente"
@@ -33,6 +34,7 @@ type memoria struct {
 	historicos     []*domainpedido.Historico
 	sequencias     map[uuid.UUID]int
 	gravacoes      int
+	precosTabela   map[string]int64
 }
 
 func novaMemoria() *memoria {
@@ -51,6 +53,7 @@ func novaMemoria() *memoria {
 		pedidos:        map[uuid.UUID]*domainpedido.Pedido{},
 		entregas:       map[uuid.UUID]*domainpedido.Entrega{},
 		sequencias:     map[uuid.UUID]int{},
+		precosTabela:   map[string]int64{},
 	}
 }
 
@@ -146,6 +149,17 @@ type repoProdutos struct{ *memoria }
 
 func (r repoProdutos) Obter(_ context.Context, id uuid.UUID) (*domainestoque.Produto, error) {
 	return copiar(r.produtos[id]), nil
+}
+
+type repoPrecos struct{ *memoria }
+
+func (r repoPrecos) PrecoVigente(_ context.Context, produtoID uuid.UUID, modelo domainpedido.Modelo, _ time.Time) (*int64, error) {
+	preco, ok := r.precosTabela[produtoID.String()+modelo.String()]
+	if !ok {
+		return nil, nil
+	}
+
+	return &preco, nil
 }
 
 type repoLocais struct{ *memoria }
