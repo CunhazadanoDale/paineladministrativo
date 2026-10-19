@@ -158,7 +158,7 @@ o **F0b** pode correr junto com essas telas.
 | M8 | NF-e por XML | M2 M3 M6 (fase final: M9) | Controle de NFs | concluído |
 | M9 | Contas a receber e antecipação | M3 M5 | A receber no banco, títulos do Controle de NFs | concluído |
 | M10 | Comissões | M3 M6 | comissões calculadas à mão | concluído |
-| M11 | Propostas e tabela de preços | M3 M6 | orçamentos em documento, guia de modelos de venda | pendente |
+| M11 | Propostas e tabela de preços | M3 M6 | orçamentos em documento, guia de modelos de venda | em andamento (feat/m11-propostas) |
 | M12 | Importações | M2 M4 M6 M7 | parte de Entregas de importação e do painel financeiro | pendente |
 | M13 | Caixa e conciliação | M5 M7 M9 | Caixa do mês, Fluxo de caixa diário | pendente |
 | M14 | Dívidas e empréstimos | M4 M5 M7 | Dívidas do grupo | pendente |
