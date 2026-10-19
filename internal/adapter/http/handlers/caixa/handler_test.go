@@ -381,3 +381,36 @@ func TestFecharLeOCorpo(t *testing.T) {
 		`{"conta_bancaria_id":"`+contaID.String()+`","competencia":"setembro"}`)
 	apoioteste.VerificarEnvelopeDeErro(t, invalido, http.StatusBadRequest)
 }
+
+type projecaoUseCaseFalso struct {
+	portsin.ProjecaoUseCase
+	projetar portsin.ProjetarInput
+}
+
+func (f *projecaoUseCaseFalso) Projetar(_ context.Context, input portsin.ProjetarInput) (*domaincaixa.Projecao, error) {
+	f.projetar = input
+	hoje := time.Date(2026, 10, 19, 0, 0, 0, 0, time.UTC)
+
+	return domaincaixa.Projetar(domaincaixa.DadosProjecao{
+		Hoje: hoje, Ate: hoje.AddDate(0, 0, 1), Partida: domaincaixa.SaldoDePartida{ExtratoCentavos: 500},
+		Entradas: []domaincaixa.Previsto{{Data: hoje.AddDate(0, 0, 1), ValorCentavos: 100}},
+	}), nil
+}
+
+func TestProjecaoLeOsFiltros(t *testing.T) {
+	usecase := &projecaoUseCaseFalso{}
+	handler := NewProjecaoHandler(usecase)
+
+	registrador := executaProtegido(t, handler.Projetar, http.MethodGet, "/api/v1/caixa/projecao?ate=2026-11-30", "", "")
+	corpo := registrador.Body.String()
+	if registrador.Code != http.StatusOK || !strings.Contains(corpo, `"saldo_final_centavos":600`) ||
+		!strings.Contains(corpo, `"total_centavos":500`) || !strings.Contains(corpo, `"data":"2026-10-20"`) {
+		t.Fatalf("status %d: %s", registrador.Code, corpo)
+	}
+	if usecase.projetar.Ate == nil || usecase.projetar.Ate.Month() != time.November || usecase.projetar.Empresa != nil {
+		t.Errorf("input = %+v", usecase.projetar)
+	}
+
+	invalida := executaProtegido(t, handler.Projetar, http.MethodGet, "/api/v1/caixa/projecao?ate=30/11/2026", "", "")
+	apoioteste.VerificarEnvelopeDeErro(t, invalida, http.StatusBadRequest)
+}

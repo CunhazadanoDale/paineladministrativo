@@ -92,6 +92,7 @@ func NewRouter(
 	conciliacaoUseCase portsincaixa.ConciliacaoUseCase,
 	lancamentoCaixaUseCase portsincaixa.LancamentoCaixaUseCase,
 	fechamentoCaixaUseCase portsincaixa.FechamentoUseCase,
+	projecaoCaixaUseCase portsincaixa.ProjecaoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, middleware.ErrosDeRoteamento(novasRotas(
@@ -120,6 +121,7 @@ func NewRouter(
 		conciliacaoUseCase,
 		lancamentoCaixaUseCase,
 		fechamentoCaixaUseCase,
+		projecaoCaixaUseCase,
 		tokens,
 	)))
 }
@@ -175,6 +177,7 @@ func novasRotas(
 	conciliacaoUseCase portsincaixa.ConciliacaoUseCase,
 	lancamentoCaixaUseCase portsincaixa.LancamentoCaixaUseCase,
 	fechamentoCaixaUseCase portsincaixa.FechamentoUseCase,
+	projecaoCaixaUseCase portsincaixa.ProjecaoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -562,6 +565,10 @@ func novasRotas(
 	financeiro("GET /api/v1/caixa/fechamentos", fechamentoCaixaHandler.Listar)
 	financeiro("GET /api/v1/caixa/fechamentos/{id}", fechamentoCaixaHandler.Obter)
 	administrador("POST /api/v1/caixa/fechamentos/{id}/reabrir", fechamentoCaixaHandler.Reabrir)
+
+	projecaoCaixaHandler := caixahandlers.NewProjecaoHandler(projecaoCaixaUseCase)
+	financeiro("GET /api/v1/caixa/projecao", projecaoCaixaHandler.Projetar)
+	financeiro("GET /api/v1/caixa/movimento-diario", projecaoCaixaHandler.MovimentoDiario)
 
 	return mux
 }
