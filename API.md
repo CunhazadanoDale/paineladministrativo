@@ -556,9 +556,9 @@ Fluxo: **solicitante → aprovador designado → financeiro**.
 
 Desde o M7 a solicitação é a **conta a pagar** do grupo. Os campos de classificação são
 opcionais na criação; o `prazo_pagamento` é o vencimento. As despesas fixas entram pela seção
-"Despesas recorrentes", que gera as solicitações com `origem = recorrencia`. O M9 gera as
-contas a pagar da recompra de título antecipado (`origem = recompra`) e do repasse ao fomento
-(`origem = repasse_fomento`): elas nascem em `pendente_aprovacao`, já com fornecedor (o fomento),
+"Despesas recorrentes", que gera as solicitações com `origem = | `origem=manual|recorrencia|recompra|repasse_fomento|comissao|importacao_parcela|importacao_custo` |`. O M9 gera as
+contas a pagar da | `origem=manual|recorrencia|recompra|repasse_fomento|comissao|importacao_parcela|importacao_custo` | de título antecipado (`origem = recompra`) e do repasse ao fomento
+(`origem = | `origem=manual|recorrencia|recompra|repasse_fomento|comissao|importacao_parcela|importacao_custo` |`): elas nascem em `pendente_aprovacao`, já com fornecedor (o fomento),
 categoria e competência, e seguem o fluxo de aprovação normal.
 
 ### Estados
@@ -642,7 +642,7 @@ Filtros de conta a pagar, combináveis com qualquer escopo (valor inválido → 
 | `fornecedor=<uuid>` | fornecedor da solicitação |
 | `categoria=<uuid>` | categoria financeira |
 | `competencia=AAAA-MM` | competência (`erro de validação: competência deve estar no formato AAAA-MM`) |
-| `origem=manual\|recorrencia\|recompra\|repasse_fomento\|comissao` | origem da solicitação |
+| `origem=manual\|recorrencia\|recompra\|repasse_fomento\|comissao\|importacao_parcela\|importacao_custo` | origem da solicitação |
 | `vencimento_de=AAAA-MM-DD` / `vencimento_ate=AAAA-MM-DD` | intervalo do `prazo_pagamento`, inclusivo (`erro de validação: consulta vencimento_de deve estar no formato AAAA-MM-DD`; final antes do inicial → `400 erro de validação: vencimento final não pode ser anterior ao inicial`) |
 | `vencidas=true` | `pendente_aprovacao` ou `aprovado` com vencimento antes de hoje (UTC); aceita `true`/`false`/`1`/`0`, outro valor → `400 erro de validação: consulta vencidas deve ser true ou false` |
 
@@ -2321,7 +2321,7 @@ quando não há).
 
 `?competencia=AAAA-MM` (obrigatória) e `?empresa=` (opcional, precisa estar no acesso). Para cada
 recorrência ativa, vigente na competência (`inicio <= competência <= fim`) e de empresa ativa no
-acesso do usuário, cria a solicitação daquela competência com `origem = recorrencia`, em
+acesso do usuário, cria a solicitação daquela competência com `origem = | `origem=manual|recorrencia|recompra|repasse_fomento|comissao|importacao_parcela|importacao_custo` |`, em
 `pendente_aprovacao`, com quem disparou como solicitante. É **idempotente**: rodar de novo a mesma
 competência não duplica (índice único por recorrência e competência). O vencimento calculado pode
 estar no passado (competência atrasada nasce vencida). Sem agendador: o front ou uma rotina externa
@@ -2446,7 +2446,7 @@ Resposta:
   (`2026-10-15T09:30:00-03:00`), obrigatório e não no futuro. Registra o último envio.
 - Título com a origem cancelada (`origem_cancelada_em` preenchido) não volta ao banco (`409`).
 - Histórico (`evento`): `criado`, `gerado`, `editado`, `prorrogado`, `enviado_banco`,
-  `retirado_banco`, `boleto_enviado`, `antecipado`, `antecipacao_estornada`, `recomprado`,
+  `retirado_banco`, `boleto_enviado`, `antecipado`, `antecipacao_estornada`, `| `origem=manual|recorrencia|recompra|repasse_fomento|comissao|importacao_parcela|importacao_custo` |do`,
   `recebido`, `recebimento_estornado`, `cancelado`, `origem_cancelada`; cada item traz `de_status`,
   `para_status` e `descricao`.
 
@@ -2500,7 +2500,7 @@ Corpo do `POST /titulos-receber/{id}/recebimentos`:
 - **Pagamento na conta errada**: título `antecipado` recebido com `tipo = conta` exige
   `"repasse": { "vencimento", "categoria_financeira_id" }` no corpo (`400` sem ele). Na mesma
   transação da baixa, o M9 grava o repasse (valor = `valor_centavos`, sem juros) e gera a conta a pagar
-  ao fomento no M7 (`origem = repasse_fomento`, categoria lançável de `despesa`, competência do mês
+  ao fomento no M7 (`origem = | `origem=manual|recorrencia|recompra|repasse_fomento|comissao|importacao_parcela|importacao_custo` |`, categoria lançável de `despesa`, competência do mês
   do recebimento). O recebimento traz `repasse` com o `solicitacao_id`; o que gerou repasse não é
   estornado (`409`). `repasse` em título que não está antecipado → `400`.
 - O recebimento traz `entrada_no_caixa_centavos` (`valor + juros` em `conta`, `0` em `fomento`), que
@@ -2529,7 +2529,7 @@ Corpo do `POST /titulos-receber/{id}/recebimentos`:
 
 ---
 
-## Antecipações (borderô, recompra e repasse)
+## Antecipações (borderô, | `origem=manual|recorrencia|recompra|repasse_fomento|comissao|importacao_parcela|importacao_custo` | e repasse)
 
 Antecipação de títulos com uma empresa de fomento, que é um **fornecedor** do M4. Só **financeiro** e
 administrador, com escopo por empresa.
@@ -2540,7 +2540,7 @@ administrador, com escopo por empresa.
 | `GET` | `/api/v1/antecipacoes` | **financeiro** | `200` lista paginada, mais recente primeiro (`?empresa=`, `?fornecedor=`, `?status=ativa\|estornada`, `?de=`, `?ate=`) |
 | `GET` | `/api/v1/antecipacoes/{id}` | **financeiro** | `200` com os títulos |
 | `POST` | `/api/v1/antecipacoes/{id}/estorno` | **financeiro** | `200`; corpo `{ "versao", "motivo" }` |
-| `POST` | `/api/v1/titulos-receber/{id}/recompra` | **financeiro** | `201` `{ "titulo", "recompra" }` |
+| `POST` | `/api/v1/titulos-receber/{id}/| `origem=manual|recorrencia|recompra|repasse_fomento|comissao|importacao_parcela|importacao_custo` |` | **financeiro** | `201` `{ "titulo", "recompra" }` |
 
 Corpo do `POST /antecipacoes`:
 
@@ -2574,18 +2574,18 @@ Corpo do `POST /antecipacoes`:
 - Cliente com `proibe_antecipacao` (M3) bloqueia o borderô inteiro:
   `400 cliente não permite antecipação: <nome do cliente>`, conferido também na transação.
 - Título já antecipado em outro borderô → `409`.
-- **Estorno do borderô** (lançamento errado): só se nenhum título foi recebido nem recomprado (`409`);
+- **Estorno do borderô** (lançamento errado): só se nenhum título foi recebido nem | `origem=manual|recorrencia|recompra|repasse_fomento|comissao|importacao_parcela|importacao_custo` |do (`409`);
   os títulos voltam ao status anterior e a antecipação fica `estornada` com `estorno_motivo` (até
   500) e `estornado_em`. `versao` divergente → `409 a antecipação foi alterada por outra pessoa; ...`.
 
 ### Recompra
 
-Corpo do `POST /titulos-receber/{id}/recompra`:
+Corpo do `POST /titulos-receber/{id}/| `origem=manual|recorrencia|recompra|repasse_fomento|comissao|importacao_parcela|importacao_custo` |`:
 
 ```json
 {
   "versao": 2,
-  "recomprado_em": "2026-10-15",
+  "| `origem=manual|recorrencia|recompra|repasse_fomento|comissao|importacao_parcela|importacao_custo` |do_em": "2026-10-15",
   "encargos_centavos": 4500,
   "vencimento": "2026-10-20",
   "categoria_financeira_id": "…",
@@ -2595,10 +2595,10 @@ Corpo do `POST /titulos-receber/{id}/recompra`:
 
 Só título `antecipado` numa antecipação vigente (`409`). Na mesma transação: o título volta para
 `carteira` (a empresa cobra o cliente de novo), sai do borderô, e o M7 ganha a conta a pagar ao
-fomento com `origem = recompra`, valor = saldo do título + encargos, a `categoria_financeira_id`
+fomento com `origem = | `origem=manual|recorrencia|recompra|repasse_fomento|comissao|importacao_parcela|importacao_custo` |`, valor = saldo do título + encargos, a `categoria_financeira_id`
 informada (subcategoria ativa de `despesa`, senão `400`), vencimento informado e competência do mês da
-recompra, em `pendente_aprovacao`. A resposta traz `recompra.solicitacao_id`. `motivo` obrigatório
-(até 500); `recomprado_em` não no futuro.
+| `origem=manual|recorrencia|recompra|repasse_fomento|comissao|importacao_parcela|importacao_custo` |, em `pendente_aprovacao`. A resposta traz `recompra.solicitacao_id`. `motivo` obrigatório
+(até 500); `| `origem=manual|recorrencia|recompra|repasse_fomento|comissao|importacao_parcela|importacao_custo` |do_em` não no futuro.
 
 ---
 
@@ -2825,8 +2825,8 @@ Escopo por empresa (padrão da seção 4 do `EMPRESAS.md`); escopo e decisões e
 
 | Método | Rota | Perfil | Sucesso |
 | --- | --- | --- | --- |
-| `GET` | `/api/v1/pedidos/{id}/comissao` | comercial, financeiro ou o representante do pedido | `200` percentual vigente; sem definição, o padrão do representante com `definido: false` |
-| `PUT` | `/api/v1/pedidos/{id}/comissao` | **comercial** (representante com login não define) | `200`; corpo `{ "percentual_bp", "versao" }`; só antes da primeira saída de entrega |
+| `GET` | `/api/v1/pedidos/{id}/| `origem=manual|recorrencia|recompra|repasse_fomento|comissao|importacao_parcela|importacao_custo` | comercial, financeiro ou o representante do pedido | `200` percentual vigente; sem definição, o padrão do representante com `definido: false` |
+| `PUT` | `/api/v1/pedidos/{id}/| `origem=manual|recorrencia|recompra|repasse_fomento|comissao|importacao_parcela|importacao_custo` | **comercial** (representante com login não define) | `200`; corpo `{ "percentual_bp", "versao" }`; só antes da primeira saída de entrega |
 | `POST` | `/api/v1/comissoes/apurar` | **financeiro** | `200` resultado; corpo opcional `{ "empresa_id", "competencia" }` |
 | `GET` | `/api/v1/comissoes/pendencias` | **financeiro** | `200` lista paginada das entregas que saíram e ainda não foram apuradas (`?empresa=`, `?competencia=`) |
 | `GET` | `/api/v1/comissoes` | **financeiro** ou representante com login (só as próprias) | `200` lista paginada (`?empresa=`, `?representante=`, `?pedido=`, `?competencia=AAAA-MM`, `?aberta=`), mais recente primeiro |
@@ -3194,7 +3194,7 @@ Liga um lançamento do extrato aos movimentos que o sistema já registrou na **m
 
 | Movimento (`tipo`) | Origem | Valor no caixa | Data |
 | --- | --- | --- | --- |
-| `pagamento` | pagamento da conta a pagar (M7), inclusive comissão, recompra e repasse | `- valor` | dia do `pago_em` em Brasília |
+| `pagamento` | pagamento da conta a pagar (M7), inclusive comissão, | `origem=manual|recorrencia|recompra|repasse_fomento|comissao|importacao_parcela|importacao_custo` | e repasse | `- valor` | dia do `pago_em` em Brasília |
 | `transferencia_saida` / `transferencia_entrada` | a outra ponta de uma transferência entre contas (abaixo) | `- valor` / `valor` | data da transferência |
 | `recebimento` | baixa do título a receber do tipo `conta` (M9) | `valor + juros` | `recebido_em` |
 | `antecipacao` | crédito do borderô (M9) | `valor_liquido_centavos` | `operado_em` |
@@ -3468,11 +3468,19 @@ da seção 4 do `EMPRESAS.md`). Escopo e decisões em `IMPORTACOES.md`.
 | `POST` | `/api/v1/importacoes/{id}/desembaracar` | **financeiro** | `200` importação `desembaracada` |
 | `POST` | `/api/v1/importacoes/{id}/cancelar` | **financeiro** | `200` importação `cancelada` |
 | `GET` | `/api/v1/importacoes/{id}/historico` | comercial ou financeiro | `200` lista (`{ "dados": [...] }`) em ordem cronológica |
+| `POST` | `/api/v1/importacoes/{id}/parcelas` | **financeiro** | `201` importação com a parcela nova |
+| `PUT` | `/api/v1/importacoes/{id}/parcelas/{parcela_id}` | **financeiro** | `200`; só parcela `aberta` |
+| `DELETE` | `/api/v1/importacoes/{id}/parcelas/{parcela_id}?versao=` | **financeiro** | `200` importação sem a parcela; só parcela `aberta` |
+| `POST` | `/api/v1/importacoes/{id}/parcelas/{parcela_id}/cambio` | **financeiro** | `200`; fecha o câmbio e gera a conta a pagar |
+| `POST` | `/api/v1/importacoes/{id}/parcelas/{parcela_id}/reabrir` | **financeiro** | `200`; com a conta a pagar cancelada ou rejeitada |
+| `POST` | `/api/v1/importacoes/{id}/custos` | **financeiro** | `201`; lança o custo e gera a conta a pagar |
+| `POST` | `/api/v1/importacoes/{id}/custos/{custo_id}/cancelar` | **financeiro** | `200`; com a conta a pagar cancelada ou rejeitada |
+| `GET` | `/api/v1/importacoes/{id}/custo-previsto` | **financeiro** | `200` prévia do rateio (`?cambio_micro=`), sem gravar |
 
 Leitura sem perfil comercial nem financeiro → `403 perfil sem permissão para consultar importações`;
 escrita sem financeiro → `403` do middleware. Importação de empresa fora do acesso → `403 perfil sem acesso
-a esta empresa`. **Os valores na moeda só aparecem para o financeiro**: para o comercial,
-`valor_total_moeda_centesimos` e `itens[].valor_moeda_centesimos` saem do JSON.
+a esta empresa`. **Os valores só aparecem para o financeiro**: para o comercial,
+`valor_total_moeda_centesimos`, `itens[].valor_moeda_centesimos`, `parcelas` e `custos` saem do JSON.
 
 ### Estados
 
@@ -3482,7 +3490,7 @@ a esta empresa`. **Os valores na moeda só aparecem para o financeiro**: para o 
 | alterar | `aberta`, `embarcada` | igual | `versao`; fornecedor e moeda só em `aberta` (`409`); depois do embarque a chegada prevista é obrigatória |
 | embarcar | `aberta` | `embarcada` | `embarcada_em` (não futura), `chegada_prevista` (não antes do embarque), `documento_embarque` opcional (BL/AWB) |
 | desembaraçar | `embarcada` | `desembaracada` | `chegada_em` (não futura, não antes do embarque), `desembaracada_em` (não futura, não antes da chegada), `declaracao` (número da DI/DUIMP, até 30) |
-| cancelar | `aberta`, `embarcada`, `desembaracada` | `cancelada` | `motivo` (até 1000) |
+| cancelar | `aberta`, `embarcada`, `desembaracada` | `cancelada` | `motivo` (até 1000); toda conta a pagar gerada (parcela com câmbio fechado ou custo não cancelado) precisa estar `cancelado` ou `rejeitado` no M7 (`409 cancele ou rejeite antes as contas a pagar geradas pela importação`) |
 
 `recebida` existe no contrato, mas só passa a ser alcançada com o recebimento (fase 3 do `IMPORTACOES.md`).
 Toda ação exige a `versao` lida (`400 erro de validação: versão da importação é obrigatória` sem ela; `409 a
@@ -3548,8 +3556,120 @@ Histórico: `id`, `usuario_id`, `acao` (`criada`, `alterada`, `embarcada`, `dese
 `status_anterior`, `status_novo`, `detalhe` (chegada prevista no embarque, declaração no desembaraço, motivo
 no cancelamento) e `criado_em`.
 
+Histórico das parcelas e custos: `parcela_incluida`, `parcela_alterada`, `parcela_removida`,
+`parcela_cambio_fechado` (detalhe com câmbio e valor em reais), `parcela_reaberta`, `custo_lancado` e
+`custo_cancelado`. Toda operação de parcela ou custo exige a `versao` da importação e a avança.
+
 Fornecedor, produto e empresa usados numa importação passam a responder `400 erro de validação: registro em
 uso por outros dados e não pode ser excluído` na exclusão.
+
+### Parcelas ao fornecedor e câmbio
+
+A parcela é o pagamento ao fornecedor **na moeda** da importação (sinal, saldo). Ela só vira conta a pagar
+quando o câmbio é fechado, com o valor em reais exato; antes disso não aparece no M7 nem na projeção do M13.
+
+```json
+{ "versao": 1, "descricao": "Sinal 30%", "valor_moeda_centesimos": 135000, "vencimento_previsto": "2026-10-20" }
+```
+
+- `descricao` obrigatória (até 120); `valor_moeda_centesimos > 0`; `vencimento_previsto` obrigatório. A soma
+  das parcelas ativas (abertas e com câmbio fechado) não passa do total dos itens (`400 erro de validação: a
+  soma das parcelas não pode passar do valor dos itens da importação`), e o `PUT` da importação também não
+  pode reduzir os itens abaixo dela. Importação cancelada não recebe parcela nem custo (`409`).
+- `PUT` substitui descrição, valor e vencimento previsto da parcela `aberta`; `DELETE` a apaga (só `aberta`,
+  `?versao=` com a versão da importação). Parcela com câmbio fechado → `409`.
+
+**Fechar o câmbio** (`POST .../parcelas/{parcela_id}/cambio`):
+
+```json
+{ "versao": 2, "cambio_micro": 5432100, "vencimento": "2026-10-20", "categoria_financeira_id": "…" }
+```
+
+| Campo | Regra |
+| --- | --- |
+| `cambio_micro` | reais por unidade da moeda com 6 casas, em inteiro (`5,432100` → `5432100`); de 1 a 1000000000. Importação em `BRL` dispensa (vale `1000000`; outro valor → `400`) |
+| `vencimento` | obrigatório; vira o `prazo_pagamento` da conta a pagar e a competência dela |
+| `categoria_financeira_id` | subcategoria ativa de **despesa** (sugerida: `compra_mercadoria`, fora do resultado; o custo chega à DRE pelo CMV dos lotes) |
+
+`valor_centavos = valor_moeda_centesimos × cambio_micro ÷ 1000000`, arredondado para o centavo mais próximo
+(meio para cima). Na mesma gravação nasce a conta a pagar: `origem = importacao_parcela`, `origem_id` = parcela,
+fornecedor da importação, empresa importadora, `pendente_aprovacao`, já classificada, observação "importação
+N — descrição". A parcela passa a `cambio_fechado` com `cambio_micro`, `valor_centavos`, `vencimento`,
+`solicitacao_id` e `status_conta_a_pagar`.
+
+**Reabrir** (`POST .../reabrir { "versao": n }`): só com a conta a pagar `cancelado` ou `rejeitado` no M7
+(senão `409 cancele ou rejeite antes a conta a pagar da parcela`). A parcela vira `cancelada` (guarda a conta
+antiga) e nasce uma parcela `aberta` igual, que pode ter o câmbio fechado de novo.
+
+### Custos de nacionalização
+
+```json
+{
+  "versao": 3, "tipo": "despachante", "descricao": "", "fornecedor_id": "…", "valor_centavos": 250000,
+  "vencimento": "2026-11-10", "compoe_custo": true, "categoria_financeira_id": "…"
+}
+```
+
+| Campo | Regra |
+| --- | --- |
+| `tipo` | `frete_internacional`, `seguro`, `imposto_importacao`, `ipi`, `pis`, `cofins`, `icms`, `taxa_siscomex`, `despachante`, `armazenagem`, `frete_nacional` ou `outros` |
+| `descricao` | opcional (até 255); vazia usa o nome do tipo ("Despachante aduaneiro") |
+| `fornecedor_id` | obrigatório e ativo: a quem se paga (transportadora, despachante, Receita) |
+| `valor_centavos` | em reais, `> 0` |
+| `compoe_custo` | padrão `true`; `false` para tributo que a empresa credita (ICMS, IPI, PIS/COFINS conforme o regime, conferido com a contabilidade) |
+| `categoria_financeira_id` | subcategoria ativa de despesa |
+
+O custo gera a conta a pagar na mesma gravação (`origem = importacao_custo`, `origem_id` = custo, fornecedor do
+custo). Custo lançado depois do recebimento sai com `posterior = true` e `compoe_custo = false` (o lote já foi
+criado). **Cancelar** (`POST .../custos/{custo_id}/cancelar { "versao": n }`) exige a conta a pagar cancelada ou
+rejeitada e marca `cancelado` (`cancelado_em`, `cancelado_por`); nada é apagado.
+
+Resposta do detalhe para o financeiro (além dos campos da importação):
+
+```json
+{
+  "parcelas": [{
+    "id": "…", "descricao": "Sinal 30%", "valor_moeda_centesimos": 135000, "vencimento_previsto": "2026-10-20",
+    "status": "cambio_fechado", "cambio_micro": 5432100, "valor_centavos": 733334, "vencimento": "2026-10-20",
+    "solicitacao_id": "…", "status_conta_a_pagar": "pendente_aprovacao", "usuario_id": "…",
+    "criado_em": "…", "atualizado_em": "…"
+  }],
+  "custos": [{
+    "id": "…", "tipo": "despachante", "descricao": "Despachante aduaneiro", "fornecedor_id": "…",
+    "valor_centavos": 250000, "vencimento": "2026-11-10", "compoe_custo": true, "posterior": false,
+    "categoria_financeira_id": "…", "solicitacao_id": "…", "status_conta_a_pagar": "pendente_aprovacao",
+    "cancelado": false, "cancelado_em": null, "cancelado_por": null, "usuario_id": "…", "criado_em": "…"
+  }]
+}
+```
+
+### Custo previsto
+
+`GET /importacoes/{id}/custo-previsto?cambio_micro=5500000` calcula o custo que o recebimento gravaria, sem
+gravar:
+
+1. Mercadoria em reais = valor em reais das parcelas com câmbio fechado + a parte dos itens ainda sem parcela
+   fechada convertida pelo `cambio_micro` informado (obrigatório só quando essa parte existe: `400 erro de
+   validação: informe o câmbio para os N centésimos de USD ainda sem câmbio fechado`; em `BRL` vale 1).
+2. A mercadoria é dividida entre os itens pelo valor na moeda (o resto do arredondamento vai para o último item).
+3. Os custos com `compoe_custo` (não cancelados) são divididos pelo valor em reais de cada item.
+4. `custo_unitario_centavos = (mercadoria + custos do item) ÷ quantidade`, arredondado.
+
+```json
+{
+  "dados": {
+    "valor_moeda_centesimos": 450000, "parcelas_fechadas_moeda_centesimos": 135000,
+    "parcelas_fechadas_centavos": 733334, "sem_cambio_fechado_moeda_centesimos": 315000,
+    "cambio_informado_micro": 5500000, "cambio_medio_micro": 5479631, "valor_mercadoria_centavos": 2465834,
+    "custos_centavos": 250000, "custos_fora_do_rateio_centavos": 0,
+    "itens": [{
+      "item_id": "…", "produto_id": "…", "quantidade": 1000, "valor_moeda_centesimos": 450000,
+      "valor_mercadoria_centavos": 2465834, "custos_centavos": 250000, "custo_total_centavos": 2715834,
+      "custo_unitario_centavos": 2716
+    }]
+  }
+}
+```
 
 ---
 

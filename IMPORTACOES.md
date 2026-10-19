@@ -1,7 +1,8 @@
 # Escopo — M12 Importações
 
 > **Status:** escopo fechado — decisões D1 a D14 respondidas pelo usuário (outubro/2026), todas as
-> recomendações aceitas; fase 1 (importação, itens e estados até o desembaraço) concluída.
+> recomendações aceitas; fases 1 (importação, itens e estados até o desembaraço) e 2 (parcelas, câmbio e
+> custos com conta a pagar) concluídas.
 > **Objetivo:** tirar das planilhas a parte de compra das "Entregas de importação" e do painel
 > financeiro: o processo de importação do pedido ao fornecedor até a mercadoria no estoque, com
 > câmbio, custos de nacionalização rateados no custo do lote, pagamentos ao fornecedor e aos
@@ -84,15 +85,16 @@
 | `descricao` | VARCHAR(120) | "Sinal 30%", "Saldo 70%" |
 | `valor_moeda_centesimos` | BIGINT | `> 0` |
 | `vencimento_previsto` | DATE | |
+| `status` | VARCHAR(14) | `aberta`, `cambio_fechado`, `cancelada` |
 | `cambio_micro` | BIGINT NULL | preenchido ao fechar o câmbio |
 | `valor_centavos` | BIGINT NULL | `round(valor_moeda × câmbio)`, gravado ao fechar o câmbio |
-| `solicitacao_id` | UUID NULL | FK `solicitacao`: conta a pagar gerada ao fechar o câmbio |
-| `criado_em`, `atualizado_em` | TIMESTAMPTZ | |
+| `vencimento` | DATE NULL | vencimento da conta a pagar, informado ao fechar o câmbio |
+| `solicitacao_id` | UUID NULL | FK `solicitacao`, única: conta a pagar gerada ao fechar o câmbio |
+| `usuario_id`, `criado_em`, `atualizado_em` | | |
 
-- Σ parcelas na moeda ≤ Σ itens na moeda (conferido no usecase; menor é permitido enquanto a
-  importação não é recebida).
+- Σ parcelas ativas na moeda ≤ Σ itens na moeda (conferido no domínio, inclusive ao alterar os itens).
 - Parcela com câmbio fechado é imutável; desfazer = cancelar a conta a pagar no M7 e reabrir a parcela
-  (só se a solicitação estiver `cancelada` ou `rejeitada`).
+  (só se a solicitação estiver `cancelado` ou `rejeitado`): a parcela vira `cancelada` e nasce outra `aberta`.
 
 ### 2.4 `importacao_custo` — nacionalização (D3, D4)
 
@@ -107,7 +109,9 @@
 | `vencimento` | DATE | |
 | `compoe_custo` | BOOLEAN | entra no rateio do custo do produto (D4) |
 | `categoria_financeira_id` | UUID | lançável, natureza `despesa` (sugerida: `compra_mercadoria`) |
-| `solicitacao_id` | UUID | FK `solicitacao`: conta a pagar gerada na mesma transação |
+| `solicitacao_id` | UUID | FK `solicitacao`, única: conta a pagar gerada na mesma transação |
+| `posterior` | BOOLEAN | lançado depois do recebimento; nunca compõe o custo |
+| `cancelado_em`, `cancelado_por` | | preenchidos juntos ao cancelar |
 | `usuario_id`, `criado_em` | | |
 
 - Custo lançado depois do recebimento não muda o lote (lote é imutável, M2): é gravado com
@@ -132,8 +136,9 @@
 ### 2.6 `importacao_historico`
 
 Append-only, como `pedido_historico`: `importacao_id`, `acao` (`criada`, `alterada`, `embarcada`,
-`desembaracada`, `recebida`, `cancelada`, `parcela_cambio_fechado`, `parcela_reaberta`, `custo_lancado`,
-`alocacao_alterada`), `status_anterior`, `status_novo`, `usuario_id`, `detalhe`, `criado_em`.
+`desembaracada`, `recebida`, `cancelada`, `parcela_incluida`, `parcela_alterada`, `parcela_removida`,
+`parcela_cambio_fechado`, `parcela_reaberta`, `custo_lancado`, `custo_cancelado`, `alocacao_alterada`),
+`status_anterior`, `status_novo`, `usuario_id`, `detalhe`, `criado_em`.
 
 ### 2.7 `importacao_sequencia`
 
@@ -167,7 +172,8 @@ estimada) na mesma transação, por `gerarSolicitacaoDeOrigem`.
 ### 3.3 Custos (D3)
 
 `POST /importacoes/{id}/custos` grava o custo e a conta a pagar (`origem = importacao_custo`) na mesma
-transação. Remover custo só com a conta a pagar `cancelada`/`rejeitada` e antes do recebimento.
+transação. Cancelar o custo (marca `cancelado_em`, não apaga) só com a conta a pagar `cancelado`/`rejeitado`;
+depois do recebimento, só o custo que não entrou no lote.
 
 ### 3.4 Recebimento (D1, D5, D7)
 
@@ -213,12 +219,12 @@ GET    /api/v1/importacoes/{id}/historico
 
 POST   /api/v1/importacoes/{id}/parcelas                    { versao, descricao, valor_moeda_centesimos, vencimento_previsto }
 PUT    /api/v1/importacoes/{id}/parcelas/{parcela_id}       antes do câmbio
-DELETE /api/v1/importacoes/{id}/parcelas/{parcela_id}       antes do câmbio
+DELETE /api/v1/importacoes/{id}/parcelas/{parcela_id}?versao=   antes do câmbio
 POST   /api/v1/importacoes/{id}/parcelas/{parcela_id}/cambio    { versao, cambio_micro, vencimento, categoria_financeira_id }
 POST   /api/v1/importacoes/{id}/parcelas/{parcela_id}/reabrir   { versao } com a conta a pagar cancelada ou rejeitada
 
 POST   /api/v1/importacoes/{id}/custos                      { versao, tipo, descricao, fornecedor_id, valor_centavos, vencimento, compoe_custo, categoria_financeira_id }
-DELETE /api/v1/importacoes/{id}/custos/{custo_id}           com a conta a pagar cancelada ou rejeitada
+POST   /api/v1/importacoes/{id}/custos/{custo_id}/cancelar  { versao } com a conta a pagar cancelada ou rejeitada
 
 PUT    /api/v1/importacoes/{id}/alocacoes                   { versao, alocacoes: [{ importacao_item_id, pedido_item_id, quantidade }] } (comercial ou financeiro)
 GET    /api/v1/importacoes/{id}/custo-previsto              ?cambio_micro= — prévia do rateio sem gravar
@@ -315,7 +321,7 @@ seção 3 do `ROADMAP.md`).
 | Fase | Entrega | Estado |
 |---|---|---|
 | **1** | Importação e itens (migration 000064): domínio, estados até `desembaracada`, cancelamento, repositório com sequência e histórico, usecase com escopo por empresa, rotas, e2e + `API.md` | concluída |
-| **2** | Parcelas, câmbio e custos com conta a pagar no M7 (migration 000065), cancelamento com conta gerada, prévia do custo; integração de idempotência; e2e + `API.md` | pendente |
+| **2** | Parcelas, câmbio e custos com conta a pagar no M7 (migration 000065), cancelamento com conta gerada, prévia do custo; integração de idempotência; e2e + `API.md` | concluída |
 | **3** | Alocação de pedidos (migration 000066), recebimento com entrada, lote e reserva na mesma transação; integração de concorrência com entrega; e2e + `API.md` | pendente |
 | **4** | Alertas e `GET /pedidos/{id}/importacoes`; e2e + `API.md` | pendente |
 | **5** | Frontend (lista, detalhe, parcelas, custos, recebimento, alertas) | pendente |
@@ -347,6 +353,24 @@ Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates ve
 - [x] **Fase 1 — moeda na alteração** (implementação): moeda vazia mantém a da importação (ou a padrão do
       fornecedor novo, quando ele é trocado com a importação aberta); fornecedor e produto já gravados não
       são conferidos de novo, e a troca de fornecedor trava o novo com `FOR SHARE` na transação.
+- [x] **Fase 2 — parcelas e custos no agregado** (implementação): parcelas e custos são lidos com a importação
+      (`Importacao.Parcelas`, `Importacao.Custos`, com o status da conta a pagar por `JOIN` em `solicitacao`) e
+      toda operação passa pela guarda de `versao` da importação, que serializa as escritas. Nenhum método novo
+      no port nem no repositório do M7: a conta a pagar nasce por `gerarSolicitacaoDeOrigem` na transação do M12.
+- [x] **Fase 2 — reabrir sem apagar** (implementação): o `uq_solicitacao_origem` impede uma segunda conta com a
+      mesma `origem_id`, então reabrir a parcela a marca `cancelada` (guardando a conta antiga) e cria outra
+      `aberta`; o custo é cancelado por marca (`cancelado_em`), rota `POST .../custos/{custo_id}/cancelar` em vez
+      do `DELETE` previsto. Só a parcela `aberta` é apagada de verdade (`DELETE ...?versao=`): não tem conta.
+- [x] **Fase 2 — conferência das contas na transação** (implementação): cancelar a importação, reabrir parcela
+      e cancelar custo travam as solicitações envolvidas com `FOR SHARE` e recusam (`409`) se alguma não estiver
+      `cancelado` ou `rejeitado`, além da checagem do domínio.
+- [x] **Fase 2 — arredondamento** (implementação): valor em reais = centésimos × `cambio_micro` ÷ 10⁶, meio
+      para cima, em `math/big`; a mercadoria é dividida pelos itens com piso e o resto no último item com peso; os
+      custos, pelo valor em reais dos itens com quantidade (pela quantidade quando tudo vale zero); custo
+      unitário arredondado meio para cima. Importação em `BRL` usa câmbio 1.
+- [x] **Fase 2 — padrões** (implementação): `compoe_custo` vem `true` quando omitido (D4); descrição vazia do
+      custo usa o nome do tipo; a observação da conta a pagar é "importação N — descrição". O custo previsto é só
+      do financeiro e calcula com as quantidades da importação (o recebimento usará as recebidas).
 - [x] **Fase 1 — embarque** (implementação): o embarque exige a chegada prevista; se ela ficar antes do
       embarque previsto antigo, o embarque previsto é limpo (a previsão perdeu o sentido).
 
