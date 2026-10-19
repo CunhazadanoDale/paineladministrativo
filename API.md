@@ -1967,7 +1967,7 @@ proposta.
 | `GET` | `/api/v1/pedidos` | autenticado | `200` lista paginada sem itens (`?empresa=`, `?cliente=`, `?representante=`, `?status=`, `?modelo=`, `?numero=`) |
 | `GET` | `/api/v1/pedidos/{id}` | autenticado | `200` detalhe com itens, reservado e falta cobrir por item e reservas ativas |
 | `PUT` | `/api/v1/pedidos/{id}` | **comercial** | `200`; só em `proposta`; corpo do `POST` sem `empresa_id` e com `versao` |
-| `POST` | `/api/v1/pedidos/{id}/confirmar` | **comercial** | `200`; corpo `{ "versao": n }` |
+| `POST` | `/api/v1/pedidos/{id}/confirmar` | **comercial** | `200`; corpo `{ "versao": n }`; proposta vencida → `409` |
 | `POST` | `/api/v1/pedidos/{id}/entrada` | **financeiro** | `200`; corpo `{ "versao", "pago_em", "valor_centavos" }` |
 | `POST` | `/api/v1/pedidos/{id}/reservar-pendencias` | **comercial** | `200`; corpo `{ "versao": n }` |
 | `POST` | `/api/v1/pedidos/{id}/cancelar` | **comercial** | `200`; corpo `{ "versao", "motivo", "valor_a_devolver_centavos" }` |
@@ -1992,6 +1992,11 @@ Corpo do `POST /pedidos`:
   "obra_id": "…",
   "representante_id": "…",
   "modelo": "pronta_entrega",
+  "entrada_bp": 0,
+  "prazo_boleto_dias": 28,
+  "validade": "2026-11-02",
+  "frete_tipo": "cif",
+  "frete_estimado_centavos": 18000,
   "prazo_limite": "2026-12-20",
   "numero_pedido_cliente": "OC-778",
   "observacoes": "",
@@ -2005,12 +2010,15 @@ Corpo do `POST /pedidos`:
 | `cliente_id` | obrigatório; cliente ativo ao criar ou trocar (`400 cliente inativo não recebe pedido novo`) |
 | `obra_id` | opcional; obra do mesmo cliente e ativa ao escolher (`400 obra não encontrada para o cliente do pedido`) |
 | `representante_id` | opcional; sem ele vale o representante do cliente; ativo ao atribuir; representante com login só em nome próprio (`403`) |
-| `modelo` | `pronta_entrega` ou `importacao`; define a condição gravada no pedido |
+| `modelo` | `pronta_entrega` ou `importacao`; define a condição padrão gravada no pedido |
+| `entrada_bp`, `prazo_boleto_dias`, `prazo_entrega_dias` | opcionais; sobrescrevem a condição padrão do modelo enquanto o pedido é proposta (o que não vier fica com o padrão). Entrada `0..10000`; prazo do boleto `1..365`; prazo de entrega `1..730`, só na importação (`400` na pronta entrega) |
+| `validade` | data `AAAA-MM-DD` da proposta, não anterior a hoje; sem ela, **hoje + 15 dias** (também no `PUT`, que assim renova a proposta) |
+| `frete_tipo`, `frete_estimado_centavos` | opcionais; frete **estimado** da proposta (`cif` exige valor). Informativo: não soma a `valor_total_centavos`; o frete real continua na entrega |
 | `prazo_limite` | data `AAAA-MM-DD`, opcional, só na pronta entrega; na importação é calculado pela entrada paga (`400`) |
 | `numero_pedido_cliente` | opcional, até 60 (número de compra do cliente) |
-| `itens` | pelo menos um; produto ativo ao incluir e sem repetir no pedido; `quantidade > 0`; `preco_unitario_centavos >= 0` (o front sugere `produto.preco`) |
+| `itens` | pelo menos um; produto ativo ao incluir e sem repetir no pedido; `quantidade > 0`; `preco_unitario_centavos >= 0` (o front sugere o preço de `GET /tabela-precos/vigentes`). A API grava em cada item o `preco_tabela_centavos` vigente hoje (tabela de preço do modelo ou, sem ela, `produto.preco`) |
 
-Condição gravada pelo modelo, devolvida em `condicao`:
+Condição padrão de cada modelo, devolvida em `condicao` quando a proposta não a sobrescreve:
 
 | `modelo` | `entrada_bp` | `prazo_boleto_dias` | `prazo_entrega_dias` |
 | --- | --- | --- | --- |
@@ -2018,9 +2026,13 @@ Condição gravada pelo modelo, devolvida em `condicao`:
 | `importacao` | `3000` (30%) | `null` | `120`, contados da entrada paga |
 
 A resposta traz `numero` (sequencial por empresa), `status`, `valor_total_centavos`, `condicao`,
+`validade`, `vencida` (proposta com validade anterior a hoje; sempre `false` fora de `proposta`),
+`revisao` (começa em 1 e sobe a cada `PUT` da proposta), `frete_tipo`, `frete_estimado_centavos`,
 `prazo_limite`, `entrada_paga_em`, `entrada_paga_centavos`, `cancelado_motivo`,
-`valor_a_devolver_centavos`, `versao` e `itens` (`subtotal_centavos`, `quantidade_entregue` e
-`restante`). No `GET /pedidos/{id}` cada item traz também `reservado` e `falta_cobrir`, e o pedido
+`valor_a_devolver_centavos`, `versao` e `itens` (`preco_tabela_centavos`, `desconto_unitario_centavos`
+= tabela − preço, negativo quando vendido acima da tabela, `subtotal_centavos`, `quantidade_entregue`
+e `restante`). Proposta vencida não confirma (`409 proposta vencida em DD/MM/AAAA; renove a validade
+antes de confirmar`): renove com um `PUT` que traga validade nova ou nenhuma. No `GET /pedidos/{id}` cada item traz também `reservado` e `falta_cobrir`, e o pedido
 traz `reservas` (mesmo formato de `GET /produtos/{id}/reservas`, com `origem = pedido_item`).
 Datas só-data (`prazo_limite`, `entrada_paga_em`, `previsao`, `saiu_em`, `entregue_em`) chegam como
 meia-noite UTC e são aceitas como `AAAA-MM-DD`. "Hoje" (data padrão, data no futuro, prazos e

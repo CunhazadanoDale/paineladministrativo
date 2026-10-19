@@ -166,7 +166,7 @@ test/helpers + test/integration + test/e2e
 | Fase | Entrega | Estado |
 |---|---|---|
 | **1** | Tabela de preço: migration 000057, domínio, repositório, usecase, rotas, preço vigente, integração, e2e + `API.md` | concluída |
-| **2** | Proposta: migration 000058, validade, condições editáveis, frete, revisão, `preco_tabela_centavos` nos itens, confirmar recusando vencida, e2e + `API.md` | pendente |
+| **2** | Proposta: migration 000058, validade, condições editáveis, frete, revisão, `preco_tabela_centavos` nos itens, confirmar recusando vencida, e2e + `API.md` | concluída |
 | **3** | Documento da proposta (`GET /pedidos/{id}/proposta`) e `GET /modelos-venda` | pendente |
 | **4** | Frontend: tabela de preço, preço sugerido no pedido, campos da proposta e página de impressão | pendente |
 
@@ -179,6 +179,12 @@ Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates ve
 - [x] **Proposta é o pedido em `proposta`** (M6); aceitar = confirmar (ROADMAP, seção 5).
 - [x] **Vitrine pública continua com `produto.preco`** (ROADMAP, seção 5).
 - [x] **Preço por produto e modelo de venda, com vigência** (ROADMAP, seção 5).
+- [x] **`PUT` sem validade renova** (fase 2): o `PUT` substitui os editáveis da proposta, então sem
+      `validade` ela volta a hoje + 15 dias; para manter, o front reenvia a validade lida.
+- [x] **Prazo de entrega em dias só na importação** (fase 2): na pronta entrega o prazo é o
+      `prazo_limite` digitado; `prazo_entrega_dias` lá responde `400`.
+- [x] **Preço de tabela recalculado a cada `PUT`** (fase 2): o item guarda o preço vigente no dia da
+      última alteração da proposta, pela mesma regra de `GET /tabela-precos/vigentes`.
 - [x] **D1 — Tabela do grupo ou por empresa.** Decidido: **do grupo** (o produto e o estoque de
       catálogo já são do grupo; MIA, Red e Gigante vendem pela mesma tabela). Alternativa: tabela por
       empresa (`empresa_id` na vigência), se cada CNPJ praticar preço próprio.
