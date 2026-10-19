@@ -91,6 +91,7 @@ func NewRouter(
 	saldoCaixaUseCase portsincaixa.SaldoUseCase,
 	conciliacaoUseCase portsincaixa.ConciliacaoUseCase,
 	lancamentoCaixaUseCase portsincaixa.LancamentoCaixaUseCase,
+	fechamentoCaixaUseCase portsincaixa.FechamentoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, middleware.ErrosDeRoteamento(novasRotas(
@@ -118,6 +119,7 @@ func NewRouter(
 		aberturaCaixaUseCase, extratoUseCase, saldoCaixaUseCase,
 		conciliacaoUseCase,
 		lancamentoCaixaUseCase,
+		fechamentoCaixaUseCase,
 		tokens,
 	)))
 }
@@ -172,6 +174,7 @@ func novasRotas(
 	saldoCaixaUseCase portsincaixa.SaldoUseCase,
 	conciliacaoUseCase portsincaixa.ConciliacaoUseCase,
 	lancamentoCaixaUseCase portsincaixa.LancamentoCaixaUseCase,
+	fechamentoCaixaUseCase portsincaixa.FechamentoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -552,6 +555,13 @@ func novasRotas(
 	financeiro("POST /api/v1/extratos/lancamentos/{id}/transferencia", lancamentoCaixaHandler.Transferir)
 	financeiro("GET /api/v1/caixa/lancamentos", lancamentoCaixaHandler.Listar)
 	financeiro("GET /api/v1/caixa/transferencias", lancamentoCaixaHandler.ListarTransferencias)
+
+	fechamentoCaixaHandler := caixahandlers.NewFechamentoHandler(fechamentoCaixaUseCase)
+	financeiro("GET /api/v1/caixa/fechamentos/previa", fechamentoCaixaHandler.Previa)
+	financeiro("POST /api/v1/caixa/fechamentos", fechamentoCaixaHandler.Fechar)
+	financeiro("GET /api/v1/caixa/fechamentos", fechamentoCaixaHandler.Listar)
+	financeiro("GET /api/v1/caixa/fechamentos/{id}", fechamentoCaixaHandler.Obter)
+	administrador("POST /api/v1/caixa/fechamentos/{id}/reabrir", fechamentoCaixaHandler.Reabrir)
 
 	return mux
 }

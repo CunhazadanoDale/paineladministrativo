@@ -317,3 +317,67 @@ func TestListarLancamentosDeCaixaLeOsFiltros(t *testing.T) {
 	invalida := executaProtegido(t, handler.Listar, http.MethodGet, "/api/v1/caixa/lancamentos?empresa=x", "", "")
 	apoioteste.VerificarEnvelopeDeErro(t, invalida, http.StatusBadRequest)
 }
+
+type fechamentoUseCaseFalso struct {
+	portsin.FechamentoUseCase
+	previa portsin.PreviaInput
+	fechar portsin.FecharInput
+}
+
+func (f *fechamentoUseCaseFalso) Previa(_ context.Context, input portsin.PreviaInput) (*domaincaixa.PreviaFechamento, error) {
+	f.previa = input
+	banco := int64(130000)
+
+	return &domaincaixa.PreviaFechamento{
+		ContaBancariaID: input.ContaBancariaID, Competencia: input.Competencia, SaldoInicialCentavos: 100000,
+		MovimentoDoMes: domaincaixa.MovimentoDoMes{EntradasCentavos: 30000, SaldoBancoCentavos: &banco},
+	}, nil
+}
+
+func (f *fechamentoUseCaseFalso) Fechar(_ context.Context, input portsin.FecharInput) (*portsin.DetalheFechamento, error) {
+	f.fechar = input
+
+	return &portsin.DetalheFechamento{Fechamento: &domaincaixa.Fechamento{
+		ID: uuid.New(), ContaBancariaID: input.ContaBancariaID, Competencia: input.Competencia, Vigente: true,
+	}}, nil
+}
+
+func TestPreviaDoFechamentoLeContaECompetencia(t *testing.T) {
+	usecase := &fechamentoUseCaseFalso{}
+	handler := NewFechamentoHandler(usecase)
+	contaID := uuid.New()
+
+	registrador := executaProtegido(t, handler.Previa, http.MethodGet, "/api/v1/caixa/fechamentos/previa?conta="+contaID.String()+"&competencia=2026-09", "", "")
+	corpo := registrador.Body.String()
+	if registrador.Code != http.StatusOK || !strings.Contains(corpo, `"competencia":"2026-09"`) || !strings.Contains(corpo, `"pode_fechar":true`) ||
+		!strings.Contains(corpo, `"saldo_final_centavos":130000`) || !strings.Contains(corpo, `"movimentos_sem_linha":[]`) {
+		t.Fatalf("status %d: %s", registrador.Code, corpo)
+	}
+	if usecase.previa.ContaBancariaID != contaID || usecase.previa.Competencia.Month() != time.September {
+		t.Errorf("input = %+v", usecase.previa)
+	}
+
+	semConta := executaProtegido(t, handler.Previa, http.MethodGet, "/api/v1/caixa/fechamentos/previa?competencia=2026-09", "", "")
+	apoioteste.VerificarEnvelopeDeErro(t, semConta, http.StatusBadRequest)
+	competenciaInvalida := executaProtegido(t, handler.Previa, http.MethodGet, "/api/v1/caixa/fechamentos/previa?conta="+contaID.String()+"&competencia=09/2026", "", "")
+	apoioteste.VerificarEnvelopeDeErro(t, competenciaInvalida, http.StatusBadRequest)
+}
+
+func TestFecharLeOCorpo(t *testing.T) {
+	usecase := &fechamentoUseCaseFalso{}
+	handler := NewFechamentoHandler(usecase)
+	contaID := uuid.New()
+
+	registrador := executaProtegido(t, handler.Fechar, http.MethodPost, "/api/v1/caixa/fechamentos", "",
+		`{"conta_bancaria_id":"`+contaID.String()+`","competencia":"2026-09","saldo_banco_centavos":130000}`)
+	if registrador.Code != http.StatusCreated || !strings.Contains(registrador.Body.String(), `"vigente":true`) {
+		t.Fatalf("status %d: %s", registrador.Code, registrador.Body.String())
+	}
+	if usecase.fechar.ContaBancariaID != contaID || usecase.fechar.SaldoBancoCentavos == nil || *usecase.fechar.SaldoBancoCentavos != 130000 {
+		t.Errorf("input = %+v", usecase.fechar)
+	}
+
+	invalido := executaProtegido(t, handler.Fechar, http.MethodPost, "/api/v1/caixa/fechamentos", "",
+		`{"conta_bancaria_id":"`+contaID.String()+`","competencia":"setembro"}`)
+	apoioteste.VerificarEnvelopeDeErro(t, invalido, http.StatusBadRequest)
+}
