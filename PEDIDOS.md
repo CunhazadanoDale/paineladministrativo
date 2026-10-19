@@ -1,6 +1,6 @@
 # Escopo — M6 Pedidos de venda e entregas
 
-> **Status:** API concluída (fases 1 a 5); front (fase 6) pendente, depois do F0a.
+> **Status:** API e front concluídos (fases 1 a 6).
 > **Objetivo:** tirar "Vendas futuras", "Entregas de importação" e "Pendências de envio" das
 > planilhas: pedido de venda por empresa, com reserva de estoque, entregas parciais que baixam o
 > estoque e consultas de pendência, prazo e cancelamento. Base para NF-e (M8), comissões (M10),
@@ -262,7 +262,7 @@ Numeração de migration definida no merge (regra 4 da seção 3 do `ROADMAP.md`
 | **3** | Usecases + permissões (escopo por empresa, representante com login) + testes com fakes e de isolamento | concluída |
 | **4** | Handlers/DTOs + rotas + e2e + `API.md` | concluída |
 | **5** | Consultas de pendências, prazos e cancelamentos + testes + `API.md` | concluída |
-| **6** | Frontend: pedidos, confirmação, entregas e consultas (depois do F0a) | pendente |
+| **6** | Frontend: pedidos, confirmação, entregas e consultas (depois do F0a) | concluída |
 
 ---
 

@@ -1,7 +1,7 @@
 # Escopo — M7 Contas a pagar
 
 > **Status:** escopo fechado — decisões D1 a D6 respondidas pelo usuário (outubro/2026); API
-> concluída (fases 1 a 5); front (fase 6) pendente.
+> e front concluídos (fases 1 a 6).
 > **Objetivo:** tirar o "painel financeiro (contas a pagar)" da planilha: a solicitação de
 > pagamento passa a ser a conta a pagar do grupo, com fornecedor (M4), categoria financeira e
 > conta bancária (M5), competência, recorrência, adiamento, edição, estorno e visões de
@@ -315,7 +315,7 @@ para a branch estar sempre mergeável.
 | **3** | Pagamento com conta bancária obrigatória e exigência de classificação; estorno e `GET /pagamentos` (migration 000042). Quebra o modal de pagamento do front atual até a fase 6 | concluída |
 | **4** | Despesas recorrentes: CRUD + geração idempotente (migration 000043), isolamento por empresa | concluída |
 | **5** | Visões: resumo por semana/empresa e contador de pendências | concluída |
-| **6** | Frontend (depois do F0a): campos novos no formulário, classificação, adiar, estorno, recorrências, resumo e badge | pendente |
+| **6** | Frontend (depois do F0a): campos novos no formulário, classificação, adiar, estorno, recorrências, resumo e badge | concluída |
 
 ---
 

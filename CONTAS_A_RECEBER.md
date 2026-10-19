@@ -1,7 +1,7 @@
 # Escopo — M9 Contas a receber e antecipação
 
-> **Status:** escopo fechado — decisões D1 a D6 respondidas pelo usuário (outubro/2026); API concluída
-> (fases 1 a 5); front (fase 6) pendente, depois do F0a.
+> **Status:** escopo fechado — decisões D1 a D6 respondidas pelo usuário (outubro/2026); API e front
+> concluídos (fases 1 a 6).
 > **Objetivo:** tirar "A receber no banco" e os títulos do "Controle de NFs" das planilhas: título a
 > receber por empresa e cliente, com cobrança em banco, envio de boleto, baixa total ou parcial,
 > antecipação em borderô com fomento, recompra e repasse de pagamento feito na conta errada. Base
@@ -418,7 +418,7 @@ test/helpers + test/integration + test/e2e
 | **3** | Baixa: recebimento total e parcial, estorno, registro da entrada paga do pedido na mesma transação (migration 000048) | concluída |
 | **4** | Antecipação: borderô, estorno, recompra e repasse ao fomento com a conta a pagar do M7 na mesma transação (migrations 000049–000050) | concluída |
 | **5** | Visões: resumo por semana/empresa e alerta de boleto não enviado | concluída |
-| **6** | Frontend (depois do F0a): títulos, baixa, borderô, recompra, resumo e alertas | pendente |
+| **6** | Frontend (depois do F0a): títulos, baixa, borderô, recompra, resumo e alertas | concluída |
 
 Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates verdes.
 
