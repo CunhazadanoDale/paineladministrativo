@@ -82,3 +82,37 @@ func TestConfirmarRecusaPropostaVencida(t *testing.T) {
 	_, err := c.pedidos.Confirmar(c.ctx, portsin.TransicaoPedidoInput{UsuarioID: c.comercial, PedidoID: pedido.ID, Versao: pedido.Versao})
 	esperarErroDaProposta(t, err, domain.ErrConflito, "proposta vencida em")
 }
+
+func TestDocumentoDaPropostaJuntaAsPartesDoPedido(t *testing.T) {
+	c := novoCenario(t)
+	c.m.empresas[c.mia].RazaoSocial = "MIA Materiais Ltda"
+	numero := "120"
+	c.obra.Endereco.Logradouro, c.obra.Endereco.Numero, c.obra.Endereco.Cidade = "Rua das Flores", &numero, "João Pessoa"
+	dados := c.dados()
+	dados.ObraID = &c.obra.ID
+	pedido := c.criar(t, c.comercial, c.mia, dados)
+
+	documento, err := c.pedidos.Documento(c.ctx, pedido.ID, c.operador)
+	if err != nil {
+		t.Fatalf("Documento: %v", err)
+	}
+	if documento.Empresa.RazaoSocial != "MIA Materiais Ltda" || documento.Cliente.Nome != "Construtora Alfa" || documento.Numero != pedido.Numero {
+		t.Fatalf("documento = %+v", documento)
+	}
+	if documento.Obra == nil || documento.Obra.Endereco != "Rua das Flores, 120 — João Pessoa" {
+		t.Fatalf("obra = %+v", documento.Obra)
+	}
+	if documento.Representante == nil || documento.Representante.ID != c.outroRepresentante.ID {
+		t.Fatalf("representante = %+v", documento.Representante)
+	}
+	if len(documento.Itens) != 2 || documento.Itens[0].Nome != "Cimento CP II" || len(documento.Condicoes) == 0 {
+		t.Fatalf("itens e condições = %+v / %v", documento.Itens, documento.Condicoes)
+	}
+
+	_, err = c.pedidos.Documento(c.ctx, pedido.ID, c.comercialRed)
+	esperarErroDaProposta(t, err, domain.ErrPermissao, "sem acesso a esta empresa")
+
+	if modelos := c.pedidos.ModelosDeVenda(c.ctx); len(modelos) != 2 {
+		t.Fatalf("modelos = %+v", modelos)
+	}
+}

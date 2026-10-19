@@ -76,6 +76,21 @@ func (f *pedidoUseCaseFalso) ListarHistorico(context.Context, uuid.UUID, uuid.UU
 	return nil, f.erro
 }
 
+func (f *pedidoUseCaseFalso) Documento(context.Context, uuid.UUID, uuid.UUID) (*domainpedido.DocumentoProposta, error) {
+	if f.erro != nil {
+		return nil, f.erro
+	}
+
+	return domainpedido.NovoDocumentoProposta(f.pedido, domainpedido.PartesDoDocumento{
+		Empresa: domainpedido.EmpresaDoDocumento{RazaoSocial: "MIA Materiais Ltda"},
+		Cliente: domainpedido.ClienteDoDocumento{Nome: "Construtora Alfa"},
+	}, time.Now().UTC())
+}
+
+func (f *pedidoUseCaseFalso) ModelosDeVenda(context.Context) []domainpedido.ModeloDeVenda {
+	return domainpedido.ModelosDeVenda()
+}
+
 var _ portsin.PedidoUseCase = (*pedidoUseCaseFalso)(nil)
 
 func pedidoDeTeste(t *testing.T) *domainpedido.Pedido {

@@ -89,5 +89,7 @@ type PedidoUseCase interface {
 	RegistrarEntrada(ctx context.Context, input RegistrarEntradaInput) (*domainpedido.Pedido, error)
 	Cancelar(ctx context.Context, input CancelarPedidoInput) (*domainpedido.Pedido, error)
 	ObterComReservas(ctx context.Context, pedidoID, usuarioID uuid.UUID) (*domainpedido.Pedido, []*domainestoque.Reserva, error)
+	Documento(ctx context.Context, pedidoID, usuarioID uuid.UUID) (*domainpedido.DocumentoProposta, error)
+	ModelosDeVenda(ctx context.Context) []domainpedido.ModeloDeVenda
 	ListarHistorico(ctx context.Context, pedidoID, usuarioID uuid.UUID) ([]*domainpedido.Historico, error)
 }
