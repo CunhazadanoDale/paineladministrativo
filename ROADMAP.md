@@ -151,7 +151,7 @@ o **F0b** pode correr junto com essas telas.
 | F-M7 | Front de contas a pagar | M7 F-M4 F-M5 | — | concluído |
 | F-M9 | Front de contas a receber e antecipação | M9 F-M3 F-M5 | — | concluído |
 | F-M8 | Front de NF-e por XML | M8 F-M6 F-M9 | — | concluído |
-| F-M10 | Front de comissões | M10 F-M6 F-M7 | — | em andamento (feat/front-m10-comissoes) |
+| F-M10 | Front de comissões | M10 F-M6 F-M7 | — | concluído |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
 | M3 | Clientes e representantes | M1 | Base de clientes | concluído |
@@ -575,6 +575,27 @@ próximos fronts:
 - `notasUtils`: `dataEmBrasilia`/`dataHoraEmBrasilia`, `formatarDocumento`, `formatarChave`,
   `formatarQuantidade`, `descricaoDaEntrega`.
 
+**Entregue o front do M10 (outubro/2026, branch `feat/front-m10-comissoes` do front):** módulo novo
+`modules/comissoes`. Para os próximos fronts (M11, M12–M15):
+
+- `services/comissoes.js` (percentual do pedido, apuração, pendências, comissões, ajustes, fechamentos e
+  resumo; `aberta`/`aberto` vão como `true`/`false` e somem quando vazios; a primeira definição do
+  percentual vai sem `versao`) e `definirFornecedorDoRepresentante` em `services/representantes.js`;
+- no detalhe do pedido, o painel "Comissão do representante" (comercial e financeiro): percentual vigente
+  ou padrão com a origem, e "Alterar percentual" do comercial só antes da primeira saída; na tela de
+  representantes, o administrador vê e define o fornecedor que recebe as comissões;
+- `/comissoes` com abas reaproveitando o `useConsulta` dos pedidos: comissões, ajustes (lançamento com
+  tipo acréscimo/desconto e valor sempre positivo na tela), fechamentos (fechar a competência com
+  categoria de despesa e representante opcional, resultado com fechados e falhas por representante; conta
+  a pagar com link para a solicitação), resumo da competência e, só para o financeiro, pendências de
+  apuração e o botão "Apurar" (resultado, falhas e aviso de entregas restantes);
+- `/comissoes/fechamentos/:id` com as comissões e os ajustes do fechamento;
+- o login não diz se o usuário é representante: quem não é financeiro vê a mesma tela como "Minhas
+  comissões" (a API filtra) e a recusa da API aparece com nova tentativa; a Sidebar mostra "Comissões"
+  ao financeiro e "Minhas Comissões" ao comercial sem financeiro;
+- `comissoesUtils`: mês corrente e anterior em Brasília, texto da apuração e o carregamento dos
+  representantes para os filtros.
+
 ### M1 — Empresas e filiais
 
 Fundação: tudo o que é financeiro, fiscal ou de estoque passa a pertencer a uma empresa.
@@ -921,8 +942,7 @@ Acordo fechado (outubro/2026) para as duas sessões correrem em paralelo:
   status `a_pagar`/`paga`), fechamento mensal com data de pagamento (dia 15).
 - **Efeito**: fechamento gera a solicitação de pagamento no M7.
 
-**Entregue (outubro/2026):** API completa (fases 1 a 4 do `COMISSOES.md`); front pendente (fase 5),
-depois do F0a. Para os próximos módulos:
+**Entregue (outubro/2026):** API completa (fases 1 a 4 do `COMISSOES.md`); front no F-M10. Para os próximos módulos:
 
 - comissão nasce na **saída** da entrega, uma por entrega (`uq_comissao_entrega`), por apuração
   idempotente (`POST /comissoes/apurar`) que não mexe no fluxo do M6; base = preço × quantidade dos

@@ -1,7 +1,7 @@
 # Escopo — M10 Comissões
 
 > **Status:** escopo fechado — decisões D1 a D8 respondidas pelo usuário (outubro/2026): todas as
-> recomendações aceitas; API concluída (fases 1 a 4); front (fase 5) pendente.
+> recomendações aceitas; API e front concluídos (fases 1 a 5).
 > **Objetivo:** tirar o cálculo de comissões da mão: comissão do representante apurada pela saída das
 > entregas do pedido (M6), proporcional ao entregue, com ajustes, fechamento mensal por representante
 > e empresa, e a conta a pagar do fechamento gerada no M7 com vencimento no dia 15. Base para a linha
@@ -243,7 +243,7 @@ test/helpers + test/integration + test/e2e
 | **2** | Ajustes (migration 000054): domínio, usecase, repositório, `POST/GET /comissoes/ajustes`, integração, e2e + `API.md` | concluída |
 | **3** | Fechamento com conta a pagar no M7 na mesma transação, `representante.fornecedor_id` (migration 000055), `PUT /representantes/{id}/fornecedor`, filtros de abertas, integração, e2e + `API.md` | concluída |
 | **4** | Resumo por representante (`GET /comissoes/resumo`) e visão do representante com login, integração, e2e + `API.md` | concluída |
-| **5** | Frontend (percentual no pedido, apuração, ajustes, fechamento, "minhas comissões") | pendente |
+| **5** | Frontend (percentual no pedido, apuração, ajustes, fechamento, "minhas comissões") | concluída |
 
 Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates verdes.
 
