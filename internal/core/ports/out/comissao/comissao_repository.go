@@ -15,6 +15,7 @@ type EntregaFiltro struct {
 	Empresa      *uuid.UUID
 	EmpresaIDs   []uuid.UUID
 	SaidaAntesDe *time.Time
+	IgnorarIDs   []uuid.UUID
 }
 
 type ComissaoFiltro struct {
@@ -51,6 +52,13 @@ type FechamentoFiltro struct {
 	Competencia     *domaincomissao.Competencia
 }
 
+type ResumoFiltro struct {
+	Competencia     domaincomissao.Competencia
+	Empresa         *uuid.UUID
+	EmpresaIDs      []uuid.UUID
+	RepresentanteID *uuid.UUID
+}
+
 type GravacaoFechamento struct {
 	Fechamento  *domaincomissao.Fechamento
 	Solicitacao *domainsolicitacao.Solicitacao
@@ -70,4 +78,5 @@ type ComissaoRepository interface {
 	ObterFechamento(ctx context.Context, id uuid.UUID) (*domaincomissao.Fechamento, error)
 	ListarFechamentos(ctx context.Context, filtro FechamentoFiltro) ([]*domaincomissao.Fechamento, error)
 	ItensDoFechamento(ctx context.Context, fechamentoID uuid.UUID) ([]*domaincomissao.Comissao, []*domaincomissao.Ajuste, error)
+	Resumo(ctx context.Context, filtro ResumoFiltro) ([]domaincomissao.LinhaResumo, error)
 }

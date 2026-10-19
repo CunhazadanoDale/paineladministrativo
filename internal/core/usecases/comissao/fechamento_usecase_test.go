@@ -8,6 +8,7 @@ import (
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	domaincomissao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/comissao"
 	domainfinanceiro "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/financeiro"
+	domainpedido "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/pedido"
 	domainsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/solicitacao"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/comissao"
 	"github.com/google/uuid"
@@ -214,4 +215,53 @@ func TestFechamentoVisivelSoAoRepresentanteDono(t *testing.T) {
 	}
 	_, err = c.fechamentos.Listar(c.ctx, portsin.ListarFechamentosInput{UsuarioID: c.comercial})
 	esperarErro(t, err, domain.ErrPermissao, "ver comissões")
+}
+
+func TestApuracaoNaoRepeteAsEntregasQueFalharam(t *testing.T) {
+	c := novoCenarioFechamento(t)
+	semCadastro := c.novoPedido(c.mia, ptr(uuid.New()), domainpedido.ModeloProntaEntrega, domainpedido.StatusConfirmado)
+	c.novaEntrega(semCadastro, data(2026, 9, 1), domaincomissao.ItemSaido{Quantidade: 1, PrecoUnitarioCentavos: 100})
+	c.novaEntrega(semCadastro, data(2026, 9, 2), domaincomissao.ItemSaido{Quantidade: 1, PrecoUnitarioCentavos: 100})
+	c.novaEntrega(c.pedidoDoCarlos, data(2026, 9, 3), domaincomissao.ItemSaido{Quantidade: 1, PrecoUnitarioCentavos: 100})
+
+	resultado, err := c.comissoes.Apurar(c.ctx, portsin.ApurarInput{UsuarioID: c.financeiro})
+	if err != nil {
+		t.Fatalf("Apurar: %v", err)
+	}
+	if len(resultado.Apuradas) != 1 || len(resultado.Falhas) != 2 || resultado.RestamEntregas {
+		t.Fatalf("resultado = %+v", resultado)
+	}
+	if len(c.m.ultimoFiltroEntregas.IgnorarIDs) != 2 || resultado.Falhas[0].RepresentanteID != *semCadastro.RepresentanteID {
+		t.Fatalf("as falhas deveriam ser ignoradas na rodada seguinte: %+v / %+v", c.m.ultimoFiltroEntregas, resultado.Falhas)
+	}
+}
+
+func TestFecharNaoFechaRepresentanteComEntregaSemApurar(t *testing.T) {
+	c := novoCenarioFechamento(t)
+	c.novaEntrega(c.pedidoDoCarlos, c.competencia.Inicio(), domaincomissao.ItemSaido{Quantidade: 1, PrecoUnitarioCentavos: 100})
+	c.m.falhaNaGravacao[c.m.entregas[0].EntregaID] = domaincomissao.ErroPercentualMudouNaApuracao()
+	c.m.saldos = []domaincomissao.SaldoAberto{{RepresentanteID: c.carlos.ID, ComissoesCentavos: 1000}}
+
+	resultado, err := c.fechamentos.Fechar(c.ctx, c.input(c.financeiro))
+	if err != nil {
+		t.Fatalf("Fechar: %v", err)
+	}
+	if len(resultado.Fechados) != 0 || len(resultado.Falhas) != 1 || !strings.Contains(resultado.Falhas[0].Motivo, "não foram apuradas") {
+		t.Fatalf("resultado = %+v", resultado)
+	}
+}
+
+func TestFecharUmRepresentanteDevolveOMotivoComoErro(t *testing.T) {
+	c := novoCenarioFechamento(t)
+	c.m.saldos = []domaincomissao.SaldoAberto{{RepresentanteID: c.carlos.ID, ComissoesCentavos: 100, AjustesCentavos: -200}}
+	input := c.input(c.financeiro)
+	input.RepresentanteID = &c.carlos.ID
+
+	_, err := c.fechamentos.Fechar(c.ctx, input)
+	esperarErro(t, err, domain.ErrValidacao, "nada a pagar")
+
+	c.m.saldos = []domaincomissao.SaldoAberto{{RepresentanteID: c.carlos.ID, ComissoesCentavos: 1000}}
+	c.m.falhaNoFechar[c.carlos.ID] = domaincomissao.ErroFechamentoRepetido()
+	_, err = c.fechamentos.Fechar(c.ctx, input)
+	esperarErro(t, err, domain.ErrConflito, "já existe fechamento")
 }

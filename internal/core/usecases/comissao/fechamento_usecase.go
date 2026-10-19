@@ -90,13 +90,22 @@ func (u *FechamentoUsecaseImpl) Fechar(ctx context.Context, input portsin.Fechar
 		Fechados:    []*domaincomissao.Fechamento{},
 		Falhas:      []domaincomissao.FalhaFechamento{},
 	}
+	naoApurados := make(map[uuid.UUID]bool, len(apuracao.Falhas))
+	for _, falha := range apuracao.Falhas {
+		naoApurados[falha.RepresentanteID] = true
+	}
+
 	for _, saldo := range saldos {
-		fechamento, err := u.fecharRepresentante(ctx, input, competencia, saldo, agora)
+		var fechamento *domaincomissao.Fechamento
+		err := domaincomissao.ErroEntregaNaoApurada()
+		if !naoApurados[saldo.RepresentanteID] {
+			fechamento, err = u.fecharRepresentante(ctx, input, competencia, saldo, agora)
+		}
 		if err == nil {
 			resultado.Fechados = append(resultado.Fechados, fechamento)
 			continue
 		}
-		if !erroDeNegocio(err) {
+		if !erroDeNegocio(err) || input.RepresentanteID != nil {
 			return domaincomissao.ResultadoFechamento{}, err
 		}
 		resultado.Falhas = append(resultado.Falhas, domaincomissao.FalhaFechamento{RepresentanteID: saldo.RepresentanteID, Motivo: err.Error()})

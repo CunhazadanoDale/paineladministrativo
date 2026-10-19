@@ -19,50 +19,66 @@ type apurador struct {
 }
 
 func (a apurador) apurar(ctx context.Context, filtro portsout.EntregaFiltro, usuarioID uuid.UUID) (domaincomissao.ResultadoApuracao, error) {
-	filtro.PaginacaoFiltro = domain.PaginacaoFiltro{Page: 1, Size: limiteDaApuracao + 1}
-
-	entregas, err := a.comissoes.ListarEntregasParaApurar(ctx, filtro)
-	if err != nil {
-		return domaincomissao.ResultadoApuracao{}, err
-	}
-
 	resultado := domaincomissao.ResultadoApuracao{Apuradas: []uuid.UUID{}, Falhas: []domaincomissao.FalhaApuracao{}}
-	if len(entregas) > limiteDaApuracao {
-		entregas = entregas[:limiteDaApuracao]
-		resultado.RestamEntregas = true
-	}
-
 	representantes := make(map[uuid.UUID]*domaincliente.Representante)
-	for _, entrega := range entregas {
-		apuracao, err := a.apuracaoDaEntrega(ctx, entrega, representantes, usuarioID)
-		if err == nil {
-			var criada bool
-			criada, err = a.comissoes.GravarApuracao(ctx, apuracao)
-			if err == nil && criada {
-				resultado.Apuradas = append(resultado.Apuradas, apuracao.Comissao.ID)
+	ignorar := make([]uuid.UUID, 0)
+	processadas := 0
+
+	for processadas < limiteDaApuracao {
+		if len(resultado.Falhas) >= limiteDaApuracao {
+			resultado.RestamEntregas = true
+			break
+		}
+
+		restantes := limiteDaApuracao - processadas
+		filtro.IgnorarIDs = ignorar
+		filtro.PaginacaoFiltro = domain.PaginacaoFiltro{Page: 1, Size: restantes + 1}
+		entregas, err := a.comissoes.ListarEntregasParaApurar(ctx, filtro)
+		if err != nil {
+			return domaincomissao.ResultadoApuracao{}, err
+		}
+
+		resultado.RestamEntregas = len(entregas) > restantes
+		if resultado.RestamEntregas {
+			entregas = entregas[:restantes]
+		}
+
+		falhasAntes := len(resultado.Falhas)
+		for _, entrega := range entregas {
+			criada, comissaoID, err := a.apurarEntrega(ctx, entrega, representantes, usuarioID)
+			if err != nil {
+				if !erroDeNegocio(err) {
+					return domaincomissao.ResultadoApuracao{}, err
+				}
+				resultado.Falhas = append(resultado.Falhas, domaincomissao.FalhaApuracao{
+					EntregaID: entrega.EntregaID, RepresentanteID: entrega.RepresentanteID, Motivo: err.Error(),
+				})
+				ignorar = append(ignorar, entrega.EntregaID)
+				continue
 			}
-			if err == nil && !criada {
+
+			processadas++
+			if criada {
+				resultado.Apuradas = append(resultado.Apuradas, comissaoID)
+			} else {
 				resultado.JaExistentes++
 			}
 		}
-		if err == nil {
-			continue
+
+		if len(resultado.Falhas) == falhasAntes {
+			break
 		}
-		if !erroDeNegocio(err) {
-			return domaincomissao.ResultadoApuracao{}, err
-		}
-		resultado.Falhas = append(resultado.Falhas, domaincomissao.FalhaApuracao{EntregaID: entrega.EntregaID, Motivo: err.Error()})
 	}
 
 	return resultado, nil
 }
 
-func (a apurador) apuracaoDaEntrega(
+func (a apurador) apurarEntrega(
 	ctx context.Context,
 	entrega *domaincomissao.EntregaParaApurar,
 	representantes map[uuid.UUID]*domaincliente.Representante,
 	usuarioID uuid.UUID,
-) (*domaincomissao.Apuracao, error) {
+) (bool, uuid.UUID, error) {
 	var representante *domaincliente.Representante
 	if !entrega.Percentual.VigentePara(entrega.RepresentanteID) {
 		var carregado bool
@@ -70,11 +86,21 @@ func (a apurador) apuracaoDaEntrega(
 		if !carregado {
 			var err error
 			if representante, err = a.representantes.Obter(ctx, entrega.RepresentanteID); err != nil {
-				return nil, err
+				return false, uuid.Nil, err
 			}
 			representantes[entrega.RepresentanteID] = representante
 		}
 	}
 
-	return domaincomissao.NovaApuracao(*entrega, representante, usuarioID, time.Now().UTC())
+	apuracao, err := domaincomissao.NovaApuracao(*entrega, representante, usuarioID, time.Now().UTC())
+	if err != nil {
+		return false, uuid.Nil, err
+	}
+
+	criada, err := a.comissoes.GravarApuracao(ctx, apuracao)
+	if err != nil {
+		return false, uuid.Nil, err
+	}
+
+	return criada, apuracao.Comissao.ID, nil
 }

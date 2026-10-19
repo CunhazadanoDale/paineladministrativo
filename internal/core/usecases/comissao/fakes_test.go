@@ -48,6 +48,8 @@ type memoria struct {
 	ultimoFiltroAjustes  portsout.AjusteFiltro
 	ultimoFiltroSaldos   portsout.SaldoFiltro
 	ultimoFiltroFechados portsout.FechamentoFiltro
+	ultimoFiltroResumo   portsout.ResumoFiltro
+	resumo               []domaincomissao.LinhaResumo
 	versaoLida           *int
 	falhaNaGravacao      map[uuid.UUID]error
 }
@@ -102,6 +104,10 @@ func (r repoComissoes) ListarEntregasParaApurar(_ context.Context, filtro portso
 	apuradas := make(map[uuid.UUID]bool, len(r.m.comissoes))
 	for _, comissao := range r.m.comissoes {
 		apuradas[comissao.EntregaID] = true
+	}
+
+	for _, id := range filtro.IgnorarIDs {
+		apuradas[id] = true
 	}
 
 	resultado := make([]*domaincomissao.EntregaParaApurar, 0)
@@ -195,6 +201,12 @@ func (r repoComissoes) ListarFechamentos(_ context.Context, filtro portsout.Fech
 
 func (r repoComissoes) ItensDoFechamento(context.Context, uuid.UUID) ([]*domaincomissao.Comissao, []*domaincomissao.Ajuste, error) {
 	return r.m.comissoes, r.m.ajustes, nil
+}
+
+func (r repoComissoes) Resumo(_ context.Context, filtro portsout.ResumoFiltro) ([]domaincomissao.LinhaResumo, error) {
+	r.m.ultimoFiltroResumo = filtro
+
+	return r.m.resumo, nil
 }
 
 type repoCategorias struct{ m *memoria }

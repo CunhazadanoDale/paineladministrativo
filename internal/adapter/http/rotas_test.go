@@ -256,6 +256,7 @@ func TestRotasRegistradasSemConflito(t *testing.T) {
 		{"POST /api/v1/comissoes/fechamentos", "POST /api/v1/comissoes/fechamentos"},
 		{"GET /api/v1/comissoes/fechamentos", "GET /api/v1/comissoes/fechamentos"},
 		{"GET /api/v1/comissoes/fechamentos/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "GET /api/v1/comissoes/fechamentos/{id}"},
+		{"GET /api/v1/comissoes/resumo", "GET /api/v1/comissoes/resumo"},
 	}
 
 	for _, caso := range casos {

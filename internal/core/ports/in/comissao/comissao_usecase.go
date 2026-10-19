@@ -31,8 +31,16 @@ type ListarComissoesInput struct {
 	Filtro          domain.PaginacaoFiltro
 }
 
+type ResumoInput struct {
+	UsuarioID       uuid.UUID
+	Empresa         *uuid.UUID
+	RepresentanteID *uuid.UUID
+	Competencia     string
+}
+
 type ComissaoUseCase interface {
 	Apurar(ctx context.Context, input ApurarInput) (domaincomissao.ResultadoApuracao, error)
 	Pendencias(ctx context.Context, input PendenciasInput) ([]*domaincomissao.EntregaParaApurar, error)
 	Listar(ctx context.Context, input ListarComissoesInput) ([]*domaincomissao.Comissao, error)
+	Resumo(ctx context.Context, input ResumoInput) (domaincomissao.ResumoComissoes, error)
 }

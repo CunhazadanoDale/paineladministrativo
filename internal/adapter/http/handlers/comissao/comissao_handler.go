@@ -87,3 +87,24 @@ func (h *ComissaoHandler) Listar(w http.ResponseWriter, r *http.Request) {
 	comissoes, err := h.usecase.Listar(r.Context(), input)
 	escreverPagina(w, input.Filtro, comissoes, err, comissaodto.NovoComissaoResponses)
 }
+
+func (h *ComissaoHandler) Resumo(w http.ResponseWriter, r *http.Request) {
+	usuario, ok := resposta.UsuarioDoContexto(w, r)
+	if !ok {
+		return
+	}
+
+	input := portsin.ResumoInput{UsuarioID: usuario.ID, Competencia: resposta.ConsultaTexto(r, "competencia")}
+	var err error
+	if input.Empresa, err = resposta.ConsultaUUID(r, "empresa"); err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+	if input.RepresentanteID, err = resposta.ConsultaUUID(r, "representante"); err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+
+	resumo, err := h.usecase.Resumo(r.Context(), input)
+	escreverItem(w, http.StatusOK, resumo, err, comissaodto.NovoResumoResponse)
+}

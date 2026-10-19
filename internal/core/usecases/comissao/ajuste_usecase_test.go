@@ -103,3 +103,25 @@ func TestListarAjustesRestringeORepresentanteAosProprios(t *testing.T) {
 	_, err = c.ajustes.Listar(c.ctx, portsin.ListarAjustesInput{UsuarioID: c.financeiro, Competencia: "x"})
 	esperarErro(t, err, domain.ErrValidacao, "AAAA-MM")
 }
+
+func TestFinanceiroQueTambemERepresentanteNaoMexeNaPropriaComissao(t *testing.T) {
+	c := novoCenario(t)
+	financeiroRepresentante := c.novoUsuario(false, true, false, acessoA(c.mia))
+	c.beatriz.UsuarioID = &financeiroRepresentante
+
+	dados := c.dadosDeAjuste()
+	dados.RepresentanteID = c.beatriz.ID
+	dados.PedidoID = nil
+	_, err := c.ajustes.Criar(c.ctx, portsin.CriarAjusteInput{UsuarioID: financeiroRepresentante, Dados: dados})
+	esperarErro(t, err, domain.ErrPermissao, "representante não apura, ajusta nem fecha")
+
+	_, err = c.comissoes.Apurar(c.ctx, portsin.ApurarInput{UsuarioID: financeiroRepresentante})
+	esperarErro(t, err, domain.ErrPermissao, "representante não apura, ajusta nem fecha")
+
+	if _, err := c.comissoes.Listar(c.ctx, portsin.ListarComissoesInput{UsuarioID: financeiroRepresentante}); err != nil {
+		t.Fatalf("Listar: %v", err)
+	}
+	if filtro := c.m.ultimoFiltro; filtro.RepresentanteID == nil || *filtro.RepresentanteID != c.beatriz.ID {
+		t.Fatalf("o financeiro que é representante deveria ver só as próprias: %+v", filtro)
+	}
+}

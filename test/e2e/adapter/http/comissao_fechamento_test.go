@@ -87,6 +87,7 @@ func TestFechamentoDeComissaoGeraContaAPagar(t *testing.T) {
 
 	caminhoDoFornecedor := "/api/v1/representantes/" + ana.ID.String() + "/fornecedor"
 	conferirStatus(t, enviaComToken(t, servidor, http.MethodPut, caminhoDoFornecedor, map[string]any{"fornecedor_id": fornecedor.ID}, tokenCaio), http.StatusForbidden)
+	conferirStatus(t, envia(t, servidor, http.MethodPut, caminhoDoFornecedor, map[string]any{}), http.StatusBadRequest)
 	resposta = envia(t, servidor, http.MethodPut, caminhoDoFornecedor, map[string]any{"fornecedor_id": fornecedor.ID})
 	conferirStatus(t, resposta, http.StatusOK)
 	if comFornecedor := decodificarEnvelope[clientedto.RepresentanteResponse](t, resposta).Dados; comFornecedor.FornecedorID == nil || *comFornecedor.FornecedorID != fornecedor.ID {
@@ -146,4 +147,22 @@ func TestFechamentoDeComissaoGeraContaAPagar(t *testing.T) {
 	if fechados := decodificarPagina[comissaodto.AjusteResponse](t, resposta).Dados; len(fechados) != 1 {
 		t.Fatalf("ajustes fechados = %+v", fechados)
 	}
+
+	resposta = enviaComToken(t, servidor, http.MethodGet, "/api/v1/comissoes/resumo?competencia="+competencia, nil, tokenFinanceiro)
+	conferirStatus(t, resposta, http.StatusOK)
+	resumo := decodificarEnvelope[comissaodto.ResumoResponse](t, resposta).Dados
+	if resumo.Competencia != competencia || resumo.TotalCentavos != 80 || len(resumo.Linhas) != 1 {
+		t.Fatalf("resumo = %+v", resumo)
+	}
+	if linha := resumo.Linhas[0]; linha.RepresentanteID != ana.ID || linha.ComissoesCentavos != 180 || linha.AjustesCentavos != -100 ||
+		linha.FechadoCentavos != 80 || linha.EmAbertoCentavos != 0 || linha.PagoCentavos != 0 || linha.RepresentanteNome != "Ana Representações" {
+		t.Fatalf("linha do resumo = %+v", linha)
+	}
+	resposta = enviaComToken(t, servidor, http.MethodGet, "/api/v1/comissoes/resumo?competencia="+competencia, nil, tokenAna)
+	conferirStatus(t, resposta, http.StatusOK)
+	if daAna := decodificarEnvelope[comissaodto.ResumoResponse](t, resposta).Dados; len(daAna.Linhas) != 1 {
+		t.Fatalf("resumo da Ana = %+v", daAna)
+	}
+	conferirStatus(t, enviaComToken(t, servidor, http.MethodGet, "/api/v1/comissoes/resumo?competencia="+competencia, nil, tokenCaio), http.StatusForbidden)
+	conferirStatus(t, enviaComToken(t, servidor, http.MethodGet, "/api/v1/comissoes/resumo", nil, tokenFinanceiro), http.StatusBadRequest)
 }

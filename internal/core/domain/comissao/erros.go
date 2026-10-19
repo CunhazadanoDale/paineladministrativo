@@ -81,3 +81,7 @@ func ErroApuracaoPendente() error {
 func ErroRepresentanteDoFechamentoNaoEncontrado() error {
 	return domain.ErroValidacao("representante do fechamento não encontrado")
 }
+
+func ErroEntregaNaoApurada() error {
+	return domain.ErroConflito("há entregas do representante que não foram apuradas na competência; veja as falhas da apuração e feche de novo")
+}

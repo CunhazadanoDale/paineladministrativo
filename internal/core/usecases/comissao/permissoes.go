@@ -33,7 +33,7 @@ type escopo struct {
 }
 
 func (p perfilDoUsuario) restritoAoRepresentante() bool {
-	return !p.financeiro && p.representanteID != nil
+	return p.representanteID != nil
 }
 
 func (p perfilDoUsuario) escopo(empresa, representanteID *uuid.UUID) (escopo, error) {
@@ -117,6 +117,9 @@ func (p *permissoes) exigeFinanceiro(ctx context.Context, usuarioID uuid.UUID) (
 	}
 	if !perfil.financeiro {
 		return perfil, domain.ErroPermissao("perfil sem permissão para apurar comissões")
+	}
+	if perfil.restritoAoRepresentante() {
+		return perfil, domain.ErroPermissao("representante não apura, ajusta nem fecha comissões")
 	}
 
 	return perfil, nil

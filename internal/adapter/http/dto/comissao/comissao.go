@@ -40,8 +40,9 @@ type PercentualResponse struct {
 }
 
 type FalhaApuracaoResponse struct {
-	EntregaID uuid.UUID `json:"entrega_id"`
-	Motivo    string    `json:"motivo"`
+	EntregaID       uuid.UUID `json:"entrega_id"`
+	RepresentanteID uuid.UUID `json:"representante_id"`
+	Motivo          string    `json:"motivo"`
 }
 
 type ResultadoApuracaoResponse struct {
@@ -97,7 +98,7 @@ func NovoPercentualResponse(item *domaincomissao.PercentualPedido) PercentualRes
 func NovoResultadoApuracaoResponse(resultado domaincomissao.ResultadoApuracao) ResultadoApuracaoResponse {
 	falhas := make([]FalhaApuracaoResponse, 0, len(resultado.Falhas))
 	for _, falha := range resultado.Falhas {
-		falhas = append(falhas, FalhaApuracaoResponse{EntregaID: falha.EntregaID, Motivo: falha.Motivo})
+		falhas = append(falhas, FalhaApuracaoResponse{EntregaID: falha.EntregaID, RepresentanteID: falha.RepresentanteID, Motivo: falha.Motivo})
 	}
 	apuradas := resultado.Apuradas
 	if apuradas == nil {

@@ -94,6 +94,35 @@ func (u *ComissaoUsecaseImpl) Listar(ctx context.Context, input portsin.ListarCo
 	return u.comissoes.Listar(ctx, filtro)
 }
 
+func (u *ComissaoUsecaseImpl) Resumo(ctx context.Context, input portsin.ResumoInput) (domaincomissao.ResumoComissoes, error) {
+	perfil, err := u.exigeLeituraDeComissoes(ctx, input.UsuarioID)
+	if err != nil {
+		return domaincomissao.ResumoComissoes{}, err
+	}
+
+	escopo, err := perfil.escopo(input.Empresa, input.RepresentanteID)
+	if err != nil {
+		return domaincomissao.ResumoComissoes{}, err
+	}
+
+	competencia, err := domaincomissao.NovaCompetencia(input.Competencia)
+	if err != nil {
+		return domaincomissao.ResumoComissoes{}, err
+	}
+
+	linhas, err := u.comissoes.Resumo(ctx, portsout.ResumoFiltro{
+		Competencia:     competencia,
+		Empresa:         escopo.empresa,
+		EmpresaIDs:      escopo.empresaIDs,
+		RepresentanteID: escopo.representanteID,
+	})
+	if err != nil {
+		return domaincomissao.ResumoComissoes{}, err
+	}
+
+	return domaincomissao.ResumoComissoes{Competencia: competencia, Linhas: linhas}, nil
+}
+
 func filtroDeEntregas(perfil perfilDoUsuario, empresa *uuid.UUID, competencia string) (portsout.EntregaFiltro, error) {
 	escopo, err := perfil.escopo(empresa, nil)
 	if err != nil {

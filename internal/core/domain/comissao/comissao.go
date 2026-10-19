@@ -52,8 +52,9 @@ type Apuracao struct {
 }
 
 type FalhaApuracao struct {
-	EntregaID uuid.UUID
-	Motivo    string
+	EntregaID       uuid.UUID
+	RepresentanteID uuid.UUID
+	Motivo          string
 }
 
 type ResultadoApuracao struct {

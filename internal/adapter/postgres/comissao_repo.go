@@ -92,7 +92,7 @@ func (r *ComissaoRepository) ObterPercentual(ctx context.Context, pedidoID uuid.
 		return nil, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, tratarErroDeConsulta(err)
 	}
 
 	return paraDominioPercentualPedido(&linha), nil
@@ -161,6 +161,10 @@ func (r *ComissaoRepository) ListarEntregasParaApurar(ctx context.Context, filtr
 	}
 	if filtro.SaidaAntesDe != nil {
 		adicionar("e.saiu_em <", *filtro.SaidaAntesDe)
+	}
+	if len(filtro.IgnorarIDs) > 0 {
+		argumentos = append(argumentos, pq.Array(textosDeIDs(filtro.IgnorarIDs)))
+		condicoes = append(condicoes, "e.id <> ALL($"+strconv.Itoa(len(argumentos))+"::uuid[])")
 	}
 
 	pagina := filtro.PaginacaoFiltro

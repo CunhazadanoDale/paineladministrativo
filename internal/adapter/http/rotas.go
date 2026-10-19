@@ -495,6 +495,7 @@ func novasRotas(
 	financeiro("POST /api/v1/comissoes/fechamentos", fechamentoComissaoHandler.Fechar)
 	protegido("GET /api/v1/comissoes/fechamentos", fechamentoComissaoHandler.Listar)
 	protegido("GET /api/v1/comissoes/fechamentos/{id}", fechamentoComissaoHandler.Obter)
+	protegido("GET /api/v1/comissoes/resumo", comissaoHandler.Resumo)
 
 	return mux
 }

@@ -218,6 +218,9 @@ func TestComissaoRepositoryFiltraEntregasPorEmpresaESaida(t *testing.T) {
 	if entregas := c.paraApurar(t, portscomissao.EntregaFiltro{Empresa: &c.mia, SaidaAntesDe: &depois}); len(entregas) != 1 {
 		t.Fatalf("entregas até o dia seguinte = %+v", entregas)
 	}
+	if entregas := c.paraApurar(t, portscomissao.EntregaFiltro{IgnorarIDs: []uuid.UUID{entrega.ID}}); len(entregas) != 0 {
+		t.Fatalf("a entrega ignorada não deveria voltar: %+v", entregas)
+	}
 }
 
 func TestComissaoRepositoryApuraComOPercentualManualERecusaDivergencia(t *testing.T) {

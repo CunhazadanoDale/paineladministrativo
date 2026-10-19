@@ -158,7 +158,7 @@ func (r *ComissaoRepository) ObterFechamento(ctx context.Context, id uuid.UUID) 
 		return nil, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, tratarErroDeConsulta(err)
 	}
 
 	return paraDominioFechamento(&linha), nil
@@ -214,14 +214,14 @@ func (r *ComissaoRepository) ItensDoFechamento(ctx context.Context, fechamentoID
 	if err := r.db.SelectContext(ctx, &linhasComissao, `
 		SELECT `+colunasComissao+` FROM comissao WHERE fechamento_id = $1 ORDER BY competencia, criado_em, id
 	`, fechamentoID); err != nil {
-		return nil, nil, err
+		return nil, nil, tratarErroDeConsulta(err)
 	}
 
 	var linhasAjuste []*ajusteLinha
 	if err := r.db.SelectContext(ctx, &linhasAjuste, `
 		SELECT `+colunasAjuste+` FROM comissao_ajuste WHERE fechamento_id = $1 ORDER BY competencia, criado_em, id
 	`, fechamentoID); err != nil {
-		return nil, nil, err
+		return nil, nil, tratarErroDeConsulta(err)
 	}
 
 	comissoes := make([]*domaincomissao.Comissao, 0, len(linhasComissao))
