@@ -117,6 +117,9 @@ func (r *ImportacaoRepository) Gravar(ctx context.Context, gravacao *portsout.Gr
 			return err
 		}
 	}
+	if err := gravarFinanceiroDaImportacao(ctx, tx, gravacao); err != nil {
+		return err
+	}
 	for _, historico := range gravacao.Historicos {
 		if err := inserirHistoricoDaImportacao(ctx, tx, historico); err != nil {
 			return err
@@ -160,6 +163,9 @@ func (r *ImportacaoRepository) Obter(ctx context.Context, id uuid.UUID) (*domain
 			Valor:        domainimportacao.ValorMoedaDe(item.ValorMoedaCentesimos),
 			CriadoEm:     item.CriadoEm,
 		})
+	}
+	if err := r.carregarFinanceiro(ctx, importacao); err != nil {
+		return nil, err
 	}
 
 	return importacao, nil
