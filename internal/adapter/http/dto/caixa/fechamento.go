@@ -58,13 +58,12 @@ type PreviaResponse struct {
 	SaldoBancoCentavos      *int64              `json:"saldo_banco_centavos"`
 	LancamentosPendentes    int                 `json:"lancamentos_pendentes"`
 	ConciliacoesInvalidadas int                 `json:"conciliacoes_invalidadas"`
+	MesEncerrado            bool                `json:"mes_encerrado"`
 	PodeFechar              bool                `json:"pode_fechar"`
 	MovimentosSemLinha      []MovimentoResponse `json:"movimentos_sem_linha"`
 }
 
 func NovaPreviaResponse(previa *domaincaixa.PreviaFechamento) PreviaResponse {
-	saldoConfere := previa.SaldoBancoCentavos == nil || *previa.SaldoBancoCentavos == previa.SaldoFinalCentavos()
-
 	return PreviaResponse{
 		ContaBancariaID:         previa.ContaBancariaID,
 		Competencia:             previa.Competencia.Format(formatoCompetencia),
@@ -75,7 +74,8 @@ func NovaPreviaResponse(previa *domaincaixa.PreviaFechamento) PreviaResponse {
 		SaldoBancoCentavos:      previa.SaldoBancoCentavos,
 		LancamentosPendentes:    previa.LancamentosPendentes,
 		ConciliacoesInvalidadas: previa.ConciliacoesInvalidadas,
-		PodeFechar:              previa.Bloqueios() == nil && saldoConfere,
+		MesEncerrado:            previa.MesEncerrado,
+		PodeFechar:              previa.PodeFechar(),
 		MovimentosSemLinha:      NovosMovimentoResponses(previa.MovimentosSemLinha),
 	}
 }

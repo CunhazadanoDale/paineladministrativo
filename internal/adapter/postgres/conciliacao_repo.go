@@ -301,7 +301,14 @@ func (r *ConciliacaoRepository) Obter(ctx context.Context, id uuid.UUID) (*domai
 		return nil, err
 	}
 
-	return paraDominioConciliacao(&linha, itens), nil
+	conciliacao := paraDominioConciliacao(&linha, itens)
+	if conciliacao.Modo == domaincaixa.ConciliacaoTransferencia {
+		if conciliacao.ContraparteID, err = contraparteDaTransferencia(ctx, r.db, conciliacao.ID, conciliacao.ContaBancariaID); err != nil {
+			return nil, err
+		}
+	}
+
+	return conciliacao, nil
 }
 
 func (r *ConciliacaoRepository) Desfazer(ctx context.Context, conciliacao *domaincaixa.Conciliacao) error {
@@ -311,7 +318,17 @@ func (r *ConciliacaoRepository) Desfazer(ctx context.Context, conciliacao *domai
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	if err := travarLinhaDaConciliacao(ctx, tx, conciliacao); err != nil {
+	var outrasContas []uuid.UUID
+	if conciliacao.Modo == domaincaixa.ConciliacaoTransferencia {
+		contraparte, err := contraparteDaTransferencia(ctx, tx, conciliacao.ID, conciliacao.ContaBancariaID)
+		if err != nil {
+			return tratarErroDeGravacao(err)
+		}
+		if contraparte != nil {
+			outrasContas = append(outrasContas, *contraparte)
+		}
+	}
+	if err := travarLinhaDaConciliacao(ctx, tx, conciliacao, outrasContas...); err != nil {
 		return err
 	}
 
@@ -376,12 +393,12 @@ func (r *ConciliacaoRepository) selecionarMovimentos(ctx context.Context, query 
 	return movimentos, nil
 }
 
-func travarLinhaDaConciliacao(ctx context.Context, tx *sqlx.Tx, conciliacao *domaincaixa.Conciliacao) error {
+func travarLinhaDaConciliacao(ctx context.Context, tx *sqlx.Tx, conciliacao *domaincaixa.Conciliacao, outrasContas ...uuid.UUID) error {
 	var linha struct {
 		ContaBancariaID uuid.UUID `db:"conta_bancaria_id"`
 		Data            time.Time `db:"data"`
 	}
-	err := tx.GetContext(ctx, &linha, `SELECT conta_bancaria_id, data FROM extrato_lancamento WHERE id = $1 FOR SHARE`,
+	err := tx.GetContext(ctx, &linha, `SELECT conta_bancaria_id, data FROM extrato_lancamento WHERE id = $1`,
 		conciliacao.ExtratoLancamentoID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domaincaixa.ErroLancamentoNaoEncontrado()
@@ -393,7 +410,40 @@ func travarLinhaDaConciliacao(ctx context.Context, tx *sqlx.Tx, conciliacao *dom
 		return domaincaixa.ErroMovimentoAlterado()
 	}
 
-	return exigirMesAberto(ctx, tx, linha.ContaBancariaID, domaincaixa.DataDe(linha.Data))
+	contas := append([]uuid.UUID{linha.ContaBancariaID}, outrasContas...)
+	if err := travarContasNoMesAberto(ctx, tx, domaincaixa.DataDe(linha.Data), contas...); err != nil {
+		return err
+	}
+
+	var travada bool
+	err = tx.GetContext(ctx, &travada, `SELECT true FROM extrato_lancamento WHERE id = $1 FOR SHARE`, conciliacao.ExtratoLancamentoID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domaincaixa.ErroLancamentoNaoEncontrado()
+	}
+	if err != nil {
+		return tratarErroDeGravacao(err)
+	}
+
+	return nil
+}
+
+func contraparteDaTransferencia(ctx context.Context, consulta sqlx.QueryerContext, conciliacaoID, contaBancariaID uuid.UUID) (*uuid.UUID, error) {
+	var contraparte uuid.UUID
+	err := sqlx.GetContext(ctx, consulta, &contraparte, `
+		SELECT CASE WHEN tc.conta_origem_id = $2 THEN tc.conta_destino_id ELSE tc.conta_origem_id END
+		FROM conciliacao_item ci
+		JOIN transferencia_conta tc ON tc.id = ci.alvo_id
+		WHERE ci.conciliacao_id = $1 AND ci.alvo_tipo IN ('transferencia_saida', 'transferencia_entrada')
+		LIMIT 1
+	`, conciliacaoID, contaBancariaID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return &contraparte, nil
 }
 
 func inserirConciliacao(ctx context.Context, tx *sqlx.Tx, conciliacao *domaincaixa.Conciliacao) error {

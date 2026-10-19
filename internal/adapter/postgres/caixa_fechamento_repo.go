@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	domaincaixa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/caixa"
@@ -110,7 +112,8 @@ func (r *CaixaFechamentoRepository) Fechar(ctx context.Context, gravacao *portso
 		return tratarErroDeGravacao(err)
 	}
 	if movimento.LancamentosPendentes > 0 || movimento.ConciliacoesInvalidadas > 0 ||
-		movimento.EntradasCentavos != fechamento.EntradasCentavos || movimento.SaidasCentavos != fechamento.SaidasCentavos {
+		movimento.EntradasCentavos != fechamento.EntradasCentavos || movimento.SaidasCentavos != fechamento.SaidasCentavos ||
+		!mesmoSaldoDoBanco(movimento.SaldoBancoCentavos, gravacao.SaldoBancoLido) {
 		return domaincaixa.ErroExtratoDoMesMudou()
 	}
 
@@ -234,6 +237,14 @@ func (r *CaixaFechamentoRepository) Reabrir(ctx context.Context, fechamento *dom
 	return nil
 }
 
+func mesmoSaldoDoBanco(atual, lido *int64) bool {
+	if atual == nil || lido == nil {
+		return atual == nil && lido == nil
+	}
+
+	return *atual == *lido
+}
+
 func ultimoFechamento(ctx context.Context, consulta sqlx.QueryerContext, contaBancariaID uuid.UUID) (*domaincaixa.Fechamento, error) {
 	var linha caixaFechamentoLinha
 	err := sqlx.GetContext(ctx, consulta, &linha, `
@@ -319,11 +330,26 @@ func competenciasFechadas(ctx context.Context, consulta sqlx.QueryerContext, con
 	return competencias, nil
 }
 
-func exigirMesAberto(ctx context.Context, tx *sqlx.Tx, contaBancariaID uuid.UUID, data time.Time) error {
-	if _, err := tx.ExecContext(ctx, `SELECT id FROM conta_bancaria WHERE id = $1 FOR SHARE`, contaBancariaID); err != nil {
-		return tratarErroDeGravacao(err)
+func travarContasNoMesAberto(ctx context.Context, tx *sqlx.Tx, data time.Time, contas ...uuid.UUID) error {
+	ordenadas := slices.Clone(contas)
+	slices.SortFunc(ordenadas, func(a, b uuid.UUID) int { return strings.Compare(a.String(), b.String()) })
+	ordenadas = slices.Compact(ordenadas)
+
+	for _, conta := range ordenadas {
+		if _, err := tx.ExecContext(ctx, `SELECT id FROM conta_bancaria WHERE id = $1 FOR SHARE`, conta); err != nil {
+			return tratarErroDeGravacao(err)
+		}
+	}
+	for _, conta := range ordenadas {
+		if err := exigirMesAberto(ctx, tx, conta, data); err != nil {
+			return err
+		}
 	}
 
+	return nil
+}
+
+func exigirMesAberto(ctx context.Context, tx *sqlx.Tx, contaBancariaID uuid.UUID, data time.Time) error {
 	var fechado bool
 	if err := tx.GetContext(ctx, &fechado, `
 		SELECT EXISTS (SELECT 1 FROM caixa_fechamento WHERE conta_bancaria_id = $1 AND vigente AND competencia = $2::date)

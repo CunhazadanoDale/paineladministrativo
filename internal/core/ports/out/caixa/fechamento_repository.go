@@ -20,6 +20,7 @@ type GravacaoFechamento struct {
 	Fechamento       *domaincaixa.Fechamento
 	UltimoID         *uuid.UUID
 	VersaoDaAbertura int
+	SaldoBancoLido   *int64
 }
 
 type FechamentoRepository interface {

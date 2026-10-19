@@ -201,3 +201,70 @@ func TestTransferenciaEntreContasConciliaAsDuasPontas(t *testing.T) {
 		t.Errorf("contraparte inativa conferida na transação = %v", err)
 	}
 }
+
+func TestTransferenciaRespeitaOMesFechadoDaOutraPonta(t *testing.T) {
+	c := novoCenarioConciliacao(t)
+	lancamentos := postgres.NewLancamentoCaixaRepository(c.banco)
+	raiz := c.inserirCategoria(t, "Entre contas", "transferencia", "entre_contas", nil)
+	entreContas := c.inserirCategoria(t, "Aplicação financeira", "", "", raiz)
+	aplicacaoID := c.inserirConta(t, c.empresaID, "66666", "Aplicação")
+	fecharOutubroDaAplicacao := func() {
+		t.Helper()
+		if _, err := c.banco.ExecContext(c.ctx, `
+			INSERT INTO caixa_fechamento (conta_bancaria_id, competencia, saldo_inicial_centavos, entradas_centavos, saidas_centavos,
+				saldo_final_centavos, saldo_banco_centavos, usuario_id)
+			VALUES ($1, '2026-10-01', 0, 0, 0, 0, 0, $2)
+		`, aplicacaoID, c.solicitanteID); err != nil {
+			t.Fatalf("fechar outubro da aplicação falhou: %v", err)
+		}
+	}
+	reabrirOutubroDaAplicacao := func() {
+		t.Helper()
+		if _, err := c.banco.ExecContext(c.ctx, `DELETE FROM caixa_fechamento WHERE conta_bancaria_id = $1`, aplicacaoID); err != nil {
+			t.Fatalf("reabrir outubro da aplicação falhou: %v", err)
+		}
+	}
+
+	preparado := c.importarLinhas(t, transacaoNoDia("APL", diaDoTitulo(10, 5), -500000))
+	transferir := func() (*domaincaixa.TransferenciaRegistrada, error) {
+		t.Helper()
+		registrada, err := domaincaixa.NovaTransferencia(domaincaixa.DadosTransferencia{
+			Lancamento: c.lancamento(t, preparado.Lancamentos[0].ID), Conta: c.conta(t, c.contaID), Contraparte: c.conta(t, aplicacaoID),
+			Categoria: entreContas, UsuarioID: c.solicitanteID, Agora: time.Now().UTC(),
+		})
+		if err != nil {
+			t.Fatalf("NovaTransferencia = %v", err)
+		}
+
+		return registrada, lancamentos.Transferir(c.ctx, registrada)
+	}
+
+	fecharOutubroDaAplicacao()
+	if _, err := transferir(); !errors.Is(err, domain.ErrConflito) {
+		t.Errorf("transferir para conta com o mês fechado = %v, esperado conflito", err)
+	}
+
+	reabrirOutubroDaAplicacao()
+	registrada, err := transferir()
+	if err != nil {
+		t.Fatalf("Transferir = %v", err)
+	}
+
+	salva, err := c.conciliacoes.Obter(c.ctx, registrada.Conciliacao.ID)
+	if err != nil || salva.ContraparteID == nil || *salva.ContraparteID != aplicacaoID {
+		t.Fatalf("contraparte da conciliação = %+v, %v", salva, err)
+	}
+
+	fecharOutubroDaAplicacao()
+	if err := salva.Desfazer(c.solicitanteID, "era resgate", time.Now().UTC()); err != nil {
+		t.Fatalf("Desfazer no domínio = %v", err)
+	}
+	if err := c.conciliacoes.Desfazer(c.ctx, salva); !errors.Is(err, domain.ErrConflito) {
+		t.Errorf("desfazer com o mês da outra ponta fechado = %v, esperado conflito", err)
+	}
+
+	reabrirOutubroDaAplicacao()
+	if err := c.conciliacoes.Desfazer(c.ctx, salva); err != nil {
+		t.Errorf("desfazer depois de reabrir = %v", err)
+	}
+}

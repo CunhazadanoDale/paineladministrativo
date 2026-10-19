@@ -110,14 +110,14 @@ func (r *LancamentoCaixaRepository) Transferir(ctx context.Context, registrada *
 	defer func() { _ = tx.Rollback() }()
 
 	conciliacao := registrada.Conciliacao
-	if err := travarLinhaDaConciliacao(ctx, tx, conciliacao); err != nil {
-		return err
-	}
-
 	transferencia := registrada.Transferencia
 	contraparte := transferencia.ContaOrigemID
 	if contraparte == conciliacao.ContaBancariaID {
 		contraparte = transferencia.ContaDestinoID
+	}
+
+	if err := travarLinhaDaConciliacao(ctx, tx, conciliacao, contraparte); err != nil {
+		return err
 	}
 	if err := exigirContraparteAtiva(ctx, tx, contraparte); err != nil {
 		return err

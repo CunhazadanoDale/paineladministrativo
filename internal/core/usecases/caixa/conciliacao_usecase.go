@@ -127,8 +127,12 @@ func (u *ConciliacaoUsecaseImpl) ConciliarAutomatico(ctx context.Context, input 
 
 	resultado := &portsin.ResultadoAutomatico{}
 	if len(lancamentos) > portsin.LimiteDaConciliacaoAutomatica {
-		lancamentos = lancamentos[:portsin.LimiteDaConciliacaoAutomatica]
+		lancamentos = diasCompletos(lancamentos[:portsin.LimiteDaConciliacaoAutomatica], lancamentos[portsin.LimiteDaConciliacaoAutomatica].Data)
+		if len(lancamentos) == 0 {
+			return nil, domain.ErroValidacao("mais de 500 lançamentos pendentes no mesmo dia; concilie esse dia à mão")
+		}
 		resultado.RestamLinhas = true
+		ate = lancamentos[len(lancamentos)-1].Data
 	}
 
 	movimentos, err := u.conciliacoes.Movimentos(ctx, portsout.MovimentoFiltro{
@@ -136,10 +140,13 @@ func (u *ConciliacaoUsecaseImpl) ConciliarAutomatico(ctx context.Context, input 
 		De:              &de,
 		Ate:             &ate,
 		SoPendentes:     true,
-		Limite:          limiteDeMovimentosDaConta,
+		Limite:          limiteDeMovimentosDaConta + 1,
 	})
 	if err != nil {
 		return nil, err
+	}
+	if len(movimentos) > limiteDeMovimentosDaConta {
+		return nil, domain.ErroValidacao("período com movimentos demais para a conciliação automática; reduza o período")
 	}
 
 	pares := domaincaixa.ParesExatos(lancamentos, movimentos)
@@ -178,6 +185,11 @@ func (u *ConciliacaoUsecaseImpl) Desfazer(ctx context.Context, input portsin.Des
 	conciliacao, err := u.conciliacaoComAcesso(ctx, input.ConciliacaoID, input.UsuarioID)
 	if err != nil {
 		return nil, err
+	}
+	if conciliacao.ContraparteID != nil {
+		if _, err := u.contaComAcesso(ctx, *conciliacao.ContraparteID, input.UsuarioID); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := conciliacao.Desfazer(input.UsuarioID, input.Motivo, time.Now().UTC()); err != nil {
@@ -279,6 +291,17 @@ func (u *ConciliacaoUsecaseImpl) conciliacaoComAcesso(ctx context.Context, conci
 	}
 
 	return conciliacao, nil
+}
+
+func diasCompletos(lancamentos []*domaincaixa.LancamentoExtrato, diaCortado time.Time) []*domaincaixa.LancamentoExtrato {
+	completos := lancamentos[:0:0]
+	for _, lancamento := range lancamentos {
+		if lancamento.Data.Before(domaincaixa.DataDe(diaCortado)) {
+			completos = append(completos, lancamento)
+		}
+	}
+
+	return completos
 }
 
 func referenciasDosMovimentos(entradas []portsin.ReferenciaInput) ([]domaincaixa.ReferenciaMovimento, error) {

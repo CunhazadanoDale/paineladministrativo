@@ -109,7 +109,7 @@ func TestFechamentoDoMesComTravas(t *testing.T) {
 		t.Fatalf("movimento de setembro = %+v", movimento)
 	}
 
-	gravacao := &portscaixa.GravacaoFechamento{Fechamento: c.fechamentoDeSetembro(movimento), VersaoDaAbertura: c.aberturaMes.Versao}
+	gravacao := &portscaixa.GravacaoFechamento{Fechamento: c.fechamentoDeSetembro(movimento), VersaoDaAbertura: c.aberturaMes.Versao, SaldoBancoLido: movimento.SaldoBancoCentavos}
 	if err := c.fechamentos.Fechar(c.ctx, gravacao); !errors.Is(err, domain.ErrConflito) {
 		t.Errorf("fechar com pendências = %v", err)
 	}
@@ -118,17 +118,24 @@ func TestFechamentoDoMesComTravas(t *testing.T) {
 	c.classificar(t, preparado.Lancamentos[1].ID, c.receitaID)
 
 	if err := c.fechamentos.Fechar(c.ctx, &portscaixa.GravacaoFechamento{
-		Fechamento: c.fechamentoDeSetembro(movimento), VersaoDaAbertura: c.aberturaMes.Versao + 1,
+		Fechamento: c.fechamentoDeSetembro(movimento), VersaoDaAbertura: c.aberturaMes.Versao + 1, SaldoBancoLido: movimento.SaldoBancoCentavos,
 	}); !errors.Is(err, domain.ErrConflito) {
 		t.Errorf("fechar com abertura alterada = %v", err)
 	}
 
+	outroSaldo := *movimento.SaldoBancoCentavos + 1
+	if err := c.fechamentos.Fechar(c.ctx, &portscaixa.GravacaoFechamento{
+		Fechamento: c.fechamentoDeSetembro(movimento), VersaoDaAbertura: c.aberturaMes.Versao, SaldoBancoLido: &outroSaldo,
+	}); !errors.Is(err, domain.ErrConflito) {
+		t.Errorf("fechar com saldo do banco mudado = %v", err)
+	}
+
 	setembro := c.fechamentoDeSetembro(movimento)
-	if err := c.fechamentos.Fechar(c.ctx, &portscaixa.GravacaoFechamento{Fechamento: setembro, VersaoDaAbertura: c.aberturaMes.Versao}); err != nil {
+	if err := c.fechamentos.Fechar(c.ctx, &portscaixa.GravacaoFechamento{Fechamento: setembro, VersaoDaAbertura: c.aberturaMes.Versao, SaldoBancoLido: movimento.SaldoBancoCentavos}); err != nil {
 		t.Fatalf("Fechar = %v", err)
 	}
 	if err := c.fechamentos.Fechar(c.ctx, &portscaixa.GravacaoFechamento{
-		Fechamento: c.fechamentoDeSetembro(movimento), VersaoDaAbertura: c.aberturaMes.Versao,
+		Fechamento: c.fechamentoDeSetembro(movimento), VersaoDaAbertura: c.aberturaMes.Versao, SaldoBancoLido: movimento.SaldoBancoCentavos,
 	}); !errors.Is(err, domain.ErrConflito) {
 		t.Errorf("fechar setembro de novo = %v", err)
 	}

@@ -22,8 +22,14 @@ type PreviaFechamento struct {
 	ContaBancariaID      uuid.UUID
 	Competencia          time.Time
 	SaldoInicialCentavos int64
+	MesEncerrado         bool
 	MovimentoDoMes
 	MovimentosSemLinha []*MovimentoSistema
+}
+
+func (p *PreviaFechamento) PodeFechar() bool {
+	return p.MesEncerrado && p.Bloqueios() == nil && p.SaldoBancoCentavos != nil &&
+		*p.SaldoBancoCentavos == p.SaldoFinalCentavos()
 }
 
 func (p *PreviaFechamento) SaldoFinalCentavos() int64 {

@@ -329,7 +329,7 @@ func (f *fechamentoUseCaseFalso) Previa(_ context.Context, input portsin.PreviaI
 	banco := int64(130000)
 
 	return &domaincaixa.PreviaFechamento{
-		ContaBancariaID: input.ContaBancariaID, Competencia: input.Competencia, SaldoInicialCentavos: 100000,
+		ContaBancariaID: input.ContaBancariaID, Competencia: input.Competencia, SaldoInicialCentavos: 100000, MesEncerrado: true,
 		MovimentoDoMes: domaincaixa.MovimentoDoMes{EntradasCentavos: 30000, SaldoBancoCentavos: &banco},
 	}, nil
 }

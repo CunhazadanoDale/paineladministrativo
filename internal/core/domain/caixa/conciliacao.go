@@ -91,6 +91,7 @@ type Conciliacao struct {
 	DesfeitaEm          *time.Time
 	DesfeitaPor         *uuid.UUID
 	MotivoDesfazer      *string
+	ContraparteID       *uuid.UUID
 }
 
 type DadosConciliacao struct {

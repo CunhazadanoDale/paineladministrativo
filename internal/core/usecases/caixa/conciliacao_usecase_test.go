@@ -184,18 +184,33 @@ func TestConciliacaoAutomaticaSoNosParesUnicos(t *testing.T) {
 	esperarErro(t, err, domain.ErrPermissao, "perfil sem acesso")
 }
 
-func TestConciliacaoAutomaticaLimitaAsLinhas(t *testing.T) {
+func TestConciliacaoAutomaticaLimitaAsLinhasSemCortarODia(t *testing.T) {
 	c := novoCenario(t)
-	for range portsin.LimiteDaConciliacaoAutomatica + 1 {
+	for range 400 {
+		c.lancamento(c.sicrediMIA, -4, -1)
+	}
+	for range 200 {
 		c.lancamento(c.sicrediMIA, -3, -1)
 	}
+	c.movimento(domaincaixa.MovimentoPagamento, c.sicrediMIA, -3, -1)
 
 	resultado, err := c.conciliacao.ConciliarAutomatico(c.ctx, portsin.ConciliarAutomaticoInput{
 		UsuarioID: c.financeiroMIA, ContaBancariaID: c.sicrediMIA, De: dia(-10), Ate: dia(0),
 	})
-	if err != nil || !resultado.RestamLinhas || resultado.SemPar != portsin.LimiteDaConciliacaoAutomatica {
-		t.Errorf("resultado = %+v, %v", resultado, err)
+	if err != nil || !resultado.RestamLinhas || resultado.SemPar != 400 || resultado.Conciliadas != 0 || resultado.Ambiguos != 0 {
+		t.Fatalf("resultado = %+v, %v", resultado, err)
 	}
+	if filtro := c.conciliacoesRepo.filtros[len(c.conciliacoesRepo.filtros)-1]; !filtro.Ate.Equal(dia(-4)) {
+		t.Errorf("movimentos consultados até %v, esperado o último dia completo", filtro.Ate)
+	}
+
+	for range 501 {
+		c.lancamento(c.sicrediMIA, -6, -2)
+	}
+	_, err = c.conciliacao.ConciliarAutomatico(c.ctx, portsin.ConciliarAutomaticoInput{
+		UsuarioID: c.financeiroMIA, ContaBancariaID: c.sicrediMIA, De: dia(-10), Ate: dia(0),
+	})
+	esperarErro(t, err, domain.ErrValidacao, "mais de 500 lançamentos pendentes no mesmo dia")
 }
 
 func TestPendenciasEPagamentosSemConta(t *testing.T) {
@@ -225,4 +240,27 @@ func TestPendenciasEPagamentosSemConta(t *testing.T) {
 	}
 	_, err = c.conciliacao.PagamentosSemConta(c.ctx, portsin.PagamentosSemContaInput{UsuarioID: c.financeiroRed, Empresa: &c.mia})
 	esperarErro(t, err, domain.ErrPermissao, "perfil sem acesso")
+}
+
+func TestDesfazerTransferenciaExigeAcessoAOutraConta(t *testing.T) {
+	c := novoCenario(t)
+	linha := c.lancamento(c.sicrediMIA, -2, -1000)
+	conciliacao := &domaincaixa.Conciliacao{
+		ID: uuid.New(), ExtratoLancamentoID: linha.ID, ContaBancariaID: c.sicrediMIA, Modo: domaincaixa.ConciliacaoTransferencia,
+		Vigente: true, ContraparteID: &c.itauRed,
+		Itens: []domaincaixa.ItemConciliacao{{Tipo: domaincaixa.MovimentoTransferenciaSaida, AlvoID: uuid.New(), ValorCentavos: -1000}},
+	}
+	c.conciliacoesRepo.conciliacoes[conciliacao.ID] = conciliacao
+	linha.ConciliacaoID = &conciliacao.ID
+
+	_, err := c.conciliacao.Desfazer(c.ctx, portsin.DesfazerConciliacaoInput{
+		UsuarioID: c.financeiroMIA, ConciliacaoID: conciliacao.ID, Motivo: "era aplicação",
+	})
+	esperarErro(t, err, domain.ErrPermissao, "perfil sem acesso")
+
+	if _, err := c.conciliacao.Desfazer(c.ctx, portsin.DesfazerConciliacaoInput{
+		UsuarioID: c.administrador, ConciliacaoID: conciliacao.ID, Motivo: "era aplicação",
+	}); err != nil {
+		t.Errorf("administrador desfaz a transferência = %v", err)
+	}
 }

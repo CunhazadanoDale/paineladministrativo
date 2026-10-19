@@ -70,7 +70,11 @@ func (u *FechamentoUsecaseImpl) Fechar(ctx context.Context, input portsin.Fechar
 		return nil, err
 	}
 
-	gravacao := &portsout.GravacaoFechamento{Fechamento: fechamento, VersaoDaAbertura: contexto.abertura.Versao}
+	gravacao := &portsout.GravacaoFechamento{
+		Fechamento:       fechamento,
+		VersaoDaAbertura: contexto.abertura.Versao,
+		SaldoBancoLido:   contexto.previa.SaldoBancoCentavos,
+	}
 	if contexto.ultimo != nil {
 		gravacao.UltimoID = &contexto.ultimo.ID
 	}
@@ -205,6 +209,7 @@ func (u *FechamentoUsecaseImpl) montarPrevia(
 			ContaBancariaID:      conta.ID,
 			Competencia:          competencia,
 			SaldoInicialCentavos: domaincaixa.SaldoInicialDaCompetencia(abertura, ultimo),
+			MesEncerrado:         competencia.Before(domaincaixa.CompetenciaDe(domaincaixa.Hoje(time.Now().UTC()))),
 			MovimentoDoMes:       *movimento,
 			MovimentosSemLinha:   semLinha,
 		},
