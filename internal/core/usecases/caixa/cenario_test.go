@@ -21,6 +21,8 @@ type cenario struct {
 	aberturas           *caixausecases.AberturaUsecaseImpl
 	extratos            *caixausecases.ExtratoUsecaseImpl
 	saldos              *caixausecases.SaldoUsecaseImpl
+	conciliacao         *caixausecases.ConciliacaoUsecaseImpl
+	conciliacoesRepo    *repositorioConciliacoes
 	empresasRepo        *repositorioEmpresas
 	usuariosRepo        *repositorioUsuarios
 	cargosRepo          *repositorioCargos
@@ -55,21 +57,24 @@ func novoCenario(t *testing.T) *cenario {
 	aberturas := &repositorioAberturas{itens: map[uuid.UUID]*domaincaixa.Abertura{}}
 	extratos := &repositorioExtratos{contas: contas}
 	saldos := &repositorioSaldos{contas: contas}
+	conciliacoes := novoRepositorioConciliacoes()
 
 	c := &cenario{
-		ctx:           context.Background(),
-		aberturas:     caixausecases.NewAberturaUsecase(aberturas, contas, empresas, usuarios, cargos),
-		extratos:      caixausecases.NewExtratoUsecase(extratos, aberturas, arquivos, storage, contas, empresas, usuarios, cargos),
-		saldos:        caixausecases.NewSaldoUsecase(saldos, empresas, usuarios, cargos),
-		empresasRepo:  empresas,
-		usuariosRepo:  usuarios,
-		cargosRepo:    cargos,
-		contasRepo:    contas,
-		arquivosRepo:  arquivos,
-		storage:       storage,
-		aberturasRepo: aberturas,
-		extratosRepo:  extratos,
-		saldosRepo:    saldos,
+		ctx:              context.Background(),
+		aberturas:        caixausecases.NewAberturaUsecase(aberturas, contas, empresas, usuarios, cargos),
+		extratos:         caixausecases.NewExtratoUsecase(extratos, aberturas, arquivos, storage, contas, empresas, usuarios, cargos),
+		saldos:           caixausecases.NewSaldoUsecase(saldos, empresas, usuarios, cargos),
+		conciliacao:      caixausecases.NewConciliacaoUsecase(conciliacoes, contas, empresas, usuarios, cargos),
+		conciliacoesRepo: conciliacoes,
+		empresasRepo:     empresas,
+		usuariosRepo:     usuarios,
+		cargosRepo:       cargos,
+		contasRepo:       contas,
+		arquivosRepo:     arquivos,
+		storage:          storage,
+		aberturasRepo:    aberturas,
+		extratosRepo:     extratos,
+		saldosRepo:       saldos,
 	}
 
 	c.mia = c.novaEmpresa("MIA", true)

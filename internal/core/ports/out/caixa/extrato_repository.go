@@ -21,6 +21,7 @@ type LancamentoFiltro struct {
 	ContaBancariaID uuid.UUID
 	De              *time.Time
 	Ate             *time.Time
+	Situacao        *domaincaixa.SituacaoLancamento
 }
 
 type ExtratoRepository interface {

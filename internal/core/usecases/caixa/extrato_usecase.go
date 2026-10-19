@@ -160,12 +160,21 @@ func (u *ExtratoUsecaseImpl) ListarLancamentos(ctx context.Context, input portsi
 		return nil, err
 	}
 
-	return u.extratos.ListarLancamentos(ctx, portsout.LancamentoFiltro{
+	filtro := portsout.LancamentoFiltro{
 		PaginacaoFiltro: input.Filtro.Normalizada(),
 		ContaBancariaID: conta.ID,
 		De:              de,
 		Ate:             ate,
-	})
+	}
+	if input.Situacao != "" {
+		situacao, err := domaincaixa.NovaSituacaoLancamento(input.Situacao)
+		if err != nil {
+			return nil, err
+		}
+		filtro.Situacao = &situacao
+	}
+
+	return u.extratos.ListarLancamentos(ctx, filtro)
 }
 
 func (u *ExtratoUsecaseImpl) contaDoExtrato(

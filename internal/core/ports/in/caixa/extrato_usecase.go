@@ -35,6 +35,7 @@ type ListarLancamentosInput struct {
 	ContaBancariaID uuid.UUID
 	De              *time.Time
 	Ate             *time.Time
+	Situacao        string
 	Filtro          domain.PaginacaoFiltro
 }
 

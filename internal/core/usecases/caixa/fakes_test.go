@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"slices"
+	"time"
 
 	domaincaixa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/caixa"
 	domainempresa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/empresa"
@@ -286,4 +287,141 @@ func (r *repositorioSaldos) Saldos(_ context.Context, empresaIDs []uuid.UUID) ([
 	}
 
 	return saldos, nil
+}
+
+var _ portsout.ConciliacaoRepository = (*repositorioConciliacoes)(nil)
+
+type repositorioConciliacoes struct {
+	lancamentos  map[uuid.UUID]*domaincaixa.LancamentoExtrato
+	movimentos   []*domaincaixa.MovimentoSistema
+	semConta     []*domaincaixa.MovimentoSistema
+	conciliacoes map[uuid.UUID]*domaincaixa.Conciliacao
+	filtros      []portsout.MovimentoFiltro
+	falharCriar  error
+}
+
+func novoRepositorioConciliacoes() *repositorioConciliacoes {
+	return &repositorioConciliacoes{
+		lancamentos:  map[uuid.UUID]*domaincaixa.LancamentoExtrato{},
+		conciliacoes: map[uuid.UUID]*domaincaixa.Conciliacao{},
+	}
+}
+
+func (r *repositorioConciliacoes) ObterLancamento(_ context.Context, id uuid.UUID) (*domaincaixa.LancamentoExtrato, error) {
+	lancamento, ok := r.lancamentos[id]
+	if !ok {
+		return nil, nil
+	}
+
+	copia := *lancamento
+	return &copia, nil
+}
+
+func (r *repositorioConciliacoes) LancamentosPendentes(_ context.Context, contaBancariaID uuid.UUID, de, ate time.Time, limite int) ([]*domaincaixa.LancamentoExtrato, error) {
+	var lancamentos []*domaincaixa.LancamentoExtrato
+	for _, lancamento := range r.lancamentos {
+		if lancamento.ContaBancariaID != contaBancariaID || lancamento.ConciliacaoID != nil ||
+			lancamento.Data.Before(de) || lancamento.Data.After(ate) {
+			continue
+		}
+		copia := *lancamento
+		lancamentos = append(lancamentos, &copia)
+	}
+	slices.SortFunc(lancamentos, func(a, b *domaincaixa.LancamentoExtrato) int { return a.Data.Compare(b.Data) })
+	if len(lancamentos) > limite {
+		lancamentos = lancamentos[:limite]
+	}
+
+	return lancamentos, nil
+}
+
+func (r *repositorioConciliacoes) Movimentos(_ context.Context, filtro portsout.MovimentoFiltro) ([]*domaincaixa.MovimentoSistema, error) {
+	r.filtros = append(r.filtros, filtro)
+
+	var movimentos []*domaincaixa.MovimentoSistema
+	for _, movimento := range r.movimentos {
+		if movimento.ContaBancariaID != filtro.ContaBancariaID ||
+			(filtro.SoPendentes && !movimento.Pendente()) ||
+			(filtro.ValorCentavos != nil && movimento.ValorCentavos != *filtro.ValorCentavos) ||
+			(filtro.De != nil && movimento.Data.Before(*filtro.De)) ||
+			(filtro.Ate != nil && movimento.Data.After(*filtro.Ate)) {
+			continue
+		}
+		copia := *movimento
+		movimentos = append(movimentos, &copia)
+	}
+
+	return movimentos, nil
+}
+
+func (r *repositorioConciliacoes) MovimentosPorReferencia(_ context.Context, contaBancariaID uuid.UUID, referencias []domaincaixa.ReferenciaMovimento) ([]*domaincaixa.MovimentoSistema, error) {
+	var movimentos []*domaincaixa.MovimentoSistema
+	for _, movimento := range r.movimentos {
+		if movimento.ContaBancariaID == contaBancariaID && slices.Contains(referencias, movimento.Referencia()) {
+			copia := *movimento
+			movimentos = append(movimentos, &copia)
+		}
+	}
+
+	return movimentos, nil
+}
+
+func (r *repositorioConciliacoes) PagamentosSemConta(_ context.Context, filtro portsout.SemContaFiltro) ([]*domaincaixa.MovimentoSistema, error) {
+	var movimentos []*domaincaixa.MovimentoSistema
+	for _, movimento := range r.semConta {
+		if filtro.EmpresaIDs == nil || slices.Contains(filtro.EmpresaIDs, movimento.EmpresaID) {
+			movimentos = append(movimentos, movimento)
+		}
+	}
+
+	return movimentos, nil
+}
+
+func (r *repositorioConciliacoes) Criar(_ context.Context, conciliacao *domaincaixa.Conciliacao) error {
+	if r.falharCriar != nil {
+		return r.falharCriar
+	}
+
+	copia := *conciliacao
+	copia.Itens = slices.Clone(conciliacao.Itens)
+	r.conciliacoes[conciliacao.ID] = &copia
+	r.lancamentos[conciliacao.ExtratoLancamentoID].ConciliacaoID = &copia.ID
+	for _, item := range conciliacao.Itens {
+		for _, movimento := range r.movimentos {
+			if movimento.Tipo == item.Tipo && movimento.ID == item.AlvoID {
+				movimento.ConciliacaoID = &copia.ID
+			}
+		}
+	}
+
+	return nil
+}
+
+func (r *repositorioConciliacoes) Obter(_ context.Context, id uuid.UUID) (*domaincaixa.Conciliacao, error) {
+	conciliacao, ok := r.conciliacoes[id]
+	if !ok {
+		return nil, nil
+	}
+
+	copia := *conciliacao
+	copia.Itens = slices.Clone(conciliacao.Itens)
+	return &copia, nil
+}
+
+func (r *repositorioConciliacoes) Desfazer(_ context.Context, conciliacao *domaincaixa.Conciliacao) error {
+	atual := r.conciliacoes[conciliacao.ID]
+	if !atual.Vigente {
+		return domaincaixa.ErroConciliacaoJaDesfeita()
+	}
+
+	copia := *conciliacao
+	r.conciliacoes[conciliacao.ID] = &copia
+	r.lancamentos[conciliacao.ExtratoLancamentoID].ConciliacaoID = nil
+	for _, movimento := range r.movimentos {
+		if movimento.ConciliacaoID != nil && *movimento.ConciliacaoID == conciliacao.ID {
+			movimento.ConciliacaoID = nil
+		}
+	}
+
+	return nil
 }
