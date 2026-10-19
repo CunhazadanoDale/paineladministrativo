@@ -41,3 +41,31 @@ func ErroImportacaoNaoEncontrada() error {
 func ErroImportacaoNaoEhAUltima() error {
 	return domain.ErroConflito("só a importação mais recente da conta pode ser desfeita")
 }
+
+func ErroLancamentoNaoEncontrado() error {
+	return domain.ErroNaoEncontrado("lançamento do extrato não encontrado")
+}
+
+func ErroLancamentoJaConciliado() error {
+	return domain.ErroConflito("lançamento do extrato já conciliado; desfaça a conciliação antes")
+}
+
+func ErroMovimentoJaConciliado() error {
+	return domain.ErroConflito("movimento já conciliado com outro lançamento do extrato")
+}
+
+func ErroMovimentoAlterado() error {
+	return domain.ErroConflito("um dos movimentos foi estornado ou alterado; recarregue e tente de novo")
+}
+
+func ErroConciliacaoNaoEncontrada() error {
+	return domain.ErroNaoEncontrado("conciliação não encontrada")
+}
+
+func ErroConciliacaoJaDesfeita() error {
+	return domain.ErroConflito("conciliação já desfeita")
+}
+
+func ErroImportacaoComConciliacao() error {
+	return domain.ErroConflito("importação com lançamento que já passou por conciliação não pode ser desfeita")
+}

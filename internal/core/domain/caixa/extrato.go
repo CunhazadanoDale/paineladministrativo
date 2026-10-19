@@ -54,6 +54,8 @@ type LancamentoExtrato struct {
 	Documento       *string
 	Identificador   string
 	CriadoEm        time.Time
+	ConciliacaoID   *uuid.UUID
+	Situacao        SituacaoLancamento
 }
 
 func (l *LancamentoExtrato) Credito() bool {
@@ -151,6 +153,7 @@ func PrepararImportacao(dados DadosImportacao) (*ExtratoPreparado, error) {
 			Documento:       documentoDaTransacao(transacao.Documento),
 			Identificador:   identificador(chave, ocorrencias[chave]),
 			CriadoEm:        dados.Agora,
+			Situacao:        LancamentoPendente,
 		})
 	}
 

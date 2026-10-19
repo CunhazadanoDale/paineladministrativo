@@ -20,6 +20,7 @@ type SaldoConta struct {
 	SaldoBancoCentavos               *int64
 	SaldoBancoEm                     *time.Time
 	MovimentoAteSaldoDoBancoCentavos int64
+	LancamentosPendentes             int
 }
 
 func (s *SaldoConta) TemAbertura() bool {
