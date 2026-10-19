@@ -2013,8 +2013,8 @@ Corpo do `POST /pedidos`:
 | `obra_id` | opcional; obra do mesmo cliente e ativa ao escolher (`400 obra não encontrada para o cliente do pedido`) |
 | `representante_id` | opcional; sem ele vale o representante do cliente; ativo ao atribuir; representante com login só em nome próprio (`403`) |
 | `modelo` | `pronta_entrega` ou `importacao`; define a condição padrão gravada no pedido |
-| `entrada_bp`, `prazo_boleto_dias`, `prazo_entrega_dias` | opcionais; sobrescrevem a condição padrão do modelo enquanto o pedido é proposta (o que não vier fica com o padrão). Entrada `0..10000`; prazo do boleto `1..365`; prazo de entrega `1..730`, só na importação (`400` na pronta entrega) |
-| `validade` | data `AAAA-MM-DD` da proposta, não anterior a hoje; sem ela, **hoje + 15 dias** (também no `PUT`, que assim renova a proposta) |
+| `entrada_bp`, `prazo_boleto_dias`, `prazo_entrega_dias` | opcionais; sobrescrevem a condição padrão do modelo enquanto o pedido é proposta (o que não vier fica com o padrão). Entrada `0..10000` e prazo de entrega `1..730` **só na importação** (`400` na pronta entrega, que é paga no boleto); prazo do boleto `1..365`. Importação com entrada `0`: o prazo de entrega conta da confirmação (o `confirmar` grava o `prazo_limite`) e não há entrada a registrar (`400`) |
+| `validade` | data `AAAA-MM-DD` da proposta, não anterior a hoje (o `PUT` aceita reenviar a validade atual, mesmo vencida); sem ela, **hoje + 15 dias** (também no `PUT`, que assim renova a proposta) |
 | `frete_tipo`, `frete_estimado_centavos` | opcionais; frete **estimado** da proposta (`cif` exige valor). Informativo: não soma a `valor_total_centavos`; o frete real continua na entrega |
 | `prazo_limite` | data `AAAA-MM-DD`, opcional, só na pronta entrega; na importação é calculado pela entrada paga (`400`) |
 | `numero_pedido_cliente` | opcional, até 60 (número de compra do cliente) |
@@ -2087,7 +2087,8 @@ reimprimir o pedido confirmado.
 }
 ```
 
-- `identificacao`: número do pedido e revisão (`Proposta 57-R2`); `emitido_em`: hoje em Brasília.
+- `identificacao`: número do pedido e revisão — `Proposta 57-R2` enquanto proposta, `Pedido 57-R2` depois
+  de confirmado; `emitido_em`: hoje em Brasília. Empresa ou cliente do pedido ausentes → `404`.
 - `desconto_centavos`: soma dos descontos positivos sobre a tabela (`(tabela − preço) × quantidade`);
   venda acima da tabela aparece no item com desconto negativo e não entra na soma.
 - `condicoes`: as frases do documento, já montadas a partir da condição, do prazo-limite, do frete e da

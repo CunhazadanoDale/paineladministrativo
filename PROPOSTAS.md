@@ -56,7 +56,7 @@
 
 | Campo | Tipo | Observações |
 |---|---|---|
-| `validade` | DATE NULL | obrigatória enquanto `proposta`; as propostas existentes recebem `criado_em + 15 dias` na migration |
+| `validade` | DATE NULL | obrigatória enquanto `proposta`; as propostas existentes recebem hoje + 15 dias na migration (para nenhuma nascer vencida no deploy) |
 | `revisao` | INT | `>= 1`; sobe a cada `PUT` da proposta |
 | `frete_tipo` | VARCHAR(3) NULL | `cif`/`fob` |
 | `frete_estimado_centavos` | BIGINT NULL | `>= 0`; só com `frete_tipo` |
@@ -185,6 +185,11 @@ Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates ve
       `prazo_limite` digitado; `prazo_entrega_dias` lá responde `400`.
 - [x] **Preço de tabela recalculado a cada `PUT`** (fase 2): o item guarda o preço vigente no dia da
       última alteração da proposta, pela mesma regra de `GET /tabela-precos/vigentes`.
+- [x] **Revisão da branch** (outubro/2026): entrada só na importação (a pronta entrega é paga no
+      boleto e o M6/M9 só registram entrada de importação); importação com entrada zero ganha o
+      `prazo_limite` na confirmação e não aceita registro de entrada; o `PUT` aceita reenviar a validade
+      atual de uma proposta vencida; o documento se identifica como "Pedido" fora de `proposta`; erros do
+      cálculo do desconto propagados; propostas existentes recebem hoje + 15 na migration.
 - [x] **D1 — Tabela do grupo ou por empresa.** Decidido: **do grupo** (o produto e o estoque de
       catálogo já são do grupo; MIA, Red e Gigante vendem pela mesma tabela). Alternativa: tabela por
       empresa (`empresa_id` na vigência), se cada CNPJ praticar preço próprio.
