@@ -18,6 +18,8 @@ import (
 const (
 	tamanhoMaximoNomeArquivo = 255
 	contentTypeXML           = "application/xml"
+	contentTypeOFX           = "application/x-ofx"
+	extensaoOFX              = ".ofx"
 )
 
 var _ portsin.ArquivoUseCase = (*ArquivoUsecaseImpl)(nil)
@@ -76,7 +78,7 @@ func (u *ArquivoUsecaseImpl) Enviar(
 		return nil, err
 	}
 
-	tipo, err := normalizarContentType(contentType)
+	tipo, err := normalizarContentType(contentType, nomeLimpo)
 	if err != nil {
 		return nil, err
 	}
@@ -255,17 +257,22 @@ func normalizarNomeArquivo(nome string) (string, error) {
 	return nome, nil
 }
 
-func normalizarContentType(contentType string) (string, error) {
+func normalizarContentType(contentType, nome string) (string, error) {
 	tipo := strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0]))
+	extratoOFX := strings.HasSuffix(strings.ToLower(nome), extensaoOFX)
 
-	switch tipo {
-	case "application/pdf", "image/png", "image/jpeg", "image/webp", contentTypeXML:
+	switch {
+	case tipo == "application/pdf", tipo == "image/png", tipo == "image/jpeg", tipo == "image/webp", tipo == contentTypeXML:
 		return tipo, nil
-	case "text/xml":
+	case tipo == "text/xml":
 		return contentTypeXML, nil
-	case "":
+	case tipo == contentTypeOFX, tipo == "application/ofx", tipo == "text/ofx":
+		return contentTypeOFX, nil
+	case extratoOFX && (tipo == "" || tipo == "application/octet-stream" || tipo == "text/plain"):
+		return contentTypeOFX, nil
+	case tipo == "":
 		return "", domain.ErroValidacao("tipo do arquivo não informado")
 	default:
-		return "", domain.ErroValidacao("tipo de arquivo não permitido: use PDF, PNG, JPEG, WebP ou XML")
+		return "", domain.ErroValidacao("tipo de arquivo não permitido: use PDF, PNG, JPEG, WebP, XML ou OFX")
 	}
 }

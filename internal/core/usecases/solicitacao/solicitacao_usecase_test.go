@@ -2,6 +2,7 @@ package solicitacao_test
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -129,6 +130,25 @@ func TestCriarSolicitacaoComArquivoJaVinculadoRecebeErroDeValidacao(t *testing.T
 	})
 	if !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("arquivo reutilizado = %v, esperado erro de validação", err)
+	}
+}
+
+func TestCriarSolicitacaoComExtratoOFXRecebeErroDeValidacao(t *testing.T) {
+	c := novoCenario(t)
+	ana := c.novoUsuario("Ana", false, false)
+	arquivo := c.enviarArquivo(t, ana, "extrato.ofx", "application/x-ofx")
+
+	_, err := c.solicitacao.Criar(c.ctx, portsin.CriarSolicitacaoInput{
+		SolicitanteID:  ana,
+		EmpresaID:      c.empresaID,
+		ValorCentavos:  10000,
+		PrazoPagamento: time.Now().UTC().AddDate(0, 0, 1),
+		Observacao:     "observação",
+		FormaPagamento: "pix",
+		ArquivoIDs:     []uuid.UUID{arquivo.ID},
+	})
+	if !errors.Is(err, domain.ErrValidacao) || !strings.Contains(err.Error(), "exclusivo da importação de extrato") {
+		t.Errorf("OFX anexado = %v, esperado erro de validação", err)
 	}
 }
 

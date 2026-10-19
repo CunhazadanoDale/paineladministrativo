@@ -11,6 +11,7 @@ import (
 	httpapi "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/postgres"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/storage/disco"
+	caixausecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/caixa"
 	clienteusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/cliente"
 	comissaousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/comissao"
 	empresausecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/empresa"
@@ -179,6 +180,33 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 		),
 		tabelaprecousecases.NewTabelaPrecoUsecase(
 			postgres.NewTabelaPrecoRepository(banco), produtoRepository, usuarioRepository, cargoRepository,
+		),
+		caixausecases.NewAberturaUsecase(
+			postgres.NewCaixaAberturaRepository(banco), postgres.NewContaBancariaRepository(banco), empresaRepository,
+			usuarioRepository, cargoRepository,
+		),
+		caixausecases.NewExtratoUsecase(
+			postgres.NewExtratoRepository(banco), postgres.NewCaixaAberturaRepository(banco), arquivoRepository, armazenamento,
+			postgres.NewContaBancariaRepository(banco), empresaRepository, usuarioRepository, cargoRepository,
+		),
+		caixausecases.NewSaldoUsecase(postgres.NewCaixaSaldoRepository(banco), empresaRepository, usuarioRepository, cargoRepository),
+		caixausecases.NewConciliacaoUsecase(
+			postgres.NewConciliacaoRepository(banco), postgres.NewContaBancariaRepository(banco), empresaRepository,
+			usuarioRepository, cargoRepository,
+		),
+		caixausecases.NewLancamentoCaixaUsecase(
+			postgres.NewLancamentoCaixaRepository(banco), postgres.NewConciliacaoRepository(banco),
+			postgres.NewCategoriaFinanceiraRepository(banco), postgres.NewContaBancariaRepository(banco), empresaRepository,
+			usuarioRepository, cargoRepository,
+		),
+		caixausecases.NewFechamentoUsecase(
+			postgres.NewCaixaFechamentoRepository(banco), postgres.NewCaixaAberturaRepository(banco),
+			postgres.NewConciliacaoRepository(banco), postgres.NewContaBancariaRepository(banco), empresaRepository,
+			usuarioRepository, cargoRepository,
+		),
+		caixausecases.NewProjecaoUsecase(
+			postgres.NewCaixaProjecaoRepository(banco), postgres.NewDespesaRecorrenteRepository(banco),
+			postgres.NewContaBancariaRepository(banco), empresaRepository, usuarioRepository, cargoRepository,
 		),
 		autenticacao.NovoTokenService(segredoDoTeste, time.Hour),
 	)

@@ -66,6 +66,33 @@ func TestEnviarArquivoAceitaXMLDaNotaFiscal(t *testing.T) {
 	}
 }
 
+func TestEnviarArquivoAceitaExtratoOFX(t *testing.T) {
+	c := novoCenario(t)
+	dono := c.novoUsuario("Ana", false, false)
+
+	casos := map[string]string{
+		"application/x-ofx":        "extrato.txt",
+		"application/ofx":          "extrato",
+		"text/ofx":                 "extrato",
+		"application/octet-stream": "Extrato.OFX",
+		"text/plain":               "extrato.ofx",
+		"":                         "extrato.ofx",
+	}
+	for tipo, nome := range casos {
+		arquivo, err := c.arquivo.Enviar(c.ctx, dono, nome, tipo, 5, strings.NewReader("<OFX>"))
+		if err != nil {
+			t.Fatalf("tipo %q com nome %q = %v", tipo, nome, err)
+		}
+		if arquivo.ContentType != "application/x-ofx" {
+			t.Errorf("tipo %q com nome %q gravado como %q", tipo, nome, arquivo.ContentType)
+		}
+	}
+
+	if _, err := c.arquivo.Enviar(c.ctx, dono, "extrato.ofx", "application/zip", 5, strings.NewReader("<OFX>")); !errors.Is(err, domain.ErrValidacao) {
+		t.Errorf("zip com extensão ofx = %v, esperado erro de validação", err)
+	}
+}
+
 func TestEnviarArquivoRejeitaTiposNaoPermitidos(t *testing.T) {
 	c := novoCenario(t)
 	dono := c.novoUsuario("Ana", false, false)

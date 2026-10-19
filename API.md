@@ -998,7 +998,7 @@ O upload é `multipart/form-data` com **um campo só**: `arquivo`.
 | Tamanho máximo | 10MB por arquivo (`413 arquivo excede o limite de 10MB`) |
 | Arquivo ausente no armazenamento | `404` `registro não encontrado: arquivo não encontrado no armazenamento` (registro existe, mas o conteúdo sumiu do disco ou do bucket) |
 | Tempo de transferência | até 5 minutos no envio (`POST /api/v1/arquivos`) e no download (`GET /api/v1/arquivos/{id}` e `GET /api/v1/publico/imagens/{id}`); as demais rotas têm 15 segundos para ler a requisição e escrever a resposta |
-| Tipos aceitos | `application/pdf`, `image/png`, `image/jpeg`, `image/webp`, `application/xml` (`text/xml` é gravado como `application/xml`; só para a importação de NF-e, não vira anexo de solicitação) |
+| Tipos aceitos | `application/pdf`, `image/png`, `image/jpeg`, `image/webp`, `application/xml` (`text/xml` é gravado como `application/xml`; só para a importação de NF-e, não vira anexo de solicitação), `application/x-ofx` (também `application/ofx`, `text/ofx`, ou `application/octet-stream`, `text/plain` e tipo vazio quando o nome termina em `.ofx`; só para a importação de extrato, não vira anexo de solicitação) |
 | Nome | obrigatório, no máximo 255 caracteres |
 | Chave no storage | `{proprietario_id}/{uuid}/{nome}` |
 
@@ -3046,6 +3046,409 @@ Escopo e decisões em `PROPOSTAS.md`.
 | Mesmo produto, modelo e início | `409` | `já existe preço deste produto e modelo com início nesta data` |
 | Produto inativo | `400` | `erro de validação: produto inativo não recebe preço novo` |
 | Exclusão de vigência que já começou | `409` | `só é possível excluir preço cuja vigência ainda não começou` |
+
+---
+
+## Caixa — saldo inicial, extrato, conciliação, fechamento e projeção (financeiro)
+
+Extrato bancário importado por conta, em **OFX** (1.x SGML ou 2.x XML), sobre um **saldo inicial** por
+conta. O extrato é a fonte do saldo: saldo da conta = saldo inicial + linhas do extrato depois da data de
+corte. Escopo por empresa pela conta bancária (padrão da seção 4 do `EMPRESAS.md`); tudo é do
+**financeiro** (ou administrador), e só o administrador desfaz importação. Escopo e decisões em `CAIXA.md`.
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `PUT` | `/api/v1/caixa/contas/{id}/abertura` | **financeiro** | `200` saldo inicial criado ou alterado |
+| `GET` | `/api/v1/caixa/contas/{id}/abertura` | **financeiro** | `200` saldo inicial da conta |
+| `GET` | `/api/v1/caixa/saldos` | **financeiro** | `200` lista (`{ "dados": [...] }`) por conta das empresas do acesso (`?empresa=`) |
+| `POST` | `/api/v1/extratos/importacao` | **financeiro** | `201` relatório da importação (`200` na simulação) |
+| `GET` | `/api/v1/extratos/importacoes` | **financeiro** | `200` lista paginada (`?empresa=`, `?conta=`), mais recente primeiro |
+| `DELETE` | `/api/v1/extratos/importacoes/{id}` | **administrador** | `204`; só a importação mais recente da conta |
+| `GET` | `/api/v1/extratos/lancamentos` | **financeiro** | `200` lista paginada (`?conta=` obrigatório, `?de=`, `?ate=` em `AAAA-MM-DD`, `?situacao=pendente`, `conciliado` ou `invalidado`), por data |
+| `GET` | `/api/v1/extratos/lancamentos/{id}/sugestoes` | **financeiro** | `200` lista de movimentos do sistema que podem ser o par do lançamento |
+| `POST` | `/api/v1/extratos/lancamentos/{id}/conciliacao` | **financeiro** | `201` conciliação manual |
+| `POST` | `/api/v1/extratos/conciliar-automatico` | **financeiro** | `200` resultado da conciliação automática |
+| `GET` | `/api/v1/conciliacoes/{id}` | **financeiro** | `200` conciliação com os movimentos |
+| `POST` | `/api/v1/conciliacoes/{id}/desfazer` | **financeiro** | `200` conciliação desfeita |
+| `GET` | `/api/v1/caixa/pendencias-sistema` | **financeiro** | `200` lista paginada dos movimentos do sistema sem par no extrato (`?conta=` obrigatório, `?de=`, `?ate=`) |
+| `GET` | `/api/v1/caixa/pagamentos-sem-conta` | **financeiro** | `200` lista paginada dos pagamentos sem conta bancária (`?empresa=`, `?de=`, `?ate=`) |
+| `POST` | `/api/v1/extratos/lancamentos/{id}/classificacao` | **financeiro** | `201` lançamento de caixa e a conciliação |
+| `POST` | `/api/v1/extratos/lancamentos/{id}/transferencia` | **financeiro** | `201` transferência entre contas e a conciliação |
+| `GET` | `/api/v1/caixa/lancamentos` | **financeiro** | `200` lista paginada dos lançamentos de caixa (`?empresa=`, `?conta=`, `?de=`, `?ate=`) |
+| `GET` | `/api/v1/caixa/transferencias` | **financeiro** | `200` lista paginada das transferências entre contas (`?empresa=`, `?conta=`, `?de=`, `?ate=`) |
+| `GET` | `/api/v1/caixa/fechamentos/previa` | **financeiro** | `200` prévia do fechamento (`?conta=` e `?competencia=AAAA-MM` obrigatórios) |
+| `POST` | `/api/v1/caixa/fechamentos` | **financeiro** | `201` fechamento do mês da conta |
+| `GET` | `/api/v1/caixa/fechamentos` | **financeiro** | `200` lista paginada (`?empresa=`, `?conta=`, `?competencia=AAAA-MM`), mais recente primeiro |
+| `GET` | `/api/v1/caixa/fechamentos/{id}` | **financeiro** | `200` fechamento com as divergências |
+| `POST` | `/api/v1/caixa/fechamentos/{id}/reabrir` | **administrador** | `200` fechamento reaberto |
+| `GET` | `/api/v1/caixa/projecao` | **financeiro** | `200` saldo diário projetado de hoje até `?ate=` (`?empresa=`; sem ela, todas as empresas do acesso) |
+| `GET` | `/api/v1/caixa/movimento-diario` | **financeiro** | `200` lista (`{ "dados": [...] }`) de entradas, saídas e saldo por conta e dia (`?empresa=`, `?conta=`, `?de=`, `?ate=`) |
+
+### Saldo inicial
+
+```json
+{ "data_corte": "2026-09-30", "saldo_centavos": 1500000, "versao": 1 }
+```
+
+- `data_corte` é o dia cujo **fim** tem o saldo informado; precisa ser anterior a hoje em Brasília. O
+  extrato vale do dia seguinte em diante: linha com data até o corte é ignorada na importação e fica fora
+  do saldo. `saldo_centavos` é obrigatório e aceita negativo (cheque especial).
+- Sem saldo inicial, o `PUT` cria (sem `versao`). Com saldo inicial, o `PUT` exige a `versao` lida
+  (`409 a conta já tem saldo inicial; envie a versão para alterar` sem ela; `409 o saldo inicial da conta
+  foi alterado por outra pessoa; recarregue e tente de novo` divergente).
+- Conta inativa ou de empresa inativa → `400`; conta fora do acesso → `403`; `GET` sem saldo inicial →
+  `404 registro não encontrado: conta sem saldo inicial`.
+- Resposta do `PUT` e do `GET`:
+
+```json
+{
+  "dados": {
+    "conta_bancaria_id": "…", "data_corte": "2026-09-30", "saldo_centavos": 1500000, "usuario_id": "…",
+    "versao": 1, "criado_em": "2026-10-19T13:00:00Z", "atualizado_em": "2026-10-19T13:00:00Z"
+  }
+}
+```
+
+### Importação do extrato
+
+1. Envie o arquivo por `POST /api/v1/arquivos` (gravado como `application/x-ofx`).
+2. Chame a importação:
+
+```json
+{ "arquivo_id": "…", "conta_bancaria_id": "…", "simular": false }
+```
+
+- Sem `conta_bancaria_id`, a conta é achada pelo `BANKID` (código COMPE), `BRANCHID` e `ACCTID` do OFX,
+  entre as contas **ativas no acesso do usuário**. O número igual (sem zeros à esquerda, com ou sem o
+  dígito depois do hífen) vale mais que o dígito colado ao número ou a agência colada na frente, e dígito
+  diferente do cadastrado não corresponde. Com `conta_bancaria_id`, o OFX precisa ser dessa conta e
+  nenhuma outra conta do banco pode corresponder melhor a ele.
+- Um arquivo com vários blocos da mesma conta é aceito (período = união dos blocos; saldo do banco = o
+  `LEDGERBAL` mais recente); contas diferentes no mesmo arquivo → `400`.
+- Data com fuso (`DTPOSTED` com hora e `[-3:BRT]`, `[0:GMT]`…) vira o dia em Brasília; sem fuso, vale o dia
+  escrito.
+- `simular: true` devolve o relatório sem gravar (`200`, `importacao_id` nulo).
+- Cada linha tem um identificador (`FITID` + data + valor + ocorrência no arquivo; sem `FITID`, a
+  descrição entra no lugar): linha já importada por outro arquivo conta como `repetidas` e não é gravada
+  de novo. Linha com valor zero, data até o corte ou data futura vai em `ignoradas` com o `motivo`
+  (`valor_zero`, `anterior_ao_saldo_inicial`, `mes_fechado`, `data_futura`).
+- Arquivo em Windows-1252 é convertido para UTF-8; descrição vem do `MEMO` (senão `NAME`), documento do
+  `CHECKNUM` (senão `REFNUM`). O saldo do `LEDGERBAL` fica guardado como saldo do banco.
+
+| Regra | Resposta |
+| --- | --- |
+| arquivo de outro usuário | `403 o arquivo OFX precisa ter sido enviado por você` |
+| arquivo que não é OFX ou de uma solicitação | `400` |
+| arquivo já importado | `409 arquivo já importado em outro extrato` |
+| OFX inválido, de cartão (`CCACCTFROM`), com mais de uma conta, data ou valor ilegível, mais de 5000 lançamentos ou acima de 5MB | `400` |
+| OFX sem conta e sem `conta_bancaria_id` | `400 erro de validação: o extrato não identifica a conta; informe conta_bancaria_id` |
+| nenhuma ou mais de uma conta cadastrada correspondem | `400` (informe `conta_bancaria_id`) |
+| `conta_bancaria_id` de outra conta | `400 erro de validação: o extrato é de outra conta (banco …, agência …, conta …)` |
+| conta fora do acesso | `403 perfil sem acesso a esta empresa` |
+| conta sem saldo inicial | `400 erro de validação: conta sem saldo inicial; informe a abertura antes de importar o extrato` |
+| conta ou empresa inativa | `400` |
+| saldo inicial alterado durante a importação | `409` |
+
+Resposta:
+
+```json
+{
+  "dados": {
+    "simulacao": false, "importacao_id": "…", "conta_bancaria_id": "…", "arquivo_id": "…",
+    "periodo_inicio": "2026-10-01", "periodo_fim": "2026-10-15",
+    "saldo_banco_centavos": 1084567, "saldo_banco_em": "2026-10-15",
+    "total": 3, "novas": 1, "repetidas": 1,
+    "ignoradas": [
+      { "sequencia": 1, "data": "2026-09-30", "valor_centavos": -100, "descricao": "TARIFA", "motivo": "anterior_ao_saldo_inicial" }
+    ]
+  }
+}
+```
+
+Item de `GET /extratos/importacoes`:
+
+```json
+{
+  "id": "…", "conta_bancaria_id": "…", "arquivo_id": "…", "periodo_inicio": "2026-10-01", "periodo_fim": "2026-10-15",
+  "saldo_banco_centavos": 1084567, "saldo_banco_em": "2026-10-15", "linhas_novas": 1, "linhas_repetidas": 1,
+  "linhas_ignoradas": 1, "usuario_id": "…", "criado_em": "2026-10-19T13:00:00Z"
+}
+```
+
+**Desfazer** (`DELETE /extratos/importacoes/{id}`) apaga a importação e as linhas que ela trouxe; só vale
+para a mais recente da conta (`409 só a importação mais recente da conta pode ser desfeita`). O arquivo
+continua guardado e pode ser importado de novo; enquanto estiver numa importação, ele não pode ser
+excluído (`400 registro em uso`).
+
+Lançamento (`GET /extratos/lancamentos`): `id`, `conta_bancaria_id`, `importacao_id`, `data`,
+`valor_centavos` (crédito positivo, débito negativo), `tipo` (`credito` ou `debito`), `descricao`,
+`documento`, `situacao` (`pendente`, `conciliado` ou `invalidado`) e `conciliacao_id` (a conciliação
+vigente, ou `null`). `ate` antes de `de` → `400`.
+
+Importação com lançamento que já passou por conciliação, mesmo desfeita, não pode ser desfeita
+(`409 importação com lançamento que já passou por conciliação não pode ser desfeita`).
+
+### Conciliação
+
+Liga um lançamento do extrato aos movimentos que o sistema já registrou na **mesma conta**:
+
+| Movimento (`tipo`) | Origem | Valor no caixa | Data |
+| --- | --- | --- | --- |
+| `pagamento` | pagamento da conta a pagar (M7), inclusive comissão, recompra e repasse | `- valor` | dia do `pago_em` em Brasília |
+| `transferencia_saida` / `transferencia_entrada` | a outra ponta de uma transferência entre contas (abaixo) | `- valor` / `valor` | data da transferência |
+| `recebimento` | baixa do título a receber do tipo `conta` (M9) | `valor + juros` | `recebido_em` |
+| `antecipacao` | crédito do borderô (M9) | `valor_liquido_centavos` | `operado_em` |
+
+Movimento estornado, de data até o corte do saldo inicial ou já conciliado não entra. Movimento
+(`GET .../sugestoes`, `pendencias-sistema`, `pagamentos-sem-conta`):
+
+```json
+{
+  "tipo": "pagamento", "id": "…", "conta_bancaria_id": "…", "empresa_id": "…", "data": "2026-10-15",
+  "valor_centavos": -50000, "descricao": "Cimentos do Vale - Compra de cimento", "origem_id": "…",
+  "estornado": false, "conciliacao_id": null
+}
+```
+
+`origem_id` é a solicitação (pagamento), o título (recebimento) ou o próprio borderô (antecipação).
+
+**Sugestões**: movimentos pendentes com o mesmo valor do lançamento e data até 3 dias antes ou depois,
+o mais próximo primeiro.
+
+**Manual** (`POST /extratos/lancamentos/{id}/conciliacao`): um lançamento com um ou mais movimentos
+(até 50), cuja soma precisa ser exatamente o valor do lançamento:
+
+```json
+{ "movimentos": [{ "tipo": "pagamento", "id": "…" }, { "tipo": "pagamento", "id": "…" }] }
+```
+
+| Regra | Resposta |
+| --- | --- |
+| lista vazia, tipo desconhecido, movimento repetido | `400` |
+| movimento que não é da conta ou é de data até o corte | `400 erro de validação: movimento não encontrado nesta conta ou anterior ao saldo inicial` |
+| crédito com movimento de saída ou débito com movimento de entrada | `400` |
+| movimento a mais de 3 dias do lançamento | `400 erro de validação: movimento fora da janela de 3 dias do lançamento` |
+| soma diferente | `400 erro de validação: a soma dos movimentos (-499,00) é diferente do valor do lançamento (-500,00)` |
+| lançamento já conciliado | `409 lançamento do extrato já conciliado; desfaça a conciliação antes` |
+| movimento já conciliado em outro lançamento | `409 movimento já conciliado com outro lançamento do extrato` |
+| movimento estornado ou alterado durante a gravação | `409 um dos movimentos foi estornado ou alterado; recarregue e tente de novo` |
+
+**Automática** (`POST /extratos/conciliar-automatico`): `{ "conta_bancaria_id", "de", "ate" }`
+(obrigatórios, até 92 dias). Concilia só os pares exatos e únicos nos dois sentidos: mesmo dia e mesmo
+valor, com um só movimento para o lançamento e um só lançamento para o movimento. Processa até 500
+lançamentos por chamada, sem dividir um dia: os dias que não couberem ficam para a próxima chamada
+(`restam_linhas`); mais de 500 pendentes num mesmo dia ou mais de 5000 movimentos no período → `400`:
+
+```json
+{ "dados": { "conciliadas": 12, "ambiguos": 1, "sem_par": 3, "falhas": 0, "restam_linhas": false } }
+```
+
+`falhas` conta os pares que outra pessoa conciliou no meio da rotina; rodar de novo é seguro.
+
+**Conciliação** (`GET /conciliacoes/{id}`, resposta da manual e do desfazer):
+
+```json
+{
+  "dados": {
+    "id": "…", "extrato_lancamento_id": "…", "conta_bancaria_id": "…", "modo": "manual",
+    "vigente": true, "invalidada": false,
+    "movimentos": [{ "tipo": "pagamento", "id": "…", "valor_centavos": -50000, "estornado": false }],
+    "usuario_id": "…", "criado_em": "2026-10-19T13:00:00Z",
+    "desfeita_em": null, "desfeita_por": null, "motivo_desfazer": null
+  }
+}
+```
+
+**Estorno depois de conciliar**: o M7 e o M9 continuam estornando normalmente. A conciliação fica
+`invalidada` e o lançamento aparece como `invalidado` até alguém desfazer a conciliação.
+
+**Desfazer** (`POST /conciliacoes/{id}/desfazer`): `{ "motivo": "…" }` (obrigatório, até 500
+caracteres). A conciliação fica guardada com `vigente = false`; o lançamento e os movimentos voltam a
+pendentes. Desfazer de novo → `409 conciliação já desfeita`.
+
+**Pagamentos sem conta** (`GET /caixa/pagamentos-sem-conta`): pagamentos não estornados registrados
+antes do M7, sem `conta_bancaria_id`. Ficam fora da conciliação e só aparecem nesta lista.
+
+### Linhas sem par: classificação
+
+Tarifa, IOF, juros e rendimento não têm movimento no M7 nem no M9: a linha é classificada no plano de
+contas e vira um **lançamento de caixa**, já conciliado a ela (`modo = classificacao`).
+
+```json
+{ "categoria_financeira_id": "…", "descricao": "Tarifa do pacote" }
+```
+
+- Categoria lançável (subcategoria ativa): `despesa` em débito, `receita` em crédito; `transferencia` → `400`
+  (use a transferência). A natureza é conferida de novo na transação.
+- `descricao` é opcional (padrão: a da linha). `competencia` é o mês da data da linha, fixo.
+- Resposta `201`: `{ "lancamento_caixa": {...}, "conciliacao": {...} }`, com o lançamento:
+
+```json
+{
+  "id": "…", "empresa_id": "…", "conta_bancaria_id": "…", "data": "2026-10-05", "valor_centavos": -1290,
+  "categoria_financeira_id": "…", "competencia": "2026-10", "descricao": "Tarifa do pacote",
+  "estornado": false, "usuario_id": "…", "criado_em": "2026-10-19T13:00:00Z"
+}
+```
+
+- Desfazer a conciliação (`POST /conciliacoes/{id}/desfazer`) estorna o lançamento (`estornado = true`) e
+  a linha volta a pendente. O M15 lê os lançamentos não estornados por `competencia` e `linha_dre`.
+
+### Transferência entre contas
+
+A linha de uma das pontas cria a transferência, já conciliada a ela (`modo = transferencia`):
+
+```json
+{ "conta_contraparte_id": "…", "categoria_financeira_id": "…", "descricao": "Aplicação" }
+```
+
+- Débito → origem é a conta da linha; crédito → destino é a conta da linha. `valor_centavos` da
+  transferência é sempre positivo.
+- Categoria lançável de natureza `transferencia` (linha `entre_contas`), fora da DRE. Conta da outra ponta
+  ativa, diferente da linha e no acesso do usuário (`403` sem acesso). Contas de empresas diferentes →
+  `entre_empresas = true` (regra provisória: sem título nem conta a pagar entre elas).
+- A outra ponta aparece em `pendencias-sistema` e nas sugestões da conta dela como `transferencia_entrada`
+  (no destino, valor positivo) ou `transferencia_saida` (na origem, valor negativo), e é conciliada pela
+  conciliação manual ou automática.
+- Desfazer a conciliação que criou a transferência a estorna (`estornado = true`); se a outra ponta já
+  estava conciliada, a conciliação dela fica `invalidada`. Desfazer exige acesso às duas contas (`403`) e
+  mês aberto nas duas (`409`).
+- Criar a transferência também recusa mês fechado na conta da outra ponta (`409`).
+- Resposta `201`: `{ "transferencia": {...}, "conciliacao": {...} }`, com a transferência:
+
+```json
+{
+  "id": "…", "conta_origem_id": "…", "conta_destino_id": "…", "data": "2026-10-05", "valor_centavos": 100000,
+  "entre_empresas": false, "categoria_financeira_id": "…", "descricao": "Aplicação", "estornado": false,
+  "usuario_id": "…", "criado_em": "2026-10-19T13:00:00Z"
+}
+```
+
+`GET /caixa/lancamentos` e `GET /caixa/transferencias` listam os registros das contas no acesso (a
+transferência aparece para quem vê a origem ou o destino), incluindo os estornados.
+
+### Fechamento mensal
+
+Um por conta e mês (`competencia` em `AAAA-MM`), em sequência: o primeiro é o mês do dia seguinte ao
+corte do saldo inicial, e cada um depois é o mês seguinte ao último fechamento vigente. Só fecha mês
+encerrado em Brasília.
+
+**Prévia** (`GET /caixa/fechamentos/previa?conta=&competencia=`), também para o mês corrente:
+
+```json
+{
+  "dados": {
+    "conta_bancaria_id": "…", "competencia": "2026-09", "saldo_inicial_centavos": 100000,
+    "entradas_centavos": 10000, "saidas_centavos": 1290, "saldo_final_centavos": 108710,
+    "saldo_banco_centavos": 108710, "lancamentos_pendentes": 0, "conciliacoes_invalidadas": 0,
+    "mes_encerrado": true, "pode_fechar": true, "movimentos_sem_linha": []
+  }
+}
+```
+
+`saldo_inicial_centavos` é o saldo inicial da conta (primeiro mês) ou o saldo final do fechamento anterior.
+`saldo_banco_centavos` é o `LEDGERBAL` da importação mais recente com data no último dia do mês (`null` se
+não houver). `movimentos_sem_linha` são os pagamentos, recebimentos, borderôs e pontas de transferência do
+mês sem linha no extrato: aparecem como divergência, mas não impedem o fechamento. `pode_fechar` é `true`
+só com o mês encerrado, sem pendência nem conciliação invalidada e com o `LEDGERBAL` do último dia igual ao
+saldo final; sem esse `LEDGERBAL`, ainda é possível fechar informando `saldo_banco_centavos` no corpo.
+
+**Fechar** (`POST /caixa/fechamentos`):
+
+```json
+{ "conta_bancaria_id": "…", "competencia": "2026-09", "saldo_banco_centavos": 108710 }
+```
+
+| Regra | Resposta |
+| --- | --- |
+| competência antes do saldo inicial, mês não encerrado, formato inválido | `400` |
+| conta sem saldo inicial | `400 erro de validação: conta sem saldo inicial; informe a abertura antes de importar o extrato` |
+| mês já fechado / mês anterior ainda aberto | `409 mês já fechado nesta conta` / `409 feche antes o mês de MM/AAAA` |
+| linha do mês pendente ou conciliação invalidada | `409 o mês tem N lançamento(s) pendente(s) e M conciliação(ões) invalidada(s); …` |
+| sem `saldo_banco_centavos` e sem `LEDGERBAL` do último dia | `400 erro de validação: informe o saldo do banco no fim do mês; …` |
+| saldo calculado diferente do saldo do banco | `409 saldo calculado (1087,10) diferente do saldo do banco (1087,60); diferença de 0,50` |
+| extrato, conciliações, saldo do banco ou saldo inicial mudaram entre a leitura e a gravação | `409` (recarregue a prévia) |
+
+Resposta `201` e detalhe (`GET /caixa/fechamentos/{id}`): os campos do fechamento (`id`,
+`conta_bancaria_id`, `competencia`, `saldo_inicial_centavos`, `entradas_centavos`, `saidas_centavos`,
+`saldo_final_centavos`, `saldo_banco_centavos`, `vigente`, `reaberto_em`, `reaberto_por`,
+`motivo_reabertura`, `usuario_id`, `criado_em`) mais as divergências recalculadas na leitura:
+`conciliacoes_invalidadas` (estorno feito no M7 ou no M9 depois do fechamento) e `movimentos_sem_linha`.
+
+**Mês fechado** trava o caixa daquela conta naquele mês: conciliar, classificar, transferir ou desfazer
+conciliação de linha do mês → `409 mês fechado nesta conta; reabra o fechamento para alterar`; a
+importação ignora as linhas do mês (motivo `mes_fechado`); o saldo inicial não muda enquanto houver
+fechamento vigente (`409 a conta já tem mês fechado; reabra os fechamentos para mudar o saldo inicial`).
+O M7 e o M9 não são bloqueados: o que mudar lá aparece como divergência no detalhe.
+
+**Reabrir** (`POST /caixa/fechamentos/{id}/reabrir`, administrador): `{ "motivo": "…" }`. Só o último mês
+fechado da conta (`409 reabra antes os meses seguintes desta conta`); reabrir de novo → `409 fechamento já
+reaberto`. O registro fica com `vigente = false` e o mês volta a aceitar alterações.
+
+### Projeção diária
+
+`GET /caixa/projecao?empresa=&ate=` projeta o saldo dia a dia, de **hoje** (Brasília) até `ate` (padrão
+hoje + 30; máximo hoje + 90; antes de hoje → `400`). Sem `empresa`, soma todas as empresas do acesso.
+
+- **Saldo de partida**: contas ativas com saldo inicial (abertura + linhas do extrato depois do corte) mais
+  o **em trânsito**: pagamentos, recebimentos, borderôs e pontas de transferência não conciliados e não
+  estornados com data depois do fim do último extrato importado da conta. Conta sem saldo inicial fica fora
+  (`contas_sem_saldo_inicial`).
+- **Entradas**: saldo dos títulos `carteira` e `em_banco` pelo vencimento (`antecipado` fica fora: o
+  dinheiro já entrou pelo borderô).
+- **Saídas**: contas a pagar `pendente_aprovacao` e `aprovado` pelo `prazo_pagamento`; as `estimado` vão em
+  `saidas_estimadas_centavos`.
+- **Recorrentes**: despesas recorrentes vigentes cuja solicitação da competência ainda não foi gerada,
+  pelo dia de vencimento.
+- Entradas e saídas vencidas (antes de hoje) entram no primeiro dia, em colunas próprias.
+
+```json
+{
+  "dados": {
+    "de": "2026-10-19", "ate": "2026-11-18",
+    "saldo_de_partida": {
+      "extrato_centavos": 101500, "em_transito_centavos": -50000, "total_centavos": 51500,
+      "contas_consideradas": 2, "contas_sem_saldo_inicial": 0
+    },
+    "saldo_final_centavos": 150000,
+    "dias": [{
+      "data": "2026-10-19", "entradas_centavos": 0, "entradas_vencidas_centavos": 20000,
+      "saidas_centavos": 5000, "saidas_estimadas_centavos": 0, "saidas_vencidas_centavos": 0,
+      "recorrentes_centavos": 0, "saldo_centavos": 66500
+    }]
+  }
+}
+```
+
+### Movimento diário realizado
+
+`GET /caixa/movimento-diario?empresa=&conta=&de=&ate=` substitui o "Fluxo de caixa diário": um item por
+conta e dia com linha no extrato (depois do corte), com o saldo acumulado da conta no fim do dia. Padrão:
+do dia 1 do mês até hoje; no máximo 92 dias (`400`).
+
+```json
+{ "dados": [{ "data": "2026-10-14", "conta_bancaria_id": "…", "entradas_centavos": 2000, "saidas_centavos": 500, "saldo_centavos": 101500 }] }
+```
+
+### Saldos por conta
+
+```json
+{
+  "dados": [
+    {
+      "conta_bancaria_id": "…", "empresa_id": "…", "apelido": "Sicredi", "banco": "748", "banco_nome": "Sicredi",
+      "ativa": true, "data_corte": "2026-09-30", "saldo_inicial_centavos": 100000, "saldo_atual_centavos": 193710,
+      "ultimo_lancamento_em": "2026-10-14", "saldo_banco_centavos": 194950, "saldo_banco_em": "2026-10-12",
+      "diferenca_banco_centavos": -50, "lancamentos_pendentes": 4
+    }
+  ]
+}
+```
+
+Conta sem saldo inicial aparece com `data_corte`, `saldo_inicial_centavos` e `saldo_atual_centavos` nulos.
+`lancamentos_pendentes` conta as linhas depois do corte ainda sem conciliação vigente.
+`diferenca_banco_centavos` = saldo do banco (último `LEDGERBAL` importado) − saldo calculado até a data
+dele; nulo sem saldo do banco ou com saldo do banco anterior ao corte.
 
 ---
 

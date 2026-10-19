@@ -19,6 +19,7 @@ import (
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/storage/disco"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/storage/r2"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/solicitacao"
+	caixausecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/caixa"
 	clienteusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/cliente"
 	comissaousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/comissao"
 	empresausecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/empresa"
@@ -214,6 +215,33 @@ func executar(registrador *slog.Logger) error {
 		),
 		tabelaprecousecases.NewTabelaPrecoUsecase(
 			postgres.NewTabelaPrecoRepository(banco), produtoRepository, usuarioRepository, cargoRepository,
+		),
+		caixausecases.NewAberturaUsecase(
+			postgres.NewCaixaAberturaRepository(banco), postgres.NewContaBancariaRepository(banco), empresaRepository,
+			usuarioRepository, cargoRepository,
+		),
+		caixausecases.NewExtratoUsecase(
+			postgres.NewExtratoRepository(banco), postgres.NewCaixaAberturaRepository(banco), arquivoRepository, storageArquivos,
+			postgres.NewContaBancariaRepository(banco), empresaRepository, usuarioRepository, cargoRepository,
+		),
+		caixausecases.NewSaldoUsecase(postgres.NewCaixaSaldoRepository(banco), empresaRepository, usuarioRepository, cargoRepository),
+		caixausecases.NewConciliacaoUsecase(
+			postgres.NewConciliacaoRepository(banco), postgres.NewContaBancariaRepository(banco), empresaRepository,
+			usuarioRepository, cargoRepository,
+		),
+		caixausecases.NewLancamentoCaixaUsecase(
+			postgres.NewLancamentoCaixaRepository(banco), postgres.NewConciliacaoRepository(banco),
+			postgres.NewCategoriaFinanceiraRepository(banco), postgres.NewContaBancariaRepository(banco), empresaRepository,
+			usuarioRepository, cargoRepository,
+		),
+		caixausecases.NewFechamentoUsecase(
+			postgres.NewCaixaFechamentoRepository(banco), postgres.NewCaixaAberturaRepository(banco),
+			postgres.NewConciliacaoRepository(banco), postgres.NewContaBancariaRepository(banco), empresaRepository,
+			usuarioRepository, cargoRepository,
+		),
+		caixausecases.NewProjecaoUsecase(
+			postgres.NewCaixaProjecaoRepository(banco), postgres.NewDespesaRecorrenteRepository(banco),
+			postgres.NewContaBancariaRepository(banco), empresaRepository, usuarioRepository, cargoRepository,
 		),
 		autenticacao.NovoTokenService(cfg.JWTSecret, cfg.JWTExpiracao),
 	)

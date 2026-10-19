@@ -1,7 +1,7 @@
 # Escopo — M13 Caixa e conciliação
 
 > **Status:** escopo fechado — decisões D1 a D15 respondidas pelo usuário (outubro/2026): todas as
-> recomendações aceitas, com OFX como único formato (D4); pronto para a fase 1.
+> recomendações aceitas, com OFX como único formato (D4); API concluída (fases 1 a 5: saldo inicial, extrato, conciliação, classificação, transferência, fechamento e projeção); front (fase 6) pendente.
 > **Objetivo:** tirar o "Caixa do mês" e o "Fluxo de caixa diário" das planilhas: extrato bancário
 > importado por conta (OFX), conciliado com os pagamentos do M7 e os recebimentos e borderôs do
 > M9, linhas sem par classificadas no plano de contas, fechamento mensal por conta com divergência
@@ -97,7 +97,7 @@
 | Campo (`conciliacao_item`) | Tipo | Observações |
 |---|---|---|
 | `conciliacao_id` | UUID | FK |
-| `alvo_tipo` | VARCHAR(20) | `pagamento`, `recebimento`, `antecipacao`, `lancamento_caixa`, `transferencia` |
+| `alvo_tipo` | VARCHAR(30) | `pagamento`, `recebimento`, `antecipacao`, `lancamento_caixa`, `transferencia_saida`, `transferencia_entrada` |
 | `alvo_id` | UUID | sem FK (aponta para tabelas diferentes), conferido com trava na transação |
 | `valor_centavos` | BIGINT | com sinal, igual ao efeito do alvo no caixa |
 | `vigente` | BOOLEAN | cópia do da conciliação, para o índice; `uq_conciliacao_item_alvo_vigente (alvo_tipo, alvo_id) WHERE vigente` |
@@ -121,8 +121,8 @@
 | `usuario_id`, `criado_em` | | |
 
 - Nasce só a partir de uma linha do extrato (D6), conciliado a ela na mesma transação.
-- Desfazer a conciliação de classificação desfaz o lançamento (fica registrado como `estornado`, com
-  `lancamento_caixa_estorno` no padrão do `pagamento_estorno`).
+- Desfazer a conciliação de classificação desfaz o lançamento: `estornado = true` na mesma transação; o
+  motivo, a data e quem desfez ficam na conciliação desfeita. O M15 ignora lançamento estornado.
 
 ### 2.6 `transferencia_conta`
 
@@ -134,11 +134,16 @@
 | `valor_centavos` | BIGINT | `> 0` |
 | `entre_empresas` | BOOLEAN | contas de empresas diferentes (D8) |
 | `categoria_financeira_id` | UUID | natureza `transferencia` (linha `entre_contas`) |
+| `descricao` | VARCHAR(255) | a da linha, ou a informada |
+| `estornado` | BOOLEAN | `true` quando a conciliação que a criou é desfeita |
 | `usuario_id`, `criado_em` | | |
 
 - Criada a partir da linha de uma das pontas (débito na origem ou crédito no destino), que já é
   conciliada a ela. A outra ponta aparece como pendência do sistema até a linha correspondente chegar
-  e ser conciliada (`alvo_tipo = transferencia`, com o sinal da ponta).
+  e ser conciliada (`transferencia_saida` na origem, com valor negativo; `transferencia_entrada` no
+  destino, com valor positivo).
+- Desfazer a conciliação que criou a transferência a estorna; se a outra ponta já estava conciliada, a
+  conciliação dela fica `invalidada` (mesmo tratamento do D12).
 
 ### 2.7 `caixa_fechamento`
 
@@ -200,7 +205,7 @@
 
 ### 3.4 Projeção
 
-`GET /caixa/projecao?empresa=&de=&ate=` (máximo 90 dias, `de` a partir de hoje), por dia:
+`GET /caixa/projecao?empresa=&ate=` (começa sempre hoje; padrão hoje + 30, máximo hoje + 90), por dia:
 
 - **saldo de partida**: saldo das contas ativas da empresa pelo extrato, mais os movimentos do sistema
   já registrados e ainda sem linha no extrato (pagos e recebidos "em trânsito");
@@ -226,22 +231,27 @@ GET    /api/v1/caixa/saldos                          ?empresa= — saldo por con
 
 POST   /api/v1/extratos/importacao                   { arquivo_id, conta_bancaria_id?, simular? } (financeiro)
 GET    /api/v1/extratos/importacoes                  ?conta= ?empresa=
-DELETE /api/v1/extratos/importacoes/{id}             sem linha conciliada e em mês aberto (administrador)
+DELETE /api/v1/extratos/importacoes/{id}             só a mais recente da conta, sem linha que já passou por conciliação (administrador)
 GET    /api/v1/extratos/lancamentos                  ?conta= (obrigatória) ?de= ?ate= ?situacao=pendente|conciliado|invalidado
 GET    /api/v1/extratos/lancamentos/{id}/sugestoes
-POST   /api/v1/extratos/lancamentos/{id}/conciliacao     { itens: [{ tipo, id }] }
+POST   /api/v1/extratos/lancamentos/{id}/conciliacao     { movimentos: [{ tipo, id }] }
 POST   /api/v1/extratos/lancamentos/{id}/classificacao   { categoria_financeira_id, descricao? }
-POST   /api/v1/extratos/lancamentos/{id}/transferencia   { conta_contraparte_id }
+POST   /api/v1/extratos/lancamentos/{id}/transferencia   { conta_contraparte_id, categoria_financeira_id, descricao? }
 POST   /api/v1/extratos/conciliar-automatico         { conta_bancaria_id, de, ate }
+GET    /api/v1/conciliacoes/{id}
 POST   /api/v1/conciliacoes/{id}/desfazer            { motivo }
 
+GET    /api/v1/caixa/lancamentos                     ?empresa= ?conta= ?de= ?ate= — lançamentos de caixa (classificações)
+GET    /api/v1/caixa/transferencias                  ?empresa= ?conta= ?de= ?ate= — transferências entre contas
 GET    /api/v1/caixa/pendencias-sistema              ?conta= ?de= ?ate= — pagamentos, recebimentos, borderôs e pontas de transferência sem linha
+GET    /api/v1/caixa/pagamentos-sem-conta            ?empresa= ?de= ?ate= — pagamentos antigos sem conta bancária (D14)
+GET    /api/v1/caixa/fechamentos/previa              ?conta= ?competencia=AAAA-MM — o que o fechamento gravaria e o que o impede
 POST   /api/v1/caixa/fechamentos                     { conta_bancaria_id, competencia, saldo_banco_centavos? }
 GET    /api/v1/caixa/fechamentos                     ?conta= ?empresa= ?competencia=
 GET    /api/v1/caixa/fechamentos/{id}                com divergências
 POST   /api/v1/caixa/fechamentos/{id}/reabrir        { motivo } (administrador)
 
-GET    /api/v1/caixa/projecao                        ?empresa= ?de= ?ate=
+GET    /api/v1/caixa/projecao                        ?empresa= ?ate= (começa sempre hoje)
 GET    /api/v1/caixa/movimento-diario                ?empresa= ?conta= ?de= ?ate=
 ```
 
@@ -339,11 +349,11 @@ test/helpers + test/integration + test/e2e
 
 | Fase | Entrega | Estado |
 |---|---|---|
-| **1** | Abertura e importação de extrato OFX (migrations 000059–000060): domínio com parser, tipos no upload, repositório, usecase com escopo por empresa, rotas de abertura, importação, lista e saldos; integração de idempotência; e2e + `API.md` | pendente |
-| **2** | Conciliação com M7 e M9 (migration 000061): consultas de movimentos do sistema, sugestões, conciliação manual e automática, desfazer, invalidação por estorno, pendências do sistema; integração de corrida; e2e + `API.md` | pendente |
-| **3** | Classificação e transferência entre contas (migration 000062): `lancamento_caixa`, estorno pelo desfazer, `transferencia_conta` com as duas pontas; e2e + `API.md` | pendente |
-| **4** | Fechamento mensal e reabertura (migration 000063), bloqueio de importação em mês fechado; e2e + `API.md` | pendente |
-| **5** | Projeção diária e movimento diário realizado; e2e + `API.md` | pendente |
+| **1** | Abertura e importação de extrato OFX (migrations 000059–000060): domínio com parser, tipos no upload, repositório, usecase com escopo por empresa, rotas de abertura, importação, lista e saldos; integração de idempotência; e2e + `API.md` | concluída |
+| **2** | Conciliação com M7 e M9 (migration 000061): consultas de movimentos do sistema, sugestões, conciliação manual e automática, desfazer, invalidação por estorno, pendências do sistema; integração de corrida; e2e + `API.md` | concluída |
+| **3** | Classificação e transferência entre contas (migration 000062): `lancamento_caixa`, estorno pelo desfazer, `transferencia_conta` com as duas pontas; e2e + `API.md` | concluída |
+| **4** | Fechamento mensal e reabertura (migration 000063), bloqueio de importação em mês fechado; e2e + `API.md` | concluída |
+| **5** | Projeção diária e movimento diário realizado; e2e + `API.md` | concluída |
 | **6** | Frontend (abertura, importação, tela de conciliação, fechamento, projeção) | pendente |
 
 Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates verdes.
@@ -407,6 +417,94 @@ Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates ve
       no M7 para completar a conta do pagamento antigo.
 - [x] **D15 — Permissões.** Decidido: o financeiro faz tudo; reabrir fechamento e desfazer importação só
       o administrador. Alternativa descartada: reabrir também pelo financeiro.
+- [x] **Fase 1 — saldo inicial** (implementação): rota `PUT /caixa/contas/{id}/abertura` no próprio
+      módulo, sem tocar no M5; o mesmo `PUT` cria (sem `versao`) e altera (com `versao`); a data de corte
+      precisa ser anterior a hoje em Brasília, porque o saldo é o do fim do dia.
+- [x] **Fase 1 — conta do extrato** (implementação): sem `conta_bancaria_id`, a conta é achada entre as
+      contas do banco do OFX comparando agência e conta sem zeros à esquerda, com ou sem dígito, e com a
+      agência colada no número; nenhuma ou mais de uma conta → `400` pedindo a conta. Com a conta
+      informada, OFX de outra conta → `400`; OFX sem `ACCTID` é aceito.
+- [x] **Fase 1 — identificador da linha** (implementação): hash de `FITID` + data + valor + ocorrência no
+      arquivo (sem `FITID`, a descrição entra na chave), porque há bancos que repetem o `FITID`; linhas de
+      valor zero, até o corte ou com data futura são ignoradas e listadas no relatório, não gravadas.
+- [x] **Fase 1 — desfazer importação** (implementação): só a mais recente da conta, para não apagar linhas
+      que uma importação posterior contou como repetidas; o arquivo pode ser importado de novo depois.
+- [x] **Fase 2 — leitura do M7 e do M9** (implementação): uma consulta própria do M13 junta pagamentos
+      (`- valor`, dia do `pago_em` em Brasília com o fuso fixo de −3h do grupo), recebimentos do tipo
+      `conta` (`valor + juros`) e créditos de borderô (líquido), só da conta e depois do corte; nenhum
+      port nem repositório do M7 ou do M9 mudou.
+- [x] **Fase 2 — trava na gravação** (implementação): a conciliação trava o lançamento e cada movimento
+      com `FOR SHARE` e confere conta e estorno na transação; índices únicos parciais `WHERE vigente`
+      garantem um lançamento e um movimento em no máximo uma conciliação vigente (`409`).
+- [x] **Fase 2 — modos e tipos por fase** (implementação): `chk_conciliacao_modo` aceita só `manual` e
+      `automatica`, e `chk_conciliacao_item_alvo_tipo` só os três movimentos do sistema; a fase 3
+      acrescenta os modos `classificacao` e `transferencia` e os alvos `lancamento_caixa` e `transferencia`
+      na própria migration.
+- [x] **Fase 2 — automática** (implementação): exige período de até 92 dias, processa até 500
+      lançamentos por chamada (`restam_linhas`) e grava uma conciliação por par em transação própria;
+      par que outra pessoa conciliou no meio vira `falhas`.
+- [x] **Fase 2 — importação conciliada** (implementação): importação com lançamento que já passou por
+      conciliação, mesmo desfeita, não é desfeita, porque o histórico da conciliação aponta para a linha.
+- [x] **Fase 2 — pagamentos sem conta** (D14): rota própria `GET /caixa/pagamentos-sem-conta`, por
+      empresa e período.
+- [x] **Fase 3 — estorno do lançamento de caixa** (implementação): coluna `estornado` no próprio
+      `lancamento_caixa` e na `transferencia_conta`, gravada pelo desfazer da conciliação que os criou; sem
+      tabela de estorno, porque o motivo e o autor já ficam na conciliação desfeita.
+- [x] **Fase 3 — tipos das pontas da transferência** (implementação): `transferencia_saida` e
+      `transferencia_entrada`, um alvo por ponta, para o índice único de alvo vigente valer em cada lado;
+      `conciliacao_item.alvo_tipo` passa a `VARCHAR(30)` na migration 000062.
+- [x] **Fase 3 — transferência** (implementação): exige categoria lançável de natureza `transferencia`,
+      conta da outra ponta ativa (conferida na transação) e acesso do usuário às duas empresas; a outra
+      ponta é conciliada pela conciliação manual ou automática, como qualquer movimento.
+- [x] **Fase 3 — consultas** (implementação): `GET /caixa/lancamentos` e `GET /caixa/transferencias`
+      paginadas, por empresa, conta e período, incluindo os estornados (com `estornado`).
+- [x] **Fase 4 — prévia** (implementação): `GET /caixa/fechamentos/previa` mostra o que o fechamento
+      gravaria (saldos, pendências, conciliações invalidadas, saldo do banco e movimentos do sistema sem
+      linha) e `pode_fechar`; só vale para a próxima competência da sequência, inclusive o mês corrente.
+- [x] **Fase 4 — sequência** (implementação): a primeira competência é o mês do dia seguinte ao corte
+      (corte no meio do mês fecha o mês parcial); depois, sempre o mês seguinte ao último fechamento
+      vigente. Competência no formato `AAAA-MM`.
+- [x] **Fase 4 — saldo do banco** (implementação): vem do corpo ou do `LEDGERBAL` da importação mais
+      recente com data no último dia do mês; o fechamento grava os dois iguais
+      (`chk_caixa_fechamento_saldo_banco`).
+- [x] **Fase 4 — travas** (implementação): fechar e reabrir travam a conta com `FOR NO KEY UPDATE` e
+      recalculam o mês na transação (`409` se mudou); conciliar, classificar, transferir e desfazer travam a
+      conta com `FOR SHARE` e recusam linha de mês fechado (`409`); a importação ignora linha de mês
+      fechado (`mes_fechado`) e recusa se o mês fechar no meio; o saldo inicial não muda com fechamento
+      vigente.
+- [x] **Fase 4 — reabertura** (implementação): só do último mês fechado da conta (`409` com mês seguinte
+      fechado), pelo administrador, com motivo; o histórico fica com `vigente = false`.
+- [x] **Fase 4 — divergências** (D11): o detalhe do fechamento recalcula na leitura as conciliações
+      invalidadas por estorno posterior e os movimentos do sistema do mês sem linha no extrato.
+- [x] **Fase 5 — período da projeção** (implementação): começa sempre hoje em Brasília (sem `de`), vai até
+      `ate` (padrão hoje + 30, máximo hoje + 90); vencidos dos dois lados entram no dia de hoje.
+- [x] **Fase 5 — saldo de partida** (implementação): contas ativas com saldo inicial (abertura + extrato
+      depois do corte), mais o "em trânsito": movimentos do sistema não conciliados e não estornados com
+      data depois do fim do último extrato importado da conta. Contas sem saldo inicial ficam fora e são
+      contadas à parte.
+- [x] **Fase 5 — recorrentes** (D13): porta mínima `ListarVigentes` do M7 e as regras `VigenteEm` e
+      `VencimentoNa` do próprio domínio do M7, do mês anterior ao mês do `ate`; a recorrência que já gerou a
+      solicitação da competência (`origem = recorrencia`, `origem_id`, `competencia`) não entra.
+- [x] **Fase 5 — movimento diário** (implementação): só dias com linha no extrato, por conta, com o saldo
+      acumulado desde o corte; padrão do dia 1 do mês até hoje, máximo de 92 dias.
+- [x] **Revisão — ordem das travas** (outubro/2026): toda escrita que mexe numa linha do extrato trava antes
+      as contas envolvidas (`FOR SHARE`, em ordem de id) e só depois a linha, a mesma ordem do desfazer
+      importação (conta, depois linhas); antes, conciliar e desfazer importação ao mesmo tempo podiam
+      entrar em deadlock e responder `500`.
+- [x] **Revisão — outra ponta da transferência** (outubro/2026): criar e desfazer transferência conferem o
+      mês fechado nas duas contas; desfazer exige acesso à empresa das duas.
+- [x] **Revisão — conta do extrato** (outubro/2026): correspondência exata (número) vale mais que a
+      aproximada (dígito ou agência colados); dígito diferente não corresponde; a agência colada só vale com
+      os zeros dela; a detecção considera só contas ativas no acesso do usuário (sem revelar contas de
+      outras empresas); conta informada é recusada se outra conta do banco corresponder melhor.
+- [x] **Revisão — OFX** (outubro/2026): vários blocos da mesma conta no arquivo são aceitos; data com fuso
+      vira o dia em Brasília.
+- [x] **Revisão — fechamento** (outubro/2026): a prévia traz `mes_encerrado` e só diz `pode_fechar` com o
+      saldo do banco do extrato conferido; o fechamento reconfere o saldo do banco na transação.
+- [x] **Revisão — automática** (outubro/2026): o corte de 500 lançamentos nunca divide um dia (o par único
+      é avaliado com o dia inteiro); mais de 5000 movimentos no período → `400` pedindo período menor.
+- [x] **Fase 1 — OFX não é anexo** (implementação): como o XML da NF-e, arquivo OFX não pode ser anexado a
+      solicitação; o upload aceita `.ofx` mesmo quando o navegador manda `application/octet-stream`.
 
 ## 10. Decisões pendentes
 
