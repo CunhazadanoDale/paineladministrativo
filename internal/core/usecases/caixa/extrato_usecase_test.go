@@ -133,13 +133,18 @@ func TestImportarExtratoConfereAConta(t *testing.T) {
 
 	esperarErro(t, importar(c.comum, extratoDoSicredi(), nil), domain.ErrPermissao, "perfil sem permissão para o financeiro")
 	esperarErro(t, importar(c.financeiroMIA, extratoDoSicredi(), nil), domain.ErrValidacao, "conta sem saldo inicial")
-	esperarErro(t, importar(c.financeiroMIA, extratoOFX("341", "1234", "98765-4", transacao), nil), domain.ErrPermissao, "perfil sem acesso")
-	esperarErro(t, importar(c.financeiroMIA, extratoOFX("341", "1234", "11111-1", transacao), nil), domain.ErrValidacao, "nenhuma conta cadastrada corresponde")
+	esperarErro(t, importar(c.financeiroMIA, extratoOFX("341", "1234", "98765-4", transacao), nil), domain.ErrValidacao, "nenhuma conta ativa no seu acesso")
+	esperarErro(t, importar(c.financeiroMIA, extratoOFX("341", "1234", "98765-4", transacao), &c.itauRed), domain.ErrPermissao, "perfil sem acesso")
+	esperarErro(t, importar(c.financeiroMIA, extratoOFX("341", "1234", "11111-1", transacao), nil), domain.ErrValidacao, "nenhuma conta ativa no seu acesso")
 	esperarErro(t, importar(c.financeiroMIA, extratoOFX("", "", "", transacao), nil), domain.ErrValidacao, "não identifica a conta")
 	esperarErro(t, importar(c.financeiroMIA, extratoOFX("341", "1234", "98765-4", transacao), &c.sicrediMIA), domain.ErrValidacao,
 		"o extrato é de outra conta (banco 341, agência 1234, conta 98765-4)")
-	esperarErro(t, importar(c.financeiroMIA, extratoOFX("237", "1", "111", transacao), nil), domain.ErrValidacao, "conta bancária inativa")
+	esperarErro(t, importar(c.financeiroMIA, extratoOFX("237", "1", "111", transacao), nil), domain.ErrValidacao, "nenhuma conta ativa no seu acesso")
+	esperarErro(t, importar(c.financeiroMIA, extratoOFX("237", "1", "111", transacao), &c.contaInativa), domain.ErrValidacao, "conta bancária inativa")
 	esperarErro(t, importar(c.financeiroMIA, extratoOFX("077", "1", "222", transacao), nil), domain.ErrValidacao, "empresa inativa")
+	esperarErro(t, importar(c.financeiroMIA, extratoOFX("748", "0812", "543210", transacao), &c.sicrediMIA), domain.ErrValidacao, "conta sem saldo inicial")
+	c.novaConta(t, c.mia, "748", "0812", "543210", "", true)
+	esperarErro(t, importar(c.financeiroMIA, extratoOFX("748", "0812", "543210", transacao), &c.sicrediMIA), domain.ErrValidacao, "o extrato é de outra conta")
 
 	if err := importar(c.financeiroRed, extratoOFX("", "", "", transacao), &c.itauRed); err != nil {
 		t.Errorf("extrato sem conta com conta informada = %v", err)

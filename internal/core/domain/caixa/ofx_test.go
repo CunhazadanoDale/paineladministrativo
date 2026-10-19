@@ -270,3 +270,76 @@ func contaBancaria(t *testing.T, banco domainfinanceiro.Banco, agencia, numero, 
 func data(ano int, mes time.Month, dia int) time.Time {
 	return time.Date(ano, mes, dia, 0, 0, 0, 0, time.UTC)
 }
+
+func TestCorrespondenciaDaContaSemFalsoPositivo(t *testing.T) {
+	sicredi := contaBancaria(t, domainfinanceiro.Sicredi, "0812", "54321", "0")
+	inter := contaBancaria(t, domainfinanceiro.Inter, "0001", "1234567", "8")
+
+	casos := []struct {
+		nome     string
+		conta    *domainfinanceiro.ContaBancaria
+		extrato  domaincaixa.ExtratoOFX
+		esperado int
+	}{
+		{"número exato", sicredi, domaincaixa.ExtratoOFX{BancoID: "748", ContaID: "54321-0"}, domaincaixa.CorrespondenciaExata},
+		{"dígito diferente", sicredi, domaincaixa.ExtratoOFX{BancoID: "748", ContaID: "54321-9"}, domaincaixa.SemCorrespondencia},
+		{"dígito colado", sicredi, domaincaixa.ExtratoOFX{BancoID: "748", ContaID: "543210"}, domaincaixa.CorrespondenciaAproximada},
+		{"agência colada", sicredi, domaincaixa.ExtratoOFX{BancoID: "748", ContaID: "081254321-0"}, domaincaixa.CorrespondenciaAproximada},
+		{"outra conta do Inter", inter, domaincaixa.ExtratoOFX{BancoID: "077", AgenciaID: "0001", ContaID: "11234567"}, domaincaixa.SemCorrespondencia},
+		{"conta com dígito colado do Inter", inter, domaincaixa.ExtratoOFX{BancoID: "077", ContaID: "12345678"}, domaincaixa.CorrespondenciaAproximada},
+		{"agência do Inter colada com zeros", inter, domaincaixa.ExtratoOFX{BancoID: "077", ContaID: "000112345678"}, domaincaixa.CorrespondenciaAproximada},
+	}
+
+	for _, caso := range casos {
+		if obtido := caso.extrato.Correspondencia(caso.conta); obtido != caso.esperado {
+			t.Errorf("%s: correspondência %d, esperada %d", caso.nome, obtido, caso.esperado)
+		}
+	}
+}
+
+func TestLerOFXComBlocosDaMesmaConta(t *testing.T) {
+	bloco := func(inicio, fim, fitid, data, saldoEm, saldo string) string {
+		return `<STMTTRNRS><STMTRS><BANKACCTFROM><BANKID>748<BRANCHID>0812<ACCTID>54321-0</BANKACCTFROM>
+<BANKTRANLIST><DTSTART>` + inicio + `<DTEND>` + fim + `
+<STMTTRN><DTPOSTED>` + data + `<TRNAMT>-1.00<FITID>` + fitid + `</STMTTRN>
+</BANKTRANLIST><LEDGERBAL><BALAMT>` + saldo + `<DTASOF>` + saldoEm + `</LEDGERBAL></STMTRS></STMTTRNRS>`
+	}
+	conteudo := "<OFX><BANKMSGSRSV1>" +
+		bloco("20261011", "20261020", "B", "20261015", "20261020", "200.00") +
+		bloco("20261001", "20261010", "A", "20261005", "20261010", "100.00") +
+		"</BANKMSGSRSV1></OFX>"
+
+	extrato, err := domaincaixa.LerOFX([]byte(conteudo))
+	if err != nil {
+		t.Fatalf("LerOFX = %v", err)
+	}
+	if len(extrato.Transacoes) != 2 || !extrato.Inicio.Equal(data(2026, 10, 1)) || !extrato.Fim.Equal(data(2026, 10, 20)) {
+		t.Errorf("transações %d, período %v a %v", len(extrato.Transacoes), extrato.Inicio, extrato.Fim)
+	}
+	if extrato.Saldo == nil || extrato.Saldo.Centavos != 20000 || !extrato.Saldo.Em.Equal(data(2026, 10, 20)) {
+		t.Errorf("saldo mais recente = %+v", extrato.Saldo)
+	}
+}
+
+func TestLerOFXConverteOFusoParaBrasilia(t *testing.T) {
+	casos := map[string]time.Time{
+		"20261020010000[0:GMT]":    data(2026, 10, 19),
+		"20261020010000[-3:BRT]":   data(2026, 10, 20),
+		"20261019230000[-5:EST]":   data(2026, 10, 20),
+		"20261020010000":           data(2026, 10, 20),
+		"20261020":                 data(2026, 10, 20),
+		"20261020010000.000[+0:X]": data(2026, 10, 19),
+	}
+
+	for valor, esperada := range casos {
+		conteudo := strings.Replace(ofxXML, "<DTPOSTED>20261003100000</DTPOSTED>", "<DTPOSTED>"+valor+"</DTPOSTED>", 1)
+		extrato, err := domaincaixa.LerOFX([]byte(conteudo))
+		if err != nil {
+			t.Errorf("%s: %v", valor, err)
+			continue
+		}
+		if obtida := extrato.Transacoes[0].Data; !obtida.Equal(esperada) {
+			t.Errorf("%s: data %v, esperada %v", valor, obtida, esperada)
+		}
+	}
+}

@@ -13,6 +13,13 @@ const (
 	LimiteDeLancamentosDoExtrato = 5000
 	maximoDeDigitosDoValor       = 15
 	formatoDataOFX               = "20060102"
+	formatoMomentoOFX            = "20060102150405"
+)
+
+const (
+	SemCorrespondencia        = 0
+	CorrespondenciaAproximada = 1
+	CorrespondenciaExata      = 2
 )
 
 type ExtratoOFX struct {
@@ -59,8 +66,13 @@ type leituraOFX struct {
 	transacao *transacaoBruta
 	contexto  string
 	contas    int
+	banco     string
+	agencia   string
+	conta     string
 	saldo     string
 	saldoEm   string
+	inicio    string
+	fim       string
 }
 
 func LerOFX(conteudo []byte) (*ExtratoOFX, error) {
@@ -95,10 +107,11 @@ func (l *leituraOFX) aplicar(m marcacaoOFX) error {
 		l.transacao = nil
 	case !m.fecha && (m.nome == "BANKACCTFROM" || m.nome == "LEDGERBAL" || m.nome == "BANKTRANLIST"):
 		l.contexto = m.nome
-		if m.nome == "BANKACCTFROM" {
-			l.contas++
-		}
+		l.banco, l.agencia, l.conta, l.saldo, l.saldoEm, l.inicio, l.fim = "", "", "", "", "", "", ""
 	case m.fecha && m.nome == l.contexto:
+		if err := l.fecharContexto(); err != nil {
+			return err
+		}
 		l.contexto = ""
 	case m.fecha:
 	case l.transacao != nil:
@@ -115,11 +128,11 @@ func (l *leituraOFX) preencher(nome, valor string) {
 	case "BANKACCTFROM":
 		switch nome {
 		case "BANKID":
-			l.extrato.BancoID = valor
+			l.banco = valor
 		case "BRANCHID":
-			l.extrato.AgenciaID = valor
+			l.agencia = valor
 		case "ACCTID":
-			l.extrato.ContaID = valor
+			l.conta = valor
 		}
 	case "LEDGERBAL":
 		switch nome {
@@ -131,10 +144,64 @@ func (l *leituraOFX) preencher(nome, valor string) {
 	case "BANKTRANLIST":
 		switch nome {
 		case "DTSTART":
-			l.extrato.Inicio = dataOpcional(valor)
+			l.inicio = valor
 		case "DTEND":
-			l.extrato.Fim = dataOpcional(valor)
+			l.fim = valor
 		}
+	}
+}
+
+func (l *leituraOFX) fecharContexto() error {
+	switch l.contexto {
+	case "BANKACCTFROM":
+		return l.fecharConta()
+	case "LEDGERBAL":
+		l.fecharSaldo()
+	case "BANKTRANLIST":
+		l.fecharPeriodo()
+	}
+
+	return nil
+}
+
+func (l *leituraOFX) fecharConta() error {
+	identificacao := func(banco, agencia, conta string) string {
+		return semZerosAEsquerda(soDigitos(banco)) + "|" + semZerosAEsquerda(soDigitos(antesDoHifen(agencia))) + "|" +
+			semZerosAEsquerda(soDigitosELetras(conta))
+	}
+
+	l.contas++
+	if l.contas > 1 && identificacao(l.banco, l.agencia, l.conta) !=
+		identificacao(l.extrato.BancoID, l.extrato.AgenciaID, l.extrato.ContaID) {
+		return domain.ErroValidacao("arquivo OFX com mais de uma conta; exporte uma conta por arquivo")
+	}
+
+	l.extrato.BancoID, l.extrato.AgenciaID, l.extrato.ContaID = l.banco, l.agencia, l.conta
+
+	return nil
+}
+
+func (l *leituraOFX) fecharSaldo() {
+	if l.saldo == "" || l.saldoEm == "" {
+		return
+	}
+
+	centavos, errValor := centavosOFX(l.saldo)
+	data, errData := dataOFX(l.saldoEm)
+	if errValor != nil || errData != nil {
+		return
+	}
+	if atual := l.extrato.Saldo; atual == nil || !data.Before(atual.Em) {
+		l.extrato.Saldo = &SaldoInformado{Centavos: centavos, Em: data}
+	}
+}
+
+func (l *leituraOFX) fecharPeriodo() {
+	if inicio := dataOpcional(l.inicio); inicio != nil && (l.extrato.Inicio == nil || inicio.Before(*l.extrato.Inicio)) {
+		l.extrato.Inicio = inicio
+	}
+	if fim := dataOpcional(l.fim); fim != nil && (l.extrato.Fim == nil || fim.After(*l.extrato.Fim)) {
+		l.extrato.Fim = fim
 	}
 }
 
@@ -198,17 +265,6 @@ func (l *leituraOFX) concluir() (*ExtratoOFX, error) {
 	if l.contas == 0 {
 		return nil, domain.ErroValidacao("extrato OFX sem conta bancária; extrato de cartão não é aceito")
 	}
-	if l.contas > 1 {
-		return nil, domain.ErroValidacao("arquivo OFX com mais de uma conta; exporte uma conta por arquivo")
-	}
-
-	if l.saldo != "" && l.saldoEm != "" {
-		centavos, errValor := centavosOFX(l.saldo)
-		data, errData := dataOFX(l.saldoEm)
-		if errValor == nil && errData == nil {
-			l.extrato.Saldo = &SaldoInformado{Centavos: centavos, Em: data}
-		}
-	}
 
 	return l.extrato, nil
 }
@@ -227,14 +283,18 @@ func (e *ExtratoOFX) Banco() string {
 }
 
 func (e *ExtratoOFX) EhDaConta(conta *domainfinanceiro.ContaBancaria) bool {
+	return e.Correspondencia(conta) > SemCorrespondencia
+}
+
+func (e *ExtratoOFX) Correspondencia(conta *domainfinanceiro.ContaBancaria) int {
 	if banco := e.Banco(); banco != "" && banco != conta.Banco.String() {
-		return false
+		return SemCorrespondencia
 	}
 
 	agencia := conta.Agencia.Numero()
 	if agenciaDoExtrato := soDigitos(antesDoHifen(e.AgenciaID)); agenciaDoExtrato != "" &&
 		semZerosAEsquerda(agenciaDoExtrato) != semZerosAEsquerda(agencia) {
-		return false
+		return SemCorrespondencia
 	}
 
 	numero := conta.Conta.Numero()
@@ -243,18 +303,23 @@ func (e *ExtratoOFX) EhDaConta(conta *domainfinanceiro.ContaBancaria) bool {
 		digito = *d
 	}
 
-	acctInteiro := semZerosAEsquerda(soDigitosELetras(e.ContaID))
-	acctSemDigito := semZerosAEsquerda(soDigitosELetras(antesDoHifen(e.ContaID)))
-	candidatos := []string{numero, numero + digito, agencia + numero, agencia + numero + digito}
+	antes, depois, temHifen := strings.Cut(e.ContaID, "-")
+	semDigito := soDigitosELetras(antes)
+	digitoDoExtrato := soDigitosELetras(depois)
+	digitoDiverge := temHifen && digitoDoExtrato != "" && digito != "" && digitoDoExtrato != strings.ToUpper(digito)
 
-	for _, candidato := range candidatos {
-		candidato = semZerosAEsquerda(candidato)
-		if candidato != "" && (candidato == acctInteiro || candidato == acctSemDigito) {
-			return true
-		}
+	switch {
+	case semDigito == "" || digitoDiverge:
+		return SemCorrespondencia
+	case semZerosAEsquerda(semDigito) == semZerosAEsquerda(numero):
+		return CorrespondenciaExata
+	case !temHifen && digito != "" && semZerosAEsquerda(semDigito) == semZerosAEsquerda(numero+digito):
+		return CorrespondenciaAproximada
+	case semDigito == agencia+numero || (!temHifen && digito != "" && semDigito == agencia+numero+digito):
+		return CorrespondenciaAproximada
+	default:
+		return SemCorrespondencia
 	}
-
-	return false
 }
 
 func marcacoesOFX(texto string) []marcacaoOFX {
@@ -306,7 +371,33 @@ func dataOFX(valor string) (time.Time, error) {
 		return time.Time{}, domain.ErroValidacao("data do OFX inválida")
 	}
 
-	return time.Parse(formatoDataOFX, valor[:len(formatoDataOFX)])
+	dia, err := time.Parse(formatoDataOFX, valor[:len(formatoDataOFX)])
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	abre := strings.IndexByte(valor, '[')
+	if abre < 0 || len(valor) < len(formatoMomentoOFX) {
+		return dia, nil
+	}
+	momento, err := time.Parse(formatoMomentoOFX, valor[:len(formatoMomentoOFX)])
+	if err != nil {
+		return dia, nil
+	}
+
+	deslocamento := valor[abre+1:]
+	if fim := strings.IndexAny(deslocamento, ":]"); fim >= 0 {
+		deslocamento = deslocamento[:fim]
+	}
+	horas, err := strconv.ParseFloat(strings.TrimSpace(deslocamento), 64)
+	if err != nil {
+		return dia, nil
+	}
+
+	fuso := time.FixedZone("OFX", int(horas*60*60))
+	local := time.Date(momento.Year(), momento.Month(), momento.Day(), momento.Hour(), momento.Minute(), momento.Second(), 0, fuso)
+
+	return DataDe(local.In(fusoDoGrupo())), nil
 }
 
 func dataOpcional(valor string) *time.Time {

@@ -194,8 +194,24 @@ func (u *ExtratoUsecaseImpl) contaDoExtrato(
 		if err != nil {
 			return nil, err
 		}
-		if extrato.IdentificaConta() && !extrato.EhDaConta(conta) {
-			return nil, domain.ErroValidacao("o extrato é de outra conta (" + identificacaoDoExtrato(extrato) + ")")
+		if !extrato.IdentificaConta() {
+			return conta, nil
+		}
+
+		grau := extrato.Correspondencia(conta)
+		if grau == domaincaixa.SemCorrespondencia {
+			return nil, erroDeOutraConta(extrato)
+		}
+		if grau < domaincaixa.CorrespondenciaExata && extrato.Banco() != "" {
+			outras, err := u.extratos.ContasDoBanco(ctx, domainfinanceiro.BancoDe(extrato.Banco()))
+			if err != nil {
+				return nil, err
+			}
+			for _, outra := range outras {
+				if outra.ID != conta.ID && extrato.Correspondencia(outra) > grau {
+					return nil, erroDeOutraConta(extrato)
+				}
+			}
 		}
 
 		return conta, nil
@@ -210,26 +226,41 @@ func (u *ExtratoUsecaseImpl) contaDoExtrato(
 	if err != nil {
 		return nil, err
 	}
+	acesso, err := u.acesso(ctx, usuarioID)
+	if err != nil {
+		return nil, err
+	}
 
+	melhorGrau := domaincaixa.SemCorrespondencia
 	var encontradas []*domainfinanceiro.ContaBancaria
 	for _, conta := range candidatas {
-		if extrato.EhDaConta(conta) {
+		if !conta.Ativa || !acesso.Permite(conta.EmpresaID) {
+			continue
+		}
+		grau := extrato.Correspondencia(conta)
+		switch {
+		case grau == domaincaixa.SemCorrespondencia || grau < melhorGrau:
+		case grau > melhorGrau:
+			melhorGrau = grau
+			encontradas = []*domainfinanceiro.ContaBancaria{conta}
+		default:
 			encontradas = append(encontradas, conta)
 		}
 	}
 
 	switch len(encontradas) {
 	case 0:
-		return nil, domain.ErroValidacao("nenhuma conta cadastrada corresponde ao extrato (" + identificacaoDoExtrato(extrato) +
+		return nil, domain.ErroValidacao("nenhuma conta ativa no seu acesso corresponde ao extrato (" + identificacaoDoExtrato(extrato) +
 			"); cadastre a conta ou informe conta_bancaria_id")
 	case 1:
-		if err := u.exigeAcesso(ctx, usuarioID, encontradas[0].EmpresaID); err != nil {
-			return nil, err
-		}
 		return encontradas[0], nil
 	default:
 		return nil, domain.ErroValidacao("mais de uma conta corresponde ao extrato; informe conta_bancaria_id")
 	}
+}
+
+func erroDeOutraConta(extrato *domaincaixa.ExtratoOFX) error {
+	return domain.ErroValidacao("o extrato é de outra conta (" + identificacaoDoExtrato(extrato) + ")")
 }
 
 func identificacaoDoExtrato(extrato *domaincaixa.ExtratoOFX) string {
