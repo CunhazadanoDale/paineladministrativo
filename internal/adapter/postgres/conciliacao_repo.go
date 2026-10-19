@@ -65,49 +65,47 @@ const (
 
 	descricaoDoPagamento = `COALESCE(f.nome || ' - ', '') || s.observacao`
 
-	consultaMovimentosDaConta = `
-		WITH abertura AS (
-			SELECT data_corte FROM caixa_abertura WHERE conta_bancaria_id = $1
-		), movimento AS (
+	consultaMovimentosDasContas = `
+		WITH movimento AS (
 			SELECT 'pagamento' AS tipo, p.id, p.conta_bancaria_id, s.empresa_id, ` + diaDoPagamento + ` AS data,
 			       -p.valor AS valor_centavos, ` + descricaoDoPagamento + ` AS descricao, s.id AS origem_id, p.estornado
 			FROM pagamento p
 			JOIN solicitacao s ON s.id = p.solicitacao_id
 			LEFT JOIN fornecedor f ON f.id = s.fornecedor_id
-			WHERE p.conta_bancaria_id = $1
+			WHERE p.conta_bancaria_id = ANY($1::uuid[])
 			UNION ALL
 			SELECT 'recebimento', r.id, r.conta_bancaria_id, t.empresa_id, r.recebido_em,
 			       r.valor_centavos + r.juros_centavos, c.nome || ' - título ' || t.numero || '/' || t.parcela, t.id, r.estornado
 			FROM titulo_recebimento r
 			JOIN titulo_receber t ON t.id = r.titulo_id
 			JOIN cliente c ON c.id = t.cliente_id
-			WHERE r.tipo = 'conta' AND r.conta_bancaria_id = $1
+			WHERE r.tipo = 'conta' AND r.conta_bancaria_id = ANY($1::uuid[])
 			UNION ALL
 			SELECT 'antecipacao', a.id, a.conta_bancaria_id, a.empresa_id, a.operado_em,
 			       a.valor_liquido_centavos, 'Borderô ' || COALESCE(a.numero || ' ', '') || '- ' || f.nome, a.id,
 			       a.status = 'estornada'
 			FROM antecipacao a
 			JOIN fornecedor f ON f.id = a.fornecedor_id
-			WHERE a.conta_bancaria_id = $1
+			WHERE a.conta_bancaria_id = ANY($1::uuid[])
 			UNION ALL
 			SELECT 'transferencia_saida', tr.id, tr.conta_origem_id, origem.empresa_id, tr.data, -tr.valor_centavos,
 			       'Transferência para ' || destino.apelido || ' - ' || tr.descricao, tr.id, tr.estornado
 			FROM transferencia_conta tr
 			JOIN conta_bancaria origem ON origem.id = tr.conta_origem_id
 			JOIN conta_bancaria destino ON destino.id = tr.conta_destino_id
-			WHERE tr.conta_origem_id = $1
+			WHERE tr.conta_origem_id = ANY($1::uuid[])
 			UNION ALL
 			SELECT 'transferencia_entrada', tr.id, tr.conta_destino_id, destino.empresa_id, tr.data, tr.valor_centavos,
 			       'Transferência de ' || origem.apelido || ' - ' || tr.descricao, tr.id, tr.estornado
 			FROM transferencia_conta tr
 			JOIN conta_bancaria origem ON origem.id = tr.conta_origem_id
 			JOIN conta_bancaria destino ON destino.id = tr.conta_destino_id
-			WHERE tr.conta_destino_id = $1
+			WHERE tr.conta_destino_id = ANY($1::uuid[])
 		)
 		SELECT m.tipo, m.id, m.conta_bancaria_id, m.empresa_id, m.data, m.valor_centavos, m.descricao, m.origem_id,
 		       m.estornado, ci.conciliacao_id
 		FROM movimento m
-		JOIN abertura ON m.data > abertura.data_corte
+		JOIN caixa_abertura abertura ON abertura.conta_bancaria_id = m.conta_bancaria_id AND m.data > abertura.data_corte
 		LEFT JOIN conciliacao_item ci ON ci.alvo_tipo = m.tipo AND ci.alvo_id = m.id AND ci.vigente`
 
 	alvoEstornado = `CASE ci.alvo_tipo
@@ -166,7 +164,7 @@ func (r *ConciliacaoRepository) LancamentosPendentes(
 }
 
 func (r *ConciliacaoRepository) Movimentos(ctx context.Context, filtro portsout.MovimentoFiltro) ([]*domaincaixa.MovimentoSistema, error) {
-	argumentos := []any{filtro.ContaBancariaID}
+	argumentos := []any{pq.Array([]string{filtro.ContaBancariaID.String()})}
 	condicoes := make([]string, 0, 4)
 
 	if filtro.De != nil {
@@ -185,7 +183,7 @@ func (r *ConciliacaoRepository) Movimentos(ctx context.Context, filtro portsout.
 		condicoes = append(condicoes, "NOT m.estornado AND ci.conciliacao_id IS NULL")
 	}
 
-	query := consultaMovimentosDaConta
+	query := consultaMovimentosDasContas
 	if len(condicoes) > 0 {
 		query += " WHERE " + unirCondicoes(condicoes)
 	}
@@ -214,10 +212,10 @@ func (r *ConciliacaoRepository) MovimentosPorReferencia(
 		ids = append(ids, referencia.ID.String())
 	}
 
-	return r.selecionarMovimentos(ctx, consultaMovimentosDaConta+`
+	return r.selecionarMovimentos(ctx, consultaMovimentosDasContas+`
 		WHERE (m.tipo, m.id) IN (SELECT * FROM unnest($2::text[], $3::uuid[]))
 		ORDER BY m.data ASC, m.tipo ASC, m.id ASC
-	`, contaBancariaID, pq.Array(tipos), pq.Array(ids))
+	`, pq.Array([]string{contaBancariaID.String()}), pq.Array(tipos), pq.Array(ids))
 }
 
 func (r *ConciliacaoRepository) PagamentosSemConta(ctx context.Context, filtro portsout.SemContaFiltro) ([]*domaincaixa.MovimentoSistema, error) {
