@@ -12,6 +12,8 @@ const (
 	tamanhoMaximoNumeroPedidoCliente = 60
 	tamanhoMaximoObservacoes         = 2000
 	tamanhoMaximoMotivoCancelamento  = 1000
+	validadePadraoDias               = 15
+	revisaoInicial                   = 1
 )
 
 type Pedido struct {
@@ -23,6 +25,9 @@ type Pedido struct {
 	RepresentanteID        *uuid.UUID
 	Modelo                 Modelo
 	Condicao               Condicao
+	Validade               *time.Time
+	Revisao                int
+	Frete                  *Frete
 	PrazoLimite            *time.Time
 	NumeroPedidoCliente    *string
 	Observacoes            string
@@ -44,6 +49,9 @@ type DadosPedido struct {
 	ObraID              *uuid.UUID
 	RepresentanteID     *uuid.UUID
 	Modelo              Modelo
+	Condicao            *CondicaoInput
+	Validade            *time.Time
+	Frete               *Frete
 	PrazoLimite         *time.Time
 	NumeroPedidoCliente *string
 	Observacoes         string
@@ -69,6 +77,7 @@ func NovoPedido(empresaID, usuarioID uuid.UUID, dados DadosPedido) (*Pedido, err
 		ID:        uuid.New(),
 		EmpresaID: empresaID,
 		Status:    StatusProposta,
+		Revisao:   revisaoInicial,
 		UsuarioID: usuarioID,
 		Versao:    versaoInicial,
 		CriadoEm:  agora,
@@ -101,10 +110,22 @@ func (p *Pedido) Alterar(dados DadosPedido, agora time.Time) error {
 		return domain.ErroConflito("só a proposta pode ser alterada; cancele o pedido e crie outro")
 	}
 
-	return p.aplicarDados(dados, agora)
+	if err := p.aplicarDados(dados, agora); err != nil {
+		return err
+	}
+	p.Revisao++
+
+	return nil
+}
+
+func (p *Pedido) Vencida(agora time.Time) bool {
+	return p.Status == StatusProposta && p.Validade != nil && Hoje(agora).After(*p.Validade)
 }
 
 func (p *Pedido) Confirmar(agora time.Time) error {
+	if p.Vencida(agora) {
+		return domain.ErroConflito("proposta vencida em " + p.Validade.Format("02/01/2006") + "; renove a validade antes de confirmar")
+	}
 	if err := p.transicionarPara(StatusConfirmado); err != nil {
 		return err
 	}
@@ -266,6 +287,14 @@ func (p *Pedido) aplicarDados(dados DadosPedido, agora time.Time) error {
 	if err != nil {
 		return err
 	}
+	condicao, err := NovaCondicao(validados.Modelo, dados.Condicao)
+	if err != nil {
+		return err
+	}
+	validade, err := validadeDaProposta(dados.Validade, agora)
+	if err != nil {
+		return err
+	}
 
 	itens := make([]*Item, 0, len(dados.Itens))
 	produtos := make(map[uuid.UUID]bool, len(dados.Itens))
@@ -294,7 +323,9 @@ func (p *Pedido) aplicarDados(dados DadosPedido, agora time.Time) error {
 	p.ObraID = validados.ObraID
 	p.RepresentanteID = validados.RepresentanteID
 	p.Modelo = validados.Modelo
-	p.Condicao = CondicaoDoModelo(validados.Modelo)
+	p.Condicao = condicao
+	p.Validade = &validade
+	p.Frete = copiarFrete(dados.Frete)
 	p.PrazoLimite = validados.PrazoLimite
 	p.NumeroPedidoCliente = validados.NumeroPedidoCliente
 	p.Observacoes = validados.Observacoes
@@ -303,6 +334,30 @@ func (p *Pedido) aplicarDados(dados DadosPedido, agora time.Time) error {
 	p.AtualizadoEm = agora
 
 	return nil
+}
+
+func validadeDaProposta(informada *time.Time, agora time.Time) (time.Time, error) {
+	hoje := Hoje(agora)
+	if informada == nil || informada.IsZero() {
+		return hoje.AddDate(0, 0, validadePadraoDias), nil
+	}
+
+	validade := DataDe(*informada)
+	if validade.Before(hoje) {
+		return time.Time{}, domain.ErroValidacao("validade da proposta não pode ser anterior a hoje")
+	}
+
+	return validade, nil
+}
+
+func copiarFrete(frete *Frete) *Frete {
+	if frete == nil {
+		return nil
+	}
+
+	copia := FreteDe(frete.Tipo(), frete.Centavos())
+
+	return &copia
 }
 
 func validarDados(dados DadosPedido) (DadosPedido, error) {
