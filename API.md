@@ -2737,6 +2737,8 @@ ajusta nem fecha.
 Comissão do representante por **entrega** que saiu (`saiu` ou `entregue`), proporcional ao que saiu:
 base = soma de `quantidade × preco_unitario_centavos` dos itens da entrega (sem frete), valor = base ×
 percentual / 10000, arredondado meio centavo para cima. Pedido sem representante não gera comissão.
+Item bonificado (preço zero) entra com subtotal zero; entrega só de brindes gera comissão com
+`base_centavos` e `valor_centavos` zero, para não voltar à apuração.
 Escopo por empresa (padrão da seção 4 do `EMPRESAS.md`); escopo e decisões em `COMISSOES.md`.
 
 | Método | Rota | Perfil | Sucesso |

@@ -153,6 +153,34 @@ func TestApuracaoArredondaMeioCentavoParaCima(t *testing.T) {
 	}
 }
 
+func TestApuracaoSomaItemBonificadoComSubtotalZero(t *testing.T) {
+	representante := representanteDeTeste()
+	entrega := entregaDeTeste(representante.ID)
+	entrega.Itens = append(entrega.Itens, domaincomissao.ItemSaido{Quantidade: 5, PrecoUnitarioCentavos: 0})
+
+	apuracao, err := domaincomissao.NovaApuracao(entrega, representante, uuid.New(), agora)
+	if err != nil {
+		t.Fatalf("NovaApuracao: %v", err)
+	}
+	if apuracao.Comissao.BaseCentavos != 21999 || apuracao.Comissao.ValorCentavos != 550 {
+		t.Fatalf("comissão = %+v", apuracao.Comissao)
+	}
+}
+
+func TestApuracaoDeEntregaSoDeBrindesGeraComissaoComBaseZero(t *testing.T) {
+	representante := representanteDeTeste()
+	entrega := entregaDeTeste(representante.ID)
+	entrega.Itens = []domaincomissao.ItemSaido{{Quantidade: 2, PrecoUnitarioCentavos: 0}}
+
+	apuracao, err := domaincomissao.NovaApuracao(entrega, representante, uuid.New(), agora)
+	if err != nil {
+		t.Fatalf("NovaApuracao: %v", err)
+	}
+	if apuracao.Comissao.BaseCentavos != 0 || apuracao.Comissao.ValorCentavos != 0 || !apuracao.PercentualNovo {
+		t.Fatalf("apuração = %+v, comissão = %+v", apuracao, apuracao.Comissao)
+	}
+}
+
 func TestApuracaoRecusaEntregaInvalida(t *testing.T) {
 	representante := representanteDeTeste()
 	casos := []struct {
@@ -163,7 +191,8 @@ func TestApuracaoRecusaEntregaInvalida(t *testing.T) {
 		{"sem representante", func(e *domaincomissao.EntregaParaApurar) { e.RepresentanteID = uuid.Nil }, "sem representante"},
 		{"sem saída", func(e *domaincomissao.EntregaParaApurar) { e.SaiuEm = time.Time{} }, "sem data de saída"},
 		{"sem itens", func(e *domaincomissao.EntregaParaApurar) { e.Itens = nil }, "sem itens"},
-		{"preço zero", func(e *domaincomissao.EntregaParaApurar) { e.Itens[0].PrecoUnitarioCentavos = 0 }, "quantidade ou preço"},
+		{"quantidade zero", func(e *domaincomissao.EntregaParaApurar) { e.Itens[0].Quantidade = 0 }, "quantidade ou preço"},
+		{"preço negativo", func(e *domaincomissao.EntregaParaApurar) { e.Itens[0].PrecoUnitarioCentavos = -1 }, "quantidade ou preço"},
 		{"estouro", func(e *domaincomissao.EntregaParaApurar) {
 			e.Itens = []domaincomissao.ItemSaido{{Quantidade: 2, PrecoUnitarioCentavos: math.MaxInt64 / 2}, {Quantidade: 1, PrecoUnitarioCentavos: 10}}
 		}, "excede o limite"},

@@ -140,6 +140,57 @@ func TestFluxoDeComissaoDoPercentualAApuracao(t *testing.T) {
 	}
 }
 
+func TestEntregaDeItemBonificadoApuraComissaoComBaseZero(t *testing.T) {
+	servidor, _ := servidorDoTeste(t)
+	mia := criarEmpresa(t, servidor, "11.222.333/0001-81", "MIA").ID
+	galpao := criarLocal(t, servidor, mia, "Galpão")
+	produtoID := produtoDoTeste(t, servidor)
+	conferirStatus(t, envia(t, servidor, http.MethodPost, "/api/v1/produtos/"+produtoID.String()+"/movimentos", map[string]any{
+		"local_id": galpao.ID, "tipo": "entrada", "quantidade": 20, "custo_unitario_centavos": 900,
+	}), http.StatusCreated)
+	clienteID := clienteDoPedido(t, servidor)
+
+	resposta := envia(t, servidor, http.MethodPost, "/api/v1/representantes", map[string]any{"nome": "Bia Vendas", "comissao_pronta_entrega_bp": 300})
+	conferirStatus(t, resposta, http.StatusCreated)
+	bia := decodificarEnvelope[clientedto.RepresentanteResponse](t, resposta).Dados
+
+	corpo := corpoDePedido(mia, clienteID, produtoID, "pronta_entrega", 5)
+	corpo["representante_id"] = bia.ID
+	corpo["itens"] = []map[string]any{{"produto_id": produtoID, "quantidade": 5, "preco_unitario_centavos": 0}}
+	pedido := criarPedidoE2E(t, servidor, corpo, tokenDoTeste)
+	caminho := "/api/v1/pedidos/" + pedido.ID.String()
+	conferirStatus(t, envia(t, servidor, http.MethodPost, caminho+"/confirmar", map[string]any{"versao": 1}), http.StatusOK)
+
+	resposta = envia(t, servidor, http.MethodGet, caminho, nil)
+	conferirStatus(t, resposta, http.StatusOK)
+	item := decodificarEnvelope[pedidodto.PedidoDetalheResponse](t, resposta).Dados.Itens[0]
+	resposta = envia(t, servidor, http.MethodPost, caminho+"/entregas", map[string]any{
+		"frete_tipo": "fob", "itens": []map[string]any{{"pedido_item_id": item.ID, "local_id": galpao.ID, "quantidade": 5}},
+	})
+	conferirStatus(t, resposta, http.StatusCreated)
+	entrega := decodificarEnvelope[pedidodto.EntregaResponse](t, resposta).Dados
+	conferirStatus(t, envia(t, servidor, http.MethodPost, "/api/v1/entregas/"+entrega.ID.String()+"/saiu", map[string]any{"versao": 1}), http.StatusOK)
+
+	resposta = envia(t, servidor, http.MethodPost, "/api/v1/comissoes/apurar", nil)
+	conferirStatus(t, resposta, http.StatusOK)
+	if resultado := decodificarEnvelope[comissaodto.ResultadoApuracaoResponse](t, resposta).Dados; len(resultado.Apuradas) != 1 || len(resultado.Falhas) != 0 {
+		t.Fatalf("apuração = %+v", resultado)
+	}
+
+	resposta = envia(t, servidor, http.MethodGet, "/api/v1/comissoes?pedido="+pedido.ID.String(), nil)
+	conferirStatus(t, resposta, http.StatusOK)
+	if comissoes := decodificarPagina[comissaodto.ComissaoResponse](t, resposta).Dados; len(comissoes) != 1 ||
+		comissoes[0].EntregaID != entrega.ID || comissoes[0].BaseCentavos != 0 || comissoes[0].ValorCentavos != 0 {
+		t.Fatalf("comissões = %+v", comissoes)
+	}
+
+	resposta = envia(t, servidor, http.MethodGet, "/api/v1/comissoes/pendencias", nil)
+	conferirStatus(t, resposta, http.StatusOK)
+	if pendentes := decodificarPagina[comissaodto.EntregaPendenteResponse](t, resposta).Dados; len(pendentes) != 0 {
+		t.Errorf("a entrega bonificada não deveria ficar pendente: %+v", pendentes)
+	}
+}
+
 func TestAjustesDeComissaoPeloFinanceiro(t *testing.T) {
 	servidor, _ := servidorDoTeste(t)
 	mia := criarEmpresa(t, servidor, "11.222.333/0001-81", "MIA").ID
