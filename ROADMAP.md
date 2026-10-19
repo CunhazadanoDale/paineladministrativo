@@ -152,6 +152,7 @@ o **F0b** pode correr junto com essas telas.
 | F-M9 | Front de contas a receber e antecipação | M9 F-M3 F-M5 | — | concluído |
 | F-M8 | Front de NF-e por XML | M8 F-M6 F-M9 | — | concluído |
 | F-M10 | Front de comissões | M10 F-M6 F-M7 | — | concluído |
+| F-M11 | Front de propostas e tabela de preços | M11 F-M6 | — | em andamento (feat/front-m11-propostas) |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
 | M3 | Clientes e representantes | M1 | Base de clientes | concluído |
