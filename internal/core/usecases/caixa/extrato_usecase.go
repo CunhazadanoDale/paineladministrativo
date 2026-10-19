@@ -73,12 +73,18 @@ func (u *ExtratoUsecaseImpl) Importar(ctx context.Context, input portsin.Importa
 		return nil, domaincaixa.ErroContaSemAbertura()
 	}
 
+	mesesFechados, err := u.extratos.MesesFechados(ctx, conta.ID)
+	if err != nil {
+		return nil, err
+	}
+
 	preparado, err := domaincaixa.PrepararImportacao(domaincaixa.DadosImportacao{
 		Extrato:         extrato,
 		ContaBancariaID: conta.ID,
 		ArquivoID:       input.ArquivoID,
 		UsuarioID:       input.UsuarioID,
 		Abertura:        abertura,
+		MesesFechados:   mesesFechados,
 		Agora:           time.Now().UTC(),
 	})
 	if err != nil {

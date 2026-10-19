@@ -28,6 +28,7 @@ type ExtratoRepository interface {
 	ContasDoBanco(ctx context.Context, banco domainfinanceiro.Banco) ([]*domainfinanceiro.ContaBancaria, error)
 	ArquivoImportado(ctx context.Context, arquivoID uuid.UUID) (bool, error)
 	ContarExistentes(ctx context.Context, contaBancariaID uuid.UUID, identificadores []string) (int, error)
+	MesesFechados(ctx context.Context, contaBancariaID uuid.UUID) ([]time.Time, error)
 	Importar(ctx context.Context, preparado *domaincaixa.ExtratoPreparado, versaoDaAbertura int) error
 	ObterImportacao(ctx context.Context, id uuid.UUID) (*domaincaixa.ImportacaoExtrato, error)
 	ListarImportacoes(ctx context.Context, filtro ImportacaoFiltro) ([]*domaincaixa.ImportacaoExtrato, error)

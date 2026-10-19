@@ -89,6 +89,16 @@ func (r *CaixaAberturaRepository) Atualizar(ctx context.Context, abertura *domai
 		return err
 	}
 
+	var comFechamento bool
+	if err := tx.GetContext(ctx, &comFechamento, `
+		SELECT EXISTS (SELECT 1 FROM caixa_fechamento WHERE conta_bancaria_id = $1 AND vigente)
+	`, abertura.ContaBancariaID); err != nil {
+		return tratarErroDeGravacao(err)
+	}
+	if comFechamento {
+		return domaincaixa.ErroAberturaComFechamento()
+	}
+
 	var versao int
 	err = tx.GetContext(ctx, &versao, `
 		UPDATE caixa_abertura

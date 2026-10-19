@@ -26,6 +26,8 @@ type cenario struct {
 	lancamentosCaixa    *caixausecases.LancamentoCaixaUsecaseImpl
 	lancamentosRepo     *repositorioLancamentosCaixa
 	categoriasRepo      *repositorioCategorias
+	fechamentos         *caixausecases.FechamentoUsecaseImpl
+	fechamentosRepo     *repositorioFechamentos
 	empresasRepo        *repositorioEmpresas
 	usuariosRepo        *repositorioUsuarios
 	cargosRepo          *repositorioCargos
@@ -63,6 +65,7 @@ func novoCenario(t *testing.T) *cenario {
 	conciliacoes := novoRepositorioConciliacoes()
 	lancamentosCaixa := &repositorioLancamentosCaixa{}
 	categorias := &repositorioCategorias{itens: map[uuid.UUID]*domainfinanceiro.CategoriaFinanceira{}}
+	fechamentos := &repositorioFechamentos{}
 
 	c := &cenario{
 		ctx:              context.Background(),
@@ -76,6 +79,10 @@ func novoCenario(t *testing.T) *cenario {
 		),
 		lancamentosRepo: lancamentosCaixa,
 		categoriasRepo:  categorias,
+		fechamentos: caixausecases.NewFechamentoUsecase(
+			fechamentos, aberturas, conciliacoes, contas, empresas, usuarios, cargos,
+		),
+		fechamentosRepo: fechamentos,
 		empresasRepo:    empresas,
 		usuariosRepo:    usuarios,
 		cargosRepo:      cargos,

@@ -116,6 +116,10 @@ func (r *ExtratoRepository) ContarExistentes(ctx context.Context, contaBancariaI
 	return existentes, err
 }
 
+func (r *ExtratoRepository) MesesFechados(ctx context.Context, contaBancariaID uuid.UUID) ([]time.Time, error) {
+	return competenciasFechadas(ctx, r.db, contaBancariaID)
+}
+
 func (r *ExtratoRepository) Importar(ctx context.Context, preparado *domaincaixa.ExtratoPreparado, versaoDaAbertura int) error {
 	tx, err := r.db.BeginTxx(ctx, nil)
 	if err != nil {
@@ -128,6 +132,9 @@ func (r *ExtratoRepository) Importar(ctx context.Context, preparado *domaincaixa
 		return err
 	}
 	if err := conferirAberturaTravada(ctx, tx, importacao.ContaBancariaID, versaoDaAbertura); err != nil {
+		return err
+	}
+	if err := recusarLinhasEmMesFechado(ctx, tx, importacao.ContaBancariaID, preparado.Lancamentos); err != nil {
 		return err
 	}
 
@@ -314,6 +321,30 @@ func (r *ExtratoRepository) ListarLancamentos(ctx context.Context, filtro portso
 	}
 
 	return lancamentos, nil
+}
+
+func recusarLinhasEmMesFechado(
+	ctx context.Context,
+	tx *sqlx.Tx,
+	contaBancariaID uuid.UUID,
+	lancamentos []*domaincaixa.LancamentoExtrato,
+) error {
+	fechados, err := competenciasFechadas(ctx, tx, contaBancariaID)
+	if err != nil {
+		return tratarErroDeGravacao(err)
+	}
+
+	competencias := make(map[time.Time]bool, len(fechados))
+	for _, competencia := range fechados {
+		competencias[competencia] = true
+	}
+	for _, lancamento := range lancamentos {
+		if competencias[domaincaixa.CompetenciaDe(lancamento.Data)] {
+			return domaincaixa.ErroMesFechado()
+		}
+	}
+
+	return nil
 }
 
 func conferirAberturaTravada(ctx context.Context, tx *sqlx.Tx, contaBancariaID uuid.UUID, versaoLida int) error {

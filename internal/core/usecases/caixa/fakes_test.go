@@ -157,9 +157,10 @@ func (r *repositorioAberturas) Atualizar(_ context.Context, abertura *domaincaix
 }
 
 type repositorioExtratos struct {
-	contas      *repositorioContas
-	importacoes []*domaincaixa.ImportacaoExtrato
-	lancamentos []*domaincaixa.LancamentoExtrato
+	contas        *repositorioContas
+	mesesFechados []time.Time
+	importacoes   []*domaincaixa.ImportacaoExtrato
+	lancamentos   []*domaincaixa.LancamentoExtrato
 }
 
 func (r *repositorioExtratos) ContasDoBanco(_ context.Context, banco domainfinanceiro.Banco) ([]*domainfinanceiro.ContaBancaria, error) {
@@ -182,6 +183,10 @@ func (r *repositorioExtratos) ArquivoImportado(_ context.Context, arquivoID uuid
 	}
 
 	return false, nil
+}
+
+func (r *repositorioExtratos) MesesFechados(_ context.Context, _ uuid.UUID) ([]time.Time, error) {
+	return r.mesesFechados, nil
 }
 
 func (r *repositorioExtratos) ContarExistentes(_ context.Context, contaBancariaID uuid.UUID, identificadores []string) (int, error) {
@@ -481,4 +486,68 @@ func (r *repositorioLancamentosCaixa) ListarTransferencias(_ context.Context, fi
 	}
 
 	return transferencias, nil
+}
+
+var _ portsout.FechamentoRepository = (*repositorioFechamentos)(nil)
+
+type repositorioFechamentos struct {
+	itens     []*domaincaixa.Fechamento
+	movimento domaincaixa.MovimentoDoMes
+	gravacoes []*portsout.GravacaoFechamento
+	filtros   []portsout.FechamentoFiltro
+}
+
+func (r *repositorioFechamentos) Ultimo(_ context.Context, contaBancariaID uuid.UUID) (*domaincaixa.Fechamento, error) {
+	var ultimo *domaincaixa.Fechamento
+	for _, fechamento := range r.itens {
+		if fechamento.ContaBancariaID == contaBancariaID && fechamento.Vigente &&
+			(ultimo == nil || fechamento.Competencia.After(ultimo.Competencia)) {
+			ultimo = fechamento
+		}
+	}
+	if ultimo == nil {
+		return nil, nil
+	}
+
+	copia := *ultimo
+	return &copia, nil
+}
+
+func (r *repositorioFechamentos) MovimentoDoMes(_ context.Context, _ uuid.UUID, _, _ time.Time) (*domaincaixa.MovimentoDoMes, error) {
+	movimento := r.movimento
+	return &movimento, nil
+}
+
+func (r *repositorioFechamentos) Fechar(_ context.Context, gravacao *portsout.GravacaoFechamento) error {
+	r.gravacoes = append(r.gravacoes, gravacao)
+	copia := *gravacao.Fechamento
+	r.itens = append(r.itens, &copia)
+	return nil
+}
+
+func (r *repositorioFechamentos) Obter(_ context.Context, id uuid.UUID) (*domaincaixa.Fechamento, error) {
+	for _, fechamento := range r.itens {
+		if fechamento.ID == id {
+			copia := *fechamento
+			return &copia, nil
+		}
+	}
+
+	return nil, nil
+}
+
+func (r *repositorioFechamentos) Listar(_ context.Context, filtro portsout.FechamentoFiltro) ([]*domaincaixa.Fechamento, error) {
+	r.filtros = append(r.filtros, filtro)
+	return r.itens, nil
+}
+
+func (r *repositorioFechamentos) Reabrir(_ context.Context, fechamento *domaincaixa.Fechamento) error {
+	for i, item := range r.itens {
+		if item.ID == fechamento.ID {
+			copia := *fechamento
+			r.itens[i] = &copia
+		}
+	}
+
+	return nil
 }

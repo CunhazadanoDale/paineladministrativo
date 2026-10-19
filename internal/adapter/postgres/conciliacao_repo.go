@@ -313,6 +313,10 @@ func (r *ConciliacaoRepository) Desfazer(ctx context.Context, conciliacao *domai
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	if err := travarLinhaDaConciliacao(ctx, tx, conciliacao); err != nil {
+		return err
+	}
+
 	resultado, err := tx.ExecContext(ctx, `
 		UPDATE conciliacao
 		SET vigente = false, desfeita_em = $1, desfeita_por = $2, motivo_desfazer = $3
@@ -375,8 +379,11 @@ func (r *ConciliacaoRepository) selecionarMovimentos(ctx context.Context, query 
 }
 
 func travarLinhaDaConciliacao(ctx context.Context, tx *sqlx.Tx, conciliacao *domaincaixa.Conciliacao) error {
-	var contaDoLancamento uuid.UUID
-	err := tx.GetContext(ctx, &contaDoLancamento, `SELECT conta_bancaria_id FROM extrato_lancamento WHERE id = $1 FOR SHARE`,
+	var linha struct {
+		ContaBancariaID uuid.UUID `db:"conta_bancaria_id"`
+		Data            time.Time `db:"data"`
+	}
+	err := tx.GetContext(ctx, &linha, `SELECT conta_bancaria_id, data FROM extrato_lancamento WHERE id = $1 FOR SHARE`,
 		conciliacao.ExtratoLancamentoID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domaincaixa.ErroLancamentoNaoEncontrado()
@@ -384,11 +391,11 @@ func travarLinhaDaConciliacao(ctx context.Context, tx *sqlx.Tx, conciliacao *dom
 	if err != nil {
 		return tratarErroDeGravacao(err)
 	}
-	if contaDoLancamento != conciliacao.ContaBancariaID {
+	if linha.ContaBancariaID != conciliacao.ContaBancariaID {
 		return domaincaixa.ErroMovimentoAlterado()
 	}
 
-	return nil
+	return exigirMesAberto(ctx, tx, linha.ContaBancariaID, domaincaixa.DataDe(linha.Data))
 }
 
 func inserirConciliacao(ctx context.Context, tx *sqlx.Tx, conciliacao *domaincaixa.Conciliacao) error {
