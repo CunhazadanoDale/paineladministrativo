@@ -20,6 +20,7 @@ import (
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/storage/r2"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/solicitacao"
 	clienteusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/cliente"
+	comissaousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/comissao"
 	empresausecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/empresa"
 	estoqueusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/estoque"
 	financeirousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/financeiro"
@@ -194,6 +195,21 @@ func executar(registrador *slog.Logger) error {
 		notafiscalusecases.NewEventoUsecase(
 			notaFiscalRepository, arquivoRepository, storageArquivos, empresaRepository, clienteRepository,
 			postgres.NewTituloReceberRepository(banco), representanteRepository, usuarioRepository, cargoRepository,
+		),
+		comissaousecases.NewPercentualUsecase(
+			postgres.NewComissaoRepository(banco), pedidoRepository, representanteRepository, empresaRepository,
+			usuarioRepository, cargoRepository,
+		),
+		comissaousecases.NewComissaoUsecase(
+			postgres.NewComissaoRepository(banco), representanteRepository, empresaRepository, usuarioRepository, cargoRepository,
+		),
+		comissaousecases.NewAjusteUsecase(
+			postgres.NewComissaoRepository(banco), pedidoRepository, representanteRepository, empresaRepository,
+			usuarioRepository, cargoRepository,
+		),
+		comissaousecases.NewFechamentoUsecase(
+			postgres.NewComissaoRepository(banco), postgres.NewCategoriaFinanceiraRepository(banco), representanteRepository,
+			empresaRepository, usuarioRepository, cargoRepository,
 		),
 		autenticacao.NovoTokenService(cfg.JWTSecret, cfg.JWTExpiracao),
 	)

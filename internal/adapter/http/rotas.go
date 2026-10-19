@@ -5,6 +5,7 @@ import (
 	"time"
 
 	clientehandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/cliente"
+	comissaohandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/comissao"
 	empresahandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/empresa"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/estoque"
 	financeirohandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/financeiro"
@@ -19,6 +20,7 @@ import (
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/middleware"
 	portsinautenticacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/autenticacao"
 	portsincliente "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/cliente"
+	portsincomissao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/comissao"
 	portsinempresa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/empresa"
 	portsinestoque "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/estoque"
 	portsinfinanceiro "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/financeiro"
@@ -75,6 +77,10 @@ func NewRouter(
 	resumoContasAReceberUseCase portsinreceber.ResumoContasAReceberUseCase,
 	notaFiscalUseCase portsinnotafiscal.NotaFiscalUseCase,
 	eventoNotaFiscalUseCase portsinnotafiscal.EventoUseCase,
+	percentualComissaoUseCase portsincomissao.PercentualUseCase,
+	comissaoUseCase portsincomissao.ComissaoUseCase,
+	ajusteComissaoUseCase portsincomissao.AjusteUseCase,
+	fechamentoComissaoUseCase portsincomissao.FechamentoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, middleware.ErrosDeRoteamento(novasRotas(
@@ -97,6 +103,7 @@ func NewRouter(
 		tituloUseCase, entradaDoPedidoUseCase, recebimentoUseCase, antecipacaoUseCase,
 		resumoContasAReceberUseCase,
 		notaFiscalUseCase, eventoNotaFiscalUseCase,
+		percentualComissaoUseCase, comissaoUseCase, ajusteComissaoUseCase, fechamentoComissaoUseCase,
 		tokens,
 	)))
 }
@@ -141,6 +148,10 @@ func novasRotas(
 	resumoContasAReceberUseCase portsinreceber.ResumoContasAReceberUseCase,
 	notaFiscalUseCase portsinnotafiscal.NotaFiscalUseCase,
 	eventoNotaFiscalUseCase portsinnotafiscal.EventoUseCase,
+	percentualComissaoUseCase portsincomissao.PercentualUseCase,
+	comissaoUseCase portsincomissao.ComissaoUseCase,
+	ajusteComissaoUseCase portsincomissao.AjusteUseCase,
+	fechamentoComissaoUseCase portsincomissao.FechamentoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -464,6 +475,27 @@ func novasRotas(
 	eventoNotaFiscalHandler := notafiscalhandlers.NewEventoHandler(eventoNotaFiscalUseCase)
 	financeiro("POST /api/v1/notas-fiscais/eventos", eventoNotaFiscalHandler.Importar)
 	protegido("GET /api/v1/notas-fiscais/{id}/eventos", eventoNotaFiscalHandler.Listar)
+
+	percentualComissaoHandler := comissaohandlers.NewPercentualHandler(percentualComissaoUseCase)
+	protegido("GET /api/v1/pedidos/{id}/comissao", percentualComissaoHandler.Obter)
+	comercial("PUT /api/v1/pedidos/{id}/comissao", percentualComissaoHandler.Definir)
+
+	comissaoHandler := comissaohandlers.NewComissaoHandler(comissaoUseCase)
+	financeiro("POST /api/v1/comissoes/apurar", comissaoHandler.Apurar)
+	financeiro("GET /api/v1/comissoes/pendencias", comissaoHandler.Pendencias)
+	protegido("GET /api/v1/comissoes", comissaoHandler.Listar)
+
+	administrador("PUT /api/v1/representantes/{id}/fornecedor", representanteHandler.DefinirFornecedor)
+
+	ajusteComissaoHandler := comissaohandlers.NewAjusteHandler(ajusteComissaoUseCase)
+	financeiro("POST /api/v1/comissoes/ajustes", ajusteComissaoHandler.Criar)
+	protegido("GET /api/v1/comissoes/ajustes", ajusteComissaoHandler.Listar)
+
+	fechamentoComissaoHandler := comissaohandlers.NewFechamentoHandler(fechamentoComissaoUseCase)
+	financeiro("POST /api/v1/comissoes/fechamentos", fechamentoComissaoHandler.Fechar)
+	protegido("GET /api/v1/comissoes/fechamentos", fechamentoComissaoHandler.Listar)
+	protegido("GET /api/v1/comissoes/fechamentos/{id}", fechamentoComissaoHandler.Obter)
+	protegido("GET /api/v1/comissoes/resumo", comissaoHandler.Resumo)
 
 	return mux
 }

@@ -1,6 +1,6 @@
 # Escopo — M3 Clientes e representantes
 
-> **Status:** API concluída (fases 1 a 5); frontend (fase 6) pendente.
+> **Status:** API e frontend concluídos (fases 1 a 6).
 > **Objetivo:** tirar a "Base de clientes" da planilha: cadastro único de clientes do grupo,
 > com obras, grupo econômico, regras comerciais tipadas e representante, base para pedidos
 > (M6), NF-e (M8), contas a receber (M9) e comissões (M10).
@@ -224,7 +224,7 @@ pacote `lead` não muda.
 | **3** | Usecases + permissões (comercial, administrador, representante com login) + testes com fakes | concluída |
 | **4** | Handlers/DTOs + rotas + e2e + `API.md` | concluída |
 | **5** | Conversão de lead + importação CSV (com simulação) + testes + `API.md` | concluída |
-| **6** | Frontend: clientes, obras, grupos, representantes, conversão e importação | pendente |
+| **6** | Frontend: clientes, obras, grupos, representantes, conversão e importação | concluída |
 
 O M3 não tem dinheiro nem data de fato (percentual é pontos-base), então a fase 6 não depende
 da F0.

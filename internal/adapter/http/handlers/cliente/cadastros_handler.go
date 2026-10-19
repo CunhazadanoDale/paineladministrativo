@@ -164,6 +164,29 @@ func (h *RepresentanteHandler) Desativar(w http.ResponseWriter, r *http.Request)
 	alterarSituacao(w, r, h.usecase.Desativar, clientedto.NovoRepresentanteResponse)
 }
 
+func (h *RepresentanteHandler) DefinirFornecedor(w http.ResponseWriter, r *http.Request) {
+	usuario, id, ok := resposta.UsuarioEId(w, r)
+	if !ok {
+		return
+	}
+
+	var requisicao clientedto.DefinirFornecedorRequest
+	if !resposta.CorpoJSON(w, r, &requisicao) {
+		return
+	}
+
+	fornecedorID, err := requisicao.Fornecedor()
+	if err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+
+	representante, err := h.usecase.DefinirFornecedor(r.Context(), portsin.DefinirFornecedorInput{
+		UsuarioID: usuario.ID, RepresentanteID: id, FornecedorID: fornecedorID,
+	})
+	escreverItem(w, http.StatusOK, representante, err, clientedto.NovoRepresentanteResponse)
+}
+
 type ObraHandler struct {
 	usecase portsin.ObraUseCase
 }

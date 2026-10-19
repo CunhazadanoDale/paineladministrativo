@@ -146,7 +146,8 @@ o **F0b** pode correr junto com essas telas.
 | F-M4 | Front de fornecedores | M4 F0a | — | concluído |
 | F-M5 | Front de contas bancárias e plano de contas | M5 F0a | — | concluído |
 | F-M2 | Front de estoque por local, lote e reserva | M2 F0a | — | concluído |
-| F-M3 | Front de clientes e representantes | M3 F0a | — | em andamento (feat/front-m3-clientes) |
+| F-M3 | Front de clientes e representantes | M3 F0a | — | concluído |
+| F-M6 | Front de pedidos de venda e entregas | M6 F-M2 F-M3 | — | em andamento (feat/front-m6-pedidos) |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
 | M3 | Clientes e representantes | M1 | Base de clientes | concluído |
@@ -156,7 +157,7 @@ o **F0b** pode correr junto com essas telas.
 | M7 | Contas a pagar | M1 M4 M5 | Painel financeiro (contas a pagar) | concluído |
 | M8 | NF-e por XML | M2 M3 M6 (fase final: M9) | Controle de NFs | concluído |
 | M9 | Contas a receber e antecipação | M3 M5 | A receber no banco, títulos do Controle de NFs | concluído |
-| M10 | Comissões | M3 M6 | comissões calculadas à mão | pendente |
+| M10 | Comissões | M3 M6 | comissões calculadas à mão | concluído |
 | M11 | Propostas e tabela de preços | M3 M6 | orçamentos em documento, guia de modelos de venda | pendente |
 | M12 | Importações | M2 M4 M6 M7 | parte de Entregas de importação e do painel financeiro | pendente |
 | M13 | Caixa e conciliação | M5 M7 M9 | Caixa do mês, Fluxo de caixa diário | pendente |
@@ -450,6 +451,36 @@ próximos fronts:
 - as falhas intermitentes de tempo da suíte completa ficaram mais frequentes com o volume de testes
   (passam sozinhas); vale uma sessão para o `asyncUtilTimeout` ou para o pool do vitest.
 
+**Entregue o front do M3 (outubro/2026, branch `feat/front-m3-clientes` do front):** telas em
+`modules/clientes`. Para os próximos fronts (M6, M8, M9, M10):
+
+- `requisitar` aceita `tipoConteudo` para mandar corpo cru (usado no CSV); `services/clientes.js`
+  (clientes, obras, `converterLead`, `importarClientes(arquivo, { simular })`),
+  `services/clienteGrupos.js` e `services/representantes.js`, com `listarTodosGrupos` e
+  `listarTodosRepresentantes` para seletor; o `PUT` do cliente tira o `documento`;
+- **para o M6**: `ClienteFormModal` reaproveitável (cria, edita e converte lead pela prop `inicial`);
+  `useCadastrosCliente(comercial)` carrega grupos e, só para o comercial, representantes, com
+  `nomeGrupo`/`nomeRepresentante`; vínculo inativo já gravado aparece "(inativo)" e é mantido; as obras
+  (`listarObras(clienteId, { ativas: 'true' })`) são o endereço de entrega, montado por `enderecoDaObra`;
+- `clientesUtils.js`: percentual em pontos-base (`formatarPercentual`, `paraPontosBase`,
+  `pontosBaseParaTexto`, `erroDoPercentual` — **base do M10**), `TIPOS_CLIENTE`,
+  `erroDoTipoComDocumento` (pf ⇔ CPF), CEP e o cabeçalho fixo da importação;
+- `/clientes` aberta a qualquer autenticado (o comercial escreve, só o administrador exclui e importa;
+  quem não é comercial vê "Com representante", porque não lê representantes); `/clientes/:id` com dados,
+  regras comerciais, link para o lead de origem e obras (o comercial cria, edita e ativa/desativa; cliente
+  inativo não recebe obra); `/grupos-clientes` aberta a todos; `/representantes` só para o comercial, com
+  escrita do administrador (vínculo a usuário pela lista de usuários e aviso de que tirar o login desfaz o
+  vínculo); entradas na Sidebar em Comercial;
+- conversão de lead (`ConversaoLead`, no detalhe do lead): procura o cliente pelo `?lead=` e mostra o link;
+  sem cliente, abre o cadastro preenchido com nome, e-mail e telefone do lead;
+- importação (`ImportacaoClientesModal`, administrador): simular sem gravar, importar, relatório das linhas
+  rejeitadas e recusa local de arquivo acima de 5 MB;
+- M3 não tem `versao`: os `409` (documento, nome, usuário vinculado) são erro comum do formulário;
+- `useGruposClientes`, `useRepresentantes`, `useClientes`, `useCadastrosCliente`, `useClienteDetalhe`,
+  `useObrasCliente` e `useClienteDoLead` com `AbortController`, em `modules/cancelamento.test.jsx`;
+- as falhas de tempo intermitentes da suíte completa continuam (passam sozinhas); segue valendo a sessão
+  proposta para estabilizar a configuração do vitest.
+
 ### M1 — Empresas e filiais
 
 Fundação: tudo o que é financeiro, fiscal ou de estoque passa a pertencer a uma empresa.
@@ -522,7 +553,7 @@ outros módulos precisam saber.
 - **Importação inicial**: `POST /api/v1/clientes/importacao` (CSV) para carregar a base
   atual, com relatório de linhas rejeitadas.
 
-**Entregue (outubro/2026):** API completa (fases 1 a 5 do `CLIENTES.md`); front pendente. Para
+**Entregue (outubro/2026):** API completa (fases 1 a 5 do `CLIENTES.md`); front no F-M3. Para
 os próximos módulos:
 
 - cliente é do **grupo** (sem `empresa_id`), com documento obrigatório e único: o M8 resolve o
@@ -799,6 +830,24 @@ Acordo fechado (outubro/2026) para as duas sessões correrem em paralelo:
 - **Entidades**: `comissao` (representante, pedido, entrega, base, percentual, valor,
   status `a_pagar`/`paga`), fechamento mensal com data de pagamento (dia 15).
 - **Efeito**: fechamento gera a solicitação de pagamento no M7.
+
+**Entregue (outubro/2026):** API completa (fases 1 a 4 do `COMISSOES.md`); front pendente (fase 5),
+depois do F0a. Para os próximos módulos:
+
+- comissão nasce na **saída** da entrega, uma por entrega (`uq_comissao_entrega`), por apuração
+  idempotente (`POST /comissoes/apurar`) que não mexe no fluxo do M6; base = preço × quantidade dos
+  itens que saíram, sem frete; percentual do pedido em `pedido_comissao` (tabela do M10, sem coluna nova
+  no `pedido`), sobrescrevível pelo comercial até a primeira saída;
+- ajuste manual append-only (`comissao_ajuste`) para devolução e correção; fechamento mensal por
+  representante × empresa, só de mês encerrado, que gera a conta a pagar no M7 (`origem = comissao`,
+  `pendente_aprovacao`, vencimento dia 15 do mês seguinte) na mesma transação;
+- o representante aponta para um `fornecedor` (`representante.fornecedor_id`, rota
+  `PUT /representantes/{id}/fornecedor`), que recebe a conta a pagar: a resposta à dúvida do favorecido
+  vale também para a devolução do pedido cancelado (pendência registrada na branch do M6);
+- **M15**: a despesa de comissão vem da conta a pagar (`competencia` + `linha_dre` da categoria,
+  sugerida `despesa_variavel`), nunca das tabelas do M10, para não contar duas vezes;
+- **M13**: concilia o pagamento da comissão como qualquer conta a pagar do M7;
+- **M11**: pode mexer no `pedido` livremente; o M10 só lê pedido, entrega e itens.
 
 ### M11 — Propostas e tabela de preços
 

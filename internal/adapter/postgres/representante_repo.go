@@ -33,6 +33,7 @@ type representanteLinha struct {
 	Telefone              *string    `db:"telefone"`
 	ComissaoProntaEntrega int        `db:"comissao_pronta_entrega_bp"`
 	ComissaoImportacao    int        `db:"comissao_importacao_bp"`
+	FornecedorID          *uuid.UUID `db:"fornecedor_id"`
 	Ativo                 bool       `db:"ativo"`
 	CriadoEm              time.Time  `db:"criado_em"`
 	AtualizadoEm          time.Time  `db:"atualizado_em"`
@@ -40,18 +41,18 @@ type representanteLinha struct {
 
 const colunasRepresentante = `
 	id, nome, nome_busca, documento, usuario_id, email, telefone,
-	comissao_pronta_entrega_bp, comissao_importacao_bp, ativo, criado_em, atualizado_em
+	comissao_pronta_entrega_bp, comissao_importacao_bp, fornecedor_id, ativo, criado_em, atualizado_em
 `
 
 func (r *RepresentanteRepository) Criar(ctx context.Context, representante *domaincliente.Representante) (uuid.UUID, error) {
 	if _, err := r.db.NamedExecContext(ctx, `
 		INSERT INTO representante (
 			id, nome, nome_busca, documento, usuario_id, email, telefone,
-			comissao_pronta_entrega_bp, comissao_importacao_bp, ativo, criado_em, atualizado_em
+			comissao_pronta_entrega_bp, comissao_importacao_bp, fornecedor_id, ativo, criado_em, atualizado_em
 		)
 		VALUES (
 			:id, :nome, :nome_busca, :documento, :usuario_id, :email, :telefone,
-			:comissao_pronta_entrega_bp, :comissao_importacao_bp, :ativo, :criado_em, :atualizado_em
+			:comissao_pronta_entrega_bp, :comissao_importacao_bp, :fornecedor_id, :ativo, :criado_em, :atualizado_em
 		)
 	`, paraLinhaRepresentante(representante)); err != nil {
 		return uuid.Nil, tratarErroDeGravacao(err)
@@ -143,6 +144,37 @@ func (r *RepresentanteRepository) Atualizar(ctx context.Context, representante *
 	return linhasAfetadas(resultado, err)
 }
 
+func (r *RepresentanteRepository) DefinirFornecedor(ctx context.Context, representante *domaincliente.Representante) (bool, error) {
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return false, tratarErroDeGravacao(err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if representante.FornecedorID != nil {
+		var ativo bool
+		err := tx.GetContext(ctx, &ativo, `SELECT ativo FROM fornecedor WHERE id = $1 FOR SHARE`, *representante.FornecedorID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, domaincliente.ErroFornecedorDoRepresentanteNaoEncontrado()
+		}
+		if err != nil {
+			return false, tratarErroDeGravacao(err)
+		}
+		if !ativo {
+			return false, domaincliente.ErroFornecedorDoRepresentanteInativo()
+		}
+	}
+
+	resultado, err := tx.ExecContext(ctx, `UPDATE representante SET fornecedor_id = $1, atualizado_em = $2 WHERE id = $3`,
+		representante.FornecedorID, representante.AtualizadoEm, representante.ID)
+	atualizado, err := linhasAfetadas(resultado, err)
+	if err != nil || !atualizado {
+		return false, err
+	}
+
+	return true, tratarErroDeGravacao(tx.Commit())
+}
+
 func buscaPorNomeOuDocumento(busca string, posicaoAtual int) (string, []any) {
 	termo := domaincliente.NomeDeBusca(busca)
 	if termo == "" {
@@ -173,6 +205,7 @@ func paraLinhaRepresentante(representante *domaincliente.Representante) represen
 		Telefone:              representante.Telefone,
 		ComissaoProntaEntrega: representante.ComissaoProntaEntrega.PontosBase(),
 		ComissaoImportacao:    representante.ComissaoImportacao.PontosBase(),
+		FornecedorID:          representante.FornecedorID,
 		Ativo:                 representante.Ativo,
 		CriadoEm:              representante.CriadoEm,
 		AtualizadoEm:          representante.AtualizadoEm,
@@ -195,6 +228,7 @@ func paraDominioRepresentante(linha *representanteLinha) *domaincliente.Represen
 		Telefone:              linha.Telefone,
 		ComissaoProntaEntrega: domaincliente.PercentualDe(linha.ComissaoProntaEntrega),
 		ComissaoImportacao:    domaincliente.PercentualDe(linha.ComissaoImportacao),
+		FornecedorID:          linha.FornecedorID,
 		Ativo:                 linha.Ativo,
 		CriadoEm:              linha.CriadoEm,
 		AtualizadoEm:          linha.AtualizadoEm,

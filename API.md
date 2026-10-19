@@ -642,7 +642,7 @@ Filtros de conta a pagar, combináveis com qualquer escopo (valor inválido → 
 | `fornecedor=<uuid>` | fornecedor da solicitação |
 | `categoria=<uuid>` | categoria financeira |
 | `competencia=AAAA-MM` | competência (`erro de validação: competência deve estar no formato AAAA-MM`) |
-| `origem=manual\|recorrencia\|recompra\|repasse_fomento` | origem da solicitação |
+| `origem=manual\|recorrencia\|recompra\|repasse_fomento\|comissao` | origem da solicitação |
 | `vencimento_de=AAAA-MM-DD` / `vencimento_ate=AAAA-MM-DD` | intervalo do `prazo_pagamento`, inclusivo (`erro de validação: consulta vencimento_de deve estar no formato AAAA-MM-DD`; final antes do inicial → `400 erro de validação: vencimento final não pode ser anterior ao inicial`) |
 | `vencidas=true` | `pendente_aprovacao` ou `aprovado` com vencimento antes de hoje (UTC); aceita `true`/`false`/`1`/`0`, outro valor → `400 erro de validação: consulta vencidas deve ser true ou false` |
 
@@ -1707,6 +1707,7 @@ Nome único sem diferenciar acento e maiúscula (`409 já existe um grupo de cli
 | `GET` | `/api/v1/representantes/{id}` | comercial | `200` |
 | `PUT` | `/api/v1/representantes/{id}` | **administrador** | `200` |
 | `PATCH` | `/api/v1/representantes/{id}/ativar` / `desativar` | **administrador** | `200` |
+| `PUT` | `/api/v1/representantes/{id}/fornecedor` | **administrador** | `200`; corpo `{ "fornecedor_id": "…" }` ou `{ "fornecedor_id": null }` para tirar; o campo é obrigatório |
 
 ```json
 {
@@ -1730,6 +1731,13 @@ Representante inativo não recebe cliente novo. O `PUT` substitui o cadastro int
 vínculo: `PUT` sem `usuario_id` desfaz o vínculo, e esse usuário (se tiver perfil comercial)
 passa a ver todos os clientes. A paginação vale também para o representante com login, que vê
 só o próprio cadastro na primeira página.
+
+`fornecedor_id` (na resposta) é o fornecedor do M4 que recebe a conta a pagar do fechamento de
+comissões; sem ele o representante não fecha (seção Comissões). Ele é definido só pela rota própria
+`PUT /representantes/{id}/fornecedor`: o `PUT` do cadastro não o altera (e as duas rotas não se
+desfazem uma à outra). Corpo sem `fornecedor_id` → `400`; fornecedor inexistente → `400 erro de
+validação: fornecedor do representante não encontrado`; fornecedor inativo → `400 erro de validação:
+fornecedor inativo não pode receber as comissões do representante`.
 
 ---
 
@@ -2717,6 +2725,190 @@ nota cancelada cancela os títulos das duplicatas; outra nota → `400`.
 ```json
 { "dados": { "gerados": [], "ja_existentes": ["…", "…"], "cancelados": [], "marcados": [], "ignorados": 0 } }
 ```
+
+---
+
+## Comissões
+
+Usuário vinculado a um representante (`representante.usuario_id`, fora o administrador) vê só as
+próprias comissões, ajustes, fechamentos e resumo, mesmo que o cargo seja financeiro, e não apura,
+ajusta nem fecha.
+
+Comissão do representante por **entrega** que saiu (`saiu` ou `entregue`), proporcional ao que saiu:
+base = soma de `quantidade × preco_unitario_centavos` dos itens da entrega (sem frete), valor = base ×
+percentual / 10000, arredondado meio centavo para cima. Pedido sem representante não gera comissão.
+Escopo por empresa (padrão da seção 4 do `EMPRESAS.md`); escopo e decisões em `COMISSOES.md`.
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/pedidos/{id}/comissao` | comercial, financeiro ou o representante do pedido | `200` percentual vigente; sem definição, o padrão do representante com `definido: false` |
+| `PUT` | `/api/v1/pedidos/{id}/comissao` | **comercial** (representante com login não define) | `200`; corpo `{ "percentual_bp", "versao" }`; só antes da primeira saída de entrega |
+| `POST` | `/api/v1/comissoes/apurar` | **financeiro** | `200` resultado; corpo opcional `{ "empresa_id", "competencia" }` |
+| `GET` | `/api/v1/comissoes/pendencias` | **financeiro** | `200` lista paginada das entregas que saíram e ainda não foram apuradas (`?empresa=`, `?competencia=`) |
+| `GET` | `/api/v1/comissoes` | **financeiro** ou representante com login (só as próprias) | `200` lista paginada (`?empresa=`, `?representante=`, `?pedido=`, `?competencia=AAAA-MM`, `?aberta=`), mais recente primeiro |
+| `POST` | `/api/v1/comissoes/ajustes` | **financeiro** | `201` ajuste |
+| `GET` | `/api/v1/comissoes/ajustes` | **financeiro** ou representante com login (só os próprios) | `200` lista paginada (`?empresa=`, `?representante=`, `?pedido=`, `?competencia=AAAA-MM`, `?aberto=`), mais recente primeiro |
+| `POST` | `/api/v1/comissoes/fechamentos` | **financeiro** | `200` resultado; corpo `{ "empresa_id", "competencia", "categoria_financeira_id", "representante_id" }` |
+| `GET` | `/api/v1/comissoes/fechamentos` | **financeiro** ou representante com login (só os próprios) | `200` lista paginada (`?empresa=`, `?representante=`, `?competencia=`), mais recente primeiro |
+| `GET` | `/api/v1/comissoes/fechamentos/{id}` | **financeiro** ou o representante do fechamento | `200` fechamento com `comissoes` e `ajustes` |
+| `GET` | `/api/v1/comissoes/resumo` | **financeiro** ou representante com login (só o próprio) | `200` resumo da competência por empresa e representante (`?competencia=AAAA-MM` obrigatório, `?empresa=`, `?representante=`) |
+
+### Percentual do pedido
+
+O percentual padrão vem do representante pelo modelo do pedido (`comissao_pronta_entrega_bp` ou
+`comissao_importacao_bp`). O comercial pode sobrescrevê-lo enquanto nenhuma entrega do pedido saiu; a
+primeira definição dispensa `versao`, as seguintes exigem a `versao` lida (`400` sem ela, `409` se outra
+pessoa gravou antes). Sem definição manual, a primeira apuração grava o padrão daquele momento:
+mudar o padrão do representante depois não muda pedido já apurado. Definição feita para outro
+representante (o representante do pedido mudou na proposta) deixa de valer e é substituída.
+
+```json
+{
+  "dados": {
+    "pedido_id": "…",
+    "representante_id": "…",
+    "percentual_bp": 450,
+    "origem": "manual",
+    "definido": true,
+    "versao": 2,
+    "usuario_id": "…",
+    "atualizado_em": "2026-10-18T21:10:00Z"
+  }
+}
+```
+
+### Apuração
+
+Grava uma comissão por entrega, idempotente (`uq_comissao_entrega`): rodar de novo só apura o que
+falta. Sem `competencia`, apura todas as saídas pendentes do acesso do usuário; com ela, as saídas até o
+fim do mês informado. Cada chamada apura até 500 entregas (`restam_entregas: true` quando sobrou).
+Entrega que não apura entra em `falhas` com o motivo e o `representante_id`, não conta no limite e as
+demais seguem.
+
+```json
+{ "dados": { "apuradas": ["…"], "ja_existentes": 0, "falhas": [], "restam_entregas": false } }
+```
+
+Item da lista de comissões:
+
+```json
+{
+  "id": "…", "empresa_id": "…", "representante_id": "…", "pedido_id": "…", "entrega_id": "…",
+  "competencia": "2026-10", "base_centavos": 6000, "percentual_bp": 450, "valor_centavos": 270,
+  "usuario_id": "…", "criado_em": "2026-10-18T21:15:00Z"
+}
+```
+
+### Ajustes
+
+Lançamento manual, positivo ou negativo, para o que a apuração não cobre: devolução de mercadoria,
+desconto concedido depois da saída, prêmio, correção de erro. É append-only: não há edição nem
+exclusão, e desfazer é lançar o ajuste inverso. Entra no primeiro fechamento que cobrir a competência
+informada: o da própria competência ou, se ela já foi fechada para o representante, o do mês seguinte
+(o resumo o mostra `em_aberto` até lá).
+
+```json
+{
+  "empresa_id": "…",
+  "representante_id": "…",
+  "pedido_id": "…",
+  "competencia": "2026-10",
+  "valor_centavos": -375,
+  "motivo": "devolução de uma peça"
+}
+```
+
+- `valor_centavos` diferente de zero; `motivo` obrigatório, até 1000 caracteres;
+- `competencia` no formato `AAAA-MM`, nunca posterior ao mês corrente em Brasília;
+- `pedido_id` opcional; quando vier, o pedido precisa ser da mesma empresa e do mesmo representante;
+- o representante pode estar inativo (a comissão continua devida).
+
+### Fechamento
+
+Fecha o mês de uma empresa: um fechamento por representante, com as comissões e os ajustes **em
+aberto** de competência até a informada (o que ficou de meses anteriores entra junto), e uma conta a
+pagar no M7 gerada na mesma transação.
+
+- `competencia` precisa ser de mês já encerrado em Brasília (`400` no mês corrente);
+- `categoria_financeira_id`: subcategoria ativa de `despesa` (sugestão: debaixo de `despesa_variavel`);
+- antes de somar, a rota apura as saídas pendentes da empresa até a competência (`apuracao` na
+  resposta); se sobrarem mais de 500 entregas a apurar, responde `409` e pede para apurar antes;
+- representante com entrega que não apurou (aparece em `apuracao.falhas`), com total ≤ 0, sem
+  `fornecedor_id` ou que já tenha fechamento na competência vai para `falhas` com o motivo, e os demais
+  seguem; com `representante_id`, o motivo volta como erro (`400` sem saldo ou com total ≤ 0, `409` já
+  fechado ou com entrega sem apurar);
+- a conta a pagar nasce `pendente_aprovacao`, `origem = comissao`, `origem_id` = fechamento, em nome do
+  fornecedor do representante, com a categoria e a competência do fechamento e vencimento no **dia 15
+  do mês seguinte** à competência; segue o fluxo normal do M7;
+- fechamento não é desfeito: correção depois vira ajuste num mês seguinte. `status_conta_a_pagar` mostra
+  em que pé está a conta a pagar (`pago` quando paga).
+
+```json
+{
+  "dados": {
+    "competencia": "2026-09",
+    "apuracao": { "apuradas": ["…"], "ja_existentes": 0, "falhas": [], "restam_entregas": false },
+    "fechados": [
+      {
+        "id": "…", "empresa_id": "…", "representante_id": "…", "competencia": "2026-09",
+        "comissoes_centavos": 180, "ajustes_centavos": -100, "total_centavos": 80, "vencimento": "2026-10-15",
+        "categoria_financeira_id": "…", "solicitacao_id": "…", "status_conta_a_pagar": "pendente_aprovacao",
+        "usuario_id": "…", "criado_em": "2026-10-02T12:00:00Z"
+      }
+    ],
+    "falhas": [{ "representante_id": "…", "motivo": "erro de validação: representante sem fornecedor; …" }]
+  }
+}
+```
+
+Comissões e ajustes ganham `fechamento_id` (nulo enquanto abertos) e os filtros `?aberta=` / `?aberto=`.
+
+### Resumo
+
+Uma linha por empresa e representante com movimento na competência (comissões e ajustes **daquela**
+competência, pela data da saída ou pela competência do ajuste), ordenada pelo nome do representante:
+
+```json
+{
+  "dados": {
+    "competencia": "2026-09",
+    "total_centavos": 80,
+    "linhas": [
+      {
+        "empresa_id": "…", "representante_id": "…", "representante_nome": "Ana Representações",
+        "comissoes_centavos": 180, "ajustes_centavos": -100, "total_centavos": 80,
+        "em_aberto_centavos": 0, "fechado_centavos": 80, "pago_centavos": 0
+      }
+    ]
+  }
+}
+```
+
+- `em_aberto_centavos`: o que ainda não entrou em fechamento;
+- `fechado_centavos`: o que já está num fechamento (conta a pagar gerada);
+- `pago_centavos`: a parte fechada cuja conta a pagar está `pago` no M7.
+
+### Erros das comissões
+
+| Situação | Status | Mensagem |
+| --- | --- | --- |
+| Pedido sem representante | `400` | `erro de validação: pedido sem representante não tem comissão` |
+| Pedido cancelado | `409` | `pedido cancelado não muda a comissão` |
+| Depois da primeira saída | `409` | `a comissão do pedido não muda depois da primeira saída de entrega` |
+| Versão divergente | `409` | `a comissão do pedido foi alterada por outra pessoa; recarregue e tente de novo` |
+| Representante com login no `PUT` | `403` | `representante não define a própria comissão` |
+| Comissão de outro representante | `403` | `comissão de outro representante` |
+| Comercial sem financeiro na lista | `403` | `perfil sem permissão para ver comissões` |
+| Usuário vinculado a representante apurando, ajustando ou fechando | `403` | `representante não apura, ajusta nem fecha comissões` |
+| Fechamento de representante com entrega sem apurar | `409` | `há entregas do representante que não foram apuradas na competência; veja as falhas da apuração e feche de novo` |
+| Ajuste com valor zero | `400` | `erro de validação: valor do ajuste não pode ser zero` |
+| Ajuste em competência futura | `400` | `erro de validação: competência do ajuste não pode ser posterior ao mês corrente` |
+| Pedido do ajuste de outra empresa ou representante | `400` | `erro de validação: pedido do ajuste deve ser da mesma empresa e do mesmo representante` |
+| Representante do ajuste inexistente | `400` | `erro de validação: representante do ajuste não encontrado` |
+| Fechamento do mês corrente | `400` | `erro de validação: só é possível fechar competência de mês já encerrado` |
+| Fechamento de representante sem saldo | `400` | `erro de validação: nada a pagar ao representante na competência` |
+| Mais de 500 entregas a apurar | `409` | `há mais entregas a apurar na competência; apure e feche de novo` |
+| Fechamento inexistente | `404` | `registro não encontrado: fechamento não encontrado` |
 
 ---
 

@@ -230,6 +230,17 @@ func (r *repositorioRepresentantes) Atualizar(_ context.Context, representante *
 	return true, nil
 }
 
+func (r *repositorioRepresentantes) DefinirFornecedor(_ context.Context, representante *domaincliente.Representante) (bool, error) {
+	atual, ok := r.itens[representante.ID]
+	if !ok {
+		return false, nil
+	}
+	atual.FornecedorID = representante.FornecedorID
+	atual.AtualizadoEm = representante.AtualizadoEm
+
+	return true, nil
+}
+
 type repositorioClientes struct {
 	itens map[uuid.UUID]*domaincliente.Cliente
 	obras *repositorioObras

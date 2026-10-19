@@ -1,8 +1,11 @@
 package cliente
 
 import (
+	"encoding/json"
+	"strings"
 	"time"
 
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	domaincliente "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/cliente"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/cliente"
 	"github.com/google/uuid"
@@ -61,6 +64,27 @@ func (r RepresentanteRequest) ParaDados() portsin.DadosRepresentanteInput {
 	}
 }
 
+type DefinirFornecedorRequest struct {
+	FornecedorID json.RawMessage `json:"fornecedor_id"`
+}
+
+func (r DefinirFornecedorRequest) Fornecedor() (*uuid.UUID, error) {
+	valor := strings.TrimSpace(string(r.FornecedorID))
+	if valor == "" {
+		return nil, domain.ErroValidacao("fornecedor_id é obrigatório; envie null para tirar o fornecedor")
+	}
+	if valor == "null" {
+		return nil, nil
+	}
+
+	var id uuid.UUID
+	if err := json.Unmarshal(r.FornecedorID, &id); err != nil || id == uuid.Nil {
+		return nil, domain.ErroValidacao("fornecedor_id inválido")
+	}
+
+	return &id, nil
+}
+
 type RepresentanteResponse struct {
 	ID                      uuid.UUID  `json:"id"`
 	Nome                    string     `json:"nome"`
@@ -71,6 +95,7 @@ type RepresentanteResponse struct {
 	Telefone                *string    `json:"telefone"`
 	ComissaoProntaEntregaBP int        `json:"comissao_pronta_entrega_bp"`
 	ComissaoImportacaoBP    int        `json:"comissao_importacao_bp"`
+	FornecedorID            *uuid.UUID `json:"fornecedor_id"`
 	Ativo                   bool       `json:"ativo"`
 	CriadoEm                time.Time  `json:"criado_em"`
 	AtualizadoEm            time.Time  `json:"atualizado_em"`
@@ -85,6 +110,7 @@ func NovoRepresentanteResponse(item *domaincliente.Representante) RepresentanteR
 		Telefone:                item.Telefone,
 		ComissaoProntaEntregaBP: item.ComissaoProntaEntrega.PontosBase(),
 		ComissaoImportacaoBP:    item.ComissaoImportacao.PontosBase(),
+		FornecedorID:            item.FornecedorID,
 		Ativo:                   item.Ativo,
 		CriadoEm:                item.CriadoEm,
 		AtualizadoEm:            item.AtualizadoEm,
