@@ -19,8 +19,10 @@ const (
 type ModoConciliacao string
 
 const (
-	ConciliacaoManual     ModoConciliacao = "manual"
-	ConciliacaoAutomatica ModoConciliacao = "automatica"
+	ConciliacaoManual        ModoConciliacao = "manual"
+	ConciliacaoAutomatica    ModoConciliacao = "automatica"
+	ConciliacaoClassificacao ModoConciliacao = "classificacao"
+	ConciliacaoTransferencia ModoConciliacao = "transferencia"
 )
 
 func ModoConciliacaoDe(valor string) ModoConciliacao {
@@ -29,6 +31,19 @@ func ModoConciliacaoDe(valor string) ModoConciliacao {
 
 func (m ModoConciliacao) String() string {
 	return string(m)
+}
+
+func (m ModoConciliacao) Validado() error {
+	switch m {
+	case ConciliacaoManual, ConciliacaoAutomatica, ConciliacaoClassificacao, ConciliacaoTransferencia:
+		return nil
+	default:
+		return domain.ErroValidacao("modo de conciliação inválido")
+	}
+}
+
+func (m ModoConciliacao) CriaOMovimento() bool {
+	return m == ConciliacaoClassificacao || m == ConciliacaoTransferencia
 }
 
 type SituacaoLancamento string
@@ -94,8 +109,8 @@ func NovaConciliacao(dados DadosConciliacao) (*Conciliacao, error) {
 	if dados.UsuarioID == uuid.Nil {
 		return nil, domain.ErroValidacao("usuário não informado")
 	}
-	if dados.Modo != ConciliacaoManual && dados.Modo != ConciliacaoAutomatica {
-		return nil, domain.ErroValidacao("modo de conciliação inválido")
+	if err := dados.Modo.Validado(); err != nil {
+		return nil, err
 	}
 	if lancamento.ConciliacaoID != nil {
 		return nil, ErroLancamentoJaConciliado()

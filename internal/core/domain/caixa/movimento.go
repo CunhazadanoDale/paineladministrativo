@@ -11,15 +11,21 @@ import (
 type TipoMovimento string
 
 const (
-	MovimentoPagamento   TipoMovimento = "pagamento"
-	MovimentoRecebimento TipoMovimento = "recebimento"
-	MovimentoAntecipacao TipoMovimento = "antecipacao"
+	MovimentoPagamento            TipoMovimento = "pagamento"
+	MovimentoRecebimento          TipoMovimento = "recebimento"
+	MovimentoAntecipacao          TipoMovimento = "antecipacao"
+	MovimentoLancamentoCaixa      TipoMovimento = "lancamento_caixa"
+	MovimentoTransferenciaSaida   TipoMovimento = "transferencia_saida"
+	MovimentoTransferenciaEntrada TipoMovimento = "transferencia_entrada"
 )
 
 func NovoTipoMovimento(valor string) (TipoMovimento, error) {
 	tipo := TipoMovimento(strings.ToLower(strings.TrimSpace(valor)))
 	if err := tipo.Validado(); err != nil {
 		return "", err
+	}
+	if tipo == MovimentoLancamentoCaixa {
+		return "", domain.ErroValidacao("lançamento de caixa nasce da classificação da linha e não é conciliado à mão")
 	}
 
 	return tipo, nil
@@ -35,10 +41,12 @@ func (t TipoMovimento) String() string {
 
 func (t TipoMovimento) Validado() error {
 	switch t {
-	case MovimentoPagamento, MovimentoRecebimento, MovimentoAntecipacao:
+	case MovimentoPagamento, MovimentoRecebimento, MovimentoAntecipacao, MovimentoLancamentoCaixa,
+		MovimentoTransferenciaSaida, MovimentoTransferenciaEntrada:
 		return nil
 	default:
-		return domain.ErroValidacao("tipo do movimento deve ser pagamento, recebimento ou antecipacao")
+		return domain.ErroValidacao("tipo do movimento deve ser pagamento, recebimento, antecipacao, " +
+			"transferencia_saida ou transferencia_entrada")
 	}
 }
 
