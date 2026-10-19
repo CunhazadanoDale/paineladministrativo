@@ -248,6 +248,10 @@ func executar(registrador *slog.Logger) error {
 			postgres.NewImportacaoRepository(banco), postgres.NewFornecedorRepository(banco), produtoRepository, empresaRepository,
 			usuarioRepository, cargoRepository,
 		),
+		importacaousecases.NewFinanceiroUsecase(
+			postgres.NewImportacaoRepository(banco), postgres.NewFornecedorRepository(banco), postgres.NewCategoriaFinanceiraRepository(banco),
+			empresaRepository, usuarioRepository, cargoRepository,
+		),
 		autenticacao.NovoTokenService(cfg.JWTSecret, cfg.JWTExpiracao),
 	)
 

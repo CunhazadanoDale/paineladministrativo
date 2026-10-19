@@ -116,7 +116,9 @@ type ImportacaoResponse struct {
 
 type ImportacaoDetalheResponse struct {
 	ImportacaoResponse
-	Itens []ItemResponse `json:"itens"`
+	Itens    []ItemResponse     `json:"itens"`
+	Parcelas *[]ParcelaResponse `json:"parcelas,omitempty"`
+	Custos   *[]CustoResponse   `json:"custos,omitempty"`
 }
 
 type HistoricoResponse struct {
@@ -171,10 +173,18 @@ func NovaImportacaoDetalheResponse(visao *portsin.Visao) ImportacaoDetalheRespon
 		itens = append(itens, resposta)
 	}
 
-	return ImportacaoDetalheResponse{
+	resposta := ImportacaoDetalheResponse{
 		ImportacaoResponse: NovaImportacaoResponse(visao.Importacao, visao.ComValores),
 		Itens:              itens,
 	}
+	if visao.ComValores {
+		parcelas := NovasParcelasResponse(visao.Importacao.Parcelas)
+		custos := NovosCustosResponse(visao.Importacao.Custos)
+		resposta.Parcelas = &parcelas
+		resposta.Custos = &custos
+	}
+
+	return resposta
 }
 
 func NovaImportacaoResponses(lista *portsin.Lista) []ImportacaoResponse {

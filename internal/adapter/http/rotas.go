@@ -96,6 +96,7 @@ func NewRouter(
 	fechamentoCaixaUseCase portsincaixa.FechamentoUseCase,
 	projecaoCaixaUseCase portsincaixa.ProjecaoUseCase,
 	importacaoUseCase portsinimportacao.ImportacaoUseCase,
+	financeiroImportacaoUseCase portsinimportacao.FinanceiroUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, middleware.ErrosDeRoteamento(novasRotas(
@@ -125,7 +126,7 @@ func NewRouter(
 		lancamentoCaixaUseCase,
 		fechamentoCaixaUseCase,
 		projecaoCaixaUseCase,
-		importacaoUseCase,
+		importacaoUseCase, financeiroImportacaoUseCase,
 		tokens,
 	)))
 }
@@ -183,6 +184,7 @@ func novasRotas(
 	fechamentoCaixaUseCase portsincaixa.FechamentoUseCase,
 	projecaoCaixaUseCase portsincaixa.ProjecaoUseCase,
 	importacaoUseCase portsinimportacao.ImportacaoUseCase,
+	financeiroImportacaoUseCase portsinimportacao.FinanceiroUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -584,6 +586,16 @@ func novasRotas(
 	financeiro("POST /api/v1/importacoes/{id}/desembaracar", importacaoHandler.Desembaracar)
 	financeiro("POST /api/v1/importacoes/{id}/cancelar", importacaoHandler.Cancelar)
 	protegido("GET /api/v1/importacoes/{id}/historico", importacaoHandler.ListarHistorico)
+
+	financeiroImportacaoHandler := importacaohandlers.NewFinanceiroHandler(financeiroImportacaoUseCase)
+	financeiro("POST /api/v1/importacoes/{id}/parcelas", financeiroImportacaoHandler.IncluirParcela)
+	financeiro("PUT /api/v1/importacoes/{id}/parcelas/{parcela_id}", financeiroImportacaoHandler.AlterarParcela)
+	financeiro("DELETE /api/v1/importacoes/{id}/parcelas/{parcela_id}", financeiroImportacaoHandler.RemoverParcela)
+	financeiro("POST /api/v1/importacoes/{id}/parcelas/{parcela_id}/cambio", financeiroImportacaoHandler.FecharCambio)
+	financeiro("POST /api/v1/importacoes/{id}/parcelas/{parcela_id}/reabrir", financeiroImportacaoHandler.ReabrirParcela)
+	financeiro("POST /api/v1/importacoes/{id}/custos", financeiroImportacaoHandler.LancarCusto)
+	financeiro("POST /api/v1/importacoes/{id}/custos/{custo_id}/cancelar", financeiroImportacaoHandler.CancelarCusto)
+	financeiro("GET /api/v1/importacoes/{id}/custo-previsto", financeiroImportacaoHandler.CustoPrevisto)
 
 	return mux
 }
