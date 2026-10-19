@@ -3452,6 +3452,107 @@ dele; nulo sem saldo do banco ou com saldo do banco anterior ao corte.
 
 ---
 
+## Importações (financeiro escreve; comercial e financeiro leem)
+
+Compra de mercadoria de um fornecedor (M4) por uma empresa importadora, do pedido ao fornecedor até o
+desembaraço. Uma importação é **um embarque** (uma DI/DUIMP). Escopo por empresa pela importadora (padrão
+da seção 4 do `EMPRESAS.md`). Escopo e decisões em `IMPORTACOES.md`.
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/importacoes` | **financeiro** | `201` importação com itens |
+| `GET` | `/api/v1/importacoes` | comercial ou financeiro | `200` lista paginada (`?empresa=`, `?fornecedor=`, `?status=`, `?numero=`, `?chegada_ate=AAAA-MM-DD`), mais recente primeiro |
+| `GET` | `/api/v1/importacoes/{id}` | comercial ou financeiro | `200` importação com itens |
+| `PUT` | `/api/v1/importacoes/{id}` | **financeiro** | `200` importação alterada |
+| `POST` | `/api/v1/importacoes/{id}/embarcar` | **financeiro** | `200` importação `embarcada` |
+| `POST` | `/api/v1/importacoes/{id}/desembaracar` | **financeiro** | `200` importação `desembaracada` |
+| `POST` | `/api/v1/importacoes/{id}/cancelar` | **financeiro** | `200` importação `cancelada` |
+| `GET` | `/api/v1/importacoes/{id}/historico` | comercial ou financeiro | `200` lista (`{ "dados": [...] }`) em ordem cronológica |
+
+Leitura sem perfil comercial nem financeiro → `403 perfil sem permissão para consultar importações`;
+escrita sem financeiro → `403` do middleware. Importação de empresa fora do acesso → `403 perfil sem acesso
+a esta empresa`. **Os valores na moeda só aparecem para o financeiro**: para o comercial,
+`valor_total_moeda_centesimos` e `itens[].valor_moeda_centesimos` saem do JSON.
+
+### Estados
+
+| Ação | De | Para | Exige |
+| --- | --- | --- | --- |
+| criar | — | `aberta` | empresa ativa no acesso, fornecedor ativo, itens |
+| alterar | `aberta`, `embarcada` | igual | `versao`; fornecedor e moeda só em `aberta` (`409`); depois do embarque a chegada prevista é obrigatória |
+| embarcar | `aberta` | `embarcada` | `embarcada_em` (não futura), `chegada_prevista` (não antes do embarque), `documento_embarque` opcional (BL/AWB) |
+| desembaraçar | `embarcada` | `desembaracada` | `chegada_em` (não futura, não antes do embarque), `desembaracada_em` (não futura, não antes da chegada), `declaracao` (número da DI/DUIMP, até 30) |
+| cancelar | `aberta`, `embarcada`, `desembaracada` | `cancelada` | `motivo` (até 1000) |
+
+`recebida` existe no contrato, mas só passa a ser alcançada com o recebimento (fase 3 do `IMPORTACOES.md`).
+Toda ação exige a `versao` lida (`400 erro de validação: versão da importação é obrigatória` sem ela; `409 a
+importação foi alterada por outra pessoa; recarregue e tente de novo` divergente) e responde `409` quando o
+estado não permite (`não é possível mudar a importação de "aberta" para "desembaracada"`). "Hoje" é o dia em
+Brasília.
+
+### Criar e alterar
+
+```json
+{
+  "empresa_id": "…",
+  "fornecedor_id": "…",
+  "moeda": "USD",
+  "referencia": "PI-2026-001",
+  "embarque_previsto": "2026-11-05",
+  "chegada_prevista": "2026-12-20",
+  "observacoes": "",
+  "itens": [{ "produto_id": "…", "quantidade": 1000, "valor_moeda_centesimos": 450000 }]
+}
+```
+
+| Campo | Regra |
+| --- | --- |
+| `empresa_id` | só na criação; empresa ativa e no acesso (`403` fora dele, `400` inativa) |
+| `fornecedor_id` | obrigatório; ativo ao criar ou trocar (`400 erro de validação: fornecedor "X" está inativo e não recebe importação nova`) |
+| `moeda` | `BRL`, `USD`, `EUR` ou `CNY`; vazia na criação usa a `moeda_padrao` do fornecedor, vazia na alteração mantém a atual |
+| `referencia` | opcional, até 60 (proforma ou invoice do fornecedor) |
+| `embarque_previsto`, `chegada_prevista` | opcionais, `AAAA-MM-DD`; chegada não antes do embarque previsto (nem do embarque real, depois de embarcada) |
+| `itens` | pelo menos um; produto ativo ao incluir e sem repetir; `quantidade` de 1 a 2147483647; `valor_moeda_centesimos` é o **total do item** na moeda, em centésimos (`>= 0`; zero é bonificação) |
+
+O `PUT` recebe o mesmo corpo sem `empresa_id` e com `versao`, e **substitui** os itens; o item de um produto
+que continua na importação mantém o `id`. Produto e fornecedor já gravados não são conferidos de novo (podem
+ter sido desativados depois).
+
+Resposta (criar, detalhe e ações):
+
+```json
+{
+  "dados": {
+    "id": "…", "empresa_id": "…", "numero": 1, "fornecedor_id": "…", "referencia": "PI-2026-001",
+    "moeda": "USD", "status": "embarcada", "valor_total_moeda_centesimos": 450000,
+    "embarque_previsto": null, "embarcada_em": "2026-10-09", "chegada_prevista": "2026-11-18",
+    "chegada_em": null, "desembaracada_em": null, "documento_embarque": "BL-778", "declaracao": null,
+    "observacoes": "", "cancelada_motivo": null, "usuario_id": "…", "versao": 3,
+    "criado_em": "2026-10-19T13:00:00Z", "atualizado_em": "2026-10-19T13:05:00Z",
+    "itens": [{ "id": "…", "produto_id": "…", "quantidade": 1000, "valor_moeda_centesimos": 450000 }]
+  }
+}
+```
+
+`numero` é sequencial por empresa. A lista traz os mesmos campos sem `itens`.
+
+### Ações
+
+```json
+{ "versao": 2, "embarcada_em": "2026-10-09", "chegada_prevista": "2026-11-18", "documento_embarque": "BL-778" }
+{ "versao": 3, "chegada_em": "2026-11-17", "desembaracada_em": "2026-11-19", "declaracao": "26/0001234-5" }
+{ "versao": 4, "motivo": "fornecedor desistiu" }
+```
+
+Histórico: `id`, `usuario_id`, `acao` (`criada`, `alterada`, `embarcada`, `desembaracada`, `cancelada`),
+`status_anterior`, `status_novo`, `detalhe` (chegada prevista no embarque, declaração no desembaraço, motivo
+no cancelamento) e `criado_em`.
+
+Fornecedor, produto e empresa usados numa importação passam a responder `400 erro de validação: registro em
+uso por outros dados e não pode ser excluído` na exclusão.
+
+---
+
 ## Exemplos
 
 ### PowerShell

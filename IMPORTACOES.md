@@ -1,7 +1,7 @@
 # Escopo — M12 Importações
 
-> **Status:** escopo em revisão — decisões D1 a D14 aguardando o usuário (seção 10). Nenhum código
-> antes das respostas (regra 11 da seção 3 do `ROADMAP.md`).
+> **Status:** escopo fechado — decisões D1 a D14 respondidas pelo usuário (outubro/2026), todas as
+> recomendações aceitas; fase 1 (importação, itens e estados até o desembaraço) concluída.
 > **Objetivo:** tirar das planilhas a parte de compra das "Entregas de importação" e do painel
 > financeiro: o processo de importação do pedido ao fornecedor até a mercadoria no estoque, com
 > câmbio, custos de nacionalização rateados no custo do lote, pagamentos ao fornecedor e aos
@@ -314,7 +314,7 @@ seção 3 do `ROADMAP.md`).
 
 | Fase | Entrega | Estado |
 |---|---|---|
-| **1** | Importação e itens (migration 000064): domínio, estados até `desembaracada`, cancelamento, repositório com sequência e histórico, usecase com escopo por empresa, rotas, e2e + `API.md` | pendente |
+| **1** | Importação e itens (migration 000064): domínio, estados até `desembaracada`, cancelamento, repositório com sequência e histórico, usecase com escopo por empresa, rotas, e2e + `API.md` | concluída |
 | **2** | Parcelas, câmbio e custos com conta a pagar no M7 (migration 000065), cancelamento com conta gerada, prévia do custo; integração de idempotência; e2e + `API.md` | pendente |
 | **3** | Alocação de pedidos (migration 000066), recebimento com entrada, lote e reserva na mesma transação; integração de concorrência com entrega; e2e + `API.md` | pendente |
 | **4** | Alertas e `GET /pedidos/{id}/importacoes`; e2e + `API.md` | pendente |
@@ -333,50 +333,70 @@ Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates ve
 - [x] **Estoque entre CNPJs** segue bloqueado (seção 6 do `ROADMAP.md`): por isso a alocação só aceita
       pedido da mesma empresa importadora (D6).
 - [x] **`compra_mercadoria` fora do resultado** (M5): o custo da importação chega à DRE pelo CMV dos lotes.
+- [x] **Fase 1 — colunas por fase** (implementação): a migration 000064 cria só o que a fase 1 grava; as
+      colunas do recebimento (`cambio_micro`, `recebida_em`, `local_recebimento_id` na importação;
+      `quantidade_recebida`, `custo_unitario_centavos`, `movimento_id` no item) e as ações novas do histórico
+      entram nas migrations das fases 2 e 3. O `chk_importacao_status` já aceita `recebida`.
+- [x] **Fase 1 — valores só para o financeiro** (implementação): o usecase devolve a importação com
+      `ComValores` (`portsin.Visao` e `portsin.Lista`); para o comercial o JSON omite
+      `valor_total_moeda_centesimos` e `itens[].valor_moeda_centesimos`. Leitura em `protegido(...)` com a
+      checagem de comercial ou financeiro no usecase (não há wrapper de rota para os dois perfis).
+- [x] **Fase 1 — itens estáveis** (implementação): o `PUT` substitui os itens, mas o item de um produto que
+      continua mantém o `id` (upsert por `id` e exclusão só dos que saíram), para as alocações da fase 3
+      apontarem para ele.
+- [x] **Fase 1 — moeda na alteração** (implementação): moeda vazia mantém a da importação (ou a padrão do
+      fornecedor novo, quando ele é trocado com a importação aberta); fornecedor e produto já gravados não
+      são conferidos de novo, e a troca de fornecedor trava o novo com `FOR SHARE` na transação.
+- [x] **Fase 1 — embarque** (implementação): o embarque exige a chegada prevista; se ela ficar antes do
+      embarque previsto antigo, o embarque previsto é limpo (a previsão perdeu o sentido).
 
-## 10. Decisões pendentes (levar ao usuário)
+## 10. Decisões do escopo
 
-Cada item traz a recomendação e a alternativa.
+Respondidas pelo usuário (outubro/2026): todas as recomendações aceitas.
 
-- [ ] **D1 — Câmbio do custo do produto.** Recomendado: média ponderada das parcelas com câmbio fechado
+- [x] **D1 — Câmbio do custo do produto.** Decidido: média ponderada das parcelas com câmbio fechado
       (o que de fato se pagou), e o câmbio informado no recebimento para o valor ainda sem parcela fechada.
-      Alternativas: câmbio da DI (fiscal) para tudo; câmbio digitado no recebimento para tudo.
-- [ ] **D2 — Quando a parcela do fornecedor vira conta a pagar.** Recomendado: ao **fechar o câmbio**
+      Alternativas descartadas: câmbio da DI (fiscal) para tudo; câmbio digitado no recebimento para tudo.
+- [x] **D2 — Quando a parcela do fornecedor vira conta a pagar.** Decidido: ao **fechar o câmbio**
       (valor em reais exato, sem estimativa); antes disso ela só aparece na importação e fica fora da
-      projeção do M13. Alternativa: gerar já no cadastro como `estimado` com câmbio previsto — exigiria
+      projeção do M13. Alternativa descartada: gerar já no cadastro como `estimado` com câmbio previsto — exigiria
       editar solicitação de origem sistêmica no M7, hoje fixa.
-- [ ] **D3 — Custos lançados depois do recebimento.** Recomendado: não mexem no lote (o M2 não edita lote);
-      viram despesa pela categoria escolhida e aparecem como "posteriores". Alternativa: lançamento de
+- [x] **D3 — Custos lançados depois do recebimento.** Decidido: não mexem no lote (o M2 não edita lote);
+      viram despesa pela categoria escolhida e aparecem como "posteriores". Alternativa descartada: lançamento de
       ajuste de custo no M2 (mudança no M2 e no CMV do M15).
-- [ ] **D4 — Tributos recuperáveis.** Recomendado: flag `compoe_custo` por custo, padrão `true` para tudo;
+- [x] **D4 — Tributos recuperáveis.** Decidido: flag `compoe_custo` por custo, padrão `true` para tudo;
       o financeiro desmarca o que a empresa credita (ICMS, IPI, PIS/COFINS conforme o regime), conferido
-      com a contabilidade. Alternativa: padrão automático pelo regime tributário da empresa (simples →
+      com a contabilidade. Alternativa descartada: padrão automático pelo regime tributário da empresa (simples →
       tudo compõe; presumido → ICMS e IPI não; real → ICMS, IPI, PIS e COFINS não).
-- [ ] **D5 — Critério de rateio.** Recomendado: proporcional ao valor do item em reais. Alternativas: por
+- [x] **D5 — Critério de rateio.** Decidido: proporcional ao valor do item em reais. Alternativas descartadas: por
       quantidade; por custo atribuído a item específico (ex.: imposto por NCM).
-- [ ] **D6 — Vínculo com pedidos.** Recomendado: alocação manual de quantidade por item de pedido de
+- [x] **D6 — Vínculo com pedidos.** Decidido: alocação manual de quantidade por item de pedido de
       importação da mesma empresa, reservada no recebimento; o que sobrar fica livre no estoque.
-      Alternativas: só reservar automaticamente as pendências de todos os pedidos da empresa no recebimento
+      Alternativas descartadas: só reservar automaticamente as pendências de todos os pedidos da empresa no recebimento
       (como o `reservar-pendencias`), sem alocação; ou alocação também de pedido de pronta entrega.
-- [ ] **D7 — Recebimento.** Recomendado: **único** por importação (uma importação = um embarque/DI), com
-      quantidade recebida por item para registrar falta e avaria. Alternativa: recebimentos parciais
+- [x] **D7 — Recebimento.** Decidido: **único** por importação (uma importação = um embarque/DI), com
+      quantidade recebida por item para registrar falta e avaria. Alternativa descartada: recebimentos parciais
       (vários containers), com rateio a cada recebimento.
-- [ ] **D8 — Estados.** Recomendado: `aberta`, `embarcada`, `desembaracada`, `recebida`, `cancelada` (o
-      "em trânsito" do roadmap é `embarcada`). Alternativa: os cinco estados do roadmap (`pedido`,
+- [x] **D8 — Estados.** Decidido: `aberta`, `embarcada`, `desembaracada`, `recebida`, `cancelada` (o
+      "em trânsito" do roadmap é `embarcada`). Alternativa descartada: os cinco estados do roadmap (`pedido`,
       `embarcado`, `em_transito`, `desembaracado`, `recebido`).
-- [ ] **D9 — Alertas.** Recomendado: prazo em risco (prazo-limite do pedido antes da chegada prevista +
+- [x] **D9 — Alertas.** Decidido: prazo em risco (prazo-limite do pedido antes da chegada prevista +
       10 dias de folga), alocação sem previsão de chegada e pedido de importação com falta a cobrir sem
-      importação. Alternativa: só o prazo em risco, sem folga.
-- [ ] **D10 — Permissões.** Recomendado: o financeiro escreve tudo; o comercial lê (sem valores) e aloca
-      pedidos. Alternativa: perfil novo de "compras" (flag no cargo).
-- [ ] **D11 — Cancelamento com conta a pagar.** Recomendado: recusar enquanto houver conta a pagar gerada
-      não cancelada nem rejeitada (o financeiro resolve no M7 antes). Alternativa: cancelar as solicitações
+      importação. Alternativa descartada: só o prazo em risco, sem folga.
+- [x] **D10 — Permissões.** Decidido: o financeiro escreve tudo; o comercial lê (sem valores) e aloca
+      pedidos. Alternativa descartada: perfil novo de "compras" (flag no cargo).
+- [x] **D11 — Cancelamento com conta a pagar.** Decidido: recusar enquanto houver conta a pagar gerada
+      não cancelada nem rejeitada (o financeiro resolve no M7 antes). Alternativa descartada: cancelar as solicitações
       pendentes junto e recusar só as aprovadas ou pagas.
-- [ ] **D12 — Moeda e valor.** Recomendado: valor **total** do item na moeda (como na invoice), custo
-      unitário derivado; `BRL` aceito com câmbio 1. Alternativa: preço unitário com 4 casas.
-- [ ] **D13 — Importações em andamento hoje.** Recomendado: cadastradas à mão pelo financeiro no novo
-      módulo (sem migração de dados), com as parcelas já pagas lançadas com câmbio fechado. Alternativa:
+- [x] **D12 — Moeda e valor.** Decidido: valor **total** do item na moeda (como na invoice), custo
+      unitário derivado; `BRL` aceito com câmbio 1. Alternativa descartada: preço unitário com 4 casas.
+- [x] **D13 — Importações em andamento hoje.** Decidido: cadastradas à mão pelo financeiro no novo
+      módulo (sem migração de dados), com as parcelas já pagas lançadas com câmbio fechado. Alternativa descartada:
       carga por CSV.
-- [ ] **D14 — Pedido de importação sem importação.** Recomendado: nada muda no M6 (o pedido segue sendo
-      vendido antes de existir a importação; o alerta `sem_importacao` cobre o furo). Alternativa: exigir
+- [x] **D14 — Pedido de importação sem importação.** Decidido: nada muda no M6 (o pedido segue sendo
+      vendido antes de existir a importação; o alerta `sem_importacao` cobre o furo). Alternativa descartada: exigir
       alocação para confirmar o pedido de importação.
+
+## 11. Decisões pendentes
+
+Sem abertos.
