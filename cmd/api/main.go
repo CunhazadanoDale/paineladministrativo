@@ -30,6 +30,7 @@ import (
 	pedidousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/pedido"
 	receberusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/receber"
 	solicitacaousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/solicitacao"
+	tabelaprecousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/tabelapreco"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/usuarios"
 )
 
@@ -156,8 +157,8 @@ func executar(registrador *slog.Logger) error {
 		),
 		pedidousecases.NewPedidoUsecase(
 			pedidoRepository, entregaRepository, clienteRepository, clienteObraRepository, representanteRepository,
-			produtoRepository, empresaRepository, estoqueRepository, reservaRepository, localRepository,
-			usuarioRepository, cargoRepository,
+			produtoRepository, postgres.NewTabelaPrecoRepository(banco), empresaRepository, estoqueRepository,
+			reservaRepository, localRepository, usuarioRepository, cargoRepository,
 		),
 		pedidousecases.NewEntregaUsecase(
 			pedidoRepository, entregaRepository, representanteRepository, empresaRepository,
@@ -210,6 +211,9 @@ func executar(registrador *slog.Logger) error {
 		comissaousecases.NewFechamentoUsecase(
 			postgres.NewComissaoRepository(banco), postgres.NewCategoriaFinanceiraRepository(banco), representanteRepository,
 			empresaRepository, usuarioRepository, cargoRepository,
+		),
+		tabelaprecousecases.NewTabelaPrecoUsecase(
+			postgres.NewTabelaPrecoRepository(banco), produtoRepository, usuarioRepository, cargoRepository,
 		),
 		autenticacao.NovoTokenService(cfg.JWTSecret, cfg.JWTExpiracao),
 	)

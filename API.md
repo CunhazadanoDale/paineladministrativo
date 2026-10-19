@@ -1967,11 +1967,13 @@ proposta.
 | `GET` | `/api/v1/pedidos` | autenticado | `200` lista paginada sem itens (`?empresa=`, `?cliente=`, `?representante=`, `?status=`, `?modelo=`, `?numero=`) |
 | `GET` | `/api/v1/pedidos/{id}` | autenticado | `200` detalhe com itens, reservado e falta cobrir por item e reservas ativas |
 | `PUT` | `/api/v1/pedidos/{id}` | **comercial** | `200`; só em `proposta`; corpo do `POST` sem `empresa_id` e com `versao` |
-| `POST` | `/api/v1/pedidos/{id}/confirmar` | **comercial** | `200`; corpo `{ "versao": n }` |
+| `POST` | `/api/v1/pedidos/{id}/confirmar` | **comercial** | `200`; corpo `{ "versao": n }`; proposta vencida → `409` |
 | `POST` | `/api/v1/pedidos/{id}/entrada` | **financeiro** | `200`; corpo `{ "versao", "pago_em", "valor_centavos" }` |
 | `POST` | `/api/v1/pedidos/{id}/reservar-pendencias` | **comercial** | `200`; corpo `{ "versao": n }` |
 | `POST` | `/api/v1/pedidos/{id}/cancelar` | **comercial** | `200`; corpo `{ "versao", "motivo", "valor_a_devolver_centavos" }` |
 | `GET` | `/api/v1/pedidos/{id}/historico` | autenticado | `200` lista (`{ "dados": [...] }`), mais antigo primeiro |
+| `GET` | `/api/v1/pedidos/{id}/proposta` | autenticado | `200` documento da proposta, pronto para a página de impressão (seção "Documento da proposta") |
+| `GET` | `/api/v1/modelos-venda` | autenticado | `200` lista com a condição padrão de cada modelo e o texto por extenso |
 | `POST` | `/api/v1/pedidos/{id}/entregas` | **comercial** | `201` entrega `pendente` |
 | `GET` | `/api/v1/pedidos/{id}/entregas` | autenticado | `200` lista (`{ "dados": [...] }`) |
 | `GET` | `/api/v1/entregas` | autenticado | `200` lista paginada (`?empresa=`, `?status=`, `?previsao_ate=`) |
@@ -1992,6 +1994,11 @@ Corpo do `POST /pedidos`:
   "obra_id": "…",
   "representante_id": "…",
   "modelo": "pronta_entrega",
+  "entrada_bp": 0,
+  "prazo_boleto_dias": 28,
+  "validade": "2026-11-02",
+  "frete_tipo": "cif",
+  "frete_estimado_centavos": 18000,
   "prazo_limite": "2026-12-20",
   "numero_pedido_cliente": "OC-778",
   "observacoes": "",
@@ -2005,12 +2012,15 @@ Corpo do `POST /pedidos`:
 | `cliente_id` | obrigatório; cliente ativo ao criar ou trocar (`400 cliente inativo não recebe pedido novo`) |
 | `obra_id` | opcional; obra do mesmo cliente e ativa ao escolher (`400 obra não encontrada para o cliente do pedido`) |
 | `representante_id` | opcional; sem ele vale o representante do cliente; ativo ao atribuir; representante com login só em nome próprio (`403`) |
-| `modelo` | `pronta_entrega` ou `importacao`; define a condição gravada no pedido |
+| `modelo` | `pronta_entrega` ou `importacao`; define a condição padrão gravada no pedido |
+| `entrada_bp`, `prazo_boleto_dias`, `prazo_entrega_dias` | opcionais; sobrescrevem a condição padrão do modelo enquanto o pedido é proposta (o que não vier fica com o padrão). Entrada `0..10000` e prazo de entrega `1..730` **só na importação** (`400` na pronta entrega, que é paga no boleto); prazo do boleto `1..365`. Importação com entrada `0`: o prazo de entrega conta da confirmação (o `confirmar` grava o `prazo_limite`) e não há entrada a registrar (`400`) |
+| `validade` | data `AAAA-MM-DD` da proposta, não anterior a hoje (o `PUT` aceita reenviar a validade atual, mesmo vencida); sem ela, **hoje + 15 dias** (também no `PUT`, que assim renova a proposta) |
+| `frete_tipo`, `frete_estimado_centavos` | opcionais; frete **estimado** da proposta (`cif` exige valor). Informativo: não soma a `valor_total_centavos`; o frete real continua na entrega |
 | `prazo_limite` | data `AAAA-MM-DD`, opcional, só na pronta entrega; na importação é calculado pela entrada paga (`400`) |
 | `numero_pedido_cliente` | opcional, até 60 (número de compra do cliente) |
-| `itens` | pelo menos um; produto ativo ao incluir e sem repetir no pedido; `quantidade > 0`; `preco_unitario_centavos >= 0` (o front sugere `produto.preco`) |
+| `itens` | pelo menos um; produto ativo ao incluir e sem repetir no pedido; `quantidade > 0`; `preco_unitario_centavos >= 0` (o front sugere o preço de `GET /tabela-precos/vigentes`). A API grava em cada item o `preco_tabela_centavos` vigente hoje (tabela de preço do modelo ou, sem ela, `produto.preco`) |
 
-Condição gravada pelo modelo, devolvida em `condicao`:
+Condição padrão de cada modelo, devolvida em `condicao` quando a proposta não a sobrescreve:
 
 | `modelo` | `entrada_bp` | `prazo_boleto_dias` | `prazo_entrega_dias` |
 | --- | --- | --- | --- |
@@ -2018,13 +2028,85 @@ Condição gravada pelo modelo, devolvida em `condicao`:
 | `importacao` | `3000` (30%) | `null` | `120`, contados da entrada paga |
 
 A resposta traz `numero` (sequencial por empresa), `status`, `valor_total_centavos`, `condicao`,
+`validade`, `vencida` (proposta com validade anterior a hoje; sempre `false` fora de `proposta`),
+`revisao` (começa em 1 e sobe a cada `PUT` da proposta), `frete_tipo`, `frete_estimado_centavos`,
 `prazo_limite`, `entrada_paga_em`, `entrada_paga_centavos`, `cancelado_motivo`,
-`valor_a_devolver_centavos`, `versao` e `itens` (`subtotal_centavos`, `quantidade_entregue` e
-`restante`). No `GET /pedidos/{id}` cada item traz também `reservado` e `falta_cobrir`, e o pedido
+`valor_a_devolver_centavos`, `versao` e `itens` (`preco_tabela_centavos`, `desconto_unitario_centavos`
+= tabela − preço, negativo quando vendido acima da tabela, `subtotal_centavos`, `quantidade_entregue`
+e `restante`). Proposta vencida não confirma (`409 proposta vencida em DD/MM/AAAA; renove a validade
+antes de confirmar`): renove com um `PUT` que traga validade nova ou nenhuma. No `GET /pedidos/{id}` cada item traz também `reservado` e `falta_cobrir`, e o pedido
 traz `reservas` (mesmo formato de `GET /produtos/{id}/reservas`, com `origem = pedido_item`).
 Datas só-data (`prazo_limite`, `entrada_paga_em`, `previsao`, `saiu_em`, `entregue_em`) chegam como
 meia-noite UTC e são aceitas como `AAAA-MM-DD`. "Hoje" (data padrão, data no futuro, prazos e
 período de cancelamento) é o dia no fuso de Brasília (UTC−3).
+
+### Documento da proposta
+
+`GET /api/v1/pedidos/{id}/proposta` (mesmas regras de leitura do pedido: escopo por empresa e
+representante com login só os próprios) junta tudo o que o documento impresso precisa; o front monta a
+página e o navegador salva em PDF (decisão D8 do `PROPOSTAS.md`). Funciona em qualquer status, para
+reimprimir o pedido confirmado.
+
+```json
+{
+  "dados": {
+    "pedido_id": "…",
+    "numero": 57,
+    "revisao": 2,
+    "identificacao": "Proposta 57-R2",
+    "status": "proposta",
+    "modelo": "importacao",
+    "emitido_em": "2026-10-19",
+    "validade": "2026-11-03",
+    "vencida": false,
+    "empresa": { "id": "…", "razao_social": "MIA Materiais Ltda", "nome_fantasia": "MIA", "cnpj": "11.222.333/0001-81", "uf": "PB" },
+    "cliente": { "id": "…", "nome": "Construtora Alfa", "documento": "11.444.777/0001-61", "cidade": "João Pessoa", "uf": "PB", "telefone": null, "email": "nf@alfa.com" },
+    "obra": { "id": "…", "nome": "Residencial Alfa", "endereco": "Rua das Flores, 120 — Centro — João Pessoa/PB — CEP 58000-000" },
+    "representante": { "id": "…", "nome": "Ana Representações", "email": null, "telefone": null },
+    "itens": [
+      {
+        "item_id": "…", "produto_id": "…", "codigo": "POR-60", "nome": "Porcelanato 60x60", "unidade_medida": "m2",
+        "quantidade": 10, "preco_unitario_centavos": 1500, "preco_tabela_centavos": 1800,
+        "desconto_unitario_centavos": 300, "subtotal_centavos": 15000
+      }
+    ],
+    "total_centavos": 15000,
+    "desconto_centavos": 3000,
+    "condicoes": [
+      "Entrada de 30% na confirmação do pedido.",
+      "Saldo de 70% na chegada da mercadoria.",
+      "Prazo de entrega de 120 dias contados do pagamento da entrada.",
+      "Frete CIF (por conta do vendedor), estimado em R$ 180,00.",
+      "Proposta válida até 03/11/2026."
+    ],
+    "frete_tipo": "cif",
+    "frete_estimado_centavos": 18000,
+    "numero_pedido_cliente": "OC-778",
+    "observacoes": ""
+  }
+}
+```
+
+- `identificacao`: número do pedido e revisão — `Proposta 57-R2` enquanto proposta, `Pedido 57-R2` depois
+  de confirmado; `emitido_em`: hoje em Brasília. Empresa ou cliente do pedido ausentes → `404`.
+- `desconto_centavos`: soma dos descontos positivos sobre a tabela (`(tabela − preço) × quantidade`);
+  venda acima da tabela aparece no item com desconto negativo e não entra na soma.
+- `condicoes`: as frases do documento, já montadas a partir da condição, do prazo-limite, do frete e da
+  validade (a validade só aparece enquanto o pedido é proposta).
+
+`GET /api/v1/modelos-venda` devolve, para o front montar o seletor de modelo e mostrar a condição padrão:
+
+```json
+{
+  "dados": [
+    { "modelo": "pronta_entrega", "condicao": { "entrada_bp": 0, "prazo_boleto_dias": 30, "prazo_entrega_dias": null },
+      "condicoes": ["Pagamento em boleto com vencimento em 30 dias após a entrega."] },
+    { "modelo": "importacao", "condicao": { "entrada_bp": 3000, "prazo_boleto_dias": null, "prazo_entrega_dias": 120 },
+      "condicoes": ["Entrada de 30% na confirmação do pedido.", "Saldo de 70% na chegada da mercadoria.",
+                    "Prazo de entrega de 120 dias contados do pagamento da entrada."] }
+  ]
+}
+```
 
 ### Estados e efeitos
 
@@ -2911,6 +2993,59 @@ competência, pela data da saída ou pela competência do ajuste), ordenada pelo
 | Fechamento de representante sem saldo | `400` | `erro de validação: nada a pagar ao representante na competência` |
 | Mais de 500 entregas a apurar | `409` | `há mais entregas a apurar na competência; apure e feche de novo` |
 | Fechamento inexistente | `404` | `registro não encontrado: fechamento não encontrado` |
+
+---
+
+## Tabela de preços
+
+Preço de cada produto por **modelo de venda** (`pronta_entrega` ou `importacao`), do grupo inteiro (sem
+empresa), com **vigência por data de início**: o preço de um dia é o lançamento de maior `vigente_de` até
+aquele dia; um lançamento novo encerra o anterior. Mudar preço é lançar uma nova vigência; o histórico não
+é editado. A tabela só **sugere** o preço do pedido; a vitrine pública continua com `produto.preco`.
+Escopo e decisões em `PROPOSTAS.md`.
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/tabela-precos` | **administrador** | `201` lançamento |
+| `GET` | `/api/v1/tabela-precos` | comercial, financeiro ou administrador | `200` histórico paginado (`?produto=`, `?modelo=`), vigência mais recente primeiro |
+| `GET` | `/api/v1/tabela-precos/vigentes` | comercial, financeiro ou administrador | `200` preço do dia por produto ativo (`?modelo=` obrigatório, `?data=AAAA-MM-DD` padrão hoje em Brasília, `?produto=`, `?busca=` nome ou código), ordem por nome |
+| `DELETE` | `/api/v1/tabela-precos/{id}` | **administrador** | `204`; só lançamento cuja vigência ainda não começou |
+
+```json
+{
+  "produto_id": "…",
+  "modelo": "pronta_entrega",
+  "preco_centavos": 12000,
+  "vigente_de": "2026-11-01",
+  "observacao": "reajuste do fornecedor"
+}
+```
+
+- `preco_centavos > 0`; `vigente_de` obrigatório (data no passado é aceita, para corrigir); `observacao`
+  até 500 caracteres; produto precisa existir e estar ativo.
+- Item de `vigentes`: `preco_centavos` e `origem` — `tabela` (com `item_id` e `vigente_de`), `produto`
+  (sem tabela, cai em `produto.preco`) ou `sem_preco` (`preco_centavos` nulo).
+
+```json
+{
+  "dados": [
+    {
+      "produto_id": "…", "produto_nome": "Porcelanato 60x60", "produto_codigo": "POR-60", "unidade_medida": "m2",
+      "modelo": "pronta_entrega", "data": "2026-10-18", "preco_centavos": 12000, "origem": "tabela",
+      "item_id": "…", "vigente_de": "2026-10-01"
+    }
+  ],
+  "pagina": 1,
+  "tamanho": 20
+}
+```
+
+| Situação | Status | Mensagem |
+| --- | --- | --- |
+| Perfil sem comercial, financeiro ou administrador | `403` | `perfil sem permissão para ver a tabela de preços` |
+| Mesmo produto, modelo e início | `409` | `já existe preço deste produto e modelo com início nesta data` |
+| Produto inativo | `400` | `erro de validação: produto inativo não recebe preço novo` |
+| Exclusão de vigência que já começou | `409` | `só é possível excluir preço cuja vigência ainda não começou` |
 
 ---
 

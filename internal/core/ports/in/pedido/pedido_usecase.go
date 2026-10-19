@@ -17,14 +17,20 @@ type ItemInput struct {
 }
 
 type DadosPedidoInput struct {
-	ClienteID           uuid.UUID
-	ObraID              *uuid.UUID
-	RepresentanteID     *uuid.UUID
-	Modelo              string
-	PrazoLimite         *time.Time
-	NumeroPedidoCliente *string
-	Observacoes         string
-	Itens               []ItemInput
+	ClienteID             uuid.UUID
+	ObraID                *uuid.UUID
+	RepresentanteID       *uuid.UUID
+	Modelo                string
+	EntradaBP             *int
+	PrazoBoletoDias       *int
+	PrazoEntregaDias      *int
+	Validade              *time.Time
+	FreteTipo             string
+	FreteEstimadoCentavos *int64
+	PrazoLimite           *time.Time
+	NumeroPedidoCliente   *string
+	Observacoes           string
+	Itens                 []ItemInput
 }
 
 type CriarPedidoInput struct {
@@ -83,5 +89,7 @@ type PedidoUseCase interface {
 	RegistrarEntrada(ctx context.Context, input RegistrarEntradaInput) (*domainpedido.Pedido, error)
 	Cancelar(ctx context.Context, input CancelarPedidoInput) (*domainpedido.Pedido, error)
 	ObterComReservas(ctx context.Context, pedidoID, usuarioID uuid.UUID) (*domainpedido.Pedido, []*domainestoque.Reserva, error)
+	Documento(ctx context.Context, pedidoID, usuarioID uuid.UUID) (*domainpedido.DocumentoProposta, error)
+	ModelosDeVenda(ctx context.Context) []domainpedido.ModeloDeVenda
 	ListarHistorico(ctx context.Context, pedidoID, usuarioID uuid.UUID) ([]*domainpedido.Historico, error)
 }

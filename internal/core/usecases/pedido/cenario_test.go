@@ -55,7 +55,7 @@ func novoCenario(t *testing.T) *cenario {
 		m:   m,
 		pedidos: pedidousecases.NewPedidoUsecase(
 			repoPedidos{m}, repoEntregas{m}, repoClientes{m}, repoObras{m}, repoRepresentantes{m}, repoProdutos{m},
-			repoEmpresas{m}, repoEstoque{m}, repoReservas{m}, repoLocais{m}, repoUsuarios{m}, repoCargos{m},
+			repoPrecos{m}, repoEmpresas{m}, repoEstoque{m}, repoReservas{m}, repoLocais{m}, repoUsuarios{m}, repoCargos{m},
 		),
 		entregas: pedidousecases.NewEntregaUsecase(
 			repoPedidos{m}, repoEntregas{m}, repoRepresentantes{m}, repoEmpresas{m},

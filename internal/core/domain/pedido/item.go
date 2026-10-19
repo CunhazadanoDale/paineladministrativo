@@ -16,6 +16,7 @@ type Item struct {
 	ProdutoID          uuid.UUID
 	Quantidade         int
 	PrecoUnitario      Preco
+	PrecoTabela        *Preco
 	QuantidadeEntregue int
 	CriadoEm           time.Time
 }
@@ -24,6 +25,7 @@ type ItemInput struct {
 	ProdutoID             uuid.UUID
 	Quantidade            int
 	PrecoUnitarioCentavos int64
+	PrecoTabelaCentavos   *int64
 }
 
 func novoItem(pedidoID uuid.UUID, input ItemInput, agora time.Time) (*Item, error) {
@@ -42,14 +44,34 @@ func novoItem(pedidoID uuid.UUID, input ItemInput, agora time.Time) (*Item, erro
 		return nil, err
 	}
 
+	var precoTabela *Preco
+	if input.PrecoTabelaCentavos != nil {
+		if *input.PrecoTabelaCentavos <= 0 {
+			return nil, domain.ErroValidacao("preço de tabela do item deve ser maior que zero")
+		}
+		valor := PrecoDe(*input.PrecoTabelaCentavos)
+		precoTabela = &valor
+	}
+
 	return &Item{
 		ID:            uuid.Must(uuid.NewV7()),
 		PedidoID:      pedidoID,
 		ProdutoID:     input.ProdutoID,
 		Quantidade:    input.Quantidade,
 		PrecoUnitario: preco,
+		PrecoTabela:   precoTabela,
 		CriadoEm:      agora,
 	}, nil
+}
+
+func (i *Item) DescontoUnitarioCentavos() *int64 {
+	if i.PrecoTabela == nil {
+		return nil
+	}
+
+	desconto := i.PrecoTabela.Centavos() - i.PrecoUnitario.Centavos()
+
+	return &desconto
 }
 
 func (i *Item) Subtotal() (int64, error) {

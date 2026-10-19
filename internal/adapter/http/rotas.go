@@ -16,6 +16,7 @@ import (
 	receberhandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/receber"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/saude"
 	solicitacaohandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/solicitacao"
+	tabelaprecohandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/tabelapreco"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/usuarios"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/middleware"
 	portsinautenticacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/autenticacao"
@@ -30,6 +31,7 @@ import (
 	portsinpedido "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/pedido"
 	portsinreceber "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/receber"
 	portsinsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/solicitacao"
+	portsintabelapreco "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/tabelapreco"
 	portsinusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/usuarios"
 	"github.com/jmoiron/sqlx"
 )
@@ -81,6 +83,7 @@ func NewRouter(
 	comissaoUseCase portsincomissao.ComissaoUseCase,
 	ajusteComissaoUseCase portsincomissao.AjusteUseCase,
 	fechamentoComissaoUseCase portsincomissao.FechamentoUseCase,
+	tabelaPrecoUseCase portsintabelapreco.TabelaPrecoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, middleware.ErrosDeRoteamento(novasRotas(
@@ -104,6 +107,7 @@ func NewRouter(
 		resumoContasAReceberUseCase,
 		notaFiscalUseCase, eventoNotaFiscalUseCase,
 		percentualComissaoUseCase, comissaoUseCase, ajusteComissaoUseCase, fechamentoComissaoUseCase,
+		tabelaPrecoUseCase,
 		tokens,
 	)))
 }
@@ -152,6 +156,7 @@ func novasRotas(
 	comissaoUseCase portsincomissao.ComissaoUseCase,
 	ajusteComissaoUseCase portsincomissao.AjusteUseCase,
 	fechamentoComissaoUseCase portsincomissao.FechamentoUseCase,
+	tabelaPrecoUseCase portsintabelapreco.TabelaPrecoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -496,6 +501,14 @@ func novasRotas(
 	protegido("GET /api/v1/comissoes/fechamentos", fechamentoComissaoHandler.Listar)
 	protegido("GET /api/v1/comissoes/fechamentos/{id}", fechamentoComissaoHandler.Obter)
 	protegido("GET /api/v1/comissoes/resumo", comissaoHandler.Resumo)
+
+	tabelaPrecoHandler := tabelaprecohandlers.NewTabelaPrecoHandler(tabelaPrecoUseCase)
+	administrador("POST /api/v1/tabela-precos", tabelaPrecoHandler.Criar)
+	protegido("GET /api/v1/tabela-precos", tabelaPrecoHandler.Listar)
+	protegido("GET /api/v1/tabela-precos/vigentes", tabelaPrecoHandler.Vigentes)
+	administrador("DELETE /api/v1/tabela-precos/{id}", tabelaPrecoHandler.Remover)
+	protegido("GET /api/v1/pedidos/{id}/proposta", pedidoHandler.Documento)
+	protegido("GET /api/v1/modelos-venda", pedidoHandler.ModelosDeVenda)
 
 	return mux
 }

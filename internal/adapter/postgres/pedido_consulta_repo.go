@@ -202,5 +202,6 @@ const colunasPedidoComPrefixo = `
 	p.id, p.empresa_id, p.numero, p.cliente_id, p.obra_id, p.representante_id, p.modelo, p.entrada_bp,
 	p.prazo_boleto_dias, p.prazo_entrega_dias, p.prazo_limite, p.numero_pedido_cliente, p.observacoes,
 	p.status, p.valor_total_centavos, p.entrada_paga_em, p.entrada_paga_centavos, p.cancelado_motivo,
-	p.valor_a_devolver_centavos, p.usuario_id, p.versao, p.criado_em, p.atualizado_em
+	p.valor_a_devolver_centavos, p.usuario_id, p.versao, p.criado_em, p.atualizado_em, p.validade, p.revisao,
+	p.frete_tipo, p.frete_estimado_centavos
 `
