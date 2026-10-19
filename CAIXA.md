@@ -205,7 +205,7 @@
 
 ### 3.4 Projeção
 
-`GET /caixa/projecao?empresa=&de=&ate=` (máximo 90 dias, `de` a partir de hoje), por dia:
+`GET /caixa/projecao?empresa=&ate=` (começa sempre hoje; padrão hoje + 30, máximo hoje + 90), por dia:
 
 - **saldo de partida**: saldo das contas ativas da empresa pelo extrato, mais os movimentos do sistema
   já registrados e ainda sem linha no extrato (pagos e recebidos "em trânsito");
@@ -231,18 +231,20 @@ GET    /api/v1/caixa/saldos                          ?empresa= — saldo por con
 
 POST   /api/v1/extratos/importacao                   { arquivo_id, conta_bancaria_id?, simular? } (financeiro)
 GET    /api/v1/extratos/importacoes                  ?conta= ?empresa=
-DELETE /api/v1/extratos/importacoes/{id}             sem linha conciliada e em mês aberto (administrador)
+DELETE /api/v1/extratos/importacoes/{id}             só a mais recente da conta, sem linha que já passou por conciliação (administrador)
 GET    /api/v1/extratos/lancamentos                  ?conta= (obrigatória) ?de= ?ate= ?situacao=pendente|conciliado|invalidado
 GET    /api/v1/extratos/lancamentos/{id}/sugestoes
-POST   /api/v1/extratos/lancamentos/{id}/conciliacao     { itens: [{ tipo, id }] }
+POST   /api/v1/extratos/lancamentos/{id}/conciliacao     { movimentos: [{ tipo, id }] }
 POST   /api/v1/extratos/lancamentos/{id}/classificacao   { categoria_financeira_id, descricao? }
 POST   /api/v1/extratos/lancamentos/{id}/transferencia   { conta_contraparte_id, categoria_financeira_id, descricao? }
 POST   /api/v1/extratos/conciliar-automatico         { conta_bancaria_id, de, ate }
+GET    /api/v1/conciliacoes/{id}
 POST   /api/v1/conciliacoes/{id}/desfazer            { motivo }
 
 GET    /api/v1/caixa/lancamentos                     ?empresa= ?conta= ?de= ?ate= — lançamentos de caixa (classificações)
 GET    /api/v1/caixa/transferencias                  ?empresa= ?conta= ?de= ?ate= — transferências entre contas
 GET    /api/v1/caixa/pendencias-sistema              ?conta= ?de= ?ate= — pagamentos, recebimentos, borderôs e pontas de transferência sem linha
+GET    /api/v1/caixa/pagamentos-sem-conta            ?empresa= ?de= ?ate= — pagamentos antigos sem conta bancária (D14)
 GET    /api/v1/caixa/fechamentos/previa              ?conta= ?competencia=AAAA-MM — o que o fechamento gravaria e o que o impede
 POST   /api/v1/caixa/fechamentos                     { conta_bancaria_id, competencia, saldo_banco_centavos? }
 GET    /api/v1/caixa/fechamentos                     ?conta= ?empresa= ?competencia=
@@ -485,6 +487,22 @@ Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates ve
       solicitação da competência (`origem = recorrencia`, `origem_id`, `competencia`) não entra.
 - [x] **Fase 5 — movimento diário** (implementação): só dias com linha no extrato, por conta, com o saldo
       acumulado desde o corte; padrão do dia 1 do mês até hoje, máximo de 92 dias.
+- [x] **Revisão — ordem das travas** (outubro/2026): toda escrita que mexe numa linha do extrato trava antes
+      as contas envolvidas (`FOR SHARE`, em ordem de id) e só depois a linha, a mesma ordem do desfazer
+      importação (conta, depois linhas); antes, conciliar e desfazer importação ao mesmo tempo podiam
+      entrar em deadlock e responder `500`.
+- [x] **Revisão — outra ponta da transferência** (outubro/2026): criar e desfazer transferência conferem o
+      mês fechado nas duas contas; desfazer exige acesso à empresa das duas.
+- [x] **Revisão — conta do extrato** (outubro/2026): correspondência exata (número) vale mais que a
+      aproximada (dígito ou agência colados); dígito diferente não corresponde; a agência colada só vale com
+      os zeros dela; a detecção considera só contas ativas no acesso do usuário (sem revelar contas de
+      outras empresas); conta informada é recusada se outra conta do banco corresponder melhor.
+- [x] **Revisão — OFX** (outubro/2026): vários blocos da mesma conta no arquivo são aceitos; data com fuso
+      vira o dia em Brasília.
+- [x] **Revisão — fechamento** (outubro/2026): a prévia traz `mes_encerrado` e só diz `pode_fechar` com o
+      saldo do banco do extrato conferido; o fechamento reconfere o saldo do banco na transação.
+- [x] **Revisão — automática** (outubro/2026): o corte de 500 lançamentos nunca divide um dia (o par único
+      é avaliado com o dia inteiro); mais de 5000 movimentos no período → `400` pedindo período menor.
 - [x] **Fase 1 — OFX não é anexo** (implementação): como o XML da NF-e, arquivo OFX não pode ser anexado a
       solicitação; o upload aceita `.ofx` mesmo quando o navegador manda `application/octet-stream`.
 

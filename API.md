@@ -3098,6 +3098,16 @@ corte. Escopo por empresa pela conta bancária (padrão da seção 4 do `EMPRESA
   foi alterado por outra pessoa; recarregue e tente de novo` divergente).
 - Conta inativa ou de empresa inativa → `400`; conta fora do acesso → `403`; `GET` sem saldo inicial →
   `404 registro não encontrado: conta sem saldo inicial`.
+- Resposta do `PUT` e do `GET`:
+
+```json
+{
+  "dados": {
+    "conta_bancaria_id": "…", "data_corte": "2026-09-30", "saldo_centavos": 1500000, "usuario_id": "…",
+    "versao": 1, "criado_em": "2026-10-19T13:00:00Z", "atualizado_em": "2026-10-19T13:00:00Z"
+  }
+}
+```
 
 ### Importação do extrato
 
@@ -3109,8 +3119,14 @@ corte. Escopo por empresa pela conta bancária (padrão da seção 4 do `EMPRESA
 ```
 
 - Sem `conta_bancaria_id`, a conta é achada pelo `BANKID` (código COMPE), `BRANCHID` e `ACCTID` do OFX,
-  entre as contas cadastradas (zeros à esquerda e dígito com ou sem hífen são aceitos). Com ela, o OFX
-  precisa ser dessa conta.
+  entre as contas **ativas no acesso do usuário**. O número igual (sem zeros à esquerda, com ou sem o
+  dígito depois do hífen) vale mais que o dígito colado ao número ou a agência colada na frente, e dígito
+  diferente do cadastrado não corresponde. Com `conta_bancaria_id`, o OFX precisa ser dessa conta e
+  nenhuma outra conta do banco pode corresponder melhor a ele.
+- Um arquivo com vários blocos da mesma conta é aceito (período = união dos blocos; saldo do banco = o
+  `LEDGERBAL` mais recente); contas diferentes no mesmo arquivo → `400`.
+- Data com fuso (`DTPOSTED` com hora e `[-3:BRT]`, `[0:GMT]`…) vira o dia em Brasília; sem fuso, vale o dia
+  escrito.
 - `simular: true` devolve o relatório sem gravar (`200`, `importacao_id` nulo).
 - Cada linha tem um identificador (`FITID` + data + valor + ocorrência no arquivo; sem `FITID`, a
   descrição entra no lugar): linha já importada por outro arquivo conta como `repetidas` e não é gravada
@@ -3146,6 +3162,16 @@ Resposta:
       { "sequencia": 1, "data": "2026-09-30", "valor_centavos": -100, "descricao": "TARIFA", "motivo": "anterior_ao_saldo_inicial" }
     ]
   }
+}
+```
+
+Item de `GET /extratos/importacoes`:
+
+```json
+{
+  "id": "…", "conta_bancaria_id": "…", "arquivo_id": "…", "periodo_inicio": "2026-10-01", "periodo_fim": "2026-10-15",
+  "saldo_banco_centavos": 1084567, "saldo_banco_em": "2026-10-15", "linhas_novas": 1, "linhas_repetidas": 1,
+  "linhas_ignoradas": 1, "usuario_id": "…", "criado_em": "2026-10-19T13:00:00Z"
 }
 ```
 
@@ -3210,7 +3236,8 @@ o mais próximo primeiro.
 **Automática** (`POST /extratos/conciliar-automatico`): `{ "conta_bancaria_id", "de", "ate" }`
 (obrigatórios, até 92 dias). Concilia só os pares exatos e únicos nos dois sentidos: mesmo dia e mesmo
 valor, com um só movimento para o lançamento e um só lançamento para o movimento. Processa até 500
-lançamentos por chamada:
+lançamentos por chamada, sem dividir um dia: os dias que não couberem ficam para a próxima chamada
+(`restam_linhas`); mais de 500 pendentes num mesmo dia ou mais de 5000 movimentos no período → `400`:
 
 ```json
 { "dados": { "conciliadas": 12, "ambiguos": 1, "sem_par": 3, "falhas": 0, "restam_linhas": false } }
@@ -3284,7 +3311,9 @@ A linha de uma das pontas cria a transferência, já conciliada a ela (`modo = t
   (no destino, valor positivo) ou `transferencia_saida` (na origem, valor negativo), e é conciliada pela
   conciliação manual ou automática.
 - Desfazer a conciliação que criou a transferência a estorna (`estornado = true`); se a outra ponta já
-  estava conciliada, a conciliação dela fica `invalidada`.
+  estava conciliada, a conciliação dela fica `invalidada`. Desfazer exige acesso às duas contas (`403`) e
+  mês aberto nas duas (`409`).
+- Criar a transferência também recusa mês fechado na conta da outra ponta (`409`).
 - Resposta `201`: `{ "transferencia": {...}, "conciliacao": {...} }`, com a transferência:
 
 ```json
@@ -3312,7 +3341,7 @@ encerrado em Brasília.
     "conta_bancaria_id": "…", "competencia": "2026-09", "saldo_inicial_centavos": 100000,
     "entradas_centavos": 10000, "saidas_centavos": 1290, "saldo_final_centavos": 108710,
     "saldo_banco_centavos": 108710, "lancamentos_pendentes": 0, "conciliacoes_invalidadas": 0,
-    "pode_fechar": true, "movimentos_sem_linha": []
+    "mes_encerrado": true, "pode_fechar": true, "movimentos_sem_linha": []
   }
 }
 ```
@@ -3320,7 +3349,9 @@ encerrado em Brasília.
 `saldo_inicial_centavos` é o saldo inicial da conta (primeiro mês) ou o saldo final do fechamento anterior.
 `saldo_banco_centavos` é o `LEDGERBAL` da importação mais recente com data no último dia do mês (`null` se
 não houver). `movimentos_sem_linha` são os pagamentos, recebimentos, borderôs e pontas de transferência do
-mês sem linha no extrato: aparecem como divergência, mas não impedem o fechamento.
+mês sem linha no extrato: aparecem como divergência, mas não impedem o fechamento. `pode_fechar` é `true`
+só com o mês encerrado, sem pendência nem conciliação invalidada e com o `LEDGERBAL` do último dia igual ao
+saldo final; sem esse `LEDGERBAL`, ainda é possível fechar informando `saldo_banco_centavos` no corpo.
 
 **Fechar** (`POST /caixa/fechamentos`):
 
@@ -3336,7 +3367,7 @@ mês sem linha no extrato: aparecem como divergência, mas não impedem o fecham
 | linha do mês pendente ou conciliação invalidada | `409 o mês tem N lançamento(s) pendente(s) e M conciliação(ões) invalidada(s); …` |
 | sem `saldo_banco_centavos` e sem `LEDGERBAL` do último dia | `400 erro de validação: informe o saldo do banco no fim do mês; …` |
 | saldo calculado diferente do saldo do banco | `409 saldo calculado (1087,10) diferente do saldo do banco (1087,60); diferença de 0,50` |
-| extrato, conciliações ou saldo inicial mudaram entre a leitura e a gravação | `409` (recarregue a prévia) |
+| extrato, conciliações, saldo do banco ou saldo inicial mudaram entre a leitura e a gravação | `409` (recarregue a prévia) |
 
 Resposta `201` e detalhe (`GET /caixa/fechamentos/{id}`): os campos do fechamento (`id`,
 `conta_bancaria_id`, `competencia`, `saldo_inicial_centavos`, `entradas_centavos`, `saidas_centavos`,
