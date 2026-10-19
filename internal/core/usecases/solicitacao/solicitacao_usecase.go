@@ -891,6 +891,9 @@ func (u *SolicitacaoUsecaseImpl) validarArquivos(ctx context.Context, proprietar
 		if arquivo.ContentType == contentTypeXML {
 			return domain.ErroValidacao("arquivo XML é exclusivo da importação de nota fiscal e não pode ser anexado à solicitação")
 		}
+		if arquivo.ContentType == contentTypeOFX {
+			return domain.ErroValidacao("arquivo OFX é exclusivo da importação de extrato e não pode ser anexado à solicitação")
+		}
 
 		vinculado, err := u.arquivos.VinculadoASolicitacao(ctx, arquivoID)
 		if err != nil {

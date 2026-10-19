@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	caixahandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/caixa"
 	clientehandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/cliente"
 	comissaohandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/comissao"
 	empresahandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/empresa"
@@ -20,6 +21,7 @@ import (
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/usuarios"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/middleware"
 	portsinautenticacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/autenticacao"
+	portsincaixa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/caixa"
 	portsincliente "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/cliente"
 	portsincomissao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/comissao"
 	portsinempresa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/empresa"
@@ -84,6 +86,13 @@ func NewRouter(
 	ajusteComissaoUseCase portsincomissao.AjusteUseCase,
 	fechamentoComissaoUseCase portsincomissao.FechamentoUseCase,
 	tabelaPrecoUseCase portsintabelapreco.TabelaPrecoUseCase,
+	aberturaCaixaUseCase portsincaixa.AberturaUseCase,
+	extratoUseCase portsincaixa.ExtratoUseCase,
+	saldoCaixaUseCase portsincaixa.SaldoUseCase,
+	conciliacaoUseCase portsincaixa.ConciliacaoUseCase,
+	lancamentoCaixaUseCase portsincaixa.LancamentoCaixaUseCase,
+	fechamentoCaixaUseCase portsincaixa.FechamentoUseCase,
+	projecaoCaixaUseCase portsincaixa.ProjecaoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, middleware.ErrosDeRoteamento(novasRotas(
@@ -108,6 +117,11 @@ func NewRouter(
 		notaFiscalUseCase, eventoNotaFiscalUseCase,
 		percentualComissaoUseCase, comissaoUseCase, ajusteComissaoUseCase, fechamentoComissaoUseCase,
 		tabelaPrecoUseCase,
+		aberturaCaixaUseCase, extratoUseCase, saldoCaixaUseCase,
+		conciliacaoUseCase,
+		lancamentoCaixaUseCase,
+		fechamentoCaixaUseCase,
+		projecaoCaixaUseCase,
 		tokens,
 	)))
 }
@@ -157,6 +171,13 @@ func novasRotas(
 	ajusteComissaoUseCase portsincomissao.AjusteUseCase,
 	fechamentoComissaoUseCase portsincomissao.FechamentoUseCase,
 	tabelaPrecoUseCase portsintabelapreco.TabelaPrecoUseCase,
+	aberturaCaixaUseCase portsincaixa.AberturaUseCase,
+	extratoUseCase portsincaixa.ExtratoUseCase,
+	saldoCaixaUseCase portsincaixa.SaldoUseCase,
+	conciliacaoUseCase portsincaixa.ConciliacaoUseCase,
+	lancamentoCaixaUseCase portsincaixa.LancamentoCaixaUseCase,
+	fechamentoCaixaUseCase portsincaixa.FechamentoUseCase,
+	projecaoCaixaUseCase portsincaixa.ProjecaoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -509,6 +530,45 @@ func novasRotas(
 	administrador("DELETE /api/v1/tabela-precos/{id}", tabelaPrecoHandler.Remover)
 	protegido("GET /api/v1/pedidos/{id}/proposta", pedidoHandler.Documento)
 	protegido("GET /api/v1/modelos-venda", pedidoHandler.ModelosDeVenda)
+
+	aberturaCaixaHandler := caixahandlers.NewAberturaHandler(aberturaCaixaUseCase)
+	financeiro("PUT /api/v1/caixa/contas/{id}/abertura", aberturaCaixaHandler.Definir)
+	financeiro("GET /api/v1/caixa/contas/{id}/abertura", aberturaCaixaHandler.Obter)
+
+	saldoCaixaHandler := caixahandlers.NewSaldoHandler(saldoCaixaUseCase)
+	financeiro("GET /api/v1/caixa/saldos", saldoCaixaHandler.Listar)
+
+	extratoHandler := caixahandlers.NewExtratoHandler(extratoUseCase)
+	financeiro("POST /api/v1/extratos/importacao", middleware.EstenderPrazo(prazoDeArquivo, extratoHandler.Importar))
+	financeiro("GET /api/v1/extratos/importacoes", extratoHandler.ListarImportacoes)
+	administrador("DELETE /api/v1/extratos/importacoes/{id}", extratoHandler.DesfazerImportacao)
+	financeiro("GET /api/v1/extratos/lancamentos", extratoHandler.ListarLancamentos)
+
+	conciliacaoHandler := caixahandlers.NewConciliacaoHandler(conciliacaoUseCase)
+	financeiro("GET /api/v1/extratos/lancamentos/{id}/sugestoes", conciliacaoHandler.Sugestoes)
+	financeiro("POST /api/v1/extratos/lancamentos/{id}/conciliacao", conciliacaoHandler.Conciliar)
+	financeiro("POST /api/v1/extratos/conciliar-automatico", conciliacaoHandler.ConciliarAutomatico)
+	financeiro("GET /api/v1/conciliacoes/{id}", conciliacaoHandler.Obter)
+	financeiro("POST /api/v1/conciliacoes/{id}/desfazer", conciliacaoHandler.Desfazer)
+	financeiro("GET /api/v1/caixa/pendencias-sistema", conciliacaoHandler.Pendencias)
+	financeiro("GET /api/v1/caixa/pagamentos-sem-conta", conciliacaoHandler.PagamentosSemConta)
+
+	lancamentoCaixaHandler := caixahandlers.NewLancamentoCaixaHandler(lancamentoCaixaUseCase)
+	financeiro("POST /api/v1/extratos/lancamentos/{id}/classificacao", lancamentoCaixaHandler.Classificar)
+	financeiro("POST /api/v1/extratos/lancamentos/{id}/transferencia", lancamentoCaixaHandler.Transferir)
+	financeiro("GET /api/v1/caixa/lancamentos", lancamentoCaixaHandler.Listar)
+	financeiro("GET /api/v1/caixa/transferencias", lancamentoCaixaHandler.ListarTransferencias)
+
+	fechamentoCaixaHandler := caixahandlers.NewFechamentoHandler(fechamentoCaixaUseCase)
+	financeiro("GET /api/v1/caixa/fechamentos/previa", fechamentoCaixaHandler.Previa)
+	financeiro("POST /api/v1/caixa/fechamentos", fechamentoCaixaHandler.Fechar)
+	financeiro("GET /api/v1/caixa/fechamentos", fechamentoCaixaHandler.Listar)
+	financeiro("GET /api/v1/caixa/fechamentos/{id}", fechamentoCaixaHandler.Obter)
+	administrador("POST /api/v1/caixa/fechamentos/{id}/reabrir", fechamentoCaixaHandler.Reabrir)
+
+	projecaoCaixaHandler := caixahandlers.NewProjecaoHandler(projecaoCaixaUseCase)
+	financeiro("GET /api/v1/caixa/projecao", projecaoCaixaHandler.Projetar)
+	financeiro("GET /api/v1/caixa/movimento-diario", projecaoCaixaHandler.MovimentoDiario)
 
 	return mux
 }

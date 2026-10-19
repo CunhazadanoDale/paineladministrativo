@@ -1,6 +1,6 @@
 # Escopo — M8 NF-e por XML
 
-> **Status:** API concluída (fases 1 a 6, com os títulos no M9); front (fase 7) pendente, depois do F0a.
+> **Status:** API e front concluídos (fases 1 a 7, com os títulos no M9).
 > **Objetivo:** tirar o "Controle de NFs" da planilha: a NF-e emitida pelas empresas do grupo
 > entra no sistema pelo XML autorizado, com itens, duplicatas e eventos, ligada ao cliente, ao
 > pedido e à entrega. Base para os títulos do M9 (fase final) e para a receita do M15.
@@ -288,7 +288,7 @@ Numeração de migration definida no merge (regra 4 da seção 3 do `ROADMAP.md`
 | **4** | Handlers/DTOs + rotas + e2e + `API.md` | concluída |
 | **5** | Consultas (entregas sem NF, itens sem produto e vínculo de item) + testes + `API.md` | concluída (entregue junto com as fases 2 a 4) |
 | **6** | Títulos no M9: duplicata → título (origem `nota_fiscal_duplicata`) na importação, cancelamento dos títulos com a NF, `travarNotaFiscalDeOrigem` no repositório do M9 e `POST /notas-fiscais/{id}/titulos`; migrations renumeradas para 000051–000052 | concluída |
-| **7** | Frontend: importação, lista, detalhe, vínculo e entregas sem NF (depois do F0a) | pendente |
+| **7** | Frontend: importação, lista, detalhe, vínculo e entregas sem NF (depois do F0a) | concluída |
 
 O efeito definitivo das notas entre empresas é uma fase futura, aberta quando a contabilidade
 responder (ROADMAP §6).

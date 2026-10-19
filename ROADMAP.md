@@ -147,7 +147,11 @@ o **F0b** pode correr junto com essas telas.
 | F-M5 | Front de contas bancárias e plano de contas | M5 F0a | — | concluído |
 | F-M2 | Front de estoque por local, lote e reserva | M2 F0a | — | concluído |
 | F-M3 | Front de clientes e representantes | M3 F0a | — | concluído |
-| F-M6 | Front de pedidos de venda e entregas | M6 F-M2 F-M3 | — | em andamento (feat/front-m6-pedidos) |
+| F-M6 | Front de pedidos de venda e entregas | M6 F-M2 F-M3 | — | concluído |
+| F-M7 | Front de contas a pagar | M7 F-M4 F-M5 | — | concluído |
+| F-M9 | Front de contas a receber e antecipação | M9 F-M3 F-M5 | — | concluído |
+| F-M8 | Front de NF-e por XML | M8 F-M6 F-M9 | — | concluído |
+| F-M10 | Front de comissões | M10 F-M6 F-M7 | — | em andamento (feat/front-m10-comissoes) |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
 | M3 | Clientes e representantes | M1 | Base de clientes | concluído |
@@ -160,7 +164,7 @@ o **F0b** pode correr junto com essas telas.
 | M10 | Comissões | M3 M6 | comissões calculadas à mão | concluído |
 | M11 | Propostas e tabela de preços | M3 M6 | orçamentos em documento, guia de modelos de venda | concluído |
 | M12 | Importações | M2 M4 M6 M7 | parte de Entregas de importação e do painel financeiro | pendente |
-| M13 | Caixa e conciliação | M5 M7 M9 | Caixa do mês, Fluxo de caixa diário | pendente |
+| M13 | Caixa e conciliação | M5 M7 M9 | Caixa do mês, Fluxo de caixa diário | concluído |
 | M14 | Dívidas e empréstimos | M4 M5 M7 | Dívidas do grupo | pendente |
 | M15 | DRE e painéis | M2 M7 M8 M9 M13 | DRE, Faturamento, Relatório semanal | pendente |
 
@@ -481,6 +485,96 @@ próximos fronts:
 - as falhas de tempo intermitentes da suíte completa continuam (passam sozinhas); segue valendo a sessão
   proposta para estabilizar a configuração do vitest.
 
+**Entregue o front do M6 (outubro/2026, branch `feat/front-m6-pedidos` do front):** telas em
+`modules/pedidos`. Para os próximos fronts (M8, M9, M10, M11, M12):
+
+- `services/pedidos.js` (pedidos, entregas e as três consultas); `atualizarPedido` tira `empresa_id`;
+  `obterObra` em `services/clientes.js`;
+- peças genéricas novas: `BuscaRemota` (`app/components`: busca com debounce, cancelamento e o valor
+  atual mantido fora dos resultados — use para escolher cliente, produto ou fornecedor em catálogo
+  grande) e `useNomesPorId` (`app/nomes`: traduz ids em nomes buscando cada id uma vez, com
+  `nomeDe` para outro campo);
+- `PropostaFormModal` cria e edita a proposta (cliente por busca, obra ativa do cliente, representante
+  padrão do cliente, modelo, prazo só na pronta entrega, itens com preço sugerido de `produto.preco`);
+  **o M11 pode reaproveitar** trocando a sugestão de preço pela tabela;
+- `/pedidos` (lista com filtros), `/pedidos/:id` (dados, itens com reservado e falta cobrir, histórico,
+  editar, confirmar, reservar pendências, entrada paga do financeiro com "hoje" no fuso de Brasília,
+  cancelar com valor a devolver), entregas no detalhe (programar por item e local da empresa, frete
+  CIF/FOB, saída com baixa, entregue, cancelar; toda ação recarrega o pedido porque avança a `versao`
+  dele), `/entregas` (consulta geral; as ações ficam no pedido) e `/pedidos/consultas` (abas de
+  pendências, prazos e cancelamentos, com o hook genérico `useConsulta`);
+- `AcaoPedidoModal` concentra validação (texto ou lista), conflito de versão (recarrega o pedido) e
+  erro da API; `pedidosUtils` traz status, modelos, condição, `hojeEmBrasilia`, `entradaSugerida`,
+  rótulos do histórico e das entregas;
+- o título de entrada (M9) entrou depois, no F-M9; o F-M6 só registrava a entrada manual;
+- `vite.config.js` com `testTimeout: 15000`: os estouros intermitentes eram de 5 s por teste.
+
+**Entregue o front do M7 (outubro/2026, branch `feat/front-m7-contas-a-pagar` do front):** evolução de
+`modules/solicitacoes` mais telas novas em `modules/financeiro`. Para os próximos fronts (M9, M10, M12–M15):
+
+- `services/solicitacoes.js` só com acréscimos: filtros de conta a pagar, `atualizarSolicitacao` (sem empresa
+  nem anexos), `aprovar(id, versao)`, `classificar`, `adiar`, `estornarPagamento`, `listarPagamentos` e
+  `obterPendencias`; `services/despesasRecorrentes.js` e `services/contasAPagar.js` (resumo);
+  `listarTodasContasBancarias` em `services/contasBancarias.js`;
+- **peças reaproveitáveis**: `AcaoModal` (`app/components`, validação em texto ou lista, conflito de versão
+  que fecha e recarrega, erro da API — movido de pedidos) e `SeletorCategoriaDespesa` (`modules/financeiro`,
+  só subcategorias lançáveis de despesa agrupadas pela raiz, mantendo a gravada que deixou de ser lançável;
+  **o M9 pode copiar o padrão para receita**);
+- formulário da solicitação com fornecedor, categoria, competência, estimado, formas `transferencia` e
+  `debito_automatico` e modo edição com versão; detalhe com editar, aprovar com versão, classificar, adiar,
+  **pagamento com conta bancária obrigatória** (consertou o modal quebrado desde a fase 3 da API), estorno e a
+  lista de pagamentos com os estornados; histórico com o rótulo do `evento`;
+- lista com "Mais filtros" (fornecedor, categoria, competência, vencimento, origem, vencidas) e selo de
+  vencida; contador de pendências no item Solicitações da Sidebar (`usePendenciasSolicitacao`, soma aprovação
+  e financeiro, atualiza a cada troca de tela);
+- `/despesas-recorrentes` (financeiro: cadastro com versão, ativar/desativar, exclusão do administrador e
+  "Gerar competência" com geradas, já existentes e recusadas) e `/contas-a-pagar/resumo` (financeiro: totais,
+  semana × empresa e vencidas antes do período);
+- "hoje" das solicitações segue em UTC na API (item 11 do `PENDENCIAS.md`); o front usa a data local nos
+  formulários.
+
+**Entregue o front do M9 (outubro/2026, branch `feat/front-m9-contas-a-receber` do front):** módulo novo
+`modules/receber`, só para o financeiro. Para os próximos fronts (M8, M10, M12–M15):
+
+- `services/titulosReceber.js` (títulos, transições, recebimentos, estorno, recompra, boletos pendentes, resumo
+  e `listarTitulosAntecipaveis`, que junta as listas completas de carteira e em banco sem origem cancelada) e
+  `services/antecipacoes.js`; `gerarTituloEntrada` em `services/pedidos.js`;
+- **peças reaproveitáveis**: `SeletorCategoriaLancavel` (`modules/financeiro`, com `SeletorCategoriaDespesa` e
+  `SeletorCategoriaReceita`), `agoraEmBrasilia`/`instanteDeBrasilia` em `receberUtils` (datetime-local em
+  Brasília para RFC 3339 com `-03:00`) e `numeroDoTitulo` (número/parcela) — **o M8 pode usar para listar as
+  duplicatas da NF** pelo `?origem=nota_fiscal_duplicata&origem_id=`;
+- `/titulos-receber`: lista com filtros (empresa, status, origem, cliente, vencimento, vencidos, origem
+  cancelada) e o título manual (conta de cobrança opcional, "nasce em banco"); detalhe com histórico, edição do
+  manual com versão, prorrogar, enviar/retirar do banco, boleto enviado, cancelar, recebimentos (conta ou
+  fomento, juros, desconto, repasse obrigatório no antecipado recebido em conta, aviso de conta diferente da
+  cobrança), estorno de recebimento e recompra;
+- `/antecipacoes`: lista, borderô com seleção dos títulos antecipáveis, bruto/encargos calculados e taxa em %
+  convertida para pontos-base, detalhe com os títulos vigentes ou fora e estorno do borderô;
+- `/contas-a-receber/resumo` (a receber, antecipado e vencido por semana e empresa, atrasados à parte) e
+  `/contas-a-receber/boletos` (prazo de 0 a 90 dias, registro do envio pela lista);
+- no detalhe do pedido de importação, o financeiro vê o título de entrada (link e status) e o gera com
+  vencimento e conta de cobrança opcional.
+
+**Entregue o front do M8 (outubro/2026, branch `feat/front-m8-notas-fiscais` do front):** módulo novo
+`modules/notas`. Para os próximos fronts (M10, M12–M15):
+
+- `services/notasFiscais.js` (lista com todos os filtros, detalhe, importação da nota e do evento por
+  `arquivo_id`, vínculo, ligar item a produto, sincronizar títulos, itens sem produto, entregas sem NF e o XML)
+  e `enviarXml`, que manda `application/xml` quando o navegador não informa o tipo (`.xml` no Windows);
+  `baixarDoCaminho(caminho, nome)` em `services/arquivos.js` para baixar qualquer rota autenticada;
+- `/notas-fiscais` (qualquer autenticado lê; o financeiro importa a NF-e e o evento, com os avisos explicados
+  e o arquivo apagado quando a importação é recusada): filtros de empresa, natureza, status, entre empresas,
+  sem pedido, número, emissão (dia em Brasília) e chave;
+- `/notas-fiscais/:id`: dados com chave em grupos e documento formatado, itens (ligar produto com versão),
+  duplicatas com o título a receber de cada uma, eventos, baixar XML, sincronizar títulos (venda autorizada
+  fora do grupo ou nota cancelada) e vínculo com pedido e entrega (pedidos confirmados, em entrega ou entregues
+  do mesmo cliente; nulo desfaz). O vínculo fica só no detalhe: empresa e cliente só são conhecidos depois
+  de ler o XML;
+- `/notas-fiscais/itens-sem-produto` (o item pendente não traz a versão da nota: o front lê a nota antes de
+  ligar) e `/notas-fiscais/entregas-sem-nota`; as duas entradas da Sidebar só para o financeiro;
+- `notasUtils`: `dataEmBrasilia`/`dataHoraEmBrasilia`, `formatarDocumento`, `formatarChave`,
+  `formatarQuantidade`, `descricaoDaEntrega`.
+
 ### M1 — Empresas e filiais
 
 Fundação: tudo o que é financeiro, fiscal ou de estoque passa a pertencer a uma empresa.
@@ -652,8 +746,7 @@ Coração comercial. Substitui os três controles de vendas e pendências.
   prazo vencido ou a vencer, cancelamentos com valor a devolver.
 - **Cancelamento com entrada paga**: gera obrigação de devolução no M7 via port.
 
-**Entregue (outubro/2026):** API completa (fases 1 a 5 do `PEDIDOS.md`); front pendente, depois do
-F0a. Para os próximos módulos:
+**Entregue (outubro/2026):** API completa (fases 1 a 5 do `PEDIDOS.md`); front no F-M6. Para os próximos módulos:
 
 - empresa faturadora escolhida no pedido (decisão da seção 6); `pedido.numero` é sequencial por
   empresa (`pedido_sequencia`); condições do modelo gravadas no pedido (`entrada_bp`,
@@ -693,8 +786,7 @@ Evolução do módulo `solicitacao` (mesmo pacote; o fluxo de aprovação contin
   (edição antes da aprovação; estorno como lançamento inverso; aviso de fila nova).
 - **Visões**: a pagar por semana, por empresa, vencidos.
 
-**Entregue (outubro/2026):** API completa (fases 1 a 5 do `CONTAS_A_PAGAR.md`); front pendente
-(fase 6). Para os próximos módulos:
+**Entregue (outubro/2026):** API completa (fases 1 a 5 do `CONTAS_A_PAGAR.md`); front no F-M7. Para os próximos módulos:
 
 - a conta a pagar **é a `solicitacao`**: `fornecedor_id` e `categoria_financeira_id` opcionais na
   criação, `competencia` (`DATE`, dia 1) sempre preenchida, `estimado`, `versao`, e
@@ -766,8 +858,7 @@ Acordo fechado (outubro/2026) para as duas sessões correrem em paralelo:
 - **Sem outros cruzamentos.** A recompra do M9 gera conta a pagar no M7 (o M8 não toca na
   `solicitacao`); criar cliente a partir da NF é só do M8.
 
-**Entregue (outubro/2026):** API completa (fases 1 a 6 do `NOTAS_FISCAIS.md`); front pendente
-(fase 7), depois do F0a. Para os próximos módulos:
+**Entregue (outubro/2026):** API completa (fases 1 a 6 do `NOTAS_FISCAIS.md`); front no F-M8. Para os próximos módulos:
 
 - a NF entra pelo XML autorizado (`nfeProc`) enviado em `POST /arquivos` e importado em
   `POST /notas-fiscais/importacao`; o sistema não emite NF-e e não confere a assinatura XMLDSig
@@ -801,8 +892,7 @@ Acordo fechado (outubro/2026) para as duas sessões correrem em paralelo:
 - **Coordenação com o M8**: o título, a origem `nota_fiscal_duplicata` e a geração por origem
   são do M9 e seguem o acordo em "Coordenação M8 × M9" (seção do M8).
 
-**Entregue (outubro/2026):** API completa (fases 1 a 5 do `CONTAS_A_RECEBER.md`); front pendente
-(fase 6), depois do F0a. Para os próximos módulos:
+**Entregue (outubro/2026):** API completa (fases 1 a 5 do `CONTAS_A_RECEBER.md`); front no F-M9. Para os próximos módulos:
 
 - **M8 (última fase)**: a porta mínima tem só `GerarDeOrigem` e `CancelarPorOrigem` do
   `TituloReceberRepository` (seção 6.1 do `CONTAS_A_RECEBER.md`); o M8 acrescenta o `case
@@ -892,6 +982,22 @@ depois do F0a. Para os próximos módulos:
 - **Projeção**: saldo diário projetado = saldo atual + títulos a receber − contas a
   pagar, por empresa e consolidado.
 
+**Entregue (outubro/2026):** API completa (fases 1 a 5 do `CAIXA.md`); front pendente (fase 6). Para os
+próximos módulos:
+
+- o extrato é a fonte do saldo: `caixa_abertura` (saldo no fim da data de corte) + `extrato_lancamento`
+  depois do corte; só OFX, idempotente por linha (`uq_extrato_lancamento_identificador`);
+- a conciliação lê `pagamento`, `titulo_recebimento` (tipo `conta`), `antecipacao` e as pontas de
+  `transferencia_conta` por consulta própria do M13: **nenhum port nem repositório do M7 e do M9 mudou**;
+  estorno depois de conciliar invalida a conciliação, sem bloquear o M7 nem o M9;
+- linha sem par vira `lancamento_caixa` (categoria lançável, `competencia` = mês da linha, `estornado` quando
+  a conciliação é desfeita): **o M15 lê tarifas, juros e rendimentos daqui**, por `competencia` +
+  `linha_dre`, ignorando os estornados; `transferencia_conta` e `entre_contas` ficam fora da DRE;
+- `caixa_fechamento` vigente por conta e mês trava o caixa daquele mês; o M15 pode usar `saldo_final_centavos`
+  dos meses fechados e `GET /caixa/saldos` para os saldos do relatório semanal;
+- transferência entre empresas segue a regra provisória da seção 6 (marcada `entre_empresas`);
+- migrations `000059` a `000063`; renumerar antes do merge se outra sessão mergear antes.
+
 ### M14 — Dívidas e empréstimos
 
 - **Entidades**: `divida` (credor: banco, investidor, fisco ou fornecedor; empresa;
@@ -928,10 +1034,16 @@ Somente leitura; nenhum dado digitado aqui.
       grupo**, sem gerar título, conta a pagar nem movimento de estoque; o M15 a deixa fora da
       receita. Com essa regra o M8 pode ser reservado; o efeito definitivo vira fase própria
       quando a decisão chegar.
+      **M13** (outubro/2026, D8 do `CAIXA.md`): transferência entre contas de empresas diferentes
+      segue a mesma regra provisória — permitida, marcada `entre_empresas`, categoria
+      `entre_contas`, fora da DRE das duas empresas, sem título nem conta a pagar entre elas.
 - [x] **Representante é usuário?** Vínculo opcional (outubro/2026): `representante` é cadastro
       próprio que pode apontar para um `usuario`; o representante com login vê só os próprios
       clientes, pedidos e comissões; sem login, existe só para cálculo (afeta M3, M6, M10).
 - [ ] **Importação histórica**: quantos meses de NFs, títulos e extratos carregar.
+      **Extratos decididos** (outubro/2026, D3 do `CAIXA.md`): sem retroativo; o caixa do M13
+      começa no último mês encerrado e pagamentos e recebimentos anteriores ao corte ficam fora da
+      conciliação. NFs e títulos seguem em aberto.
 - [x] **Nomenclatura dos ports** de `lead`/`usuarios` (T0): traduzidos para português.
 - [x] **Modelo de permissões** (M1): flags no cargo continuam; o escopo por empresa segue
       o padrão da seção 4 do `EMPRESAS.md`.
