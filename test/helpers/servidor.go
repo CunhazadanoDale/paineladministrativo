@@ -22,6 +22,7 @@ import (
 	pedidousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/pedido"
 	receberusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/receber"
 	solicitacaousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/solicitacao"
+	tabelaprecousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/tabelapreco"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/usuarios"
 	"github.com/jmoiron/sqlx"
 )
@@ -175,6 +176,9 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 		comissaousecases.NewFechamentoUsecase(
 			postgres.NewComissaoRepository(banco), postgres.NewCategoriaFinanceiraRepository(banco), representanteRepository,
 			empresaRepository, usuarioRepository, cargoRepository,
+		),
+		tabelaprecousecases.NewTabelaPrecoUsecase(
+			postgres.NewTabelaPrecoRepository(banco), produtoRepository, usuarioRepository, cargoRepository,
 		),
 		autenticacao.NovoTokenService(segredoDoTeste, time.Hour),
 	)
