@@ -17,18 +17,28 @@ type ItemRequest struct {
 }
 
 type DadosPedidoRequest struct {
-	ClienteID           uuid.UUID     `json:"cliente_id"`
-	ObraID              *uuid.UUID    `json:"obra_id"`
-	RepresentanteID     *uuid.UUID    `json:"representante_id"`
-	Modelo              string        `json:"modelo"`
-	PrazoLimite         *string       `json:"prazo_limite"`
-	NumeroPedidoCliente *string       `json:"numero_pedido_cliente"`
-	Observacoes         string        `json:"observacoes"`
-	Itens               []ItemRequest `json:"itens"`
+	ClienteID             uuid.UUID     `json:"cliente_id"`
+	ObraID                *uuid.UUID    `json:"obra_id"`
+	RepresentanteID       *uuid.UUID    `json:"representante_id"`
+	Modelo                string        `json:"modelo"`
+	EntradaBP             *int          `json:"entrada_bp"`
+	PrazoBoletoDias       *int          `json:"prazo_boleto_dias"`
+	PrazoEntregaDias      *int          `json:"prazo_entrega_dias"`
+	Validade              *string       `json:"validade"`
+	FreteTipo             string        `json:"frete_tipo"`
+	FreteEstimadoCentavos *int64        `json:"frete_estimado_centavos"`
+	PrazoLimite           *string       `json:"prazo_limite"`
+	NumeroPedidoCliente   *string       `json:"numero_pedido_cliente"`
+	Observacoes           string        `json:"observacoes"`
+	Itens                 []ItemRequest `json:"itens"`
 }
 
 func (r DadosPedidoRequest) ParaDados() (portsin.DadosPedidoInput, error) {
 	prazo, err := paraDataOpcional(r.PrazoLimite, "prazo-limite")
+	if err != nil {
+		return portsin.DadosPedidoInput{}, err
+	}
+	validade, err := paraDataOpcional(r.Validade, "validade")
 	if err != nil {
 		return portsin.DadosPedidoInput{}, err
 	}
@@ -43,14 +53,20 @@ func (r DadosPedidoRequest) ParaDados() (portsin.DadosPedidoInput, error) {
 	}
 
 	return portsin.DadosPedidoInput{
-		ClienteID:           r.ClienteID,
-		ObraID:              r.ObraID,
-		RepresentanteID:     r.RepresentanteID,
-		Modelo:              r.Modelo,
-		PrazoLimite:         prazo,
-		NumeroPedidoCliente: r.NumeroPedidoCliente,
-		Observacoes:         r.Observacoes,
-		Itens:               itens,
+		ClienteID:             r.ClienteID,
+		ObraID:                r.ObraID,
+		RepresentanteID:       r.RepresentanteID,
+		Modelo:                r.Modelo,
+		EntradaBP:             r.EntradaBP,
+		PrazoBoletoDias:       r.PrazoBoletoDias,
+		PrazoEntregaDias:      r.PrazoEntregaDias,
+		Validade:              validade,
+		FreteTipo:             r.FreteTipo,
+		FreteEstimadoCentavos: r.FreteEstimadoCentavos,
+		PrazoLimite:           prazo,
+		NumeroPedidoCliente:   r.NumeroPedidoCliente,
+		Observacoes:           r.Observacoes,
+		Itens:                 itens,
 	}, nil
 }
 
@@ -91,6 +107,8 @@ type ItemResponse struct {
 	ProdutoID             uuid.UUID `json:"produto_id"`
 	Quantidade            int       `json:"quantidade"`
 	PrecoUnitarioCentavos int64     `json:"preco_unitario_centavos"`
+	PrecoTabelaCentavos   *int64    `json:"preco_tabela_centavos"`
+	DescontoCentavos      *int64    `json:"desconto_unitario_centavos"`
 	SubtotalCentavos      int64     `json:"subtotal_centavos"`
 	QuantidadeEntregue    int       `json:"quantidade_entregue"`
 	Restante              int       `json:"restante"`
@@ -107,6 +125,11 @@ type PedidoResponse struct {
 	RepresentanteID        *uuid.UUID       `json:"representante_id"`
 	Modelo                 string           `json:"modelo"`
 	Condicao               CondicaoResponse `json:"condicao"`
+	Validade               *string          `json:"validade"`
+	Vencida                bool             `json:"vencida"`
+	Revisao                int              `json:"revisao"`
+	FreteTipo              *string          `json:"frete_tipo"`
+	FreteEstimadoCentavos  *int64           `json:"frete_estimado_centavos"`
 	PrazoLimite            *time.Time       `json:"prazo_limite"`
 	NumeroPedidoCliente    *string          `json:"numero_pedido_cliente"`
 	Observacoes            string           `json:"observacoes"`
@@ -152,6 +175,8 @@ func NovoPedidoResponse(item *domainpedido.Pedido) PedidoResponse {
 			PrazoBoletoDias:  item.Condicao.PrazoBoletoDias(),
 			PrazoEntregaDias: item.Condicao.PrazoEntregaDias(),
 		},
+		Vencida:                item.Vencida(time.Now().UTC()),
+		Revisao:                item.Revisao,
 		PrazoLimite:            item.PrazoLimite,
 		NumeroPedidoCliente:    item.NumeroPedidoCliente,
 		Observacoes:            item.Observacoes,
@@ -167,17 +192,32 @@ func NovoPedidoResponse(item *domainpedido.Pedido) PedidoResponse {
 		AtualizadoEm:           item.AtualizadoEm,
 		Itens:                  make([]ItemResponse, 0, len(item.Itens)),
 	}
+	if item.Validade != nil {
+		validade := item.Validade.Format(formatoData)
+		resposta.Validade = &validade
+	}
+	if item.Frete != nil {
+		tipo := item.Frete.Tipo().String()
+		resposta.FreteTipo = &tipo
+		resposta.FreteEstimadoCentavos = item.Frete.Centavos()
+	}
 	for _, pedidoItem := range item.Itens {
 		subtotal, _ := pedidoItem.Subtotal()
-		resposta.Itens = append(resposta.Itens, ItemResponse{
+		itemResposta := ItemResponse{
 			ID:                    pedidoItem.ID,
 			ProdutoID:             pedidoItem.ProdutoID,
 			Quantidade:            pedidoItem.Quantidade,
 			PrecoUnitarioCentavos: pedidoItem.PrecoUnitario.Centavos(),
+			DescontoCentavos:      pedidoItem.DescontoUnitarioCentavos(),
 			SubtotalCentavos:      subtotal,
 			QuantidadeEntregue:    pedidoItem.QuantidadeEntregue,
 			Restante:              pedidoItem.Restante(),
-		})
+		}
+		if pedidoItem.PrecoTabela != nil {
+			precoTabela := pedidoItem.PrecoTabela.Centavos()
+			itemResposta.PrecoTabelaCentavos = &precoTabela
+		}
+		resposta.Itens = append(resposta.Itens, itemResposta)
 	}
 
 	return resposta
