@@ -152,7 +152,7 @@ o **F0b** pode correr junto com essas telas.
 | F-M9 | Front de contas a receber e antecipação | M9 F-M3 F-M5 | — | concluído |
 | F-M8 | Front de NF-e por XML | M8 F-M6 F-M9 | — | concluído |
 | F-M10 | Front de comissões | M10 F-M6 F-M7 | — | concluído |
-| F-M11 | Front de propostas e tabela de preços | M11 F-M6 | — | em andamento (feat/front-m11-propostas) |
+| F-M11 | Front de propostas e tabela de preços | M11 F-M6 | — | concluído |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
 | M3 | Clientes e representantes | M1 | Base de clientes | concluído |
@@ -597,6 +597,26 @@ próximos fronts:
 - `comissoesUtils`: mês corrente e anterior em Brasília, texto da apuração e o carregamento dos
   representantes para os filtros.
 
+**Entregue o front do M11 (outubro/2026, branch `feat/front-m11-propostas` do front):** módulo novo
+`modules/precos` e acréscimos em `modules/pedidos`. Para os próximos fronts (M12–M15):
+
+- `services/tabelaPrecos.js` (lançar vigência, histórico, preços vigentes do dia e exclusão da vigência
+  futura) e, em `services/pedidos.js`, `obterDocumentoProposta` e `listarModelosVenda`;
+- `/tabela-precos` (comercial, financeiro e administrador): preço do dia por modelo, data e busca, com a
+  origem (tabela desde, preço do produto ou sem preço), histórico por produto com a situação de cada
+  vigência e, só para o administrador, lançar preço e excluir vigência futura;
+- formulário da proposta: preço sugerido pela tabela vigente do modelo (cai em `produto.preco` sem tabela
+  ou se a consulta falhar), colunas de tabela e desconto por item, validade (hoje + 15 na criação; vazia na
+  edição renova), condições editáveis por modelo com o padrão de `/modelos-venda` como sugestão (vazias
+  não são enviadas) e frete CIF/FOB estimado (informativo);
+- detalhe do pedido: identificação com revisão, validade com selo de vencida, frete estimado, tabela e
+  desconto por item, aviso de vencida na confirmação e o link "Imprimir proposta";
+- `/pedidos/:id/proposta`: página do documento montada do `GET /pedidos/{id}/proposta`, com assinaturas,
+  aviso de vencida e "Imprimir / salvar PDF" pelo navegador (o CSS de impressão esconde a Sidebar e a
+  barra do topo);
+- a suíte de testes passou a ficar estável depois do `pool: 'vmThreads'` no `vite.config.js` (sessão à
+  parte; confira se já está na `main` do front).
+
 ### M1 — Empresas e filiais
 
 Fundação: tudo o que é financeiro, fiscal ou de estoque passa a pertencer a uma empresa.
@@ -968,8 +988,7 @@ Acordo fechado (outubro/2026) para as duas sessões correrem em paralelo:
   de um template único (cliente, itens, condições, frete, validade, assinatura).
 - **Conversão**: aceitar proposta = confirmar pedido.
 
-**Entregue (outubro/2026):** API completa (fases 1 a 3 do `PROPOSTAS.md`); front pendente (fase 4),
-depois do F0a. Para os próximos módulos:
+**Entregue (outubro/2026):** API completa (fases 1 a 3 do `PROPOSTAS.md`); front no F-M11. Para os próximos módulos:
 
 - tabela de preço do grupo (`tabela_preco_item`) por produto × modelo, com vigência só por data de
   início; `GET /tabela-precos/vigentes` é a regra única de preço do dia (tabela, senão `produto.preco`);
