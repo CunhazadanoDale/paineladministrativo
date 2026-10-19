@@ -116,10 +116,25 @@ func (u *RepresentanteUsecaseImpl) Desativar(ctx context.Context, representanteI
 }
 
 func (u *RepresentanteUsecaseImpl) DefinirFornecedor(ctx context.Context, input portsin.DefinirFornecedorInput) (*domaincliente.Representante, error) {
-	return u.alterar(ctx, input.RepresentanteID, input.UsuarioID, func(representante *domaincliente.Representante, agora time.Time) error {
-		representante.DefinirFornecedor(input.FornecedorID, agora)
-		return nil
-	})
+	if err := u.exigeAdministrador(ctx, input.UsuarioID); err != nil {
+		return nil, err
+	}
+
+	representante, err := u.buscar(ctx, input.RepresentanteID)
+	if err != nil {
+		return nil, err
+	}
+
+	representante.DefinirFornecedor(input.FornecedorID, time.Now().UTC())
+	atualizado, err := u.representantes.DefinirFornecedor(ctx, representante)
+	if err != nil {
+		return nil, err
+	}
+	if !atualizado {
+		return nil, erroRepresentanteNaoEncontrado()
+	}
+
+	return representante, nil
 }
 
 func (u *RepresentanteUsecaseImpl) alterar(

@@ -134,16 +134,45 @@ func (r *RepresentanteRepository) Atualizar(ctx context.Context, representante *
 		    comissao_pronta_entrega_bp = $7,
 		    comissao_importacao_bp = $8,
 		    ativo = $9,
-		    atualizado_em = $10,
-		    fornecedor_id = $12
+		    atualizado_em = $10
 		WHERE id = $11
 	`,
 		linha.Nome, linha.NomeBusca, linha.Documento, linha.UsuarioID, linha.Email, linha.Telefone,
 		linha.ComissaoProntaEntrega, linha.ComissaoImportacao, linha.Ativo, linha.AtualizadoEm, linha.ID,
-		linha.FornecedorID,
 	)
 
 	return linhasAfetadas(resultado, err)
+}
+
+func (r *RepresentanteRepository) DefinirFornecedor(ctx context.Context, representante *domaincliente.Representante) (bool, error) {
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return false, tratarErroDeGravacao(err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if representante.FornecedorID != nil {
+		var ativo bool
+		err := tx.GetContext(ctx, &ativo, `SELECT ativo FROM fornecedor WHERE id = $1 FOR SHARE`, *representante.FornecedorID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, domaincliente.ErroFornecedorDoRepresentanteNaoEncontrado()
+		}
+		if err != nil {
+			return false, tratarErroDeGravacao(err)
+		}
+		if !ativo {
+			return false, domaincliente.ErroFornecedorDoRepresentanteInativo()
+		}
+	}
+
+	resultado, err := tx.ExecContext(ctx, `UPDATE representante SET fornecedor_id = $1, atualizado_em = $2 WHERE id = $3`,
+		representante.FornecedorID, representante.AtualizadoEm, representante.ID)
+	atualizado, err := linhasAfetadas(resultado, err)
+	if err != nil || !atualizado {
+		return false, err
+	}
+
+	return true, tratarErroDeGravacao(tx.Commit())
 }
 
 func buscaPorNomeOuDocumento(busca string, posicaoAtual int) (string, []any) {

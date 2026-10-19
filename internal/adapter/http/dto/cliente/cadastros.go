@@ -1,8 +1,11 @@
 package cliente
 
 import (
+	"encoding/json"
+	"strings"
 	"time"
 
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	domaincliente "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/cliente"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/cliente"
 	"github.com/google/uuid"
@@ -62,7 +65,24 @@ func (r RepresentanteRequest) ParaDados() portsin.DadosRepresentanteInput {
 }
 
 type DefinirFornecedorRequest struct {
-	FornecedorID *uuid.UUID `json:"fornecedor_id"`
+	FornecedorID json.RawMessage `json:"fornecedor_id"`
+}
+
+func (r DefinirFornecedorRequest) Fornecedor() (*uuid.UUID, error) {
+	valor := strings.TrimSpace(string(r.FornecedorID))
+	if valor == "" {
+		return nil, domain.ErroValidacao("fornecedor_id é obrigatório; envie null para tirar o fornecedor")
+	}
+	if valor == "null" {
+		return nil, nil
+	}
+
+	var id uuid.UUID
+	if err := json.Unmarshal(r.FornecedorID, &id); err != nil || id == uuid.Nil {
+		return nil, domain.ErroValidacao("fornecedor_id inválido")
+	}
+
+	return &id, nil
 }
 
 type RepresentanteResponse struct {

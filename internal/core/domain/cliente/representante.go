@@ -3,6 +3,7 @@ package cliente
 import (
 	"time"
 
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	"github.com/google/uuid"
 )
 
@@ -86,6 +87,14 @@ func (r *Representante) DefinirFornecedor(fornecedorID *uuid.UUID, agora time.Ti
 
 	r.FornecedorID = fornecedorID
 	r.AtualizadoEm = agora
+}
+
+func ErroFornecedorDoRepresentanteNaoEncontrado() error {
+	return domain.ErroValidacao("fornecedor do representante não encontrado")
+}
+
+func ErroFornecedorDoRepresentanteInativo() error {
+	return domain.ErroValidacao("fornecedor inativo não pode receber as comissões do representante")
 }
 
 func (r *Representante) Ativar(agora time.Time) {

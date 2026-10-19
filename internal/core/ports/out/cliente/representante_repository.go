@@ -21,4 +21,5 @@ type RepresentanteRepository interface {
 	ObterPorUsuario(ctx context.Context, usuarioID uuid.UUID) (*domaincliente.Representante, error)
 	Listar(ctx context.Context, filtro RepresentanteFiltro) ([]*domaincliente.Representante, error)
 	Atualizar(ctx context.Context, representante *domaincliente.Representante) (bool, error)
+	DefinirFornecedor(ctx context.Context, representante *domaincliente.Representante) (bool, error)
 }

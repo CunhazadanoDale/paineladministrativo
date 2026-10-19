@@ -232,21 +232,42 @@ func TestComissaoRepositoryRecusaSegundoFechamentoNaMesmaCompetencia(t *testing.
 	esperarErro(t, c.comissoes.Fechar(c.ctx, segundo), domain.ErrConflito, "já existe fechamento")
 }
 
-func TestRepresentanteRepositoryGravaOFornecedor(t *testing.T) {
+func TestRepresentanteRepositoryDefineOFornecedorSemAtrapalharOCadastro(t *testing.T) {
 	c := novoCenarioFechamentos(t)
 	representantes := postgres.NewRepresentanteRepository(c.banco)
+	desatualizado, err := representantes.Obter(c.ctx, c.carlos.ID)
+	if err != nil || desatualizado == nil {
+		t.Fatalf("obter o representante = %+v, %v", desatualizado, err)
+	}
 
 	c.carlos.DefinirFornecedor(&c.fornecedorID, time.Now().UTC())
-	if atualizado, err := representantes.Atualizar(c.ctx, c.carlos); err != nil || !atualizado {
+	if atualizado, err := representantes.DefinirFornecedor(c.ctx, c.carlos); err != nil || !atualizado {
+		t.Fatalf("DefinirFornecedor = %v, %v", atualizado, err)
+	}
+
+	desatualizado.Telefone = textoDe("83999990000")
+	if atualizado, err := representantes.Atualizar(c.ctx, desatualizado); err != nil || !atualizado {
 		t.Fatalf("Atualizar = %v, %v", atualizado, err)
 	}
 	lido, err := representantes.Obter(c.ctx, c.carlos.ID)
-	if err != nil || lido.FornecedorID == nil || *lido.FornecedorID != c.fornecedorID {
-		t.Fatalf("representante lido = %+v, %v", lido, err)
+	if err != nil || lido.FornecedorID == nil || *lido.FornecedorID != c.fornecedorID || lido.Telefone == nil {
+		t.Fatalf("o PUT do cadastro não pode desfazer o fornecedor: %+v, %v", lido, err)
 	}
 
 	inexistente := uuid.New()
 	lido.DefinirFornecedor(&inexistente, time.Now().UTC())
-	_, err = representantes.Atualizar(c.ctx, lido)
-	esperarErro(t, err, domain.ErrValidacao, "registro relacionado não encontrado")
+	_, err = representantes.DefinirFornecedor(c.ctx, lido)
+	esperarErro(t, err, domain.ErrValidacao, "fornecedor do representante não encontrado")
+
+	if _, err := c.banco.ExecContext(c.ctx, `UPDATE fornecedor SET ativo = false WHERE id = $1`, c.fornecedorID); err != nil {
+		t.Fatalf("desativar o fornecedor: %v", err)
+	}
+	lido.DefinirFornecedor(&c.fornecedorID, time.Now().UTC())
+	_, err = representantes.DefinirFornecedor(c.ctx, lido)
+	esperarErro(t, err, domain.ErrValidacao, "fornecedor inativo")
+
+	lido.DefinirFornecedor(nil, time.Now().UTC())
+	if atualizado, err := representantes.DefinirFornecedor(c.ctx, lido); err != nil || !atualizado {
+		t.Fatalf("tirar o fornecedor = %v, %v", atualizado, err)
+	}
 }
