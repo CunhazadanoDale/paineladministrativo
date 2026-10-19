@@ -1,7 +1,7 @@
 # Escopo — M11 Propostas e tabela de preços
 
 > **Status:** escopo fechado — decisões D1 a D9 respondidas pelo usuário (outubro/2026): todas as
-> recomendações aceitas; API em andamento.
+> recomendações aceitas; API concluída (fases 1 a 3); front (fase 4) pendente.
 > **Objetivo:** tirar os orçamentos do documento solto e o "guia de modelos de venda" da cabeça do
 > vendedor: tabela de preço por produto e modelo de venda com vigência, proposta (o pedido em `proposta`
 > do M6) com validade, condições comerciais editáveis, frete estimado, revisão numerada e um documento
@@ -167,7 +167,7 @@ test/helpers + test/integration + test/e2e
 |---|---|---|
 | **1** | Tabela de preço: migration 000057, domínio, repositório, usecase, rotas, preço vigente, integração, e2e + `API.md` | concluída |
 | **2** | Proposta: migration 000058, validade, condições editáveis, frete, revisão, `preco_tabela_centavos` nos itens, confirmar recusando vencida, e2e + `API.md` | concluída |
-| **3** | Documento da proposta (`GET /pedidos/{id}/proposta`) e `GET /modelos-venda` | pendente |
+| **3** | Documento da proposta (`GET /pedidos/{id}/proposta`) e `GET /modelos-venda`, com as condições por extenso montadas no domínio do pedido, testes e `API.md` | concluída |
 | **4** | Frontend: tabela de preço, preço sugerido no pedido, campos da proposta e página de impressão | pendente |
 
 Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates verdes.

@@ -158,7 +158,7 @@ o **F0b** pode correr junto com essas telas.
 | M8 | NF-e por XML | M2 M3 M6 (fase final: M9) | Controle de NFs | concluído |
 | M9 | Contas a receber e antecipação | M3 M5 | A receber no banco, títulos do Controle de NFs | concluído |
 | M10 | Comissões | M3 M6 | comissões calculadas à mão | concluído |
-| M11 | Propostas e tabela de preços | M3 M6 | orçamentos em documento, guia de modelos de venda | em andamento (feat/m11-propostas) |
+| M11 | Propostas e tabela de preços | M3 M6 | orçamentos em documento, guia de modelos de venda | concluído |
 | M12 | Importações | M2 M4 M6 M7 | parte de Entregas de importação e do painel financeiro | pendente |
 | M13 | Caixa e conciliação | M5 M7 M9 | Caixa do mês, Fluxo de caixa diário | pendente |
 | M14 | Dívidas e empréstimos | M4 M5 M7 | Dívidas do grupo | pendente |
@@ -856,6 +856,18 @@ depois do F0a. Para os próximos módulos:
 - **Proposta**: pedido em estado `proposta` (M6) com validade; geração de PDF a partir
   de um template único (cliente, itens, condições, frete, validade, assinatura).
 - **Conversão**: aceitar proposta = confirmar pedido.
+
+**Entregue (outubro/2026):** API completa (fases 1 a 3 do `PROPOSTAS.md`); front pendente (fase 4),
+depois do F0a. Para os próximos módulos:
+
+- tabela de preço do grupo (`tabela_preco_item`) por produto × modelo, com vigência só por data de
+  início; `GET /tabela-precos/vigentes` é a regra única de preço do dia (tabela, senão `produto.preco`);
+- a proposta é o pedido em `proposta` com `validade` (padrão hoje + 15), `revisao`, condição editável
+  (`entrada_bp`, `prazo_boleto_dias`, `prazo_entrega_dias`) e frete estimado **fora** do total; proposta
+  vencida não confirma. Cada item guarda o `preco_tabela_centavos` do dia da última alteração — o M15
+  pode medir desconto concedido por ele;
+- o documento impresso sai de `GET /pedidos/{id}/proposta` (front monta a página; sem PDF no backend);
+- migrations `000057` e `000058` (renumeradas depois da correção `000056` do M10).
 
 ### M12 — Importações
 

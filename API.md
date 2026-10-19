@@ -1972,6 +1972,8 @@ proposta.
 | `POST` | `/api/v1/pedidos/{id}/reservar-pendencias` | **comercial** | `200`; corpo `{ "versao": n }` |
 | `POST` | `/api/v1/pedidos/{id}/cancelar` | **comercial** | `200`; corpo `{ "versao", "motivo", "valor_a_devolver_centavos" }` |
 | `GET` | `/api/v1/pedidos/{id}/historico` | autenticado | `200` lista (`{ "dados": [...] }`), mais antigo primeiro |
+| `GET` | `/api/v1/pedidos/{id}/proposta` | autenticado | `200` documento da proposta, pronto para a página de impressão (seção "Documento da proposta") |
+| `GET` | `/api/v1/modelos-venda` | autenticado | `200` lista com a condição padrão de cada modelo e o texto por extenso |
 | `POST` | `/api/v1/pedidos/{id}/entregas` | **comercial** | `201` entrega `pendente` |
 | `GET` | `/api/v1/pedidos/{id}/entregas` | autenticado | `200` lista (`{ "dados": [...] }`) |
 | `GET` | `/api/v1/entregas` | autenticado | `200` lista paginada (`?empresa=`, `?status=`, `?previsao_ate=`) |
@@ -2037,6 +2039,73 @@ traz `reservas` (mesmo formato de `GET /produtos/{id}/reservas`, com `origem = p
 Datas só-data (`prazo_limite`, `entrada_paga_em`, `previsao`, `saiu_em`, `entregue_em`) chegam como
 meia-noite UTC e são aceitas como `AAAA-MM-DD`. "Hoje" (data padrão, data no futuro, prazos e
 período de cancelamento) é o dia no fuso de Brasília (UTC−3).
+
+### Documento da proposta
+
+`GET /api/v1/pedidos/{id}/proposta` (mesmas regras de leitura do pedido: escopo por empresa e
+representante com login só os próprios) junta tudo o que o documento impresso precisa; o front monta a
+página e o navegador salva em PDF (decisão D8 do `PROPOSTAS.md`). Funciona em qualquer status, para
+reimprimir o pedido confirmado.
+
+```json
+{
+  "dados": {
+    "pedido_id": "…",
+    "numero": 57,
+    "revisao": 2,
+    "identificacao": "Proposta 57-R2",
+    "status": "proposta",
+    "modelo": "importacao",
+    "emitido_em": "2026-10-19",
+    "validade": "2026-11-03",
+    "vencida": false,
+    "empresa": { "id": "…", "razao_social": "MIA Materiais Ltda", "nome_fantasia": "MIA", "cnpj": "11.222.333/0001-81", "uf": "PB" },
+    "cliente": { "id": "…", "nome": "Construtora Alfa", "documento": "11.444.777/0001-61", "cidade": "João Pessoa", "uf": "PB", "telefone": null, "email": "nf@alfa.com" },
+    "obra": { "id": "…", "nome": "Residencial Alfa", "endereco": "Rua das Flores, 120 — Centro — João Pessoa/PB — CEP 58000-000" },
+    "representante": { "id": "…", "nome": "Ana Representações", "email": null, "telefone": null },
+    "itens": [
+      {
+        "item_id": "…", "produto_id": "…", "codigo": "POR-60", "nome": "Porcelanato 60x60", "unidade_medida": "m2",
+        "quantidade": 10, "preco_unitario_centavos": 1500, "preco_tabela_centavos": 1800,
+        "desconto_unitario_centavos": 300, "subtotal_centavos": 15000
+      }
+    ],
+    "total_centavos": 15000,
+    "desconto_centavos": 3000,
+    "condicoes": [
+      "Entrada de 30% na confirmação do pedido.",
+      "Saldo de 70% na chegada da mercadoria.",
+      "Prazo de entrega de 120 dias contados do pagamento da entrada.",
+      "Frete CIF (por conta do vendedor), estimado em R$ 180,00.",
+      "Proposta válida até 03/11/2026."
+    ],
+    "frete_tipo": "cif",
+    "frete_estimado_centavos": 18000,
+    "numero_pedido_cliente": "OC-778",
+    "observacoes": ""
+  }
+}
+```
+
+- `identificacao`: número do pedido e revisão (`Proposta 57-R2`); `emitido_em`: hoje em Brasília.
+- `desconto_centavos`: soma dos descontos positivos sobre a tabela (`(tabela − preço) × quantidade`);
+  venda acima da tabela aparece no item com desconto negativo e não entra na soma.
+- `condicoes`: as frases do documento, já montadas a partir da condição, do prazo-limite, do frete e da
+  validade (a validade só aparece enquanto o pedido é proposta).
+
+`GET /api/v1/modelos-venda` devolve, para o front montar o seletor de modelo e mostrar a condição padrão:
+
+```json
+{
+  "dados": [
+    { "modelo": "pronta_entrega", "condicao": { "entrada_bp": 0, "prazo_boleto_dias": 30, "prazo_entrega_dias": null },
+      "condicoes": ["Pagamento em boleto com vencimento em 30 dias após a entrega."] },
+    { "modelo": "importacao", "condicao": { "entrada_bp": 3000, "prazo_boleto_dias": null, "prazo_entrega_dias": 120 },
+      "condicoes": ["Entrada de 30% na confirmação do pedido.", "Saldo de 70% na chegada da mercadoria.",
+                    "Prazo de entrega de 120 dias contados do pagamento da entrada."] }
+  ]
+}
+```
 
 ### Estados e efeitos
 
