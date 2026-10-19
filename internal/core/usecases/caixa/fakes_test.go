@@ -551,3 +551,58 @@ func (r *repositorioFechamentos) Reabrir(_ context.Context, fechamento *domainca
 
 	return nil
 }
+
+var (
+	_ portsout.ProjecaoRepository          = (*repositorioProjecao)(nil)
+	_ portsout.DespesaRecorrenteRepository = (*repositorioRecorrencias)(nil)
+)
+
+type repositorioProjecao struct {
+	partida      domaincaixa.SaldoDePartida
+	entradas     []domaincaixa.Previsto
+	saidas       []domaincaixa.Previsto
+	geradas      map[portsout.RecorrenciaNaCompetencia]bool
+	consultadas  []portsout.RecorrenciaNaCompetencia
+	empresas     [][]uuid.UUID
+	movimentos   []*domaincaixa.MovimentoDiario
+	filtroDiario portsout.MovimentoDiarioFiltro
+}
+
+func (r *repositorioProjecao) SaldoDePartida(_ context.Context, empresaIDs []uuid.UUID) (*domaincaixa.SaldoDePartida, error) {
+	r.empresas = append(r.empresas, empresaIDs)
+	partida := r.partida
+	return &partida, nil
+}
+
+func (r *repositorioProjecao) TitulosAReceber(_ context.Context, _ []uuid.UUID, _ time.Time) ([]domaincaixa.Previsto, error) {
+	return r.entradas, nil
+}
+
+func (r *repositorioProjecao) ContasAPagar(_ context.Context, _ []uuid.UUID, _ time.Time) ([]domaincaixa.Previsto, error) {
+	return r.saidas, nil
+}
+
+func (r *repositorioProjecao) RecorrenciasGeradas(_ context.Context, candidatas []portsout.RecorrenciaNaCompetencia) (map[portsout.RecorrenciaNaCompetencia]bool, error) {
+	r.consultadas = append(r.consultadas, candidatas...)
+	return r.geradas, nil
+}
+
+func (r *repositorioProjecao) MovimentoDiario(_ context.Context, filtro portsout.MovimentoDiarioFiltro) ([]*domaincaixa.MovimentoDiario, error) {
+	r.filtroDiario = filtro
+	return r.movimentos, nil
+}
+
+type repositorioRecorrencias struct {
+	itens []*domainsolicitacao.DespesaRecorrente
+}
+
+func (r *repositorioRecorrencias) ListarVigentes(_ context.Context, competencia domainsolicitacao.Competencia, empresaIDs []uuid.UUID) ([]*domainsolicitacao.DespesaRecorrente, error) {
+	var vigentes []*domainsolicitacao.DespesaRecorrente
+	for _, despesa := range r.itens {
+		if despesa.VigenteEm(competencia) && (empresaIDs == nil || slices.Contains(empresaIDs, despesa.EmpresaID)) {
+			vigentes = append(vigentes, despesa)
+		}
+	}
+
+	return vigentes, nil
+}
