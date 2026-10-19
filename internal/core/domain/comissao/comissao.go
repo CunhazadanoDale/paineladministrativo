@@ -120,7 +120,7 @@ func baseDaEntrega(itens []ItemSaido) (int64, error) {
 
 	var base int64
 	for _, item := range itens {
-		if item.Quantidade <= 0 || item.PrecoUnitarioCentavos <= 0 {
+		if item.Quantidade <= 0 || item.PrecoUnitarioCentavos < 0 {
 			return 0, domain.ErroValidacao("item da entrega com quantidade ou preço inválido")
 		}
 		if item.PrecoUnitarioCentavos > math.MaxInt64/int64(item.Quantidade) {
