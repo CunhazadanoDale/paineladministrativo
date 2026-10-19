@@ -2912,6 +2912,59 @@ competência, pela data da saída ou pela competência do ajuste), ordenada pelo
 
 ---
 
+## Tabela de preços
+
+Preço de cada produto por **modelo de venda** (`pronta_entrega` ou `importacao`), do grupo inteiro (sem
+empresa), com **vigência por data de início**: o preço de um dia é o lançamento de maior `vigente_de` até
+aquele dia; um lançamento novo encerra o anterior. Mudar preço é lançar uma nova vigência; o histórico não
+é editado. A tabela só **sugere** o preço do pedido; a vitrine pública continua com `produto.preco`.
+Escopo e decisões em `PROPOSTAS.md`.
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/tabela-precos` | **administrador** | `201` lançamento |
+| `GET` | `/api/v1/tabela-precos` | comercial, financeiro ou administrador | `200` histórico paginado (`?produto=`, `?modelo=`), vigência mais recente primeiro |
+| `GET` | `/api/v1/tabela-precos/vigentes` | comercial, financeiro ou administrador | `200` preço do dia por produto ativo (`?modelo=` obrigatório, `?data=AAAA-MM-DD` padrão hoje em Brasília, `?produto=`, `?busca=` nome ou código), ordem por nome |
+| `DELETE` | `/api/v1/tabela-precos/{id}` | **administrador** | `204`; só lançamento cuja vigência ainda não começou |
+
+```json
+{
+  "produto_id": "…",
+  "modelo": "pronta_entrega",
+  "preco_centavos": 12000,
+  "vigente_de": "2026-11-01",
+  "observacao": "reajuste do fornecedor"
+}
+```
+
+- `preco_centavos > 0`; `vigente_de` obrigatório (data no passado é aceita, para corrigir); `observacao`
+  até 500 caracteres; produto precisa existir e estar ativo.
+- Item de `vigentes`: `preco_centavos` e `origem` — `tabela` (com `item_id` e `vigente_de`), `produto`
+  (sem tabela, cai em `produto.preco`) ou `sem_preco` (`preco_centavos` nulo).
+
+```json
+{
+  "dados": [
+    {
+      "produto_id": "…", "produto_nome": "Porcelanato 60x60", "produto_codigo": "POR-60", "unidade_medida": "m2",
+      "modelo": "pronta_entrega", "data": "2026-10-18", "preco_centavos": 12000, "origem": "tabela",
+      "item_id": "…", "vigente_de": "2026-10-01"
+    }
+  ],
+  "pagina": 1,
+  "tamanho": 20
+}
+```
+
+| Situação | Status | Mensagem |
+| --- | --- | --- |
+| Perfil sem comercial, financeiro ou administrador | `403` | `perfil sem permissão para ver a tabela de preços` |
+| Mesmo produto, modelo e início | `409` | `já existe preço deste produto e modelo com início nesta data` |
+| Produto inativo | `400` | `erro de validação: produto inativo não recebe preço novo` |
+| Exclusão de vigência que já começou | `409` | `só é possível excluir preço cuja vigência ainda não começou` |
+
+---
+
 ## Exemplos
 
 ### PowerShell

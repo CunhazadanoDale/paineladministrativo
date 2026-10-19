@@ -164,7 +164,7 @@ test/helpers + test/integration + test/e2e
 
 | Fase | Entrega | Estado |
 |---|---|---|
-| **1** | Tabela de preço: migration 000056, domínio, repositório, usecase, rotas, preço vigente, integração, e2e + `API.md` | pendente |
+| **1** | Tabela de preço: migration 000056, domínio, repositório, usecase, rotas, preço vigente, integração, e2e + `API.md` | concluída |
 | **2** | Proposta: migration 000057, validade, condições editáveis, frete, revisão, `preco_tabela_centavos` nos itens, confirmar recusando vencida, e2e + `API.md` | pendente |
 | **3** | Documento da proposta (`GET /pedidos/{id}/proposta`) e `GET /modelos-venda` | pendente |
 | **4** | Frontend: tabela de preço, preço sugerido no pedido, campos da proposta e página de impressão | pendente |
