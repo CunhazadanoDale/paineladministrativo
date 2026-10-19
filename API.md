@@ -3049,7 +3049,7 @@ Escopo e decisões em `PROPOSTAS.md`.
 
 ---
 
-## Caixa — saldo inicial, extrato, conciliação e saldos (financeiro)
+## Caixa — saldo inicial, extrato, conciliação, fechamento e projeção (financeiro)
 
 Extrato bancário importado por conta, em **OFX** (1.x SGML ou 2.x XML), sobre um **saldo inicial** por
 conta. O extrato é a fonte do saldo: saldo da conta = saldo inicial + linhas do extrato depois da data de
@@ -3081,6 +3081,8 @@ corte. Escopo por empresa pela conta bancária (padrão da seção 4 do `EMPRESA
 | `GET` | `/api/v1/caixa/fechamentos` | **financeiro** | `200` lista paginada (`?empresa=`, `?conta=`, `?competencia=AAAA-MM`), mais recente primeiro |
 | `GET` | `/api/v1/caixa/fechamentos/{id}` | **financeiro** | `200` fechamento com as divergências |
 | `POST` | `/api/v1/caixa/fechamentos/{id}/reabrir` | **administrador** | `200` fechamento reaberto |
+| `GET` | `/api/v1/caixa/projecao` | **financeiro** | `200` saldo diário projetado de hoje até `?ate=` (`?empresa=`; sem ela, todas as empresas do acesso) |
+| `GET` | `/api/v1/caixa/movimento-diario` | **financeiro** | `200` lista (`{ "dados": [...] }`) de entradas, saídas e saldo por conta e dia (`?empresa=`, `?conta=`, `?de=`, `?ate=`) |
 
 ### Saldo inicial
 
@@ -3351,6 +3353,51 @@ O M7 e o M9 não são bloqueados: o que mudar lá aparece como divergência no d
 **Reabrir** (`POST /caixa/fechamentos/{id}/reabrir`, administrador): `{ "motivo": "…" }`. Só o último mês
 fechado da conta (`409 reabra antes os meses seguintes desta conta`); reabrir de novo → `409 fechamento já
 reaberto`. O registro fica com `vigente = false` e o mês volta a aceitar alterações.
+
+### Projeção diária
+
+`GET /caixa/projecao?empresa=&ate=` projeta o saldo dia a dia, de **hoje** (Brasília) até `ate` (padrão
+hoje + 30; máximo hoje + 90; antes de hoje → `400`). Sem `empresa`, soma todas as empresas do acesso.
+
+- **Saldo de partida**: contas ativas com saldo inicial (abertura + linhas do extrato depois do corte) mais
+  o **em trânsito**: pagamentos, recebimentos, borderôs e pontas de transferência não conciliados e não
+  estornados com data depois do fim do último extrato importado da conta. Conta sem saldo inicial fica fora
+  (`contas_sem_saldo_inicial`).
+- **Entradas**: saldo dos títulos `carteira` e `em_banco` pelo vencimento (`antecipado` fica fora: o
+  dinheiro já entrou pelo borderô).
+- **Saídas**: contas a pagar `pendente_aprovacao` e `aprovado` pelo `prazo_pagamento`; as `estimado` vão em
+  `saidas_estimadas_centavos`.
+- **Recorrentes**: despesas recorrentes vigentes cuja solicitação da competência ainda não foi gerada,
+  pelo dia de vencimento.
+- Entradas e saídas vencidas (antes de hoje) entram no primeiro dia, em colunas próprias.
+
+```json
+{
+  "dados": {
+    "de": "2026-10-19", "ate": "2026-11-18",
+    "saldo_de_partida": {
+      "extrato_centavos": 101500, "em_transito_centavos": -50000, "total_centavos": 51500,
+      "contas_consideradas": 2, "contas_sem_saldo_inicial": 0
+    },
+    "saldo_final_centavos": 150000,
+    "dias": [{
+      "data": "2026-10-19", "entradas_centavos": 0, "entradas_vencidas_centavos": 20000,
+      "saidas_centavos": 5000, "saidas_estimadas_centavos": 0, "saidas_vencidas_centavos": 0,
+      "recorrentes_centavos": 0, "saldo_centavos": 66500
+    }]
+  }
+}
+```
+
+### Movimento diário realizado
+
+`GET /caixa/movimento-diario?empresa=&conta=&de=&ate=` substitui o "Fluxo de caixa diário": um item por
+conta e dia com linha no extrato (depois do corte), com o saldo acumulado da conta no fim do dia. Padrão:
+do dia 1 do mês até hoje; no máximo 92 dias (`400`).
+
+```json
+{ "dados": [{ "data": "2026-10-14", "conta_bancaria_id": "…", "entradas_centavos": 2000, "saidas_centavos": 500, "saldo_centavos": 101500 }] }
+```
 
 ### Saldos por conta
 

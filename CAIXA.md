@@ -1,7 +1,7 @@
 # Escopo — M13 Caixa e conciliação
 
 > **Status:** escopo fechado — decisões D1 a D15 respondidas pelo usuário (outubro/2026): todas as
-> recomendações aceitas, com OFX como único formato (D4); fases 1 a 4 concluídas (saldo inicial, importação de extrato, conciliação, classificação, transferência e fechamento mensal).
+> recomendações aceitas, com OFX como único formato (D4); API concluída (fases 1 a 5: saldo inicial, extrato, conciliação, classificação, transferência, fechamento e projeção); front (fase 6) pendente.
 > **Objetivo:** tirar o "Caixa do mês" e o "Fluxo de caixa diário" das planilhas: extrato bancário
 > importado por conta (OFX), conciliado com os pagamentos do M7 e os recebimentos e borderôs do
 > M9, linhas sem par classificadas no plano de contas, fechamento mensal por conta com divergência
@@ -249,7 +249,7 @@ GET    /api/v1/caixa/fechamentos                     ?conta= ?empresa= ?competen
 GET    /api/v1/caixa/fechamentos/{id}                com divergências
 POST   /api/v1/caixa/fechamentos/{id}/reabrir        { motivo } (administrador)
 
-GET    /api/v1/caixa/projecao                        ?empresa= ?de= ?ate=
+GET    /api/v1/caixa/projecao                        ?empresa= ?ate= (começa sempre hoje)
 GET    /api/v1/caixa/movimento-diario                ?empresa= ?conta= ?de= ?ate=
 ```
 
@@ -351,7 +351,7 @@ test/helpers + test/integration + test/e2e
 | **2** | Conciliação com M7 e M9 (migration 000061): consultas de movimentos do sistema, sugestões, conciliação manual e automática, desfazer, invalidação por estorno, pendências do sistema; integração de corrida; e2e + `API.md` | concluída |
 | **3** | Classificação e transferência entre contas (migration 000062): `lancamento_caixa`, estorno pelo desfazer, `transferencia_conta` com as duas pontas; e2e + `API.md` | concluída |
 | **4** | Fechamento mensal e reabertura (migration 000063), bloqueio de importação em mês fechado; e2e + `API.md` | concluída |
-| **5** | Projeção diária e movimento diário realizado; e2e + `API.md` | pendente |
+| **5** | Projeção diária e movimento diário realizado; e2e + `API.md` | concluída |
 | **6** | Frontend (abertura, importação, tela de conciliação, fechamento, projeção) | pendente |
 
 Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates verdes.
@@ -474,6 +474,17 @@ Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates ve
       fechado), pelo administrador, com motivo; o histórico fica com `vigente = false`.
 - [x] **Fase 4 — divergências** (D11): o detalhe do fechamento recalcula na leitura as conciliações
       invalidadas por estorno posterior e os movimentos do sistema do mês sem linha no extrato.
+- [x] **Fase 5 — período da projeção** (implementação): começa sempre hoje em Brasília (sem `de`), vai até
+      `ate` (padrão hoje + 30, máximo hoje + 90); vencidos dos dois lados entram no dia de hoje.
+- [x] **Fase 5 — saldo de partida** (implementação): contas ativas com saldo inicial (abertura + extrato
+      depois do corte), mais o "em trânsito": movimentos do sistema não conciliados e não estornados com
+      data depois do fim do último extrato importado da conta. Contas sem saldo inicial ficam fora e são
+      contadas à parte.
+- [x] **Fase 5 — recorrentes** (D13): porta mínima `ListarVigentes` do M7 e as regras `VigenteEm` e
+      `VencimentoNa` do próprio domínio do M7, do mês anterior ao mês do `ate`; a recorrência que já gerou a
+      solicitação da competência (`origem = recorrencia`, `origem_id`, `competencia`) não entra.
+- [x] **Fase 5 — movimento diário** (implementação): só dias com linha no extrato, por conta, com o saldo
+      acumulado desde o corte; padrão do dia 1 do mês até hoje, máximo de 92 dias.
 - [x] **Fase 1 — OFX não é anexo** (implementação): como o XML da NF-e, arquivo OFX não pode ser anexado a
       solicitação; o upload aceita `.ofx` mesmo quando o navegador manda `application/octet-stream`.
 

@@ -164,7 +164,7 @@ o **F0b** pode correr junto com essas telas.
 | M10 | Comissões | M3 M6 | comissões calculadas à mão | concluído |
 | M11 | Propostas e tabela de preços | M3 M6 | orçamentos em documento, guia de modelos de venda | concluído |
 | M12 | Importações | M2 M4 M6 M7 | parte de Entregas de importação e do painel financeiro | pendente |
-| M13 | Caixa e conciliação | M5 M7 M9 | Caixa do mês, Fluxo de caixa diário | em andamento (feat/m13-caixa) |
+| M13 | Caixa e conciliação | M5 M7 M9 | Caixa do mês, Fluxo de caixa diário | concluído |
 | M14 | Dívidas e empréstimos | M4 M5 M7 | Dívidas do grupo | pendente |
 | M15 | DRE e painéis | M2 M7 M8 M9 M13 | DRE, Faturamento, Relatório semanal | pendente |
 
@@ -981,6 +981,22 @@ depois do F0a. Para os próximos módulos:
   com divergência apontada.
 - **Projeção**: saldo diário projetado = saldo atual + títulos a receber − contas a
   pagar, por empresa e consolidado.
+
+**Entregue (outubro/2026):** API completa (fases 1 a 5 do `CAIXA.md`); front pendente (fase 6). Para os
+próximos módulos:
+
+- o extrato é a fonte do saldo: `caixa_abertura` (saldo no fim da data de corte) + `extrato_lancamento`
+  depois do corte; só OFX, idempotente por linha (`uq_extrato_lancamento_identificador`);
+- a conciliação lê `pagamento`, `titulo_recebimento` (tipo `conta`), `antecipacao` e as pontas de
+  `transferencia_conta` por consulta própria do M13: **nenhum port nem repositório do M7 e do M9 mudou**;
+  estorno depois de conciliar invalida a conciliação, sem bloquear o M7 nem o M9;
+- linha sem par vira `lancamento_caixa` (categoria lançável, `competencia` = mês da linha, `estornado` quando
+  a conciliação é desfeita): **o M15 lê tarifas, juros e rendimentos daqui**, por `competencia` +
+  `linha_dre`, ignorando os estornados; `transferencia_conta` e `entre_contas` ficam fora da DRE;
+- `caixa_fechamento` vigente por conta e mês trava o caixa daquele mês; o M15 pode usar `saldo_final_centavos`
+  dos meses fechados e `GET /caixa/saldos` para os saldos do relatório semanal;
+- transferência entre empresas segue a regra provisória da seção 6 (marcada `entre_empresas`);
+- migrations `000059` a `000063`; renumerar antes do merge se outra sessão mergear antes.
 
 ### M14 — Dívidas e empréstimos
 
