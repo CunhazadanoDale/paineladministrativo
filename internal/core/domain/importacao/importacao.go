@@ -40,6 +40,8 @@ type Importacao struct {
 	CriadoEm          time.Time
 	AtualizadoEm      time.Time
 	Itens             []*Item
+	Parcelas          []*Parcela
+	Custos            []*Custo
 }
 
 type DadosImportacao struct {
@@ -191,6 +193,9 @@ func (i *Importacao) Cancelar(motivo string, agora time.Time) error {
 	if !i.Status.PodeTransicionarPara(StatusCancelada) {
 		return erroTransicao(i.Status, StatusCancelada)
 	}
+	if len(i.ContasAPagarAbertas()) > 0 {
+		return ErroContasAPagarAbertas()
+	}
 
 	i.Status = StatusCancelada
 	i.CanceladaMotivo = &limpo
@@ -264,6 +269,9 @@ func (i *Importacao) aplicarDados(dados DadosImportacao, agora time.Time) error 
 			return err
 		}
 		itens = append(itens, item)
+	}
+	if err := i.conferirParcelasNoTotal(total, ValorMoeda{}, uuid.Nil); err != nil {
+		return err
 	}
 
 	i.FornecedorID = dados.FornecedorID

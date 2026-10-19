@@ -12,11 +12,18 @@ const tamanhoMaximoDetalheHistorico = 1000
 type Acao string
 
 const (
-	AcaoCriada        Acao = "criada"
-	AcaoAlterada      Acao = "alterada"
-	AcaoEmbarcada     Acao = "embarcada"
-	AcaoDesembaracada Acao = "desembaracada"
-	AcaoCancelada     Acao = "cancelada"
+	AcaoCriada               Acao = "criada"
+	AcaoAlterada             Acao = "alterada"
+	AcaoEmbarcada            Acao = "embarcada"
+	AcaoDesembaracada        Acao = "desembaracada"
+	AcaoCancelada            Acao = "cancelada"
+	AcaoParcelaIncluida      Acao = "parcela_incluida"
+	AcaoParcelaAlterada      Acao = "parcela_alterada"
+	AcaoParcelaRemovida      Acao = "parcela_removida"
+	AcaoParcelaCambioFechado Acao = "parcela_cambio_fechado"
+	AcaoParcelaReaberta      Acao = "parcela_reaberta"
+	AcaoCustoLancado         Acao = "custo_lancado"
+	AcaoCustoCancelado       Acao = "custo_cancelado"
 )
 
 func AcaoDe(valor string) Acao {
