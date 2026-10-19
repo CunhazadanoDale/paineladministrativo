@@ -22,6 +22,7 @@ const (
 	MotivoAnteriorAoCorte MotivoIgnorada = "anterior_ao_saldo_inicial"
 	MotivoDataFutura      MotivoIgnorada = "data_futura"
 	MotivoValorZero       MotivoIgnorada = "valor_zero"
+	MotivoMesFechado      MotivoIgnorada = "mes_fechado"
 )
 
 func (m MotivoIgnorada) String() string {
@@ -76,6 +77,7 @@ type DadosImportacao struct {
 	ArquivoID       uuid.UUID
 	UsuarioID       uuid.UUID
 	Abertura        *Abertura
+	MesesFechados   []time.Time
 	Agora           time.Time
 }
 
@@ -119,6 +121,10 @@ func PrepararImportacao(dados DadosImportacao) (*ExtratoPreparado, error) {
 	preparado := &ExtratoPreparado{Importacao: importacao}
 	hoje := Hoje(dados.Agora)
 	ocorrencias := map[string]int{}
+	fechados := make(map[time.Time]bool, len(dados.MesesFechados))
+	for _, competencia := range dados.MesesFechados {
+		fechados[CompetenciaDe(competencia)] = true
+	}
 
 	for i, transacao := range dados.Extrato.Transacoes {
 		sequencia := i + 1
@@ -131,7 +137,7 @@ func PrepararImportacao(dados DadosImportacao) (*ExtratoPreparado, error) {
 		chave := chaveDaTransacao(transacao, data, descricao)
 		ocorrencias[chave]++
 
-		if motivo, ignorar := motivoParaIgnorar(data, transacao.ValorCentavos, dados.Abertura, hoje); ignorar {
+		if motivo, ignorar := motivoParaIgnorar(data, transacao.ValorCentavos, dados.Abertura, fechados, hoje); ignorar {
 			preparado.Ignoradas = append(preparado.Ignoradas, LinhaIgnorada{
 				Sequencia:     sequencia,
 				Data:          data,
@@ -209,12 +215,14 @@ func periodoDoExtrato(extrato *ExtratoOFX) (time.Time, time.Time, error) {
 	return inicio, fim, nil
 }
 
-func motivoParaIgnorar(data time.Time, valor int64, abertura *Abertura, hoje time.Time) (MotivoIgnorada, bool) {
+func motivoParaIgnorar(data time.Time, valor int64, abertura *Abertura, fechados map[time.Time]bool, hoje time.Time) (MotivoIgnorada, bool) {
 	switch {
 	case valor == 0:
 		return MotivoValorZero, true
 	case !abertura.Abrange(data):
 		return MotivoAnteriorAoCorte, true
+	case fechados[CompetenciaDe(data)]:
+		return MotivoMesFechado, true
 	case data.After(hoje):
 		return MotivoDataFutura, true
 	default:

@@ -69,3 +69,27 @@ func ErroConciliacaoJaDesfeita() error {
 func ErroImportacaoComConciliacao() error {
 	return domain.ErroConflito("importação com lançamento que já passou por conciliação não pode ser desfeita")
 }
+
+func ErroMesFechado() error {
+	return domain.ErroConflito("mês fechado nesta conta; reabra o fechamento para alterar")
+}
+
+func ErroAberturaComFechamento() error {
+	return domain.ErroConflito("a conta já tem mês fechado; reabra os fechamentos para mudar o saldo inicial")
+}
+
+func ErroFechamentoNaoEncontrado() error {
+	return domain.ErroNaoEncontrado("fechamento não encontrado")
+}
+
+func ErroFechamentoJaReaberto() error {
+	return domain.ErroConflito("fechamento já reaberto")
+}
+
+func ErroFechamentoPosterior() error {
+	return domain.ErroConflito("reabra antes os meses seguintes desta conta")
+}
+
+func ErroExtratoDoMesMudou() error {
+	return domain.ErroConflito("o extrato ou as conciliações do mês mudaram; recarregue a prévia e tente de novo")
+}
