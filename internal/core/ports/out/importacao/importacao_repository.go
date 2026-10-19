@@ -6,17 +6,30 @@ import (
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	domainimportacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/importacao"
+	domainsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/solicitacao"
 	"github.com/google/uuid"
 )
 
+type ContaAPagarGerada struct {
+	Solicitacao *domainsolicitacao.Solicitacao
+	Historico   *domainsolicitacao.Historico
+}
+
 type Gravacao struct {
-	Importacao        *domainimportacao.Importacao
-	Novo              bool
-	VersaoLida        int
-	StatusAnterior    domainimportacao.Status
-	SubstituirItens   bool
-	FornecedorTrocado bool
-	Historicos        []*domainimportacao.Historico
+	Importacao               *domainimportacao.Importacao
+	Novo                     bool
+	VersaoLida               int
+	StatusAnterior           domainimportacao.Status
+	SubstituirItens          bool
+	FornecedorTrocado        bool
+	ParcelasNovas            []*domainimportacao.Parcela
+	ParcelasAlteradas        []*domainimportacao.Parcela
+	ParcelasRemovidas        []uuid.UUID
+	CustosNovos              []*domainimportacao.Custo
+	CustosCancelados         []*domainimportacao.Custo
+	ContasAPagar             []ContaAPagarGerada
+	ContasExigidasEncerradas []uuid.UUID
+	Historicos               []*domainimportacao.Historico
 }
 
 type ImportacaoFiltro struct {

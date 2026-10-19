@@ -8,8 +8,10 @@ import (
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	domainempresa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/empresa"
 	domainestoque "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/estoque"
+	domainfinanceiro "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/financeiro"
 	domainfornecedor "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/fornecedor"
 	domainimportacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/importacao"
+	domainsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/solicitacao"
 	domainusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/usuarios"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/importacao"
 	"github.com/google/uuid"
@@ -26,6 +28,8 @@ type memoria struct {
 	historicos   []*domainimportacao.Historico
 	sequencias   map[uuid.UUID]int
 	gravacoes    []*portsout.Gravacao
+	categorias   map[uuid.UUID]*domainfinanceiro.CategoriaFinanceira
+	contas       map[uuid.UUID]*domainsolicitacao.Solicitacao
 }
 
 func novaMemoria() *memoria {
@@ -38,6 +42,8 @@ func novaMemoria() *memoria {
 		produtos:     map[uuid.UUID]*domainestoque.Produto{},
 		importacoes:  map[uuid.UUID]*domainimportacao.Importacao{},
 		sequencias:   map[uuid.UUID]int{},
+		categorias:   map[uuid.UUID]*domainfinanceiro.CategoriaFinanceira{},
+		contas:       map[uuid.UUID]*domainsolicitacao.Solicitacao{},
 	}
 }
 
@@ -55,6 +61,14 @@ func copiarImportacao(importacao *domainimportacao.Importacao) *domainimportacao
 	copia.Itens = make([]*domainimportacao.Item, 0, len(importacao.Itens))
 	for _, item := range importacao.Itens {
 		copia.Itens = append(copia.Itens, copiar(item))
+	}
+	copia.Parcelas = make([]*domainimportacao.Parcela, 0, len(importacao.Parcelas))
+	for _, parcela := range importacao.Parcelas {
+		copia.Parcelas = append(copia.Parcelas, copiar(parcela))
+	}
+	copia.Custos = make([]*domainimportacao.Custo, 0, len(importacao.Custos))
+	for _, custo := range importacao.Custos {
+		copia.Custos = append(copia.Custos, copiar(custo))
 	}
 
 	return &copia
@@ -118,11 +132,24 @@ func (r repoImportacoes) Gravar(_ context.Context, gravacao *portsout.Gravacao) 
 			return domain.ErroValidacao("fornecedor inativo não recebe importação nova")
 		}
 	}
+	for _, id := range gravacao.ContasExigidasEncerradas {
+		if conta := r.contas[id]; conta == nil || (conta.Status != domainsolicitacao.StatusCancelado && conta.Status != domainsolicitacao.StatusRejeitado) {
+			return domainimportacao.ErroContasAPagarAbertas()
+		}
+	}
+	for _, conta := range gravacao.ContasAPagar {
+		if _, existe := r.contas[conta.Solicitacao.ID]; existe {
+			return domain.ErroConflito("conta a pagar já gerada")
+		}
+	}
 
 	if gravacao.Novo {
 		r.sequencias[importacao.EmpresaID] = importacao.Numero
 	}
 	r.importacoes[importacao.ID] = importacao
+	for _, conta := range gravacao.ContasAPagar {
+		r.contas[conta.Solicitacao.ID] = copiar(conta.Solicitacao)
+	}
 	r.historicos = append(r.historicos, gravacao.Historicos...)
 	r.gravacoes = append(r.gravacoes, gravacao)
 	gravacao.Importacao.Numero = importacao.Numero
@@ -137,7 +164,19 @@ func (r repoImportacoes) Obter(_ context.Context, id uuid.UUID) (*domainimportac
 		return nil, nil
 	}
 
-	return copiarImportacao(importacao), nil
+	copia := copiarImportacao(importacao)
+	for _, parcela := range copia.Parcelas {
+		if parcela.SolicitacaoID != nil {
+			status := r.contas[*parcela.SolicitacaoID].Status
+			parcela.StatusContaAPagar = &status
+		}
+	}
+	for _, custo := range copia.Custos {
+		status := r.contas[custo.SolicitacaoID].Status
+		custo.StatusContaAPagar = &status
+	}
+
+	return copia, nil
 }
 
 func (r repoImportacoes) Listar(_ context.Context, filtro portsout.ImportacaoFiltro) ([]*domainimportacao.Importacao, error) {
@@ -168,4 +207,10 @@ func (r repoImportacoes) ListarHistorico(_ context.Context, importacaoID uuid.UU
 	}
 
 	return historicos, nil
+}
+
+type repoCategorias struct{ *memoria }
+
+func (r repoCategorias) Obter(_ context.Context, id uuid.UUID) (*domainfinanceiro.CategoriaFinanceira, error) {
+	return copiar(r.categorias[id]), nil
 }

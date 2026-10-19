@@ -250,14 +250,18 @@ func (u *ImportacaoUsecaseImpl) transicionar(
 		return nil, err
 	}
 
-	if err := u.importacoes.Gravar(ctx, &portsout.Gravacao{
+	gravacao := &portsout.Gravacao{
 		Importacao:     importacao,
 		VersaoLida:     versao,
 		StatusAnterior: anterior,
 		Historicos: []*domainimportacao.Historico{
 			domainimportacao.NovoHistorico(importacao.ID, usuarioID, acao, &anterior, importacao.Status, detalhe, agora),
 		},
-	}); err != nil {
+	}
+	if importacao.Status == domainimportacao.StatusCancelada {
+		gravacao.ContasExigidasEncerradas = importacao.ContasAPagarVinculadas()
+	}
+	if err := u.importacoes.Gravar(ctx, gravacao); err != nil {
 		return nil, err
 	}
 

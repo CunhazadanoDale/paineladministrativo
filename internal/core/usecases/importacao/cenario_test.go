@@ -7,6 +7,7 @@ import (
 
 	domainempresa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/empresa"
 	domainestoque "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/estoque"
+	domainfinanceiro "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/financeiro"
 	domainfornecedor "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/fornecedor"
 	domainimportacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/importacao"
 	domainusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/usuarios"
@@ -19,6 +20,10 @@ type cenario struct {
 	ctx         context.Context
 	m           *memoria
 	importacoes portsin.ImportacaoUseCase
+	financas    portsin.FinanceiroUseCase
+
+	compraMercadoria uuid.UUID
+	receita          uuid.UUID
 
 	mia     uuid.UUID
 	red     uuid.UUID
@@ -48,6 +53,9 @@ func novoCenario(t *testing.T) *cenario {
 		importacoes: importacaousecases.NewImportacaoUsecase(
 			repoImportacoes{m}, repoFornecedores{m}, repoProdutos{m}, repoEmpresas{m}, repoUsuarios{m}, repoCargos{m},
 		),
+		financas: importacaousecases.NewFinanceiroUsecase(
+			repoImportacoes{m}, repoFornecedores{m}, repoCategorias{m}, repoEmpresas{m}, repoUsuarios{m}, repoCargos{m},
+		),
 	}
 
 	c.mia = c.novaEmpresa(true)
@@ -67,6 +75,8 @@ func novoCenario(t *testing.T) *cenario {
 	c.porcelanato = c.novoProduto("Porcelanato 120x120", true)
 	c.revestimento = c.novoProduto("Revestimento 30x60", true)
 	c.produtoInativo = c.novoProduto("Pastilha", false)
+	c.compraMercadoria = c.novaCategoria(domainfinanceiro.NaturezaDespesa)
+	c.receita = c.novaCategoria(domainfinanceiro.NaturezaReceita)
 
 	return c
 }
@@ -139,4 +149,12 @@ func (c *cenario) embarcar(t *testing.T, importacao *domainimportacao.Importacao
 	}
 
 	return visao.Importacao
+}
+
+func (c *cenario) novaCategoria(natureza domainfinanceiro.Natureza) uuid.UUID {
+	pai := uuid.New()
+	categoria := &domainfinanceiro.CategoriaFinanceira{ID: uuid.New(), CategoriaPaiID: &pai, Natureza: natureza, Ativa: true}
+	c.m.categorias[categoria.ID] = categoria
+
+	return categoria.ID
 }
