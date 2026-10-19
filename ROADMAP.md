@@ -164,7 +164,7 @@ o **F0b** pode correr junto com essas telas.
 | M10 | Comissões | M3 M6 | comissões calculadas à mão | concluído |
 | M11 | Propostas e tabela de preços | M3 M6 | orçamentos em documento, guia de modelos de venda | concluído |
 | M12 | Importações | M2 M4 M6 M7 | parte de Entregas de importação e do painel financeiro | pendente |
-| M13 | Caixa e conciliação | M5 M7 M9 | Caixa do mês, Fluxo de caixa diário | pendente |
+| M13 | Caixa e conciliação | M5 M7 M9 | Caixa do mês, Fluxo de caixa diário | em andamento (feat/m13-caixa) |
 | M14 | Dívidas e empréstimos | M4 M5 M7 | Dívidas do grupo | pendente |
 | M15 | DRE e painéis | M2 M7 M8 M9 M13 | DRE, Faturamento, Relatório semanal | pendente |
 
@@ -1018,10 +1018,16 @@ Somente leitura; nenhum dado digitado aqui.
       grupo**, sem gerar título, conta a pagar nem movimento de estoque; o M15 a deixa fora da
       receita. Com essa regra o M8 pode ser reservado; o efeito definitivo vira fase própria
       quando a decisão chegar.
+      **M13** (outubro/2026, D8 do `CAIXA.md`): transferência entre contas de empresas diferentes
+      segue a mesma regra provisória — permitida, marcada `entre_empresas`, categoria
+      `entre_contas`, fora da DRE das duas empresas, sem título nem conta a pagar entre elas.
 - [x] **Representante é usuário?** Vínculo opcional (outubro/2026): `representante` é cadastro
       próprio que pode apontar para um `usuario`; o representante com login vê só os próprios
       clientes, pedidos e comissões; sem login, existe só para cálculo (afeta M3, M6, M10).
 - [ ] **Importação histórica**: quantos meses de NFs, títulos e extratos carregar.
+      **Extratos decididos** (outubro/2026, D3 do `CAIXA.md`): sem retroativo; o caixa do M13
+      começa no último mês encerrado e pagamentos e recebimentos anteriores ao corte ficam fora da
+      conciliação. NFs e títulos seguem em aberto.
 - [x] **Nomenclatura dos ports** de `lead`/`usuarios` (T0): traduzidos para português.
 - [x] **Modelo de permissões** (M1): flags no cargo continuam; o escopo por empresa segue
       o padrão da seção 4 do `EMPRESAS.md`.
