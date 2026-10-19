@@ -1,7 +1,7 @@
 # Escopo — M13 Caixa e conciliação
 
 > **Status:** escopo fechado — decisões D1 a D15 respondidas pelo usuário (outubro/2026): todas as
-> recomendações aceitas, com OFX como único formato (D4); pronto para a fase 1.
+> recomendações aceitas, com OFX como único formato (D4); fase 1 concluída (saldo inicial e importação de extrato).
 > **Objetivo:** tirar o "Caixa do mês" e o "Fluxo de caixa diário" das planilhas: extrato bancário
 > importado por conta (OFX), conciliado com os pagamentos do M7 e os recebimentos e borderôs do
 > M9, linhas sem par classificadas no plano de contas, fechamento mensal por conta com divergência
@@ -339,7 +339,7 @@ test/helpers + test/integration + test/e2e
 
 | Fase | Entrega | Estado |
 |---|---|---|
-| **1** | Abertura e importação de extrato OFX (migrations 000059–000060): domínio com parser, tipos no upload, repositório, usecase com escopo por empresa, rotas de abertura, importação, lista e saldos; integração de idempotência; e2e + `API.md` | pendente |
+| **1** | Abertura e importação de extrato OFX (migrations 000059–000060): domínio com parser, tipos no upload, repositório, usecase com escopo por empresa, rotas de abertura, importação, lista e saldos; integração de idempotência; e2e + `API.md` | concluída |
 | **2** | Conciliação com M7 e M9 (migration 000061): consultas de movimentos do sistema, sugestões, conciliação manual e automática, desfazer, invalidação por estorno, pendências do sistema; integração de corrida; e2e + `API.md` | pendente |
 | **3** | Classificação e transferência entre contas (migration 000062): `lancamento_caixa`, estorno pelo desfazer, `transferencia_conta` com as duas pontas; e2e + `API.md` | pendente |
 | **4** | Fechamento mensal e reabertura (migration 000063), bloqueio de importação em mês fechado; e2e + `API.md` | pendente |
@@ -407,6 +407,20 @@ Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates ve
       no M7 para completar a conta do pagamento antigo.
 - [x] **D15 — Permissões.** Decidido: o financeiro faz tudo; reabrir fechamento e desfazer importação só
       o administrador. Alternativa descartada: reabrir também pelo financeiro.
+- [x] **Fase 1 — saldo inicial** (implementação): rota `PUT /caixa/contas/{id}/abertura` no próprio
+      módulo, sem tocar no M5; o mesmo `PUT` cria (sem `versao`) e altera (com `versao`); a data de corte
+      precisa ser anterior a hoje em Brasília, porque o saldo é o do fim do dia.
+- [x] **Fase 1 — conta do extrato** (implementação): sem `conta_bancaria_id`, a conta é achada entre as
+      contas do banco do OFX comparando agência e conta sem zeros à esquerda, com ou sem dígito, e com a
+      agência colada no número; nenhuma ou mais de uma conta → `400` pedindo a conta. Com a conta
+      informada, OFX de outra conta → `400`; OFX sem `ACCTID` é aceito.
+- [x] **Fase 1 — identificador da linha** (implementação): hash de `FITID` + data + valor + ocorrência no
+      arquivo (sem `FITID`, a descrição entra na chave), porque há bancos que repetem o `FITID`; linhas de
+      valor zero, até o corte ou com data futura são ignoradas e listadas no relatório, não gravadas.
+- [x] **Fase 1 — desfazer importação** (implementação): só a mais recente da conta, para não apagar linhas
+      que uma importação posterior contou como repetidas; o arquivo pode ser importado de novo depois.
+- [x] **Fase 1 — OFX não é anexo** (implementação): como o XML da NF-e, arquivo OFX não pode ser anexado a
+      solicitação; o upload aceita `.ofx` mesmo quando o navegador manda `application/octet-stream`.
 
 ## 10. Decisões pendentes
 

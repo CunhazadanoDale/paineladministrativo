@@ -998,7 +998,7 @@ O upload é `multipart/form-data` com **um campo só**: `arquivo`.
 | Tamanho máximo | 10MB por arquivo (`413 arquivo excede o limite de 10MB`) |
 | Arquivo ausente no armazenamento | `404` `registro não encontrado: arquivo não encontrado no armazenamento` (registro existe, mas o conteúdo sumiu do disco ou do bucket) |
 | Tempo de transferência | até 5 minutos no envio (`POST /api/v1/arquivos`) e no download (`GET /api/v1/arquivos/{id}` e `GET /api/v1/publico/imagens/{id}`); as demais rotas têm 15 segundos para ler a requisição e escrever a resposta |
-| Tipos aceitos | `application/pdf`, `image/png`, `image/jpeg`, `image/webp`, `application/xml` (`text/xml` é gravado como `application/xml`; só para a importação de NF-e, não vira anexo de solicitação) |
+| Tipos aceitos | `application/pdf`, `image/png`, `image/jpeg`, `image/webp`, `application/xml` (`text/xml` é gravado como `application/xml`; só para a importação de NF-e, não vira anexo de solicitação), `application/x-ofx` (também `application/ofx`, `text/ofx`, ou `application/octet-stream`, `text/plain` e tipo vazio quando o nome termina em `.ofx`; só para a importação de extrato, não vira anexo de solicitação) |
 | Nome | obrigatório, no máximo 255 caracteres |
 | Chave no storage | `{proprietario_id}/{uuid}/{nome}` |
 
@@ -3046,6 +3046,118 @@ Escopo e decisões em `PROPOSTAS.md`.
 | Mesmo produto, modelo e início | `409` | `já existe preço deste produto e modelo com início nesta data` |
 | Produto inativo | `400` | `erro de validação: produto inativo não recebe preço novo` |
 | Exclusão de vigência que já começou | `409` | `só é possível excluir preço cuja vigência ainda não começou` |
+
+---
+
+## Caixa — saldo inicial, extrato e saldos (financeiro)
+
+Extrato bancário importado por conta, em **OFX** (1.x SGML ou 2.x XML), sobre um **saldo inicial** por
+conta. O extrato é a fonte do saldo: saldo da conta = saldo inicial + linhas do extrato depois da data de
+corte. Escopo por empresa pela conta bancária (padrão da seção 4 do `EMPRESAS.md`); tudo é do
+**financeiro** (ou administrador), e só o administrador desfaz importação. Escopo e decisões em `CAIXA.md`.
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `PUT` | `/api/v1/caixa/contas/{id}/abertura` | **financeiro** | `200` saldo inicial criado ou alterado |
+| `GET` | `/api/v1/caixa/contas/{id}/abertura` | **financeiro** | `200` saldo inicial da conta |
+| `GET` | `/api/v1/caixa/saldos` | **financeiro** | `200` lista (`{ "dados": [...] }`) por conta das empresas do acesso (`?empresa=`) |
+| `POST` | `/api/v1/extratos/importacao` | **financeiro** | `201` relatório da importação (`200` na simulação) |
+| `GET` | `/api/v1/extratos/importacoes` | **financeiro** | `200` lista paginada (`?empresa=`, `?conta=`), mais recente primeiro |
+| `DELETE` | `/api/v1/extratos/importacoes/{id}` | **administrador** | `204`; só a importação mais recente da conta |
+| `GET` | `/api/v1/extratos/lancamentos` | **financeiro** | `200` lista paginada (`?conta=` obrigatório, `?de=`, `?ate=` em `AAAA-MM-DD`), por data |
+
+### Saldo inicial
+
+```json
+{ "data_corte": "2026-09-30", "saldo_centavos": 1500000, "versao": 1 }
+```
+
+- `data_corte` é o dia cujo **fim** tem o saldo informado; precisa ser anterior a hoje em Brasília. O
+  extrato vale do dia seguinte em diante: linha com data até o corte é ignorada na importação e fica fora
+  do saldo. `saldo_centavos` é obrigatório e aceita negativo (cheque especial).
+- Sem saldo inicial, o `PUT` cria (sem `versao`). Com saldo inicial, o `PUT` exige a `versao` lida
+  (`409 a conta já tem saldo inicial; envie a versão para alterar` sem ela; `409 o saldo inicial da conta
+  foi alterado por outra pessoa; recarregue e tente de novo` divergente).
+- Conta inativa ou de empresa inativa → `400`; conta fora do acesso → `403`; `GET` sem saldo inicial →
+  `404 registro não encontrado: conta sem saldo inicial`.
+
+### Importação do extrato
+
+1. Envie o arquivo por `POST /api/v1/arquivos` (gravado como `application/x-ofx`).
+2. Chame a importação:
+
+```json
+{ "arquivo_id": "…", "conta_bancaria_id": "…", "simular": false }
+```
+
+- Sem `conta_bancaria_id`, a conta é achada pelo `BANKID` (código COMPE), `BRANCHID` e `ACCTID` do OFX,
+  entre as contas cadastradas (zeros à esquerda e dígito com ou sem hífen são aceitos). Com ela, o OFX
+  precisa ser dessa conta.
+- `simular: true` devolve o relatório sem gravar (`200`, `importacao_id` nulo).
+- Cada linha tem um identificador (`FITID` + data + valor + ocorrência no arquivo; sem `FITID`, a
+  descrição entra no lugar): linha já importada por outro arquivo conta como `repetidas` e não é gravada
+  de novo. Linha com valor zero, data até o corte ou data futura vai em `ignoradas` com o `motivo`
+  (`valor_zero`, `anterior_ao_saldo_inicial`, `data_futura`).
+- Arquivo em Windows-1252 é convertido para UTF-8; descrição vem do `MEMO` (senão `NAME`), documento do
+  `CHECKNUM` (senão `REFNUM`). O saldo do `LEDGERBAL` fica guardado como saldo do banco.
+
+| Regra | Resposta |
+| --- | --- |
+| arquivo de outro usuário | `403 o arquivo OFX precisa ter sido enviado por você` |
+| arquivo que não é OFX ou de uma solicitação | `400` |
+| arquivo já importado | `409 arquivo já importado em outro extrato` |
+| OFX inválido, de cartão (`CCACCTFROM`), com mais de uma conta, data ou valor ilegível, mais de 5000 lançamentos ou acima de 5MB | `400` |
+| OFX sem conta e sem `conta_bancaria_id` | `400 erro de validação: o extrato não identifica a conta; informe conta_bancaria_id` |
+| nenhuma ou mais de uma conta cadastrada correspondem | `400` (informe `conta_bancaria_id`) |
+| `conta_bancaria_id` de outra conta | `400 erro de validação: o extrato é de outra conta (banco …, agência …, conta …)` |
+| conta fora do acesso | `403 perfil sem acesso a esta empresa` |
+| conta sem saldo inicial | `400 erro de validação: conta sem saldo inicial; informe a abertura antes de importar o extrato` |
+| conta ou empresa inativa | `400` |
+| saldo inicial alterado durante a importação | `409` |
+
+Resposta:
+
+```json
+{
+  "dados": {
+    "simulacao": false, "importacao_id": "…", "conta_bancaria_id": "…", "arquivo_id": "…",
+    "periodo_inicio": "2026-10-01", "periodo_fim": "2026-10-15",
+    "saldo_banco_centavos": 1084567, "saldo_banco_em": "2026-10-15",
+    "total": 3, "novas": 1, "repetidas": 1,
+    "ignoradas": [
+      { "sequencia": 1, "data": "2026-09-30", "valor_centavos": -100, "descricao": "TARIFA", "motivo": "anterior_ao_saldo_inicial" }
+    ]
+  }
+}
+```
+
+**Desfazer** (`DELETE /extratos/importacoes/{id}`) apaga a importação e as linhas que ela trouxe; só vale
+para a mais recente da conta (`409 só a importação mais recente da conta pode ser desfeita`). O arquivo
+continua guardado e pode ser importado de novo; enquanto estiver numa importação, ele não pode ser
+excluído (`400 registro em uso`).
+
+Lançamento (`GET /extratos/lancamentos`): `id`, `conta_bancaria_id`, `importacao_id`, `data`,
+`valor_centavos` (crédito positivo, débito negativo), `tipo` (`credito` ou `debito`), `descricao`,
+`documento`. `ate` antes de `de` → `400`.
+
+### Saldos por conta
+
+```json
+{
+  "dados": [
+    {
+      "conta_bancaria_id": "…", "empresa_id": "…", "apelido": "Sicredi", "banco": "748", "banco_nome": "Sicredi",
+      "ativa": true, "data_corte": "2026-09-30", "saldo_inicial_centavos": 100000, "saldo_atual_centavos": 193710,
+      "ultimo_lancamento_em": "2026-10-14", "saldo_banco_centavos": 194950, "saldo_banco_em": "2026-10-12",
+      "diferenca_banco_centavos": -50
+    }
+  ]
+}
+```
+
+Conta sem saldo inicial aparece com `data_corte`, `saldo_inicial_centavos` e `saldo_atual_centavos` nulos.
+`diferenca_banco_centavos` = saldo do banco (último `LEDGERBAL` importado) − saldo calculado até a data
+dele; nulo sem saldo do banco ou com saldo do banco anterior ao corte.
 
 ---
 
