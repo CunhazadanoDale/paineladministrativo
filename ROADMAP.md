@@ -157,7 +157,7 @@ o **F0b** pode correr junto com essas telas.
 | M7 | Contas a pagar | M1 M4 M5 | Painel financeiro (contas a pagar) | concluído |
 | M8 | NF-e por XML | M2 M3 M6 (fase final: M9) | Controle de NFs | concluído |
 | M9 | Contas a receber e antecipação | M3 M5 | A receber no banco, títulos do Controle de NFs | concluído |
-| M10 | Comissões | M3 M6 | comissões calculadas à mão | em andamento (feat/m10-comissoes) |
+| M10 | Comissões | M3 M6 | comissões calculadas à mão | concluído |
 | M11 | Propostas e tabela de preços | M3 M6 | orçamentos em documento, guia de modelos de venda | pendente |
 | M12 | Importações | M2 M4 M6 M7 | parte de Entregas de importação e do painel financeiro | pendente |
 | M13 | Caixa e conciliação | M5 M7 M9 | Caixa do mês, Fluxo de caixa diário | pendente |
@@ -830,6 +830,24 @@ Acordo fechado (outubro/2026) para as duas sessões correrem em paralelo:
 - **Entidades**: `comissao` (representante, pedido, entrega, base, percentual, valor,
   status `a_pagar`/`paga`), fechamento mensal com data de pagamento (dia 15).
 - **Efeito**: fechamento gera a solicitação de pagamento no M7.
+
+**Entregue (outubro/2026):** API completa (fases 1 a 4 do `COMISSOES.md`); front pendente (fase 5),
+depois do F0a. Para os próximos módulos:
+
+- comissão nasce na **saída** da entrega, uma por entrega (`uq_comissao_entrega`), por apuração
+  idempotente (`POST /comissoes/apurar`) que não mexe no fluxo do M6; base = preço × quantidade dos
+  itens que saíram, sem frete; percentual do pedido em `pedido_comissao` (tabela do M10, sem coluna nova
+  no `pedido`), sobrescrevível pelo comercial até a primeira saída;
+- ajuste manual append-only (`comissao_ajuste`) para devolução e correção; fechamento mensal por
+  representante × empresa, só de mês encerrado, que gera a conta a pagar no M7 (`origem = comissao`,
+  `pendente_aprovacao`, vencimento dia 15 do mês seguinte) na mesma transação;
+- o representante aponta para um `fornecedor` (`representante.fornecedor_id`, rota
+  `PUT /representantes/{id}/fornecedor`), que recebe a conta a pagar: a resposta à dúvida do favorecido
+  vale também para a devolução do pedido cancelado (pendência registrada na branch do M6);
+- **M15**: a despesa de comissão vem da conta a pagar (`competencia` + `linha_dre` da categoria,
+  sugerida `despesa_variavel`), nunca das tabelas do M10, para não contar duas vezes;
+- **M13**: concilia o pagamento da comissão como qualquer conta a pagar do M7;
+- **M11**: pode mexer no `pedido` livremente; o M10 só lê pedido, entrega e itens.
 
 ### M11 — Propostas e tabela de preços
 

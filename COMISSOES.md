@@ -1,7 +1,7 @@
 # Escopo — M10 Comissões
 
 > **Status:** escopo fechado — decisões D1 a D8 respondidas pelo usuário (outubro/2026): todas as
-> recomendações aceitas; API em andamento.
+> recomendações aceitas; API concluída (fases 1 a 4); front (fase 5) pendente.
 > **Objetivo:** tirar o cálculo de comissões da mão: comissão do representante apurada pela saída das
 > entregas do pedido (M6), proporcional ao entregue, com ajustes, fechamento mensal por representante
 > e empresa, e a conta a pagar do fechamento gerada no M7 com vencimento no dia 15. Base para a linha
@@ -102,7 +102,8 @@
 
 - Fechamento não é desfeito: erro descoberto depois vira ajuste no mês seguinte, e a conta a pagar
   segue o fluxo do M7 (rejeitar/cancelar lá não reabre as comissões).
-- Total `<= 0` não fecha (`400 nada a pagar na competência`); os ajustes negativos esperam o próximo mês.
+- Total `<= 0` não fecha: o representante vai para `falhas` (ou `400 nada a pagar` quando o fechamento
+  pede só ele) e os ajustes negativos esperam o próximo mês.
 
 ---
 
@@ -123,11 +124,14 @@
 
 1. Financeiro informa `empresa_id`, `competencia`, `categoria_financeira_id` e, opcionalmente,
    `representante_id` (sem ele, fecha todos os representantes com total positivo).
-2. Roda a apuração da empresa até a competência, trava as comissões e ajustes abertos com competência
-   `<=` a informada (`FOR UPDATE`, ordem por `id`) e o representante (`FOR SHARE`, precisa ter
-   `fornecedor_id` de fornecedor ativo — D7).
-3. Grava o fechamento, marca `fechamento_id` e gera a conta a pagar pela função interna
-   `gerarSolicitacaoDeOrigem` (origem `comissao`, `origem_id` = fechamento, `pendente_aprovacao`).
+2. Roda a apuração da empresa até a competência (`409` se sobrarem mais de 500 entregas) e soma os
+   saldos abertos por representante.
+3. Para cada representante (precisa ter `fornecedor_id` — D7), numa transação própria: trava as comissões
+   e os ajustes abertos com competência `<=` a informada (`FOR UPDATE`, ordem por `id`) e confere a soma
+   lida antes; gera a conta a pagar pela função interna `gerarSolicitacaoDeOrigem` (que trava empresa,
+   fornecedor e categoria com `FOR SHARE`; origem `comissao`, `origem_id` = fechamento,
+   `pendente_aprovacao`); grava o fechamento e marca `fechamento_id`. Falha de negócio de um
+   representante vai para `falhas` e os demais seguem.
 
 ---
 
@@ -138,17 +142,19 @@ GET    /api/v1/pedidos/{id}/comissao              percentual vigente ou o que se
 PUT    /api/v1/pedidos/{id}/comissao              { percentual_bp, versao? } (comercial; antes da primeira saída)
 
 POST   /api/v1/comissoes/apurar                   { empresa_id?, competencia? } (financeiro)
-GET    /api/v1/comissoes                          ?empresa= ?representante= ?pedido= ?competencia= (financeiro; representante: só as suas); ?aberta= na fase 3
+GET    /api/v1/comissoes                          ?empresa= ?representante= ?pedido= ?competencia= ?aberta= (financeiro; representante: só as suas)
 GET    /api/v1/comissoes/pendencias               ?empresa= ?competencia= — entregas que saíram e ainda não foram apuradas (financeiro)
 
 POST   /api/v1/comissoes/ajustes                  { empresa_id, representante_id, pedido_id?, competencia, valor_centavos, motivo } (financeiro)
-GET    /api/v1/comissoes/ajustes                  ?empresa= ?representante= ?competencia= ?aberto= (financeiro; representante: só os seus)
+GET    /api/v1/comissoes/ajustes                  ?empresa= ?representante= ?pedido= ?competencia= ?aberto= (financeiro; representante: só os seus)
 
 POST   /api/v1/comissoes/fechamentos              { empresa_id, competencia, categoria_financeira_id, representante_id? } (financeiro)
 GET    /api/v1/comissoes/fechamentos              ?empresa= ?representante= ?competencia= (financeiro; representante: só os seus)
 GET    /api/v1/comissoes/fechamentos/{id}         com comissões, ajustes e status da conta a pagar
 
-GET    /api/v1/comissoes/resumo                   ?empresa= ?competencia= — por representante: apurado, ajustes, fechado, pago
+GET    /api/v1/comissoes/resumo                   ?competencia= (obrigatória) ?empresa= ?representante= — por empresa e representante: comissões, ajustes, em aberto, fechado, pago
+
+PUT    /api/v1/representantes/{id}/fornecedor     { fornecedor_id } (administrador)
 ```
 
 ---
@@ -157,8 +163,9 @@ GET    /api/v1/comissoes/resumo                   ?empresa= ?competencia= — po
 
 - `financeiro(...)` apura, ajusta e fecha; `comercial(...)` define o percentual do pedido; leitura em
   `protegido(...)` com regra fina em `usecases/comissao/permissoes.go`.
-- Representante com login (não administrador) vê só as próprias comissões, ajustes e fechamentos, sem
-  o resumo dos outros; regra de `usecases/pedido/permissoes.go` com `ObterPorUsuario`.
+- Representante com login (não administrador) vê só as próprias comissões, ajustes, fechamentos e
+  resumo, **mesmo com cargo financeiro**, e não apura, ajusta nem fecha (ninguém lança nem paga a
+  própria comissão); regra de `usecases/pedido/permissoes.go` com `ObterPorUsuario`.
 - Escopo por empresa em tudo, com teste de isolamento no usecase e no e2e.
 
 ---
@@ -174,7 +181,7 @@ coluna nova no `pedido`**, o que deixa o M11 livre para mexer no pedido em paral
 
 ### 6.2 Representante (M3)
 
-Porta mínima `Obter` e `ObterPorUsuario`. Se D7 for aceita, migration do M10 acrescenta
+Porta mínima `Obter` e `ObterPorUsuario`. Pela D7, a migration 000055 acrescenta
 `representante.fornecedor_id UUID NULL` (FK `fornecedor` `RESTRICT`), definido pelo administrador em
 `PUT /representantes/{id}/fornecedor` — o único acréscimo ao M3 (domínio, repositório, usecase, DTO,
 rota e `API.md` do representante).
@@ -205,18 +212,18 @@ migrations/000053_create_tabela_comissao                 pedido_comissao, comiss
 migrations/000054_create_tabela_comissao_ajuste
 migrations/000055_create_tabela_comissao_fechamento      fechamento + chk_solicitacao_origem + representante.fornecedor_id
 
-internal/core/domain/comissao/       percentual_pedido.go, comissao.go, apuracao.go, ajuste.go,
-                                     fechamento.go, competencia.go, data.go (+ testes)
+internal/core/domain/comissao/       percentual_pedido.go, origem_percentual.go, comissao.go, ajuste.go,
+                                     fechamento.go, resumo.go, competencia.go, data.go, erros.go (+ testes)
 internal/core/domain/solicitacao/    origem.go (+1 valor), origem_sistemica.go (mensagem)
-internal/core/domain/cliente/        representante.go (+ FornecedorID, se D7)
-internal/core/ports/out/comissao/    comissao_repository.go, fechamento_repository.go, pedido_repository.go,
-                                     representante_repository.go, empresa_repository.go,
-                                     categoria_financeira_repository.go, fornecedor_repository.go,
+internal/core/domain/cliente/        representante.go (+ FornecedorID e DefinirFornecedor)
+internal/core/ports/out/comissao/    comissao_repository.go, pedido_repository.go, representante_repository.go,
+                                     empresa_repository.go, categoria_financeira_repository.go,
                                      usuario_repository.go, cargo_repository.go
-internal/core/ports/in/comissao/     percentual_usecase.go, apuracao_usecase.go, ajuste_usecase.go,
-                                     fechamento_usecase.go, resumo_usecase.go
-internal/core/usecases/comissao/     idem + permissoes.go (+ testes, fakes e cenário)
-internal/adapter/postgres/           comissao_repo.go, comissao_fechamento_repo.go
+internal/core/ports/in/comissao/     percentual_usecase.go, comissao_usecase.go (apuração, pendências,
+                                     lista e resumo), ajuste_usecase.go, fechamento_usecase.go
+internal/core/usecases/comissao/     idem + apurador.go, permissoes.go (+ testes, fakes e cenário)
+internal/adapter/postgres/           comissao_repo.go, comissao_fechamento_repo.go, comissao_resumo_repo.go;
+                                     representante_repo.go (fornecedor_id)
 internal/adapter/http/dto/comissao/ + handlers/comissao/
 cmd/api/main.go + internal/adapter/http/rotas.go   (registro, só acréscimos)
 test/helpers + test/integration + test/e2e
@@ -234,7 +241,7 @@ test/helpers + test/integration + test/e2e
 | **1** | Percentual do pedido e apuração: migration 000053, domínio, repositório, usecase com escopo por empresa e representante, `GET/PUT /pedidos/{id}/comissao`, `POST /comissoes/apurar`, listagem e pendências, integração de idempotência e corrida, e2e + `API.md` | concluída |
 | **2** | Ajustes (migration 000054): domínio, usecase, repositório, `POST/GET /comissoes/ajustes`, integração, e2e + `API.md` | concluída |
 | **3** | Fechamento com conta a pagar no M7 na mesma transação, `representante.fornecedor_id` (migration 000055), `PUT /representantes/{id}/fornecedor`, filtros de abertas, integração, e2e + `API.md` | concluída |
-| **4** | Resumo por representante e visão do representante com login | pendente |
+| **4** | Resumo por representante (`GET /comissoes/resumo`) e visão do representante com login, integração, e2e + `API.md` | concluída |
 | **5** | Frontend (percentual no pedido, apuração, ajustes, fechamento, "minhas comissões") | pendente |
 
 Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates verdes.
@@ -262,6 +269,11 @@ Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates ve
       sobrarem mais de 500; representante sem fornecedor, sem saldo positivo ou já fechado vira `falha`
       e os demais seguem. A transação trava comissões e ajustes abertos (`FOR UPDATE`) e confere a soma
       lida antes, para dois fechamentos simultâneos não pagarem duas vezes.
+- [x] **Revisão da branch** (outubro/2026): `PUT /representantes/{id}/fornecedor` grava só a coluna
+      `fornecedor_id` (o `PUT` do cadastro não a regrava, então um não desfaz o outro), exige o campo e
+      recusa fornecedor inativo; entrega que falha na apuração não conta no limite de 500 nem é repetida
+      na mesma chamada; representante com entrega sem apurar não fecha; fechamento de um representante só
+      devolve o motivo como erro; ajuste em competência já fechada entra no fechamento seguinte.
 - [x] **Ajuste aceita representante inativo** (fase 2): a comissão continua devida; o pedido, quando
       informado, é travado com `FOR SHARE` e precisa ser da mesma empresa e do mesmo representante.
 - [x] **D1 — Quando a comissão nasce.** Decidido: na **saída** da entrega (onde o M6 já conta o
