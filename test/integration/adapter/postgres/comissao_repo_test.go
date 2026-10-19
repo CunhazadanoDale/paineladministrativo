@@ -200,6 +200,37 @@ func TestComissaoRepositoryApuraASaidaUmaVezComOPadraoDoRepresentante(t *testing
 	}
 }
 
+func TestComissaoRepositoryApuraEntregaDeItemBonificadoComBaseZero(t *testing.T) {
+	c := novoCenarioComissoes(t)
+	dados := c.dados(domainpedido.ModeloProntaEntrega)
+	dados.RepresentanteID = &c.carlos.ID
+	dados.Itens[0].PrecoUnitarioCentavos = 0
+	pedido := c.novoPedido(t, c.mia, dados)
+	c.confirmarReservando(t, pedido)
+	entrega := c.saida(t, c.obter(t, pedido.ID), 3)
+
+	entregas := c.paraApurar(t, portscomissao.EntregaFiltro{})
+	if len(entregas) != 1 || entregas[0].EntregaID != entrega.ID || len(entregas[0].Itens) != 1 || entregas[0].Itens[0].PrecoUnitarioCentavos != 0 {
+		t.Fatalf("entregas para apurar = %+v", entregas)
+	}
+
+	apuracao, criada, err := c.apurar(t, entregas[0], c.carlos)
+	if err != nil || !criada {
+		t.Fatalf("GravarApuracao = %v, %v", criada, err)
+	}
+	if apuracao.Comissao.BaseCentavos != 0 || apuracao.Comissao.ValorCentavos != 0 {
+		t.Fatalf("comissão = %+v", apuracao.Comissao)
+	}
+	if restantes := c.paraApurar(t, portscomissao.EntregaFiltro{}); len(restantes) != 0 {
+		t.Fatalf("a entrega bonificada não deveria voltar: %+v", restantes)
+	}
+
+	listadas, err := c.comissoes.Listar(c.ctx, portscomissao.ComissaoFiltro{RepresentanteID: &c.carlos.ID})
+	if err != nil || len(listadas) != 1 || listadas[0].BaseCentavos != 0 || listadas[0].ValorCentavos != 0 {
+		t.Fatalf("listadas = %+v, %v", listadas, err)
+	}
+}
+
 func TestComissaoRepositoryFiltraEntregasPorEmpresaESaida(t *testing.T) {
 	c := novoCenarioComissoes(t)
 	entrega := c.saida(t, c.pedidoConfirmado(t, c.carlos), 1)

@@ -64,7 +64,7 @@
 | `pedido_id` | UUID | FK `pedido` |
 | `entrega_id` | UUID | FK `entrega`; `uq_comissao_entrega` — idempotência da apuração |
 | `competencia` | DATE | dia 1 do mês do `entrega.saiu_em` |
-| `base_centavos` | BIGINT | `> 0` |
+| `base_centavos` | BIGINT | `>= 0` (zero quando a entrega só tem itens bonificados) |
 | `percentual_bp` | INT | cópia do `pedido_comissao` na apuração |
 | `valor_centavos` | BIGINT | `round(base × percentual / 10000)`; `0..base` (percentual zero gera comissão zero, para a entrega não voltar à apuração) |
 | `fechamento_id` | UUID NULL | FK `comissao_fechamento` (fase 3); nulo = aberta |
@@ -211,6 +211,7 @@ rota e `API.md` do representante).
 migrations/000053_create_tabela_comissao                 pedido_comissao, comissao
 migrations/000054_create_tabela_comissao_ajuste
 migrations/000055_create_tabela_comissao_fechamento      fechamento + chk_solicitacao_origem + representante.fornecedor_id
+migrations/000056_alter_comissao_base_zero               chk_comissao_base aceita base zero (itens bonificados)
 
 internal/core/domain/comissao/       percentual_pedido.go, origem_percentual.go, comissao.go, ajuste.go,
                                      fechamento.go, resumo.go, competencia.go, data.go, erros.go (+ testes)
@@ -274,6 +275,10 @@ Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates ve
       recusa fornecedor inativo; entrega que falha na apuração não conta no limite de 500 nem é repetida
       na mesma chamada; representante com entrega sem apurar não fecha; fechamento de um representante só
       devolve o motivo como erro; ajuste em competência já fechada entra no fechamento seguinte.
+- [x] **Item bonificado entra na apuração** (correção pós-M10, migration 000056): o M6 aceita item
+      com preço zero, que entra com subtotal zero; quantidade continua obrigatória. Entrega só de
+      brindes gera comissão com base e valor zero, em vez de virar falha permanente que impediria o
+      representante de fechar. `chk_comissao_base` passa a `base_centavos >= 0`.
 - [x] **Ajuste aceita representante inativo** (fase 2): a comissão continua devida; o pedido, quando
       informado, é travado com `FOR SHARE` e precisa ser da mesma empresa e do mesmo representante.
 - [x] **D1 — Quando a comissão nasce.** Decidido: na **saída** da entrega (onde o M6 já conta o
