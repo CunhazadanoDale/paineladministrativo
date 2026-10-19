@@ -46,7 +46,7 @@ func novoCenarioConciliacao(t *testing.T) *cenarioBancoConciliacao {
 	return c
 }
 
-func (c *cenarioBancoConciliacao) importarLinhas(t *testing.T, transacoes ...domaincaixa.TransacaoOFX) *domaincaixa.ExtratoPreparado {
+func (c *cenarioBancoConciliacao) novoArquivoDoCaixa(t *testing.T) uuid.UUID {
 	t.Helper()
 
 	arquivoID := uuid.New()
@@ -58,8 +58,14 @@ func (c *cenarioBancoConciliacao) importarLinhas(t *testing.T, transacoes ...dom
 		t.Fatalf("criação do arquivo falhou: %v", err)
 	}
 
+	return arquivoID
+}
+
+func (c *cenarioBancoConciliacao) importarLinhas(t *testing.T, transacoes ...domaincaixa.TransacaoOFX) *domaincaixa.ExtratoPreparado {
+	t.Helper()
+
 	preparado, err := domaincaixa.PrepararImportacao(domaincaixa.DadosImportacao{
-		Extrato: &domaincaixa.ExtratoOFX{Transacoes: transacoes}, ContaBancariaID: c.contaID, ArquivoID: arquivoID,
+		Extrato: &domaincaixa.ExtratoOFX{Transacoes: transacoes}, ContaBancariaID: c.contaID, ArquivoID: c.novoArquivoDoCaixa(t),
 		UsuarioID: c.solicitanteID, Abertura: c.abertura, Agora: time.Now().UTC(),
 	})
 	if err != nil {

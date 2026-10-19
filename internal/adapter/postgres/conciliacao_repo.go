@@ -89,6 +89,20 @@ const (
 			FROM antecipacao a
 			JOIN fornecedor f ON f.id = a.fornecedor_id
 			WHERE a.conta_bancaria_id = $1
+			UNION ALL
+			SELECT 'transferencia_saida', tr.id, tr.conta_origem_id, origem.empresa_id, tr.data, -tr.valor_centavos,
+			       'Transferência para ' || destino.apelido || ' - ' || tr.descricao, tr.id, tr.estornado
+			FROM transferencia_conta tr
+			JOIN conta_bancaria origem ON origem.id = tr.conta_origem_id
+			JOIN conta_bancaria destino ON destino.id = tr.conta_destino_id
+			WHERE tr.conta_origem_id = $1
+			UNION ALL
+			SELECT 'transferencia_entrada', tr.id, tr.conta_destino_id, destino.empresa_id, tr.data, tr.valor_centavos,
+			       'Transferência de ' || origem.apelido || ' - ' || tr.descricao, tr.id, tr.estornado
+			FROM transferencia_conta tr
+			JOIN conta_bancaria origem ON origem.id = tr.conta_origem_id
+			JOIN conta_bancaria destino ON destino.id = tr.conta_destino_id
+			WHERE tr.conta_destino_id = $1
 		)
 		SELECT m.tipo, m.id, m.conta_bancaria_id, m.empresa_id, m.data, m.valor_centavos, m.descricao, m.origem_id,
 		       m.estornado, ci.conciliacao_id
@@ -100,6 +114,9 @@ const (
 			WHEN 'pagamento' THEN EXISTS (SELECT 1 FROM pagamento p WHERE p.id = ci.alvo_id AND p.estornado)
 			WHEN 'recebimento' THEN EXISTS (SELECT 1 FROM titulo_recebimento r WHERE r.id = ci.alvo_id AND r.estornado)
 			WHEN 'antecipacao' THEN EXISTS (SELECT 1 FROM antecipacao a WHERE a.id = ci.alvo_id AND a.status = 'estornada')
+			WHEN 'lancamento_caixa' THEN EXISTS (SELECT 1 FROM lancamento_caixa lc WHERE lc.id = ci.alvo_id AND lc.estornado)
+			WHEN 'transferencia_saida' THEN EXISTS (SELECT 1 FROM transferencia_conta tc WHERE tc.id = ci.alvo_id AND tc.estornado)
+			WHEN 'transferencia_entrada' THEN EXISTS (SELECT 1 FROM transferencia_conta tc WHERE tc.id = ci.alvo_id AND tc.estornado)
 			ELSE false
 		END`
 
@@ -241,17 +258,8 @@ func (r *ConciliacaoRepository) Criar(ctx context.Context, conciliacao *domainca
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	var contaDoLancamento uuid.UUID
-	err = tx.GetContext(ctx, &contaDoLancamento, `SELECT conta_bancaria_id FROM extrato_lancamento WHERE id = $1 FOR SHARE`,
-		conciliacao.ExtratoLancamentoID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return domaincaixa.ErroLancamentoNaoEncontrado()
-	}
-	if err != nil {
-		return tratarErroDeGravacao(err)
-	}
-	if contaDoLancamento != conciliacao.ContaBancariaID {
-		return domaincaixa.ErroMovimentoAlterado()
+	if err := travarLinhaDaConciliacao(ctx, tx, conciliacao); err != nil {
+		return err
 	}
 
 	itens := slices.Clone(conciliacao.Itens)
@@ -264,23 +272,8 @@ func (r *ConciliacaoRepository) Criar(ctx context.Context, conciliacao *domainca
 		}
 	}
 
-	if _, err := tx.NamedExecContext(ctx, `
-		INSERT INTO conciliacao (`+colunasConciliacao+`)
-		VALUES (
-			:id, :extrato_lancamento_id, :conta_bancaria_id, :modo, :vigente, :desfeita_em, :desfeita_por,
-			:motivo_desfazer, :usuario_id, :criado_em
-		)
-	`, paraLinhaConciliacao(conciliacao)); err != nil {
-		return traduzirConflitoDaConciliacao(err)
-	}
-
-	for _, item := range conciliacao.Itens {
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO conciliacao_item (conciliacao_id, alvo_tipo, alvo_id, valor_centavos, vigente)
-			VALUES ($1, $2, $3, $4, true)
-		`, conciliacao.ID, item.Tipo.String(), item.AlvoID, item.ValorCentavos); err != nil {
-			return traduzirConflitoDaConciliacao(err)
-		}
+	if err := inserirConciliacao(ctx, tx, conciliacao); err != nil {
+		return err
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -340,6 +333,12 @@ func (r *ConciliacaoRepository) Desfazer(ctx context.Context, conciliacao *domai
 		return tratarErroDeGravacao(err)
 	}
 
+	if conciliacao.Modo.CriaOMovimento() {
+		if err := estornarMovimentoCriado(ctx, tx, conciliacao.ID); err != nil {
+			return err
+		}
+	}
+
 	if err := tx.Commit(); err != nil {
 		return tratarErroDeGravacao(err)
 	}
@@ -375,6 +374,67 @@ func (r *ConciliacaoRepository) selecionarMovimentos(ctx context.Context, query 
 	return movimentos, nil
 }
 
+func travarLinhaDaConciliacao(ctx context.Context, tx *sqlx.Tx, conciliacao *domaincaixa.Conciliacao) error {
+	var contaDoLancamento uuid.UUID
+	err := tx.GetContext(ctx, &contaDoLancamento, `SELECT conta_bancaria_id FROM extrato_lancamento WHERE id = $1 FOR SHARE`,
+		conciliacao.ExtratoLancamentoID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domaincaixa.ErroLancamentoNaoEncontrado()
+	}
+	if err != nil {
+		return tratarErroDeGravacao(err)
+	}
+	if contaDoLancamento != conciliacao.ContaBancariaID {
+		return domaincaixa.ErroMovimentoAlterado()
+	}
+
+	return nil
+}
+
+func inserirConciliacao(ctx context.Context, tx *sqlx.Tx, conciliacao *domaincaixa.Conciliacao) error {
+	if _, err := tx.NamedExecContext(ctx, `
+		INSERT INTO conciliacao (`+colunasConciliacao+`)
+		VALUES (
+			:id, :extrato_lancamento_id, :conta_bancaria_id, :modo, :vigente, :desfeita_em, :desfeita_por,
+			:motivo_desfazer, :usuario_id, :criado_em
+		)
+	`, paraLinhaConciliacao(conciliacao)); err != nil {
+		return traduzirConflitoDaConciliacao(err)
+	}
+
+	for _, item := range conciliacao.Itens {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO conciliacao_item (conciliacao_id, alvo_tipo, alvo_id, valor_centavos, vigente)
+			VALUES ($1, $2, $3, $4, true)
+		`, conciliacao.ID, item.Tipo.String(), item.AlvoID, item.ValorCentavos); err != nil {
+			return traduzirConflitoDaConciliacao(err)
+		}
+	}
+
+	return nil
+}
+
+func estornarMovimentoCriado(ctx context.Context, tx *sqlx.Tx, conciliacaoID uuid.UUID) error {
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE lancamento_caixa SET estornado = true
+		WHERE id IN (SELECT alvo_id FROM conciliacao_item WHERE conciliacao_id = $1 AND alvo_tipo = 'lancamento_caixa')
+	`, conciliacaoID); err != nil {
+		return tratarErroDeGravacao(err)
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE transferencia_conta SET estornado = true
+		WHERE id IN (
+			SELECT alvo_id FROM conciliacao_item
+			WHERE conciliacao_id = $1 AND alvo_tipo IN ('transferencia_saida', 'transferencia_entrada')
+		)
+	`, conciliacaoID); err != nil {
+		return tratarErroDeGravacao(err)
+	}
+
+	return nil
+}
+
 func travarMovimentoAtivo(ctx context.Context, tx *sqlx.Tx, item domaincaixa.ItemConciliacao, contaBancariaID uuid.UUID) error {
 	var query string
 	switch item.Tipo {
@@ -384,6 +444,10 @@ func travarMovimentoAtivo(ctx context.Context, tx *sqlx.Tx, item domaincaixa.Ite
 		query = `SELECT estornado FROM titulo_recebimento WHERE id = $1 AND conta_bancaria_id = $2 AND tipo = 'conta' FOR SHARE`
 	case domaincaixa.MovimentoAntecipacao:
 		query = `SELECT status = 'estornada' FROM antecipacao WHERE id = $1 AND conta_bancaria_id = $2 FOR SHARE`
+	case domaincaixa.MovimentoTransferenciaSaida:
+		query = `SELECT estornado FROM transferencia_conta WHERE id = $1 AND conta_origem_id = $2 FOR SHARE`
+	case domaincaixa.MovimentoTransferenciaEntrada:
+		query = `SELECT estornado FROM transferencia_conta WHERE id = $1 AND conta_destino_id = $2 FOR SHARE`
 	default:
 		return domaincaixa.ErroMovimentoAlterado()
 	}
