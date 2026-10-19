@@ -1,7 +1,7 @@
 # Escopo — M13 Caixa e conciliação
 
 > **Status:** escopo fechado — decisões D1 a D15 respondidas pelo usuário (outubro/2026): todas as
-> recomendações aceitas, com OFX como único formato (D4); fase 1 concluída (saldo inicial e importação de extrato).
+> recomendações aceitas, com OFX como único formato (D4); fases 1 e 2 concluídas (saldo inicial, importação de extrato e conciliação).
 > **Objetivo:** tirar o "Caixa do mês" e o "Fluxo de caixa diário" das planilhas: extrato bancário
 > importado por conta (OFX), conciliado com os pagamentos do M7 e os recebimentos e borderôs do
 > M9, linhas sem par classificadas no plano de contas, fechamento mensal por conta com divergência
@@ -340,7 +340,7 @@ test/helpers + test/integration + test/e2e
 | Fase | Entrega | Estado |
 |---|---|---|
 | **1** | Abertura e importação de extrato OFX (migrations 000059–000060): domínio com parser, tipos no upload, repositório, usecase com escopo por empresa, rotas de abertura, importação, lista e saldos; integração de idempotência; e2e + `API.md` | concluída |
-| **2** | Conciliação com M7 e M9 (migration 000061): consultas de movimentos do sistema, sugestões, conciliação manual e automática, desfazer, invalidação por estorno, pendências do sistema; integração de corrida; e2e + `API.md` | pendente |
+| **2** | Conciliação com M7 e M9 (migration 000061): consultas de movimentos do sistema, sugestões, conciliação manual e automática, desfazer, invalidação por estorno, pendências do sistema; integração de corrida; e2e + `API.md` | concluída |
 | **3** | Classificação e transferência entre contas (migration 000062): `lancamento_caixa`, estorno pelo desfazer, `transferencia_conta` com as duas pontas; e2e + `API.md` | pendente |
 | **4** | Fechamento mensal e reabertura (migration 000063), bloqueio de importação em mês fechado; e2e + `API.md` | pendente |
 | **5** | Projeção diária e movimento diário realizado; e2e + `API.md` | pendente |
@@ -419,6 +419,24 @@ Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates ve
       valor zero, até o corte ou com data futura são ignoradas e listadas no relatório, não gravadas.
 - [x] **Fase 1 — desfazer importação** (implementação): só a mais recente da conta, para não apagar linhas
       que uma importação posterior contou como repetidas; o arquivo pode ser importado de novo depois.
+- [x] **Fase 2 — leitura do M7 e do M9** (implementação): uma consulta própria do M13 junta pagamentos
+      (`- valor`, dia do `pago_em` em Brasília com o fuso fixo de −3h do grupo), recebimentos do tipo
+      `conta` (`valor + juros`) e créditos de borderô (líquido), só da conta e depois do corte; nenhum
+      port nem repositório do M7 ou do M9 mudou.
+- [x] **Fase 2 — trava na gravação** (implementação): a conciliação trava o lançamento e cada movimento
+      com `FOR SHARE` e confere conta e estorno na transação; índices únicos parciais `WHERE vigente`
+      garantem um lançamento e um movimento em no máximo uma conciliação vigente (`409`).
+- [x] **Fase 2 — modos e tipos por fase** (implementação): `chk_conciliacao_modo` aceita só `manual` e
+      `automatica`, e `chk_conciliacao_item_alvo_tipo` só os três movimentos do sistema; a fase 3
+      acrescenta os modos `classificacao` e `transferencia` e os alvos `lancamento_caixa` e `transferencia`
+      na própria migration.
+- [x] **Fase 2 — automática** (implementação): exige período de até 92 dias, processa até 500
+      lançamentos por chamada (`restam_linhas`) e grava uma conciliação por par em transação própria;
+      par que outra pessoa conciliou no meio vira `falhas`.
+- [x] **Fase 2 — importação conciliada** (implementação): importação com lançamento que já passou por
+      conciliação, mesmo desfeita, não é desfeita, porque o histórico da conciliação aponta para a linha.
+- [x] **Fase 2 — pagamentos sem conta** (D14): rota própria `GET /caixa/pagamentos-sem-conta`, por
+      empresa e período.
 - [x] **Fase 1 — OFX não é anexo** (implementação): como o XML da NF-e, arquivo OFX não pode ser anexado a
       solicitação; o upload aceita `.ofx` mesmo quando o navegador manda `application/octet-stream`.
 

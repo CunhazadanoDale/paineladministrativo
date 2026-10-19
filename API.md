@@ -3049,7 +3049,7 @@ Escopo e decisões em `PROPOSTAS.md`.
 
 ---
 
-## Caixa — saldo inicial, extrato e saldos (financeiro)
+## Caixa — saldo inicial, extrato, conciliação e saldos (financeiro)
 
 Extrato bancário importado por conta, em **OFX** (1.x SGML ou 2.x XML), sobre um **saldo inicial** por
 conta. O extrato é a fonte do saldo: saldo da conta = saldo inicial + linhas do extrato depois da data de
@@ -3064,7 +3064,14 @@ corte. Escopo por empresa pela conta bancária (padrão da seção 4 do `EMPRESA
 | `POST` | `/api/v1/extratos/importacao` | **financeiro** | `201` relatório da importação (`200` na simulação) |
 | `GET` | `/api/v1/extratos/importacoes` | **financeiro** | `200` lista paginada (`?empresa=`, `?conta=`), mais recente primeiro |
 | `DELETE` | `/api/v1/extratos/importacoes/{id}` | **administrador** | `204`; só a importação mais recente da conta |
-| `GET` | `/api/v1/extratos/lancamentos` | **financeiro** | `200` lista paginada (`?conta=` obrigatório, `?de=`, `?ate=` em `AAAA-MM-DD`), por data |
+| `GET` | `/api/v1/extratos/lancamentos` | **financeiro** | `200` lista paginada (`?conta=` obrigatório, `?de=`, `?ate=` em `AAAA-MM-DD`, `?situacao=pendente`, `conciliado` ou `invalidado`), por data |
+| `GET` | `/api/v1/extratos/lancamentos/{id}/sugestoes` | **financeiro** | `200` lista de movimentos do sistema que podem ser o par do lançamento |
+| `POST` | `/api/v1/extratos/lancamentos/{id}/conciliacao` | **financeiro** | `201` conciliação manual |
+| `POST` | `/api/v1/extratos/conciliar-automatico` | **financeiro** | `200` resultado da conciliação automática |
+| `GET` | `/api/v1/conciliacoes/{id}` | **financeiro** | `200` conciliação com os movimentos |
+| `POST` | `/api/v1/conciliacoes/{id}/desfazer` | **financeiro** | `200` conciliação desfeita |
+| `GET` | `/api/v1/caixa/pendencias-sistema` | **financeiro** | `200` lista paginada dos movimentos do sistema sem par no extrato (`?conta=` obrigatório, `?de=`, `?ate=`) |
+| `GET` | `/api/v1/caixa/pagamentos-sem-conta` | **financeiro** | `200` lista paginada dos pagamentos sem conta bancária (`?empresa=`, `?de=`, `?ate=`) |
 
 ### Saldo inicial
 
@@ -3138,7 +3145,90 @@ excluído (`400 registro em uso`).
 
 Lançamento (`GET /extratos/lancamentos`): `id`, `conta_bancaria_id`, `importacao_id`, `data`,
 `valor_centavos` (crédito positivo, débito negativo), `tipo` (`credito` ou `debito`), `descricao`,
-`documento`. `ate` antes de `de` → `400`.
+`documento`, `situacao` (`pendente`, `conciliado` ou `invalidado`) e `conciliacao_id` (a conciliação
+vigente, ou `null`). `ate` antes de `de` → `400`.
+
+Importação com lançamento que já passou por conciliação, mesmo desfeita, não pode ser desfeita
+(`409 importação com lançamento que já passou por conciliação não pode ser desfeita`).
+
+### Conciliação
+
+Liga um lançamento do extrato aos movimentos que o sistema já registrou na **mesma conta**:
+
+| Movimento (`tipo`) | Origem | Valor no caixa | Data |
+| --- | --- | --- | --- |
+| `pagamento` | pagamento da conta a pagar (M7), inclusive comissão, recompra e repasse | `- valor` | dia do `pago_em` em Brasília |
+| `recebimento` | baixa do título a receber do tipo `conta` (M9) | `valor + juros` | `recebido_em` |
+| `antecipacao` | crédito do borderô (M9) | `valor_liquido_centavos` | `operado_em` |
+
+Movimento estornado, de data até o corte do saldo inicial ou já conciliado não entra. Movimento
+(`GET .../sugestoes`, `pendencias-sistema`, `pagamentos-sem-conta`):
+
+```json
+{
+  "tipo": "pagamento", "id": "…", "conta_bancaria_id": "…", "empresa_id": "…", "data": "2026-10-15",
+  "valor_centavos": -50000, "descricao": "Cimentos do Vale - Compra de cimento", "origem_id": "…",
+  "estornado": false, "conciliacao_id": null
+}
+```
+
+`origem_id` é a solicitação (pagamento), o título (recebimento) ou o próprio borderô (antecipação).
+
+**Sugestões**: movimentos pendentes com o mesmo valor do lançamento e data até 3 dias antes ou depois,
+o mais próximo primeiro.
+
+**Manual** (`POST /extratos/lancamentos/{id}/conciliacao`): um lançamento com um ou mais movimentos
+(até 50), cuja soma precisa ser exatamente o valor do lançamento:
+
+```json
+{ "movimentos": [{ "tipo": "pagamento", "id": "…" }, { "tipo": "pagamento", "id": "…" }] }
+```
+
+| Regra | Resposta |
+| --- | --- |
+| lista vazia, tipo desconhecido, movimento repetido | `400` |
+| movimento que não é da conta ou é de data até o corte | `400 erro de validação: movimento não encontrado nesta conta ou anterior ao saldo inicial` |
+| crédito com movimento de saída ou débito com movimento de entrada | `400` |
+| movimento a mais de 3 dias do lançamento | `400 erro de validação: movimento fora da janela de 3 dias do lançamento` |
+| soma diferente | `400 erro de validação: a soma dos movimentos (-499,00) é diferente do valor do lançamento (-500,00)` |
+| lançamento já conciliado | `409 lançamento do extrato já conciliado; desfaça a conciliação antes` |
+| movimento já conciliado em outro lançamento | `409 movimento já conciliado com outro lançamento do extrato` |
+| movimento estornado ou alterado durante a gravação | `409 um dos movimentos foi estornado ou alterado; recarregue e tente de novo` |
+
+**Automática** (`POST /extratos/conciliar-automatico`): `{ "conta_bancaria_id", "de", "ate" }`
+(obrigatórios, até 92 dias). Concilia só os pares exatos e únicos nos dois sentidos: mesmo dia e mesmo
+valor, com um só movimento para o lançamento e um só lançamento para o movimento. Processa até 500
+lançamentos por chamada:
+
+```json
+{ "dados": { "conciliadas": 12, "ambiguos": 1, "sem_par": 3, "falhas": 0, "restam_linhas": false } }
+```
+
+`falhas` conta os pares que outra pessoa conciliou no meio da rotina; rodar de novo é seguro.
+
+**Conciliação** (`GET /conciliacoes/{id}`, resposta da manual e do desfazer):
+
+```json
+{
+  "dados": {
+    "id": "…", "extrato_lancamento_id": "…", "conta_bancaria_id": "…", "modo": "manual",
+    "vigente": true, "invalidada": false,
+    "movimentos": [{ "tipo": "pagamento", "id": "…", "valor_centavos": -50000, "estornado": false }],
+    "usuario_id": "…", "criado_em": "2026-10-19T13:00:00Z",
+    "desfeita_em": null, "desfeita_por": null, "motivo_desfazer": null
+  }
+}
+```
+
+**Estorno depois de conciliar**: o M7 e o M9 continuam estornando normalmente. A conciliação fica
+`invalidada` e o lançamento aparece como `invalidado` até alguém desfazer a conciliação.
+
+**Desfazer** (`POST /conciliacoes/{id}/desfazer`): `{ "motivo": "…" }` (obrigatório, até 500
+caracteres). A conciliação fica guardada com `vigente = false`; o lançamento e os movimentos voltam a
+pendentes. Desfazer de novo → `409 conciliação já desfeita`.
+
+**Pagamentos sem conta** (`GET /caixa/pagamentos-sem-conta`): pagamentos não estornados registrados
+antes do M7, sem `conta_bancaria_id`. Ficam fora da conciliação e só aparecem nesta lista.
 
 ### Saldos por conta
 
@@ -3149,13 +3239,14 @@ Lançamento (`GET /extratos/lancamentos`): `id`, `conta_bancaria_id`, `importaca
       "conta_bancaria_id": "…", "empresa_id": "…", "apelido": "Sicredi", "banco": "748", "banco_nome": "Sicredi",
       "ativa": true, "data_corte": "2026-09-30", "saldo_inicial_centavos": 100000, "saldo_atual_centavos": 193710,
       "ultimo_lancamento_em": "2026-10-14", "saldo_banco_centavos": 194950, "saldo_banco_em": "2026-10-12",
-      "diferenca_banco_centavos": -50
+      "diferenca_banco_centavos": -50, "lancamentos_pendentes": 4
     }
   ]
 }
 ```
 
 Conta sem saldo inicial aparece com `data_corte`, `saldo_inicial_centavos` e `saldo_atual_centavos` nulos.
+`lancamentos_pendentes` conta as linhas depois do corte ainda sem conciliação vigente.
 `diferenca_banco_centavos` = saldo do banco (último `LEDGERBAL` importado) − saldo calculado até a data
 dele; nulo sem saldo do banco ou com saldo do banco anterior ao corte.
 
