@@ -35,6 +35,7 @@ type caixaSaldoLinha struct {
 	SaldoBancoCentavos               *int64     `db:"saldo_banco_centavos"`
 	SaldoBancoEm                     *time.Time `db:"saldo_banco_em"`
 	MovimentoAteSaldoDoBancoCentavos int64      `db:"movimento_ate_saldo_do_banco_centavos"`
+	LancamentosPendentes             int        `db:"lancamentos_pendentes"`
 }
 
 func (r *CaixaSaldoRepository) Saldos(ctx context.Context, empresaIDs []uuid.UUID) ([]*domaincaixa.SaldoConta, error) {
@@ -44,7 +45,8 @@ func (r *CaixaSaldoRepository) Saldos(ctx context.Context, empresaIDs []uuid.UUI
 		       COALESCE(movimento.total, 0) AS movimento_centavos,
 		       movimento.ultimo AS ultimo_lancamento_em,
 		       banco.saldo_banco_centavos, banco.saldo_banco_em,
-		       COALESCE(ate_banco.total, 0) AS movimento_ate_saldo_do_banco_centavos
+		       COALESCE(ate_banco.total, 0) AS movimento_ate_saldo_do_banco_centavos,
+		       COALESCE(pendentes.quantidade, 0) AS lancamentos_pendentes
 		FROM conta_bancaria c
 		LEFT JOIN caixa_abertura a ON a.conta_bancaria_id = c.id
 		LEFT JOIN LATERAL (
@@ -63,7 +65,13 @@ func (r *CaixaSaldoRepository) Saldos(ctx context.Context, empresaIDs []uuid.UUI
 			SELECT sum(l.valor_centavos) AS total
 			FROM extrato_lancamento l
 			WHERE l.conta_bancaria_id = c.id AND l.data > a.data_corte AND l.data <= banco.saldo_banco_em
-		) ate_banco ON true`
+		) ate_banco ON true
+		LEFT JOIN LATERAL (
+			SELECT count(*) AS quantidade
+			FROM extrato_lancamento l
+			LEFT JOIN conciliacao co ON co.extrato_lancamento_id = l.id AND co.vigente
+			WHERE l.conta_bancaria_id = c.id AND l.data > a.data_corte AND co.id IS NULL
+		) pendentes ON true`
 	argumentos := make([]any, 0, 1)
 
 	if empresaIDs != nil {
@@ -99,6 +107,7 @@ func paraDominioCaixaSaldo(linha *caixaSaldoLinha) *domaincaixa.SaldoConta {
 		SaldoBancoCentavos:               linha.SaldoBancoCentavos,
 		SaldoBancoEm:                     dataOpcionalDoCaixa(linha.SaldoBancoEm),
 		MovimentoAteSaldoDoBancoCentavos: linha.MovimentoAteSaldoDoBancoCentavos,
+		LancamentosPendentes:             linha.LancamentosPendentes,
 	}
 }
 

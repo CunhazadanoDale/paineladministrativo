@@ -42,17 +42,31 @@ type extratoImportacaoLinha struct {
 }
 
 type extratoLancamentoLinha struct {
-	ID              uuid.UUID `db:"id"`
-	ContaBancariaID uuid.UUID `db:"conta_bancaria_id"`
-	ImportacaoID    uuid.UUID `db:"importacao_id"`
-	Sequencia       int       `db:"sequencia"`
-	Data            time.Time `db:"data"`
-	ValorCentavos   int64     `db:"valor_centavos"`
-	Descricao       string    `db:"descricao"`
-	Documento       *string   `db:"documento"`
-	Identificador   string    `db:"identificador"`
-	CriadoEm        time.Time `db:"criado_em"`
+	ID              uuid.UUID  `db:"id"`
+	ContaBancariaID uuid.UUID  `db:"conta_bancaria_id"`
+	ImportacaoID    uuid.UUID  `db:"importacao_id"`
+	Sequencia       int        `db:"sequencia"`
+	Data            time.Time  `db:"data"`
+	ValorCentavos   int64      `db:"valor_centavos"`
+	Descricao       string     `db:"descricao"`
+	Documento       *string    `db:"documento"`
+	Identificador   string     `db:"identificador"`
+	CriadoEm        time.Time  `db:"criado_em"`
+	ConciliacaoID   *uuid.UUID `db:"conciliacao_id"`
+	Situacao        string     `db:"situacao"`
 }
+
+const consultaLancamentosComSituacao = `
+	SELECT l.id, l.conta_bancaria_id, l.importacao_id, l.sequencia, l.data, l.valor_centavos, l.descricao, l.documento,
+	       l.identificador, l.criado_em, co.id AS conciliacao_id,
+	       CASE
+	           WHEN co.id IS NULL THEN 'pendente'
+	           WHEN EXISTS (SELECT 1 FROM conciliacao_item ci WHERE ci.conciliacao_id = co.id AND ` + alvoEstornado + `)
+	               THEN 'invalidado'
+	           ELSE 'conciliado'
+	       END AS situacao
+	FROM extrato_lancamento l
+	LEFT JOIN conciliacao co ON co.extrato_lancamento_id = l.id AND co.vigente`
 
 const (
 	colunasExtratoImportacao = `id, conta_bancaria_id, arquivo_id, periodo_inicio, periodo_fim, saldo_banco_centavos,
@@ -236,6 +250,20 @@ func (r *ExtratoRepository) DesfazerImportacao(ctx context.Context, importacao *
 		return domaincaixa.ErroImportacaoNaoEhAUltima()
 	}
 
+	var conciliada bool
+	if err := tx.GetContext(ctx, &conciliada, `
+		SELECT EXISTS (
+			SELECT 1 FROM conciliacao c
+			JOIN extrato_lancamento l ON l.id = c.extrato_lancamento_id
+			WHERE l.importacao_id = $1
+		)
+	`, importacao.ID); err != nil {
+		return tratarErro(err)
+	}
+	if conciliada {
+		return domaincaixa.ErroImportacaoComConciliacao()
+	}
+
 	if _, err := tx.ExecContext(ctx, `DELETE FROM extrato_lancamento WHERE importacao_id = $1`, importacao.ID); err != nil {
 		return tratarErro(err)
 	}
@@ -255,20 +283,25 @@ func (r *ExtratoRepository) ListarLancamentos(ctx context.Context, filtro portso
 	offset := (filtro.Page - 1) * filtro.Size
 
 	argumentos := []any{filtro.ContaBancariaID}
-	condicoes := []string{condicao("conta_bancaria_id", 1)}
+	condicoes := []string{condicao("l.conta_bancaria_id", 1)}
 
 	if filtro.De != nil {
 		argumentos = append(argumentos, filtro.De.Format(formatoDataDoBanco))
-		condicoes = append(condicoes, "data >= $"+strconv.Itoa(len(argumentos))+"::date")
+		condicoes = append(condicoes, "l.data >= $"+strconv.Itoa(len(argumentos))+"::date")
 	}
 	if filtro.Ate != nil {
 		argumentos = append(argumentos, filtro.Ate.Format(formatoDataDoBanco))
-		condicoes = append(condicoes, "data <= $"+strconv.Itoa(len(argumentos))+"::date")
+		condicoes = append(condicoes, "l.data <= $"+strconv.Itoa(len(argumentos))+"::date")
+	}
+
+	query := `SELECT * FROM (` + consultaLancamentosComSituacao + ` WHERE ` + unirCondicoes(condicoes) + `) lancamento`
+	if filtro.Situacao != nil {
+		argumentos = append(argumentos, filtro.Situacao.String())
+		query += ` WHERE situacao = $` + strconv.Itoa(len(argumentos))
 	}
 
 	argumentos = append(argumentos, filtro.Size, offset)
-	query := `SELECT ` + colunasExtratoLancamento + ` FROM extrato_lancamento WHERE ` + unirCondicoes(condicoes) +
-		` ORDER BY data ASC, criado_em ASC, sequencia ASC, id ASC` + limiteOffset(argumentos)
+	query += ` ORDER BY data ASC, criado_em ASC, sequencia ASC, id ASC` + limiteOffset(argumentos)
 
 	var linhas []*extratoLancamentoLinha
 	if err := r.db.SelectContext(ctx, &linhas, query, argumentos...); err != nil {
@@ -406,5 +439,15 @@ func paraDominioExtratoLancamento(linha *extratoLancamentoLinha) *domaincaixa.La
 		Documento:       linha.Documento,
 		Identificador:   linha.Identificador,
 		CriadoEm:        linha.CriadoEm,
+		ConciliacaoID:   linha.ConciliacaoID,
+		Situacao:        situacaoDoLancamento(linha.Situacao),
 	}
+}
+
+func situacaoDoLancamento(valor string) domaincaixa.SituacaoLancamento {
+	if valor == "" {
+		return domaincaixa.LancamentoPendente
+	}
+
+	return domaincaixa.SituacaoLancamentoDe(valor)
 }
