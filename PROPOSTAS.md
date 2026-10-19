@@ -142,8 +142,8 @@ GET    /api/v1/modelos-venda                      condições padrão de cada mo
 ## 7. Estrutura de código
 
 ```
-migrations/000056_create_tabela_preco_item
-migrations/000057_alter_pedido_proposta             validade, revisao, frete, pedido_item.preco_tabela_centavos
+migrations/000057_create_tabela_preco_item
+migrations/000058_alter_pedido_proposta             validade, revisao, frete, pedido_item.preco_tabela_centavos
 
 internal/core/domain/tabelapreco/      item.go, vigencia.go (+ testes)
 internal/core/domain/pedido/           proposta.go (validade, revisão, frete, condições editáveis), documento.go
@@ -156,7 +156,8 @@ cmd/api/main.go + internal/adapter/http/rotas.go   (registro, só acréscimos)
 test/helpers + test/integration + test/e2e
 ```
 
-- Numeração a partir da `000056` (a `main` está na `000055`).
+- Numeração a partir da `000057`: a `main` recebeu a `000056` da correção do M10 (preço zero) antes do
+  M11, e a tabela de preço foi renumerada de `000056` para `000057`.
 
 ---
 
@@ -164,8 +165,8 @@ test/helpers + test/integration + test/e2e
 
 | Fase | Entrega | Estado |
 |---|---|---|
-| **1** | Tabela de preço: migration 000056, domínio, repositório, usecase, rotas, preço vigente, integração, e2e + `API.md` | concluída |
-| **2** | Proposta: migration 000057, validade, condições editáveis, frete, revisão, `preco_tabela_centavos` nos itens, confirmar recusando vencida, e2e + `API.md` | pendente |
+| **1** | Tabela de preço: migration 000057, domínio, repositório, usecase, rotas, preço vigente, integração, e2e + `API.md` | concluída |
+| **2** | Proposta: migration 000058, validade, condições editáveis, frete, revisão, `preco_tabela_centavos` nos itens, confirmar recusando vencida, e2e + `API.md` | pendente |
 | **3** | Documento da proposta (`GET /pedidos/{id}/proposta`) e `GET /modelos-venda` | pendente |
 | **4** | Frontend: tabela de preço, preço sugerido no pedido, campos da proposta e página de impressão | pendente |
 
