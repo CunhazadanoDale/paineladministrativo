@@ -166,3 +166,91 @@ func TestListarLancamentosExigeContaEDatasValidas(t *testing.T) {
 		t.Errorf("input = %+v", usecase.lancamentos)
 	}
 }
+
+type conciliacaoUseCaseFalso struct {
+	portsin.ConciliacaoUseCase
+	conciliar  portsin.ConciliarInput
+	automatico portsin.ConciliarAutomaticoInput
+	pendencias portsin.PendenciasInput
+}
+
+func (f *conciliacaoUseCaseFalso) Conciliar(_ context.Context, input portsin.ConciliarInput) (*domaincaixa.Conciliacao, error) {
+	f.conciliar = input
+
+	itens := make([]domaincaixa.ItemConciliacao, 0, len(input.Movimentos))
+	for _, movimento := range input.Movimentos {
+		itens = append(itens, domaincaixa.ItemConciliacao{Tipo: domaincaixa.TipoMovimentoDe(movimento.Tipo), AlvoID: movimento.ID, ValorCentavos: -100})
+	}
+
+	return &domaincaixa.Conciliacao{
+		ID: uuid.New(), ExtratoLancamentoID: input.LancamentoID, Modo: domaincaixa.ConciliacaoManual, Vigente: true, Itens: itens,
+	}, nil
+}
+
+func (f *conciliacaoUseCaseFalso) ConciliarAutomatico(_ context.Context, input portsin.ConciliarAutomaticoInput) (*portsin.ResultadoAutomatico, error) {
+	f.automatico = input
+
+	return &portsin.ResultadoAutomatico{Conciliadas: 3, Ambiguos: 1}, nil
+}
+
+func (f *conciliacaoUseCaseFalso) Pendencias(_ context.Context, input portsin.PendenciasInput) ([]*domaincaixa.MovimentoSistema, error) {
+	f.pendencias = input
+
+	return []*domaincaixa.MovimentoSistema{{Tipo: domaincaixa.MovimentoPagamento, ID: uuid.New(), ValorCentavos: -100}}, nil
+}
+
+func TestConciliarLeOsMovimentosDoCorpo(t *testing.T) {
+	usecase := &conciliacaoUseCaseFalso{}
+	handler := NewConciliacaoHandler(usecase)
+	lancamentoID, pagamentoID := uuid.New(), uuid.New()
+
+	registrador := executaProtegido(t, handler.Conciliar, http.MethodPost, "/api/v1/extratos/lancamentos/x/conciliacao", lancamentoID.String(),
+		`{"movimentos":[{"tipo":"pagamento","id":"`+pagamentoID.String()+`"}]}`)
+	if registrador.Code != http.StatusCreated || !strings.Contains(registrador.Body.String(), `"modo":"manual"`) ||
+		!strings.Contains(registrador.Body.String(), `"invalidada":false`) {
+		t.Fatalf("status %d: %s", registrador.Code, registrador.Body.String())
+	}
+	if usecase.conciliar.LancamentoID != lancamentoID || len(usecase.conciliar.Movimentos) != 1 || usecase.conciliar.Movimentos[0].ID != pagamentoID {
+		t.Errorf("input = %+v", usecase.conciliar)
+	}
+
+	desconhecido := executaProtegido(t, handler.Conciliar, http.MethodPost, "/api/v1/extratos/lancamentos/x/conciliacao", lancamentoID.String(), `{"itens":[]}`)
+	apoioteste.VerificarEnvelopeDeErro(t, desconhecido, http.StatusBadRequest)
+}
+
+func TestConciliarAutomaticoLeOPeriodo(t *testing.T) {
+	usecase := &conciliacaoUseCaseFalso{}
+	handler := NewConciliacaoHandler(usecase)
+	contaID := uuid.New()
+
+	registrador := executaProtegido(t, handler.ConciliarAutomatico, http.MethodPost, "/api/v1/extratos/conciliar-automatico", "",
+		`{"conta_bancaria_id":"`+contaID.String()+`","de":"2026-10-01","ate":"2026-10-31"}`)
+	if registrador.Code != http.StatusOK || !strings.Contains(registrador.Body.String(), `"conciliadas":3`) {
+		t.Fatalf("status %d: %s", registrador.Code, registrador.Body.String())
+	}
+	if usecase.automatico.ContaBancariaID != contaID || usecase.automatico.De.Day() != 1 || usecase.automatico.Ate.Day() != 31 {
+		t.Errorf("input = %+v", usecase.automatico)
+	}
+
+	invalida := executaProtegido(t, handler.ConciliarAutomatico, http.MethodPost, "/api/v1/extratos/conciliar-automatico", "",
+		`{"conta_bancaria_id":"`+contaID.String()+`","de":"01/10/2026","ate":"2026-10-31"}`)
+	apoioteste.VerificarEnvelopeDeErro(t, invalida, http.StatusBadRequest)
+}
+
+func TestPendenciasExigemConta(t *testing.T) {
+	usecase := &conciliacaoUseCaseFalso{}
+	handler := NewConciliacaoHandler(usecase)
+
+	semConta := executaProtegido(t, handler.Pendencias, http.MethodGet, "/api/v1/caixa/pendencias-sistema", "", "")
+	apoioteste.VerificarEnvelopeDeErro(t, semConta, http.StatusBadRequest)
+
+	contaID := uuid.New()
+	registrador := executaProtegido(t, handler.Pendencias, http.MethodGet, "/api/v1/caixa/pendencias-sistema?conta="+contaID.String()+"&ate=2026-10-31", "", "")
+	if registrador.Code != http.StatusOK || !strings.Contains(registrador.Body.String(), `"tipo":"pagamento"`) ||
+		!strings.Contains(registrador.Body.String(), `"conta_bancaria_id":null`) {
+		t.Fatalf("status %d: %s", registrador.Code, registrador.Body.String())
+	}
+	if usecase.pendencias.ContaBancariaID != contaID || usecase.pendencias.Ate == nil || usecase.pendencias.De != nil {
+		t.Errorf("input = %+v", usecase.pendencias)
+	}
+}

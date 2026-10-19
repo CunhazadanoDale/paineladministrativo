@@ -89,6 +89,7 @@ func NewRouter(
 	aberturaCaixaUseCase portsincaixa.AberturaUseCase,
 	extratoUseCase portsincaixa.ExtratoUseCase,
 	saldoCaixaUseCase portsincaixa.SaldoUseCase,
+	conciliacaoUseCase portsincaixa.ConciliacaoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, middleware.ErrosDeRoteamento(novasRotas(
@@ -114,6 +115,7 @@ func NewRouter(
 		percentualComissaoUseCase, comissaoUseCase, ajusteComissaoUseCase, fechamentoComissaoUseCase,
 		tabelaPrecoUseCase,
 		aberturaCaixaUseCase, extratoUseCase, saldoCaixaUseCase,
+		conciliacaoUseCase,
 		tokens,
 	)))
 }
@@ -166,6 +168,7 @@ func novasRotas(
 	aberturaCaixaUseCase portsincaixa.AberturaUseCase,
 	extratoUseCase portsincaixa.ExtratoUseCase,
 	saldoCaixaUseCase portsincaixa.SaldoUseCase,
+	conciliacaoUseCase portsincaixa.ConciliacaoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -531,6 +534,15 @@ func novasRotas(
 	financeiro("GET /api/v1/extratos/importacoes", extratoHandler.ListarImportacoes)
 	administrador("DELETE /api/v1/extratos/importacoes/{id}", extratoHandler.DesfazerImportacao)
 	financeiro("GET /api/v1/extratos/lancamentos", extratoHandler.ListarLancamentos)
+
+	conciliacaoHandler := caixahandlers.NewConciliacaoHandler(conciliacaoUseCase)
+	financeiro("GET /api/v1/extratos/lancamentos/{id}/sugestoes", conciliacaoHandler.Sugestoes)
+	financeiro("POST /api/v1/extratos/lancamentos/{id}/conciliacao", conciliacaoHandler.Conciliar)
+	financeiro("POST /api/v1/extratos/conciliar-automatico", conciliacaoHandler.ConciliarAutomatico)
+	financeiro("GET /api/v1/conciliacoes/{id}", conciliacaoHandler.Obter)
+	financeiro("POST /api/v1/conciliacoes/{id}/desfazer", conciliacaoHandler.Desfazer)
+	financeiro("GET /api/v1/caixa/pendencias-sistema", conciliacaoHandler.Pendencias)
+	financeiro("GET /api/v1/caixa/pagamentos-sem-conta", conciliacaoHandler.PagamentosSemConta)
 
 	return mux
 }

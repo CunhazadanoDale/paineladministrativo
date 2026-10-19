@@ -84,7 +84,11 @@ func (h *ExtratoHandler) ListarLancamentos(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	input := portsin.ListarLancamentosInput{UsuarioID: usuario.ID, Filtro: resposta.ConsultaPaginacao(r)}
+	input := portsin.ListarLancamentosInput{
+		UsuarioID: usuario.ID,
+		Situacao:  resposta.ConsultaTexto(r, "situacao"),
+		Filtro:    resposta.ConsultaPaginacao(r),
+	}
 
 	conta, err := resposta.ConsultaUUID(r, "conta")
 	if err != nil {

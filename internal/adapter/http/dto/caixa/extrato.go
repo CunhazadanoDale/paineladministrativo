@@ -121,14 +121,16 @@ func NovasImportacaoResponses(importacoes []*domaincaixa.ImportacaoExtrato) []Im
 }
 
 type LancamentoResponse struct {
-	ID              uuid.UUID `json:"id"`
-	ContaBancariaID uuid.UUID `json:"conta_bancaria_id"`
-	ImportacaoID    uuid.UUID `json:"importacao_id"`
-	Data            string    `json:"data"`
-	ValorCentavos   int64     `json:"valor_centavos"`
-	Tipo            string    `json:"tipo"`
-	Descricao       string    `json:"descricao"`
-	Documento       *string   `json:"documento"`
+	ID              uuid.UUID  `json:"id"`
+	ContaBancariaID uuid.UUID  `json:"conta_bancaria_id"`
+	ImportacaoID    uuid.UUID  `json:"importacao_id"`
+	Data            string     `json:"data"`
+	ValorCentavos   int64      `json:"valor_centavos"`
+	Tipo            string     `json:"tipo"`
+	Descricao       string     `json:"descricao"`
+	Documento       *string    `json:"documento"`
+	Situacao        string     `json:"situacao"`
+	ConciliacaoID   *uuid.UUID `json:"conciliacao_id"`
 }
 
 func NovasLancamentoResponses(lancamentos []*domaincaixa.LancamentoExtrato) []LancamentoResponse {
@@ -147,6 +149,8 @@ func NovasLancamentoResponses(lancamentos []*domaincaixa.LancamentoExtrato) []La
 			Tipo:            tipo,
 			Descricao:       lancamento.Descricao,
 			Documento:       lancamento.Documento,
+			Situacao:        lancamento.Situacao.String(),
+			ConciliacaoID:   lancamento.ConciliacaoID,
 		})
 	}
 

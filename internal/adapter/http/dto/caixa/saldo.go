@@ -19,6 +19,7 @@ type SaldoContaResponse struct {
 	SaldoBancoCentavos     *int64    `json:"saldo_banco_centavos"`
 	SaldoBancoEm           *string   `json:"saldo_banco_em"`
 	DiferencaBancoCentavos *int64    `json:"diferenca_banco_centavos"`
+	LancamentosPendentes   int       `json:"lancamentos_pendentes"`
 }
 
 func NovasSaldoContaResponses(saldos []*domaincaixa.SaldoConta) []SaldoContaResponse {
@@ -38,6 +39,7 @@ func NovasSaldoContaResponses(saldos []*domaincaixa.SaldoConta) []SaldoContaResp
 			SaldoBancoCentavos:     saldo.SaldoBancoCentavos,
 			SaldoBancoEm:           formatarDataOpcional(saldo.SaldoBancoEm),
 			DiferencaBancoCentavos: saldo.DiferencaDoBancoCentavos(),
+			LancamentosPendentes:   saldo.LancamentosPendentes,
 		})
 	}
 
