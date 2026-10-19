@@ -23,6 +23,9 @@ type cenario struct {
 	saldos              *caixausecases.SaldoUsecaseImpl
 	conciliacao         *caixausecases.ConciliacaoUsecaseImpl
 	conciliacoesRepo    *repositorioConciliacoes
+	lancamentosCaixa    *caixausecases.LancamentoCaixaUsecaseImpl
+	lancamentosRepo     *repositorioLancamentosCaixa
+	categoriasRepo      *repositorioCategorias
 	empresasRepo        *repositorioEmpresas
 	usuariosRepo        *repositorioUsuarios
 	cargosRepo          *repositorioCargos
@@ -58,6 +61,8 @@ func novoCenario(t *testing.T) *cenario {
 	extratos := &repositorioExtratos{contas: contas}
 	saldos := &repositorioSaldos{contas: contas}
 	conciliacoes := novoRepositorioConciliacoes()
+	lancamentosCaixa := &repositorioLancamentosCaixa{}
+	categorias := &repositorioCategorias{itens: map[uuid.UUID]*domainfinanceiro.CategoriaFinanceira{}}
 
 	c := &cenario{
 		ctx:              context.Background(),
@@ -66,15 +71,20 @@ func novoCenario(t *testing.T) *cenario {
 		saldos:           caixausecases.NewSaldoUsecase(saldos, empresas, usuarios, cargos),
 		conciliacao:      caixausecases.NewConciliacaoUsecase(conciliacoes, contas, empresas, usuarios, cargos),
 		conciliacoesRepo: conciliacoes,
-		empresasRepo:     empresas,
-		usuariosRepo:     usuarios,
-		cargosRepo:       cargos,
-		contasRepo:       contas,
-		arquivosRepo:     arquivos,
-		storage:          storage,
-		aberturasRepo:    aberturas,
-		extratosRepo:     extratos,
-		saldosRepo:       saldos,
+		lancamentosCaixa: caixausecases.NewLancamentoCaixaUsecase(
+			lancamentosCaixa, conciliacoes, categorias, contas, empresas, usuarios, cargos,
+		),
+		lancamentosRepo: lancamentosCaixa,
+		categoriasRepo:  categorias,
+		empresasRepo:    empresas,
+		usuariosRepo:    usuarios,
+		cargosRepo:      cargos,
+		contasRepo:      contas,
+		arquivosRepo:    arquivos,
+		storage:         storage,
+		aberturasRepo:   aberturas,
+		extratosRepo:    extratos,
+		saldosRepo:      saldos,
 	}
 
 	c.mia = c.novaEmpresa("MIA", true)

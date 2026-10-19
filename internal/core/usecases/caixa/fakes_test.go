@@ -425,3 +425,60 @@ func (r *repositorioConciliacoes) Desfazer(_ context.Context, conciliacao *domai
 
 	return nil
 }
+
+var (
+	_ portsout.LancamentoCaixaRepository     = (*repositorioLancamentosCaixa)(nil)
+	_ portsout.CategoriaFinanceiraRepository = (*repositorioCategorias)(nil)
+)
+
+type repositorioCategorias struct {
+	itens map[uuid.UUID]*domainfinanceiro.CategoriaFinanceira
+}
+
+func (r *repositorioCategorias) Obter(_ context.Context, id uuid.UUID) (*domainfinanceiro.CategoriaFinanceira, error) {
+	categoria, ok := r.itens[id]
+	if !ok {
+		return nil, nil
+	}
+
+	copia := *categoria
+	return &copia, nil
+}
+
+type repositorioLancamentosCaixa struct {
+	classificacoes []*domaincaixa.Classificacao
+	transferencias []*domaincaixa.TransferenciaRegistrada
+	filtros        []portsout.LancamentoCaixaFiltro
+}
+
+func (r *repositorioLancamentosCaixa) Classificar(_ context.Context, classificacao *domaincaixa.Classificacao) error {
+	r.classificacoes = append(r.classificacoes, classificacao)
+	return nil
+}
+
+func (r *repositorioLancamentosCaixa) Transferir(_ context.Context, registrada *domaincaixa.TransferenciaRegistrada) error {
+	r.transferencias = append(r.transferencias, registrada)
+	return nil
+}
+
+func (r *repositorioLancamentosCaixa) Listar(_ context.Context, filtro portsout.LancamentoCaixaFiltro) ([]*domaincaixa.LancamentoCaixa, error) {
+	r.filtros = append(r.filtros, filtro)
+
+	var lancamentos []*domaincaixa.LancamentoCaixa
+	for _, classificacao := range r.classificacoes {
+		lancamentos = append(lancamentos, classificacao.Lancamento)
+	}
+
+	return lancamentos, nil
+}
+
+func (r *repositorioLancamentosCaixa) ListarTransferencias(_ context.Context, filtro portsout.LancamentoCaixaFiltro) ([]*domaincaixa.Transferencia, error) {
+	r.filtros = append(r.filtros, filtro)
+
+	var transferencias []*domaincaixa.Transferencia
+	for _, registrada := range r.transferencias {
+		transferencias = append(transferencias, registrada.Transferencia)
+	}
+
+	return transferencias, nil
+}
