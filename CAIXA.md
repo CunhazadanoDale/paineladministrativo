@@ -1,10 +1,9 @@
 # Escopo — M13 Caixa e conciliação
 
-> **Status:** escopo em discussão — decisões D1 a D15 (seção 10) abertas, aguardando o usuário. O
-> módulo é afetado pelos itens "Transferências entre empresas" e "Importação histórica" da seção 6 do
-> `ROADMAP.md` (D3 e D8): pela regra 11 da seção 3 ele só é reservado depois dessas respostas.
+> **Status:** escopo fechado — decisões D1 a D15 respondidas pelo usuário (outubro/2026): todas as
+> recomendações aceitas, com OFX como único formato (D4); pronto para a fase 1.
 > **Objetivo:** tirar o "Caixa do mês" e o "Fluxo de caixa diário" das planilhas: extrato bancário
-> importado por conta (OFX/CSV), conciliado com os pagamentos do M7 e os recebimentos e borderôs do
+> importado por conta (OFX), conciliado com os pagamentos do M7 e os recebimentos e borderôs do
 > M9, linhas sem par classificadas no plano de contas, fechamento mensal por conta com divergência
 > apontada e projeção diária de saldo por empresa e consolidada. Base do relatório semanal e dos
 > saldos bancários do M15.
@@ -15,18 +14,20 @@
 
 ## 1. Visão geral
 
-| Tema | Proposta (recomendação de cada decisão aberta) |
+| Tema | Decisão |
 |---|---|
 | Módulo | Pacote novo `caixa`: `domain/caixa`, `ports/in|out/caixa`, `usecases/caixa`; rotas `/api/v1/extratos`, `/api/v1/conciliacoes` e `/api/v1/caixa` |
 | Fonte do saldo (D1) | O **extrato** é a verdade do saldo: saldo da conta = abertura + Σ linhas do extrato. Os lançamentos do M7/M9 são o que se concilia contra ele |
 | Abertura (D2) | Saldo inicial por conta numa **data de corte** digitada pelo financeiro; linha de extrato anterior ao corte é ignorada na importação |
-| Importação (D4) | Arquivo enviado por `POST /arquivos` e importado por `POST /extratos/importacao`, como o XML do M8. OFX (1.x SGML e 2.x XML) com conta identificada pelo `BANKID`/`BRANCHID`/`ACCTID`; CSV num layout fixo do sistema. Idempotente por identificador da transação |
+| Histórico (D3) | **Sem retroativo**: o extrato começa no último mês encerrado (corte no último dia do mês anterior a ele); pagamentos e recebimentos anteriores ao corte ficam fora da conciliação |
+| Importação (D4) | **Só OFX** (1.x SGML e 2.x XML; todos os bancos do grupo exportam), enviado por `POST /arquivos` e importado por `POST /extratos/importacao`, como o XML do M8. Conta identificada pelo `BANKID`/`BRANCHID`/`ACCTID`. Idempotente por identificador da transação |
 | Conciliação (D5) | Uma linha do extrato ↔ **um ou mais** movimentos do sistema com soma exata. Sugestão por conta, valor e data (±3 dias); automática só no par único exato. Desfazer é append-only |
 | Movimentos conciliáveis | Débito: `pagamento` do M7 (inclui recompra, repasse e comissão, que são contas a pagar). Crédito: `titulo_recebimento` tipo `conta` (valor + juros) e crédito do borderô (`antecipacao`, valor líquido). Mais os lançamentos do próprio M13 |
 | Linha sem par (D6) | Classificada a partir da própria linha: vira `lancamento_caixa` com categoria lançável (natureza pelo sinal) e já nasce conciliada. Tarifa, IOF, rendimento, juros bancários |
-| Transferência entre contas (D8, D9) | Registro próprio criado a partir da linha de uma das pontas; a outra ponta é conciliada contra ele quando o extrato dela chegar. Categoria `entre_contas`, fora da DRE |
-| Fechamento (D10, D11) | Mensal, por conta, sequencial; exige o mês todo conciliado ou classificado e o saldo calculado igual ao do banco; reabertura só pelo administrador, com motivo |
-| Projeção (D13) | Diária, até 90 dias, por empresa e consolidada: saldo atual + títulos a receber − contas a pagar, vencidos acumulados em "hoje" |
+| Transferência entre contas (D8, D9) | Registro próprio criado a partir da linha de uma das pontas; a outra ponta é conciliada contra ele quando o extrato dela chegar. Categoria `entre_contas`, fora da DRE. Entre empresas do grupo: **regra provisória** do M8 — permitida, marcada `entre_empresas`, sem título nem conta a pagar entre elas |
+| Fechamento (D10) | Mensal, por conta, sequencial; exige o mês todo conciliado ou classificado e o saldo calculado igual ao do banco; reabertura só pelo administrador, com motivo |
+| M7/M9 não mudam (D11, D12) | O mês fechado **não bloqueia** o M7 nem o M9: lançamento posterior com data em mês fechado vira divergência do fechamento. Estorno de item conciliado continua livre: a conciliação fica `invalidada` e trava o fechamento até ser desfeita |
+| Projeção (D13) | Diária, até 90 dias, por empresa e consolidada: saldo atual + títulos a receber − contas a pagar − recorrentes ainda não geradas, vencidos acumulados em "hoje" |
 | Dependências do M7/M9 | **Nenhum método novo nos ports nem nos repositórios do M7 e do M9**: o M13 lê `pagamento`, `titulo_recebimento` e `antecipacao` por consulta própria no `adapter/postgres/caixa_*`, como o M10 lê `entrega` |
 | Escopo por empresa | Padrão da seção 4 do `EMPRESAS.md`: tudo herda a `empresa_id` da conta bancária |
 | Permissões (D15) | Financeiro e administrador; reabrir fechamento e desfazer importação só o administrador |
@@ -59,8 +60,7 @@
 | `id` | UUID | |
 | `conta_bancaria_id` | UUID | FK `conta_bancaria` |
 | `arquivo_id` | UUID | FK `arquivo`; `uq_extrato_importacao_arquivo` |
-| `formato` | VARCHAR(4) | `ofx`, `csv` |
-| `periodo_inicio`, `periodo_fim` | DATE | `DTSTART`/`DTEND` do OFX, ou a menor e a maior data do CSV |
+| `periodo_inicio`, `periodo_fim` | DATE | `DTSTART`/`DTEND` do OFX |
 | `saldo_banco_centavos` | BIGINT NULL | `LEDGERBAL` do OFX; usado no fechamento |
 | `saldo_banco_em` | DATE NULL | data do `LEDGERBAL` |
 | `linhas_novas`, `linhas_repetidas`, `linhas_ignoradas` | INT | relatório gravado |
@@ -161,16 +161,15 @@
 
 ### 3.1 Importação do extrato
 
-1. O financeiro envia o arquivo por `POST /arquivos` (o upload passa a aceitar `.ofx` e `.csv`) e chama
+1. O financeiro envia o arquivo por `POST /arquivos` (o upload passa a aceitar `.ofx`) e chama
    `POST /extratos/importacao { arquivo_id, conta_bancaria_id?, simular? }`.
 2. O usecase lê o arquivo como o `leitorDeXML` do M8: dono = quem importa, tipo aceito, não vinculado
    a solicitação, não importado antes (`409`); limite de 5 MB e 5000 linhas.
 3. OFX: `BANKID` + `BRANCHID` + `ACCTID` resolvem a conta (banco COMPE, agência e conta sem zeros à
    esquerda nem dígito); `conta_bancaria_id` informada precisa bater (`400`). Charset `1252`/`ISO-8859-1`
-   convertido para UTF-8. CSV: `conta_bancaria_id` obrigatória.
-4. Identificador da linha: OFX = `FITID` + data + valor (alguns bancos repetem o `FITID` entre
-   exportações ou entre linhas do mesmo dia); CSV = hash de data + valor + descrição + ordem da
-   ocorrência repetida no dia.
+   convertido para UTF-8.
+4. Identificador da linha: `FITID` + data + valor (alguns bancos repetem o `FITID` entre exportações ou
+   entre linhas do mesmo dia).
 5. Linhas antes da data de corte ou em mês fechado são ignoradas e entram no relatório; repetidas são
    contadas. Tudo numa transação, com `INSERT ... ON CONFLICT DO NOTHING`. `simular` devolve o relatório
    sem gravar.
@@ -209,6 +208,8 @@
   fora: o dinheiro já entrou no borderô);
 - **saídas previstas**: contas a pagar `pendente_aprovacao` e `aprovado` por `prazo_pagamento`, com
   as `estimado` em coluna própria;
+- **recorrentes previstas**: despesas recorrentes vigentes cujas solicitações ainda não foram geradas
+  para as competências do horizonte, pelo dia de vencimento, em coluna própria (D13);
 - vencidos de ambos os lados acumulados no dia de hoje, em coluna própria.
 
 Consolidado = soma das empresas no acesso. `GET /caixa/movimento-diario` dá o realizado (extrato por
@@ -284,7 +285,7 @@ feita por consulta própria do M13. Travas `FOR SHARE` no repositório do M13.
 ### 6.4 Arquivos
 
 `normalizarContentType` (`usecases/solicitacao/arquivo_usecase.go`) passa a aceitar OFX
-(`application/x-ofx`, e `application/octet-stream` com extensão `.ofx`) e CSV (`text/csv`). Leitura
+(`application/x-ofx`, e `application/octet-stream` com extensão `.ofx`). Leitura
 pelo padrão do M8 (portas `ArquivoRepository` e `Storage` próprias em `ports/out/caixa/`).
 
 ### 6.5 DRE (M15)
@@ -305,7 +306,7 @@ migrations/000061_create_tabela_conciliacao                conciliacao, item
 migrations/000062_create_tabela_lancamento_caixa           lancamento, estorno, transferencia_conta
 migrations/000063_create_tabela_caixa_fechamento
 
-internal/core/domain/caixa/          abertura.go, extrato.go, linha_extrato.go, ofx.go, csv.go,
+internal/core/domain/caixa/          abertura.go, extrato.go, linha_extrato.go, ofx.go,
                                      identificador.go, conciliacao.go, alvo.go, sugestao.go,
                                      lancamento.go, transferencia.go, fechamento.go, projecao.go,
                                      data.go, erros.go (+ testes)
@@ -319,7 +320,7 @@ internal/core/ports/out/caixa/       abertura_repository.go, extrato_repository.
 internal/core/ports/in/caixa/        abertura_usecase.go, extrato_usecase.go, conciliacao_usecase.go,
                                      lancamento_usecase.go, fechamento_usecase.go, projecao_usecase.go
 internal/core/usecases/caixa/        idem + leitor_extrato.go, permissoes.go (+ testes e fakes)
-internal/core/usecases/solicitacao/  arquivo_usecase.go (tipos OFX e CSV)
+internal/core/usecases/solicitacao/  arquivo_usecase.go (tipo OFX)
 internal/adapter/postgres/           caixa_abertura_repo.go, extrato_repo.go, conciliacao_repo.go,
                                      lancamento_caixa_repo.go, caixa_fechamento_repo.go,
                                      caixa_movimento_repo.go, caixa_projecao_repo.go
@@ -328,7 +329,7 @@ cmd/api/main.go + internal/adapter/http/rotas.go   (registro, só acréscimos)
 test/helpers + test/integration + test/e2e
 ```
 
-- O parser de OFX/CSV fica no domínio, como `domain/notafiscal/xml.go`; sem biblioteca nova.
+- O parser de OFX fica no domínio, como `domain/notafiscal/xml.go`; sem biblioteca nova.
 - Numeração a partir da `000059`; renumerar antes do merge se outra sessão mergear antes (regra 4 da
   seção 3 do `ROADMAP.md`).
 
@@ -338,7 +339,7 @@ test/helpers + test/integration + test/e2e
 
 | Fase | Entrega | Estado |
 |---|---|---|
-| **1** | Abertura e importação de extrato OFX e CSV (migrations 000059–000060): domínio com parser, tipos no upload, repositório, usecase com escopo por empresa, rotas de abertura, importação, lista e saldos; integração de idempotência; e2e + `API.md` | pendente |
+| **1** | Abertura e importação de extrato OFX (migrations 000059–000060): domínio com parser, tipos no upload, repositório, usecase com escopo por empresa, rotas de abertura, importação, lista e saldos; integração de idempotência; e2e + `API.md` | pendente |
 | **2** | Conciliação com M7 e M9 (migration 000061): consultas de movimentos do sistema, sugestões, conciliação manual e automática, desfazer, invalidação por estorno, pendências do sistema; integração de corrida; e2e + `API.md` | pendente |
 | **3** | Classificação e transferência entre contas (migration 000062): `lancamento_caixa`, estorno pelo desfazer, `transferencia_conta` com as duas pontas; e2e + `API.md` | pendente |
 | **4** | Fechamento mensal e reabertura (migration 000063), bloqueio de importação em mês fechado; e2e + `API.md` | pendente |
@@ -358,61 +359,55 @@ Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates ve
       (`CONTAS_A_RECEBER.md`, seção 2.3).
 - [x] **M13 aceita as três naturezas** do plano de contas, `transferencia` só em `entre_contas`
       (`FINANCEIRO.md`, seção 6).
+- [x] **D3 — Importação histórica.** Decidido: sem retroativo; o extrato começa no último mês
+      encerrado (corte no último dia do mês anterior a ele), e pagamentos e recebimentos antigos ficam
+      fora da conciliação. Alternativa descartada: carregar meses de extrato para trás e conciliar o
+      histórico.
+- [x] **D4 — Formatos.** Decidido: **só OFX**; todos os bancos do grupo (Sicredi, Itaú, BB, Santander,
+      Bradesco, Cora, Inter) exportam. Sem leitor de CSV. Alternativas descartadas: CSV de layout fixo do
+      sistema; leitor de CSV por banco.
+- [x] **D8 — Transferência entre contas de empresas diferentes.** Decidido, como regra provisória igual
+      à do M8: permitida, marcada `entre_empresas`, categoria `entre_contas`, fora da DRE das duas
+      empresas, sem gerar título nem conta a pagar entre elas; o efeito definitivo vira fase própria
+      quando a contabilidade responder. Alternativa descartada: bloquear até a resposta.
+- [x] **D11 — Efeito do mês fechado nos outros módulos.** Decidido: o M13 não bloqueia o M7 nem o M9;
+      pagamento ou recebimento lançado depois numa data de mês fechado aparece como divergência no
+      fechamento. Alternativa descartada: M7 e M9 recusarem data em mês fechado.
+- [x] **D12 — Estorno de item já conciliado.** Decidido: o M7/M9 continuam estornando livremente; a
+      conciliação fica `invalidada`, a linha volta a pendente e o fechamento trava até alguém desfazer.
+      Alternativa descartada: M7 e M9 recusarem estornar item conciliado.
+
+- [x] **D1 — Fonte de verdade do saldo.** Decidido: o **extrato** (abertura + Σ linhas importadas); o
+      que está no M7/M9 é conciliado contra ele, e o que só existe no sistema aparece como pendência.
+      Alternativa descartada: saldo pelo sistema com o extrato só para conferência.
+- [x] **D2 — Abertura.** Decidido: uma data de corte por conta, digitada com o saldo do banco no fim
+      daquele dia; nada anterior ao corte entra. Alternativa descartada: abertura única do grupo numa
+      data comum a todas as contas.
+- [x] **D5 — Regra de conciliação.** Decidido: N:1 (uma linha cobre vários pagamentos ou recebimentos,
+      como pagamento em lote ou crédito de vários boletos), janela de ±3 dias, sugestão com confirmação
+      e automática só no par único exato do mesmo dia. Alternativas descartadas: só 1:1; só manual.
+- [x] **D6 — Linha sem par.** Decidido: vira `lancamento_caixa` só a partir da linha do extrato (tarifa,
+      IOF, rendimento, juros), nunca digitado solto. Alternativa descartada: lançamento manual sem
+      extrato.
+- [x] **D7 — Competência do lançamento avulso.** Decidido: mês da data do extrato, fixo. Alternativa
+      descartada: competência editável na classificação.
+- [x] **D9 — Aplicação e resgate automáticos.** Decidido: a aplicação é cadastrada como conta do tipo
+      `aplicacao` no M5, e aplicação/resgate são transferência entre contas; rendimento é
+      `lancamento_caixa` de receita. Alternativa descartada: avulsos `entre_contas` sem conta de
+      aplicação.
+- [x] **D10 — O que impede o fechamento.** Decidido: linha do mês pendente ou conciliação invalidada, e
+      saldo calculado diferente do saldo do banco; pendências do lado do sistema só são apontadas.
+      Alternativa descartada: fechar com pendências.
+- [x] **D13 — O que entra na projeção.** Decidido: títulos `carteira`/`em_banco`, contas a pagar
+      `pendente_aprovacao` e `aprovado` (estimadas à parte), despesas recorrentes ainda não geradas no
+      horizonte (pelo `ListarVigentes` do M7, em coluna própria), vencidos em "hoje", horizonte de até
+      90 dias.
+- [x] **D14 — Pagamentos sem conta bancária** (anteriores ao M7, com `conta_bancaria_id` nulo).
+      Decidido: ficam fora da conciliação e da projeção, listados à parte. Alternativa descartada: rota
+      no M7 para completar a conta do pagamento antigo.
+- [x] **D15 — Permissões.** Decidido: o financeiro faz tudo; reabrir fechamento e desfazer importação só
+      o administrador. Alternativa descartada: reabrir também pelo financeiro.
 
 ## 10. Decisões pendentes
 
-- [ ] **D1 — Fonte de verdade do saldo.** Recomendado: o **extrato** (abertura + Σ linhas importadas);
-      o que está no M7/M9 é conciliado contra ele, e o que só existe no sistema aparece como pendência.
-      Alternativa: saldo pelo sistema (abertura + pagamentos + recebimentos + borderôs + avulsos) com o
-      extrato só para conferência — funciona sem importar extrato, mas o saldo erra sempre que alguém
-      esquece de registrar uma baixa.
-- [ ] **D2 — Abertura.** Recomendado: uma data de corte por conta, digitada com o saldo do banco no fim
-      daquele dia; nada anterior ao corte entra. Alternativa: abertura única do grupo numa data comum
-      a todas as contas.
-- [ ] **D3 — Importação histórica (item aberto da seção 6 do `ROADMAP.md`).** Recomendado: começar no
-      último mês encerrado (corte no último dia do mês anterior a ele), sem retroativo; pagamentos e
-      recebimentos antigos ficam fora da conciliação. Alternativa: carregar N meses de extrato para trás
-      e conciliar o histórico — mais trabalho de conciliação inicial, mas o M15 ganha caixa histórico.
-      **Quantos meses?**
-- [ ] **D4 — Formatos.** Recomendado: OFX como formato principal e CSV num layout fixo do sistema
-      (`data;descricao;documento;valor`, separador `;`, como a importação de clientes) para banco que
-      não exporte OFX. Alternativa: um leitor de CSV por banco. **Quais dos sete bancos (Sicredi, Itaú,
-      BB, Santander, Bradesco, Cora, Inter) vocês já baixam em OFX?**
-- [ ] **D5 — Regra de conciliação.** Recomendado: N:1 (uma linha cobre vários pagamentos ou
-      recebimentos, como pagamento em lote ou crédito de vários boletos), janela de ±3 dias, sugestão com
-      confirmação e automática só no par único exato do mesmo dia. Alternativas: só 1:1; só manual;
-      janela diferente.
-- [ ] **D6 — Linha sem par.** Recomendado: vira `lancamento_caixa` só a partir da linha do extrato
-      (tarifa, IOF, rendimento, juros), nunca digitado solto. Alternativa: permitir lançamento manual sem
-      extrato (para caixa físico em dinheiro, que hoje não tem tipo de conta no M5).
-- [ ] **D7 — Competência do lançamento avulso.** Recomendado: mês da data do extrato, fixo. Alternativa:
-      competência editável na classificação (tarifa de setembro debitada em outubro, por exemplo).
-- [ ] **D8 — Transferência entre contas de empresas diferentes (item aberto da seção 6 do
-      `ROADMAP.md`).** Recomendado, como regra provisória igual à do M8: permitida, marcada
-      `entre_empresas`, categoria `entre_contas`, fora da DRE das duas empresas, sem gerar título nem conta
-      a pagar entre elas; o efeito definitivo vira fase própria quando a contabilidade responder.
-      Alternativa: bloquear até a resposta — a linha fica pendente e trava o fechamento.
-- [ ] **D9 — Aplicação e resgate automáticos.** Recomendado: cadastrar a aplicação como conta do tipo
-      `aplicacao` no M5 e tratar aplicação/resgate como transferência entre contas; rendimento é
-      `lancamento_caixa` de receita. Alternativa: classificar aplicação e resgate como avulsos
-      `entre_contas` sem conta de aplicação (o saldo aplicado não aparece em lugar nenhum).
-- [ ] **D10 — O que impede o fechamento.** Recomendado: linha do mês pendente ou conciliação
-      invalidada, e saldo calculado diferente do saldo do banco; pendências do lado do sistema só são
-      apontadas. Alternativa: fechar com pendências, registradas como divergência.
-- [ ] **D11 — Efeito do mês fechado nos outros módulos.** Recomendado: na primeira versão o M13 não
-      bloqueia o M7 nem o M9; pagamento ou recebimento lançado depois numa data de mês fechado aparece
-      como divergência no fechamento. Alternativa: M7 e M9 recusam data em mês fechado da conta (porta
-      nova e mudança nos dois módulos).
-- [ ] **D12 — Estorno de item já conciliado.** Recomendado: o M7/M9 continuam estornando livremente; a
-      conciliação fica `invalidada`, a linha volta a pendente e o fechamento trava até alguém desfazer.
-      Alternativa: M7 e M9 recusam estornar pagamento, recebimento ou borderô conciliado (mudança nos
-      dois módulos).
-- [ ] **D13 — O que entra na projeção.** Recomendado: títulos `carteira`/`em_banco`, contas a pagar
-      `pendente_aprovacao` e `aprovado` (estimadas à parte), vencidos em "hoje", horizonte de até 90 dias.
-      Em aberto: incluir as **despesas recorrentes ainda não geradas** no horizonte (pelo
-      `ListarVigentes` do M7)? Recomendado sim, em coluna própria.
-- [ ] **D14 — Pagamentos sem conta bancária** (anteriores ao M7, com `conta_bancaria_id` nulo).
-      Recomendado: ficam fora da conciliação e da projeção, listados à parte. Alternativa: rota no M7
-      para completar a conta do pagamento antigo.
-- [ ] **D15 — Permissões.** Recomendado: o financeiro faz tudo; reabrir fechamento e desfazer
-      importação só o administrador. Alternativa: reabrir também pelo financeiro.
+Sem abertos.
