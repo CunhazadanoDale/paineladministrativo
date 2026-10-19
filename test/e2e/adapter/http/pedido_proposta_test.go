@@ -77,3 +77,43 @@ func TestPropostaComValidadeCondicoesFreteEPrecoDeTabela(t *testing.T) {
 		t.Fatalf("mensagem = %q", mensagem)
 	}
 }
+
+func TestDocumentoDaPropostaEModelosDeVenda(t *testing.T) {
+	servidor, _ := servidorDoTeste(t)
+	mia := criarEmpresa(t, servidor, "11.222.333/0001-81", "MIA")
+	red := criarEmpresa(t, servidor, "33.400.004/0001-16", "Red Diamond").ID
+	produtoID := produtoDoTeste(t, servidor)
+	clienteID := clienteDoPedido(t, servidor)
+	tokenRed := usuarioComercialDasEmpresas(t, servidor, "Rui", "rui@exemplo.com", red)
+
+	corpo := corpoDePedido(mia.ID, clienteID, produtoID, "pronta_entrega", 10)
+	corpo["frete_tipo"] = "fob"
+	pedido := criarPedidoE2E(t, servidor, corpo, tokenDoTeste)
+
+	resposta := envia(t, servidor, http.MethodGet, "/api/v1/pedidos/"+pedido.ID.String()+"/proposta", nil)
+	conferirStatus(t, resposta, http.StatusOK)
+	documento := decodificarEnvelope[pedidodto.DocumentoPropostaResponse](t, resposta).Dados
+	if documento.Identificacao != "Proposta 1-R1" || documento.Empresa.ID != mia.ID || documento.Empresa.CNPJ != "11.222.333/0001-81" ||
+		documento.Cliente.ID != clienteID || documento.Cliente.Nome != "Construtora Alfa" {
+		t.Fatalf("documento = %+v", documento)
+	}
+	if len(documento.Itens) != 1 || documento.Itens[0].ProdutoID != produtoID || documento.Itens[0].Nome == "" || documento.TotalCentavos != 15000 {
+		t.Fatalf("itens = %+v", documento.Itens)
+	}
+	esperadas := []string{
+		"Pagamento em boleto com vencimento em 30 dias após a entrega.",
+		"Frete FOB (por conta do cliente).",
+		"Proposta válida até " + (*documento.Validade)[8:10] + "/" + (*documento.Validade)[5:7] + "/" + (*documento.Validade)[0:4] + ".",
+	}
+	if len(documento.Condicoes) != 3 || documento.Condicoes[0] != esperadas[0] || documento.Condicoes[1] != esperadas[1] || documento.Condicoes[2] != esperadas[2] {
+		t.Fatalf("condições = %#v", documento.Condicoes)
+	}
+	conferirStatus(t, enviaComToken(t, servidor, http.MethodGet, "/api/v1/pedidos/"+pedido.ID.String()+"/proposta", nil, tokenRed), http.StatusForbidden)
+
+	resposta = enviaComToken(t, servidor, http.MethodGet, "/api/v1/modelos-venda", nil, tokenRed)
+	conferirStatus(t, resposta, http.StatusOK)
+	if modelos := decodificarEnvelope[[]pedidodto.ModeloDeVendaResponse](t, resposta).Dados; len(modelos) != 2 ||
+		modelos[0].Modelo != "pronta_entrega" || *modelos[0].Condicao.PrazoBoletoDias != 30 {
+		t.Fatalf("modelos = %+v", modelos)
+	}
+}

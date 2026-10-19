@@ -185,3 +185,17 @@ func (h *PedidoHandler) transicionar(
 	pedido, err := mudar(r.Context(), portsin.TransicaoPedidoInput{UsuarioID: usuario.ID, PedidoID: id, Versao: requisicao.Versao})
 	escreverItem(w, http.StatusOK, pedido, err, pedidodto.NovoPedidoResponse)
 }
+
+func (h *PedidoHandler) Documento(w http.ResponseWriter, r *http.Request) {
+	usuario, id, ok := resposta.UsuarioEId(w, r)
+	if !ok {
+		return
+	}
+
+	documento, err := h.usecase.Documento(r.Context(), id, usuario.ID)
+	escreverItem(w, http.StatusOK, documento, err, pedidodto.NovoDocumentoPropostaResponse)
+}
+
+func (h *PedidoHandler) ModelosDeVenda(w http.ResponseWriter, r *http.Request) {
+	escreverLista(w, h.usecase.ModelosDeVenda(r.Context()), nil, pedidodto.NovoModeloDeVendaResponses)
+}

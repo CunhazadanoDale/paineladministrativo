@@ -507,6 +507,8 @@ func novasRotas(
 	protegido("GET /api/v1/tabela-precos", tabelaPrecoHandler.Listar)
 	protegido("GET /api/v1/tabela-precos/vigentes", tabelaPrecoHandler.Vigentes)
 	administrador("DELETE /api/v1/tabela-precos/{id}", tabelaPrecoHandler.Remover)
+	protegido("GET /api/v1/pedidos/{id}/proposta", pedidoHandler.Documento)
+	protegido("GET /api/v1/modelos-venda", pedidoHandler.ModelosDeVenda)
 
 	return mux
 }
