@@ -9,21 +9,24 @@ import (
 type Origem string
 
 const (
-	OrigemManual         Origem = "manual"
-	OrigemRecorrencia    Origem = "recorrencia"
-	OrigemRecompra       Origem = "recompra"
-	OrigemRepasseFomento Origem = "repasse_fomento"
-	OrigemComissao       Origem = "comissao"
+	OrigemManual            Origem = "manual"
+	OrigemRecorrencia       Origem = "recorrencia"
+	OrigemRecompra          Origem = "recompra"
+	OrigemRepasseFomento    Origem = "repasse_fomento"
+	OrigemComissao          Origem = "comissao"
+	OrigemImportacaoParcela Origem = "importacao_parcela"
+	OrigemImportacaoCusto   Origem = "importacao_custo"
 )
 
 func NovaOrigem(valor string) (Origem, error) {
 	origem := Origem(strings.ToLower(strings.TrimSpace(valor)))
 
 	switch origem {
-	case OrigemManual, OrigemRecorrencia, OrigemRecompra, OrigemRepasseFomento, OrigemComissao:
+	case OrigemManual, OrigemRecorrencia, OrigemRecompra, OrigemRepasseFomento, OrigemComissao,
+		OrigemImportacaoParcela, OrigemImportacaoCusto:
 		return origem, nil
 	default:
-		return "", domain.ErroValidacao("origem deve ser manual, recorrencia, recompra, repasse_fomento ou comissao")
+		return "", domain.ErroValidacao("origem deve ser manual, recorrencia, recompra, repasse_fomento, comissao, importacao_parcela ou importacao_custo")
 	}
 }
 
@@ -36,5 +39,6 @@ func (o Origem) String() string {
 }
 
 func (o Origem) Sistemica() bool {
-	return o == OrigemRecompra || o == OrigemRepasseFomento || o == OrigemComissao
+	return o == OrigemRecompra || o == OrigemRepasseFomento || o == OrigemComissao ||
+		o == OrigemImportacaoParcela || o == OrigemImportacaoCusto
 }

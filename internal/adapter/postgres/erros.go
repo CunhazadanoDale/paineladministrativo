@@ -47,6 +47,8 @@ func traduzirErro(err error, chaveEstrangeira string) error {
 		return domain.ErroValidacao("valor em formato inválido")
 	case pqerror.CharacterNotInRepertoire, pqerror.UntranslatableCharacter:
 		return domain.ErroValidacao("texto com caractere inválido")
+	case pqerror.TRDeadlockDetected:
+		return domain.ErroConflito("operação concorrente no mesmo registro; recarregue e tente de novo")
 	default:
 		return err
 	}

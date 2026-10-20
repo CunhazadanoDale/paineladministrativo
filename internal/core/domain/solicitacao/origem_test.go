@@ -9,7 +9,7 @@ import (
 )
 
 func TestNovaOrigemAceitaSoAsConhecidas(t *testing.T) {
-	for _, valor := range []string{"manual", "recorrencia", " MANUAL ", "recompra", "repasse_fomento", "comissao"} {
+	for _, valor := range []string{"manual", "recorrencia", " MANUAL ", "recompra", "repasse_fomento", "comissao", "importacao_parcela", "importacao_custo"} {
 		if _, err := domainsolicitacao.NovaOrigem(valor); err != nil {
 			t.Errorf("NovaOrigem(%q) falhou: %v", valor, err)
 		}
@@ -23,8 +23,9 @@ func TestNovaOrigemAceitaSoAsConhecidas(t *testing.T) {
 
 func TestOrigemSistemica(t *testing.T) {
 	if !domainsolicitacao.OrigemRecompra.Sistemica() || !domainsolicitacao.OrigemRepasseFomento.Sistemica() ||
-		!domainsolicitacao.OrigemComissao.Sistemica() {
-		t.Error("recompra, repasse e comissão são origens sistêmicas")
+		!domainsolicitacao.OrigemComissao.Sistemica() || !domainsolicitacao.OrigemImportacaoParcela.Sistemica() ||
+		!domainsolicitacao.OrigemImportacaoCusto.Sistemica() {
+		t.Error("recompra, repasse, comissão e importação são origens sistêmicas")
 	}
 	if domainsolicitacao.OrigemManual.Sistemica() || domainsolicitacao.OrigemRecorrencia.Sistemica() {
 		t.Error("manual e recorrência têm geração própria")

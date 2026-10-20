@@ -10,7 +10,7 @@ import (
 func muxDoTeste(t *testing.T) *http.ServeMux {
 	t.Helper()
 
-	return novasRotas(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	return novasRotas(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 }
 
 func TestNewRouterAplicaCORS(t *testing.T) {
@@ -19,7 +19,7 @@ func TestNewRouterAplicaCORS(t *testing.T) {
 	requisicao.Header.Set("Access-Control-Request-Method", "POST")
 	registrador := httptest.NewRecorder()
 
-	NewRouter(nil, []string{"http://localhost:5173"}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).ServeHTTP(registrador, requisicao)
+	NewRouter(nil, []string{"http://localhost:5173"}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).ServeHTTP(registrador, requisicao)
 
 	if registrador.Code != http.StatusNoContent {
 		t.Errorf("status %d, esperado %d", registrador.Code, http.StatusNoContent)
@@ -288,6 +288,26 @@ func TestRotasRegistradasSemConflito(t *testing.T) {
 		{"POST /api/v1/caixa/fechamentos/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/reabrir", "POST /api/v1/caixa/fechamentos/{id}/reabrir"},
 		{"GET /api/v1/caixa/projecao", "GET /api/v1/caixa/projecao"},
 		{"GET /api/v1/caixa/movimento-diario", "GET /api/v1/caixa/movimento-diario"},
+		{"POST /api/v1/importacoes", "POST /api/v1/importacoes"},
+		{"GET /api/v1/importacoes", "GET /api/v1/importacoes"},
+		{"GET /api/v1/importacoes/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "GET /api/v1/importacoes/{id}"},
+		{"PUT /api/v1/importacoes/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "PUT /api/v1/importacoes/{id}"},
+		{"POST /api/v1/importacoes/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/embarcar", "POST /api/v1/importacoes/{id}/embarcar"},
+		{"POST /api/v1/importacoes/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/desembaracar", "POST /api/v1/importacoes/{id}/desembaracar"},
+		{"POST /api/v1/importacoes/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/cancelar", "POST /api/v1/importacoes/{id}/cancelar"},
+		{"GET /api/v1/importacoes/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/historico", "GET /api/v1/importacoes/{id}/historico"},
+		{"POST /api/v1/importacoes/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/parcelas", "POST /api/v1/importacoes/{id}/parcelas"},
+		{"PUT /api/v1/importacoes/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/parcelas/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", "PUT /api/v1/importacoes/{id}/parcelas/{parcela_id}"},
+		{"DELETE /api/v1/importacoes/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/parcelas/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", "DELETE /api/v1/importacoes/{id}/parcelas/{parcela_id}"},
+		{"POST /api/v1/importacoes/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/parcelas/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb/cambio", "POST /api/v1/importacoes/{id}/parcelas/{parcela_id}/cambio"},
+		{"POST /api/v1/importacoes/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/parcelas/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb/reabrir", "POST /api/v1/importacoes/{id}/parcelas/{parcela_id}/reabrir"},
+		{"POST /api/v1/importacoes/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/custos", "POST /api/v1/importacoes/{id}/custos"},
+		{"POST /api/v1/importacoes/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/custos/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb/cancelar", "POST /api/v1/importacoes/{id}/custos/{custo_id}/cancelar"},
+		{"GET /api/v1/importacoes/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/custo-previsto", "GET /api/v1/importacoes/{id}/custo-previsto"},
+		{"PUT /api/v1/importacoes/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/alocacoes", "PUT /api/v1/importacoes/{id}/alocacoes"},
+		{"POST /api/v1/importacoes/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/receber", "POST /api/v1/importacoes/{id}/receber"},
+		{"GET /api/v1/importacoes/alertas", "GET /api/v1/importacoes/alertas"},
+		{"GET /api/v1/pedidos/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/importacoes", "GET /api/v1/pedidos/{id}/importacoes"},
 	}
 
 	for _, caso := range casos {
@@ -309,7 +329,7 @@ func TestRotasRegistradasSemConflito(t *testing.T) {
 }
 
 func TestRotaNaoAtendidaRespondeNoEnvelopeJSON(t *testing.T) {
-	roteador := NewRouter(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	roteador := NewRouter(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	casos := []struct {
 		metodo string

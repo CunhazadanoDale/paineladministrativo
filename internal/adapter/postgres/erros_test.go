@@ -25,6 +25,7 @@ func TestTraduzirErroDoPostgres(t *testing.T) {
 		{pqerror.InvalidTextRepresentation, domain.ErrValidacao, "valor em formato inválido", "valor em formato inválido"},
 		{pqerror.CharacterNotInRepertoire, domain.ErrValidacao, "texto com caractere inválido", "texto com caractere inválido"},
 		{pqerror.UntranslatableCharacter, domain.ErrValidacao, "texto com caractere inválido", "texto com caractere inválido"},
+		{pqerror.TRDeadlockDetected, domain.ErrConflito, "operação concorrente no mesmo registro; recarregue e tente de novo", "operação concorrente no mesmo registro; recarregue e tente de novo"},
 	}
 
 	for _, caso := range casos {
