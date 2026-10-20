@@ -146,4 +146,16 @@ func TestParcelasCambioECustosDaImportacao(t *testing.T) {
 			break
 		}
 	}
+
+	resposta = enviaComToken(t, servidor, http.MethodGet, caminho+"/historico", nil, tokenComercial)
+	conferirStatus(t, resposta, http.StatusOK)
+	for _, linha := range decodificarEnvelope[[]importacaodto.HistoricoResponse](t, resposta).Dados {
+		comValores := linha.Acao != "criada" && linha.Acao != "cancelada"
+		if comValores && linha.Detalhe != "" {
+			t.Errorf("comercial viu o detalhe de %q: %q", linha.Acao, linha.Detalhe)
+		}
+		if linha.Acao == "cancelada" && linha.Detalhe != "desistência" {
+			t.Errorf("motivo do cancelamento escondido: %q", linha.Detalhe)
+		}
+	}
 }

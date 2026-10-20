@@ -11,6 +11,7 @@ type AlocacaoAbertaResponse struct {
 	ImportacaoStatus string    `json:"importacao_status"`
 	EmpresaID        uuid.UUID `json:"empresa_id"`
 	ChegadaPrevista  *string   `json:"chegada_prevista"`
+	ChegadaEm        *string   `json:"chegada_em"`
 	PedidoID         uuid.UUID `json:"pedido_id"`
 	PedidoNumero     int       `json:"pedido_numero"`
 	PedidoItemID     uuid.UUID `json:"pedido_item_id"`
@@ -64,6 +65,7 @@ func novaAlocacaoAbertaResponse(alocacao domainimportacao.AlocacaoAberta) Alocac
 		ImportacaoStatus: alocacao.ImportacaoStatus.String(),
 		EmpresaID:        alocacao.EmpresaID,
 		ChegadaPrevista:  formatarDataOpcional(alocacao.ChegadaPrevista),
+		ChegadaEm:        formatarDataOpcional(alocacao.ChegadaEm),
 		PedidoID:         alocacao.PedidoID,
 		PedidoNumero:     alocacao.PedidoNumero,
 		PedidoItemID:     alocacao.PedidoItemID,

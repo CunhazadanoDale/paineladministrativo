@@ -82,6 +82,20 @@ func TestAlocacaoERecebimentoDaImportacao(t *testing.T) {
 		t.Errorf("alocação depois do recebimento = %+v", alocacao)
 	}
 
+	resposta = enviaComToken(t, servidor, http.MethodGet, caminho, nil, tokenComercial)
+	conferirStatus(t, resposta, http.StatusOK)
+	if vista := decodificarEnvelope[importacaodto.ImportacaoDetalheResponse](t, resposta).Dados; vista.CambioMicro != nil ||
+		vista.Itens[0].CustoUnitarioCentavos != nil || vista.Itens[0].QuantidadeRecebida == nil || len(vista.Alocacoes) != 1 {
+		t.Errorf("visão do comercial depois do recebimento = %+v", vista)
+	}
+	resposta = enviaComToken(t, servidor, http.MethodGet, caminho+"/historico", nil, tokenComercial)
+	conferirStatus(t, resposta, http.StatusOK)
+	for _, linha := range decodificarEnvelope[[]importacaodto.HistoricoResponse](t, resposta).Dados {
+		if linha.Acao == "recebida" && linha.Detalhe != "" {
+			t.Errorf("comercial viu o detalhe do recebimento: %q", linha.Detalhe)
+		}
+	}
+
 	resposta = envia(t, servidor, http.MethodGet, "/api/v1/produtos/"+produtoID.String()+"/saldo", nil)
 	conferirStatus(t, resposta, http.StatusOK)
 	if saldo := decodificarEnvelope[estoquedto.SaldoResponse](t, resposta).Dados; saldo.Saldo != 1000 || saldo.Reservado != 600 {

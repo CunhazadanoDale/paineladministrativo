@@ -63,6 +63,9 @@ type importacaoUseCaseFalso struct {
 
 func importacaoDeTeste() *domainimportacao.Importacao {
 	chegada := time.Date(2026, 11, 20, 0, 0, 0, 0, time.UTC)
+	cambio := domainimportacao.CambioDe(5_400_000)
+	custo := int64(2430)
+	recebida := 1000
 
 	return &domainimportacao.Importacao{
 		ID:              uuid.New(),
@@ -71,9 +74,11 @@ func importacaoDeTeste() *domainimportacao.Importacao {
 		Status:          domainimportacao.StatusEmbarcada,
 		ValorTotal:      domainimportacao.ValorMoedaDe(450000),
 		ChegadaPrevista: &chegada,
+		Cambio:          &cambio,
 		Versao:          2,
 		Itens: []*domainimportacao.Item{
-			{ID: uuid.New(), ProdutoID: uuid.New(), Quantidade: 1000, Valor: domainimportacao.ValorMoedaDe(450000)},
+			{ID: uuid.New(), ProdutoID: uuid.New(), Quantidade: 1000, Valor: domainimportacao.ValorMoedaDe(450000),
+				QuantidadeRecebida: &recebida, CustoUnitarioCentavos: &custo},
 		},
 	}
 }
@@ -166,7 +171,8 @@ func TestLeituraSemValoresOmiteOsCampos(t *testing.T) {
 	id := uuid.NewString()
 
 	registrador := executaProtegido(t, handler.Obter, http.MethodGet, "/api/v1/importacoes/"+id, id, "")
-	if registrador.Code != http.StatusOK || strings.Contains(registrador.Body.String(), "valor_") {
+	if corpo := registrador.Body.String(); registrador.Code != http.StatusOK || strings.Contains(corpo, "valor_") ||
+		strings.Contains(corpo, "cambio_micro") || strings.Contains(corpo, "custo_unitario") || !strings.Contains(corpo, `"quantidade_recebida":1000`) {
 		t.Errorf("detalhe sem valores: status %d, corpo %s", registrador.Code, registrador.Body.String())
 	}
 
