@@ -164,7 +164,7 @@ o **F0b** pode correr junto com essas telas.
 | M9 | Contas a receber e antecipação | M3 M5 | A receber no banco, títulos do Controle de NFs | concluído |
 | M10 | Comissões | M3 M6 | comissões calculadas à mão | concluído |
 | M11 | Propostas e tabela de preços | M3 M6 | orçamentos em documento, guia de modelos de venda | concluído |
-| M12 | Importações | M2 M4 M6 M7 | parte de Entregas de importação e do painel financeiro | pendente |
+| M12 | Importações | M2 M4 M6 M7 | parte de Entregas de importação e do painel financeiro | concluído |
 | M13 | Caixa e conciliação | M5 M7 M9 | Caixa do mês, Fluxo de caixa diário | concluído |
 | M14 | Dívidas e empréstimos | M4 M5 M7 | Dívidas do grupo | pendente |
 | M15 | DRE e painéis | M2 M7 M8 M9 M13 | DRE, Faturamento, Relatório semanal | pendente |
@@ -1010,6 +1010,28 @@ Acordo fechado (outubro/2026) para as duas sessões correrem em paralelo:
 - **Recebimento**: cria lotes no estoque (M2) com custo unitário rateado (produto +
   custos) e libera as reservas dos pedidos atendidos.
 - **Alertas**: pedidos cujo prazo de 120 dias vence antes da chegada prevista.
+
+**Entregue (outubro/2026):** API completa (fases 1 a 4 do `IMPORTACOES.md`); front pendente (fase 5). Para os
+próximos módulos:
+
+- uma importação = um embarque (DI/DUIMP) de um fornecedor para uma empresa importadora, com estados `aberta` →
+  `embarcada` → `desembaracada` → `recebida` (e `cancelada`); valor dos itens na moeda (`domainfornecedor.Moeda`),
+  câmbio em `cambio_micro` (6 casas);
+- a parcela ao fornecedor só vira conta a pagar ao **fechar o câmbio** (`origem = importacao_parcela`) e cada custo
+  de nacionalização gera a sua na hora (`origem = importacao_custo`), ambas por `gerarSolicitacaoDeOrigem` na
+  transação do M12; categoria sugerida `compra_mercadoria` (fora do resultado). **Nenhum port nem repositório do
+  M7 mudou**; só `Origem`, `NovaOrigem`, `Sistemica()` e o `chk_solicitacao_origem`;
+- o recebimento grava, numa transação, a entrada no estoque por item (lote com o custo unitário rateado: parcelas
+  com câmbio fechado + câmbio informado para o resto + custos com `compoe_custo`, pelo valor em reais) e as reservas
+  `pedido_item` dos pedidos alocados; o pedido ganha `pendencias_reservadas` no histórico. **Nenhum port nem
+  repositório do M2 e do M6 mudou**;
+- **M15**: o CMV da mercadoria importada sai dos lotes (`produto_movimento_lote`), nunca das contas a pagar da
+  importação; custo com `compoe_custo = false` (tributo recuperável, custo posterior ao recebimento) entra na DRE pela
+  própria categoria e competência da conta a pagar;
+- **M13**: concilia os pagamentos de parcelas e custos como qualquer conta a pagar; parcela sem câmbio fechado não
+  aparece na projeção;
+- **M14**: a dívida pode acrescentar a própria origem em `chk_solicitacao_origem` como o M12;
+- migrations `000064` a `000066`; renumerar antes do merge se outra sessão mergear antes.
 
 ### M13 — Caixa e conciliação
 

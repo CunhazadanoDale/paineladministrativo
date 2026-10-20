@@ -3478,6 +3478,8 @@ da seção 4 do `EMPRESAS.md`). Escopo e decisões em `IMPORTACOES.md`.
 | `GET` | `/api/v1/importacoes/{id}/custo-previsto` | **financeiro** | `200` prévia do rateio (`?cambio_micro=`), sem gravar |
 | `PUT` | `/api/v1/importacoes/{id}/alocacoes` | comercial ou financeiro | `200` importação com as alocações (substitui todas) |
 | `POST` | `/api/v1/importacoes/{id}/receber` | **financeiro** | `200` importação recebida: entrada no estoque e reservas para os pedidos |
+| `GET` | `/api/v1/importacoes/alertas` | comercial ou financeiro | `200` prazos em risco, alocações sem previsão e pedidos sem importação (`?empresa=`, `?folga=`) |
+| `GET` | `/api/v1/pedidos/{id}/importacoes` | comercial ou financeiro | `200` lista (`{ "dados": [...] }`) das importações que atendem o pedido |
 
 Leitura sem perfil comercial nem financeiro → `403 perfil sem permissão para consultar importações`;
 escrita sem financeiro → `403` do middleware. Importação de empresa fora do acesso → `403 perfil sem acesso
@@ -3742,6 +3744,47 @@ Campos que o recebimento preenche no detalhe: `recebida_em`, `local_recebimento_
   }]
 }
 ```
+
+### Alertas
+
+`GET /importacoes/alertas?empresa=&folga=` (comercial ou financeiro; sem `empresa`, todas do acesso). `folga` é
+o tempo, em dias, entre a chegada e a entrega ao cliente (desembaraço e frete): padrão `10`, de `0` a `90`
+(`400` fora disso). Só entram importações `aberta`, `embarcada` ou `desembaracada` e pedidos de importação
+`confirmado` ou `parcialmente_entregue`.
+
+| Lista | O que mostra |
+| --- | --- |
+| `prazo_em_risco` | alocação cuja `chegada_prevista + folga` passa do `prazo_limite` do pedido, com `chegada_com_folga` e `dias_de_atraso`; pedido sem prazo-limite (importação sem entrada paga) não entra |
+| `sem_previsao` | alocação de importação ainda sem `chegada_prevista` |
+| `sem_importacao` | item de pedido de importação com `restante − reservado − alocado > 0` (`sem_cobertura`), somando as importações abertas |
+
+Ordenadas pelo prazo-limite (sem prazo por último).
+
+```json
+{
+  "dados": {
+    "folga_dias": 10,
+    "prazo_em_risco": [{
+      "importacao_id": "…", "importacao_numero": 1, "importacao_status": "embarcada", "empresa_id": "…",
+      "chegada_prevista": "2027-05-07", "pedido_id": "…", "pedido_numero": 3, "pedido_item_id": "…",
+      "produto_id": "…", "quantidade": 300, "prazo_limite": "2027-02-16",
+      "chegada_com_folga": "2027-05-17", "dias_de_atraso": 90
+    }],
+    "sem_previsao": [],
+    "sem_importacao": [{
+      "pedido_id": "…", "pedido_numero": 3, "empresa_id": "…", "pedido_item_id": "…", "produto_id": "…",
+      "prazo_limite": "2027-02-16", "restante": 600, "reservado": 0, "alocado": 400, "sem_cobertura": 200
+    }]
+  }
+}
+```
+
+### Importações do pedido
+
+`GET /pedidos/{id}/importacoes` (comercial ou financeiro, pedido de empresa no acesso; `404` sem pedido) lista
+as alocações do pedido em importações não canceladas: `importacao_id`, `importacao_numero`, `importacao_status`,
+`chegada_prevista`, `recebida_em`, `pedido_item_id`, `produto_id`, `quantidade` e `reservada` (preenchida no
+recebimento), em ordem de número da importação.
 
 ---
 

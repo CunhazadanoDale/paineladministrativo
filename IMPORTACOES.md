@@ -1,8 +1,8 @@
 # Escopo — M12 Importações
 
 > **Status:** escopo fechado — decisões D1 a D14 respondidas pelo usuário (outubro/2026), todas as
-> recomendações aceitas; fases 1 (importação, itens e estados até o desembaraço), 2 (parcelas, câmbio e
-> custos com conta a pagar) e 3 (alocação de pedidos e recebimento com estoque e reserva) concluídas.
+> recomendações aceitas; API concluída (fases 1 a 4: importação e estados, parcelas, câmbio e custos com conta a
+> pagar, alocação de pedidos, recebimento com estoque e reserva, alertas); front (fase 5) pendente.
 > **Objetivo:** tirar das planilhas a parte de compra das "Entregas de importação" e do painel
 > financeiro: o processo de importação do pedido ao fornecedor até a mercadoria no estoque, com
 > câmbio, custos de nacionalização rateados no custo do lote, pagamentos ao fornecedor e aos
@@ -324,7 +324,7 @@ seção 3 do `ROADMAP.md`).
 | **1** | Importação e itens (migration 000064): domínio, estados até `desembaracada`, cancelamento, repositório com sequência e histórico, usecase com escopo por empresa, rotas, e2e + `API.md` | concluída |
 | **2** | Parcelas, câmbio e custos com conta a pagar no M7 (migration 000065), cancelamento com conta gerada, prévia do custo; integração de idempotência; e2e + `API.md` | concluída |
 | **3** | Alocação de pedidos (migration 000066), recebimento com entrada, lote e reserva na mesma transação; integração de concorrência com entrega; e2e + `API.md` | concluída |
-| **4** | Alertas e `GET /pedidos/{id}/importacoes`; e2e + `API.md` | pendente |
+| **4** | Alertas e `GET /pedidos/{id}/importacoes`; e2e + `API.md` | concluída |
 | **5** | Frontend (lista, detalhe, parcelas, custos, recebimento, alertas) | pendente |
 
 Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates verdes.
@@ -354,6 +354,14 @@ Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates ve
 - [x] **Fase 1 — moeda na alteração** (implementação): moeda vazia mantém a da importação (ou a padrão do
       fornecedor novo, quando ele é trocado com a importação aberta); fornecedor e produto já gravados não
       são conferidos de novo, e a troca de fornecedor trava o novo com `FOR SHARE` na transação.
+- [x] **Fase 4 — alertas** (implementação): consulta própria (`ImportacaoConsultaRepository`) traz as alocações de
+      importações abertas e os itens de pedido de importação com falta; a classificação (prazo em risco, sem
+      previsão, sem importação) é do domínio (`ClassificarAlertas`). `folga` de 0 a 90 dias, padrão 10; pedido sem
+      prazo-limite (importação sem entrada paga) não gera prazo em risco. Escopo pela empresa da importação e, em
+      `sem_importacao`, pela empresa do pedido.
+- [x] **Fase 4 — importações do pedido** (implementação): `GET /pedidos/{id}/importacoes` fica no módulo de
+      importação (registrado no bloco dele em `rotas.go`) e confere só o acesso à empresa do pedido; o filtro de
+      representante com login do M6 não se aplica aqui, porque a rota não mostra valores nem cliente.
 - [x] **Fase 3 — leitura do pedido** (implementação): o M12 lê pedido, item, reservas ativas e o alocado em outras
       importações por consulta própria (`ImportacaoRepository.ItensDePedido`); **nenhum método novo no port nem no
       repositório do M6**. O histórico `pendencias_reservadas` do pedido é gravado pela função interna

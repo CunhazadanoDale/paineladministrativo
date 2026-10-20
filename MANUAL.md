@@ -969,7 +969,7 @@ GET  /api/v1/pedidos/<id>/proposta
 
 | Módulo | O que vai fazer |
 |---|---|
-| M12 Importações | Processo de importação (embarque até recebimento), câmbio e custos rateados nos lotes; pagamentos ao fornecedor viram contas a pagar; o recebimento reserva automaticamente as pendências dos pedidos |
+| M12 Importações | API pronta (front pendente): embarque até recebimento, parcelas com câmbio e custos que viram contas a pagar, custo rateado nos lotes e reserva automática para os pedidos alocados. Escopo em `IMPORTACOES.md` |
 | M13 Caixa e conciliação | Extrato OFX/CSV, conciliação com pagamentos e recebimentos, lançamentos avulsos, fechamento mensal e projeção de 90 dias. Escopo em `CAIXA.md`, com decisões em aberto |
 | M14 Dívidas e empréstimos | Dívidas e parcelas, que viram contas a pagar; renegociação |
 | M15 DRE e painéis | DRE por competência e linha da DRE, faturamento e relatório semanal (só leitura) |
