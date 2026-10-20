@@ -72,6 +72,9 @@ func (u *RecebimentoUsecaseImpl) DefinirAlocacoes(ctx context.Context, input por
 	if err := importacao.ConferirVersao(input.Versao); err != nil {
 		return nil, err
 	}
+	if err := importacao.ExigirAlocacoesAbertas(); err != nil {
+		return nil, err
+	}
 
 	entradas := make([]domainimportacao.AlocacaoInput, 0, len(input.Alocacoes))
 	ids := make([]uuid.UUID, 0, len(input.Alocacoes))
@@ -126,7 +129,25 @@ func (u *RecebimentoUsecaseImpl) Receber(ctx context.Context, input portsin.Rece
 		return nil, err
 	}
 
+	agora := time.Now().UTC()
+	anterior := importacao.Status
+	calculo, err := importacao.Receber(domainimportacao.RecebimentoInput{
+		RecebidaEm:  input.RecebidaEm,
+		LocalID:     input.LocalID,
+		CambioMicro: input.CambioMicro,
+		Recebidas:   input.Recebidas,
+	}, agora)
+	if err != nil {
+		return nil, err
+	}
+
 	local, err := u.localDoRecebimento(ctx, importacao, input.LocalID)
+	if err != nil {
+		return nil, err
+	}
+
+	cadeia := &encadeamento{}
+	estoques, err := u.darEntrada(ctx, importacao, local, input.UsuarioID, cadeia, agora)
 	if err != nil {
 		return nil, err
 	}
@@ -136,24 +157,6 @@ func (u *RecebimentoUsecaseImpl) Receber(ctx context.Context, input portsin.Rece
 		ids = append(ids, alocacao.PedidoItemID)
 	}
 	pedidos, err := u.itensDePedido(ctx, ids, importacao.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	agora := time.Now().UTC()
-	anterior := importacao.Status
-	calculo, err := importacao.Receber(domainimportacao.RecebimentoInput{
-		RecebidaEm:  input.RecebidaEm,
-		LocalID:     local.ID,
-		CambioMicro: input.CambioMicro,
-		Recebidas:   input.Recebidas,
-	}, agora)
-	if err != nil {
-		return nil, err
-	}
-
-	cadeia := &encadeamento{}
-	estoques, err := u.darEntrada(ctx, importacao, local, input.UsuarioID, cadeia, agora)
 	if err != nil {
 		return nil, err
 	}

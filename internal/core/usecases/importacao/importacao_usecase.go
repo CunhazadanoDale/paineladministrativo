@@ -220,7 +220,21 @@ func (u *ImportacaoUsecaseImpl) ListarHistorico(ctx context.Context, importacaoI
 		return nil, err
 	}
 
-	return u.importacoes.ListarHistorico(ctx, importacaoID)
+	historicos, err := u.importacoes.ListarHistorico(ctx, importacaoID)
+	if err != nil || perfil.financeiro {
+		return historicos, err
+	}
+
+	semValores := make([]*domainimportacao.Historico, 0, len(historicos))
+	for _, historico := range historicos {
+		copia := *historico
+		if copia.Acao.ExpoeValores() {
+			copia.Detalhe = ""
+		}
+		semValores = append(semValores, &copia)
+	}
+
+	return semValores, nil
 }
 
 func (u *ImportacaoUsecaseImpl) transicionar(

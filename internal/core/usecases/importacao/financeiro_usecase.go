@@ -97,12 +97,11 @@ func (u *FinanceiroUsecaseImpl) RemoverParcela(ctx context.Context, input portsi
 }
 
 func (u *FinanceiroUsecaseImpl) FecharCambio(ctx context.Context, input portsin.FecharCambioInput) (*portsin.Visao, error) {
-	if err := u.exigirCategoriaDeDespesa(ctx, input.CategoriaFinanceiraID); err != nil {
-		return nil, err
-	}
-
 	return u.operar(ctx, input.UsuarioID, input.ImportacaoID, input.Versao,
 		func(importacao *domainimportacao.Importacao, agora time.Time) (*operacaoFinanceira, error) {
+			if err := u.exigirCategoriaDeDespesa(ctx, input.CategoriaFinanceiraID); err != nil {
+				return nil, err
+			}
 			parcela, err := importacao.FecharCambio(input.ParcelaID, domainimportacao.FechamentoCambioInput{
 				CambioMicro: input.CambioMicro,
 				Vencimento:  input.Vencimento,
@@ -160,19 +159,18 @@ func (u *FinanceiroUsecaseImpl) ReabrirParcela(ctx context.Context, input portsi
 }
 
 func (u *FinanceiroUsecaseImpl) LancarCusto(ctx context.Context, input portsin.LancarCustoInput) (*portsin.Visao, error) {
-	tipo, err := domainimportacao.NovoTipoCusto(input.Tipo)
-	if err != nil {
-		return nil, err
-	}
-	if err := u.exigirFornecedorAtivo(ctx, input.FornecedorID); err != nil {
-		return nil, err
-	}
-	if err := u.exigirCategoriaDeDespesa(ctx, input.CategoriaFinanceiraID); err != nil {
-		return nil, err
-	}
-
 	return u.operar(ctx, input.UsuarioID, input.ImportacaoID, input.Versao,
 		func(importacao *domainimportacao.Importacao, agora time.Time) (*operacaoFinanceira, error) {
+			tipo, err := domainimportacao.NovoTipoCusto(input.Tipo)
+			if err != nil {
+				return nil, err
+			}
+			if err := u.exigirFornecedorAtivo(ctx, input.FornecedorID); err != nil {
+				return nil, err
+			}
+			if err := u.exigirCategoriaDeDespesa(ctx, input.CategoriaFinanceiraID); err != nil {
+				return nil, err
+			}
 			custo, err := importacao.LancarCusto(input.UsuarioID, domainimportacao.DadosCusto{
 				Tipo:                  tipo,
 				Descricao:             input.Descricao,
