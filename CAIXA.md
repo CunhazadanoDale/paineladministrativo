@@ -1,7 +1,7 @@
 # Escopo — M13 Caixa e conciliação
 
 > **Status:** escopo fechado — decisões D1 a D15 respondidas pelo usuário (outubro/2026): todas as
-> recomendações aceitas, com OFX como único formato (D4); API concluída (fases 1 a 5: saldo inicial, extrato, conciliação, classificação, transferência, fechamento e projeção); front (fase 6) pendente.
+> recomendações aceitas, com OFX como único formato (D4); API concluída (fases 1 a 5: saldo inicial, extrato, conciliação, classificação, transferência, fechamento e projeção); front (fase 6) concluído.
 > **Objetivo:** tirar o "Caixa do mês" e o "Fluxo de caixa diário" das planilhas: extrato bancário
 > importado por conta (OFX), conciliado com os pagamentos do M7 e os recebimentos e borderôs do
 > M9, linhas sem par classificadas no plano de contas, fechamento mensal por conta com divergência
@@ -354,7 +354,7 @@ test/helpers + test/integration + test/e2e
 | **3** | Classificação e transferência entre contas (migration 000062): `lancamento_caixa`, estorno pelo desfazer, `transferencia_conta` com as duas pontas; e2e + `API.md` | concluída |
 | **4** | Fechamento mensal e reabertura (migration 000063), bloqueio de importação em mês fechado; e2e + `API.md` | concluída |
 | **5** | Projeção diária e movimento diário realizado; e2e + `API.md` | concluída |
-| **6** | Frontend (abertura, importação, tela de conciliação, fechamento, projeção) | pendente |
+| **6** | Frontend (abertura, importação, tela de conciliação, fechamento, projeção) | concluída |
 
 Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates verdes.
 

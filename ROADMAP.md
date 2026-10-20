@@ -153,7 +153,7 @@ o **F0b** pode correr junto com essas telas.
 | F-M8 | Front de NF-e por XML | M8 F-M6 F-M9 | — | concluído |
 | F-M10 | Front de comissões | M10 F-M6 F-M7 | — | concluído |
 | F-M11 | Front de propostas e tabela de preços | M11 F-M6 | — | concluído |
-| F-M13 | Front de caixa e conciliação | M13 F-M5 F-M7 F-M9 | — | em andamento (feat/front-m13-caixa) |
+| F-M13 | Front de caixa e conciliação | M13 F-M5 F-M7 F-M9 | — | concluído |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
 | M3 | Clientes e representantes | M1 | Base de clientes | concluído |
@@ -618,6 +618,30 @@ próximos fronts:
 - a suíte de testes passou a ficar estável depois do `pool: 'vmThreads'` no `vite.config.js` (sessão à
   parte; confira se já está na `main` do front).
 
+**Entregue o front do M13 (outubro/2026, branch `feat/front-m13-caixa` do front):** módulo novo
+`modules/caixa`, só para o financeiro, em `/caixa` com abas. Para os próximos fronts (M12, M14, M15):
+
+- `services/caixa.js` (saldo inicial com versão só quando existe, saldos, `enviarOfx` com
+  `application/x-ofx` quando o navegador não informa o tipo, importação com simulação, lançamentos do
+  extrato, sugestões, conciliação, classificação, transferência, automática, desfazer, pendências do
+  sistema, pagamentos sem conta, lançamentos de caixa, transferências, fechamento, projeção e movimento
+  diário);
+- **Saldos**: saldo atual, último lançamento, saldo do banco e diferença por conta; saldo inicial com
+  corte padrão no último dia do mês anterior e saldo negativo aceito;
+- **Importações**: simular sem gravar e importar o mesmo arquivo, relatório com as ignoradas e o motivo,
+  arquivo apagado quando a importação é recusada; desfazer a mais recente só para o administrador;
+- **Conciliação**: linhas por conta e período com a situação; conciliar com um ou mais movimentos da
+  janela de 3 dias (sugestões marcadas, soma conferida antes de enviar, link para a origem), classificar
+  pela natureza do sinal, transferência com a outra conta e categoria de transferência, desfazer com
+  motivo e a automática do período;
+- **Registros**: pendências do sistema por conta, lançamentos de caixa, transferências e pagamentos sem
+  conta;
+- **Fechamentos**: prévia com o que impede (mês aberto, pendentes, invalidadas, diferença de saldo),
+  saldo do banco pedido quando o OFX não traz o do último dia, detalhe com as divergências e reabertura
+  do administrador;
+- **Projeção** (até 90 dias, por empresa ou consolidada, com saldo de partida e em trânsito) e
+  **Movimento diário** (até 92 dias), que substitui o "Fluxo de caixa diário".
+
 ### M1 — Empresas e filiais
 
 Fundação: tudo o que é financeiro, fiscal ou de estoque passa a pertencer a uma empresa.
@@ -1023,7 +1047,7 @@ Acordo fechado (outubro/2026) para as duas sessões correrem em paralelo:
 - **Projeção**: saldo diário projetado = saldo atual + títulos a receber − contas a
   pagar, por empresa e consolidado.
 
-**Entregue (outubro/2026):** API completa (fases 1 a 5 do `CAIXA.md`); front pendente (fase 6). Para os
+**Entregue (outubro/2026):** API completa (fases 1 a 5 do `CAIXA.md`); front no F-M13. Para os
 próximos módulos:
 
 - o extrato é a fonte do saldo: `caixa_abertura` (saldo no fim da data de corte) + `extrato_lancamento`
