@@ -11,6 +11,7 @@ import (
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/estoque"
 	financeirohandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/financeiro"
 	fornecedorhandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/fornecedor"
+	importacaohandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/importacao"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/lead"
 	notafiscalhandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/notafiscal"
 	pedidohandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/pedido"
@@ -28,6 +29,7 @@ import (
 	portsinestoque "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/estoque"
 	portsinfinanceiro "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/financeiro"
 	portsinfornecedor "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/fornecedor"
+	portsinimportacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/importacao"
 	portsinlead "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/leads"
 	portsinnotafiscal "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/notafiscal"
 	portsinpedido "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/pedido"
@@ -93,6 +95,10 @@ func NewRouter(
 	lancamentoCaixaUseCase portsincaixa.LancamentoCaixaUseCase,
 	fechamentoCaixaUseCase portsincaixa.FechamentoUseCase,
 	projecaoCaixaUseCase portsincaixa.ProjecaoUseCase,
+	importacaoUseCase portsinimportacao.ImportacaoUseCase,
+	financeiroImportacaoUseCase portsinimportacao.FinanceiroUseCase,
+	recebimentoImportacaoUseCase portsinimportacao.RecebimentoUseCase,
+	consultaImportacaoUseCase portsinimportacao.ConsultaUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, middleware.ErrosDeRoteamento(novasRotas(
@@ -122,6 +128,7 @@ func NewRouter(
 		lancamentoCaixaUseCase,
 		fechamentoCaixaUseCase,
 		projecaoCaixaUseCase,
+		importacaoUseCase, financeiroImportacaoUseCase, recebimentoImportacaoUseCase, consultaImportacaoUseCase,
 		tokens,
 	)))
 }
@@ -178,6 +185,10 @@ func novasRotas(
 	lancamentoCaixaUseCase portsincaixa.LancamentoCaixaUseCase,
 	fechamentoCaixaUseCase portsincaixa.FechamentoUseCase,
 	projecaoCaixaUseCase portsincaixa.ProjecaoUseCase,
+	importacaoUseCase portsinimportacao.ImportacaoUseCase,
+	financeiroImportacaoUseCase portsinimportacao.FinanceiroUseCase,
+	recebimentoImportacaoUseCase portsinimportacao.RecebimentoUseCase,
+	consultaImportacaoUseCase portsinimportacao.ConsultaUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -569,6 +580,34 @@ func novasRotas(
 	projecaoCaixaHandler := caixahandlers.NewProjecaoHandler(projecaoCaixaUseCase)
 	financeiro("GET /api/v1/caixa/projecao", projecaoCaixaHandler.Projetar)
 	financeiro("GET /api/v1/caixa/movimento-diario", projecaoCaixaHandler.MovimentoDiario)
+
+	importacaoHandler := importacaohandlers.NewImportacaoHandler(importacaoUseCase)
+	financeiro("POST /api/v1/importacoes", importacaoHandler.Criar)
+	protegido("GET /api/v1/importacoes", importacaoHandler.Listar)
+	protegido("GET /api/v1/importacoes/{id}", importacaoHandler.Obter)
+	financeiro("PUT /api/v1/importacoes/{id}", importacaoHandler.Alterar)
+	financeiro("POST /api/v1/importacoes/{id}/embarcar", importacaoHandler.Embarcar)
+	financeiro("POST /api/v1/importacoes/{id}/desembaracar", importacaoHandler.Desembaracar)
+	financeiro("POST /api/v1/importacoes/{id}/cancelar", importacaoHandler.Cancelar)
+	protegido("GET /api/v1/importacoes/{id}/historico", importacaoHandler.ListarHistorico)
+
+	financeiroImportacaoHandler := importacaohandlers.NewFinanceiroHandler(financeiroImportacaoUseCase)
+	financeiro("POST /api/v1/importacoes/{id}/parcelas", financeiroImportacaoHandler.IncluirParcela)
+	financeiro("PUT /api/v1/importacoes/{id}/parcelas/{parcela_id}", financeiroImportacaoHandler.AlterarParcela)
+	financeiro("DELETE /api/v1/importacoes/{id}/parcelas/{parcela_id}", financeiroImportacaoHandler.RemoverParcela)
+	financeiro("POST /api/v1/importacoes/{id}/parcelas/{parcela_id}/cambio", financeiroImportacaoHandler.FecharCambio)
+	financeiro("POST /api/v1/importacoes/{id}/parcelas/{parcela_id}/reabrir", financeiroImportacaoHandler.ReabrirParcela)
+	financeiro("POST /api/v1/importacoes/{id}/custos", financeiroImportacaoHandler.LancarCusto)
+	financeiro("POST /api/v1/importacoes/{id}/custos/{custo_id}/cancelar", financeiroImportacaoHandler.CancelarCusto)
+	financeiro("GET /api/v1/importacoes/{id}/custo-previsto", financeiroImportacaoHandler.CustoPrevisto)
+
+	recebimentoImportacaoHandler := importacaohandlers.NewRecebimentoHandler(recebimentoImportacaoUseCase)
+	protegido("PUT /api/v1/importacoes/{id}/alocacoes", recebimentoImportacaoHandler.DefinirAlocacoes)
+	financeiro("POST /api/v1/importacoes/{id}/receber", recebimentoImportacaoHandler.Receber)
+
+	consultaImportacaoHandler := importacaohandlers.NewConsultaHandler(consultaImportacaoUseCase)
+	protegido("GET /api/v1/importacoes/alertas", consultaImportacaoHandler.Alertas)
+	protegido("GET /api/v1/pedidos/{id}/importacoes", consultaImportacaoHandler.ImportacoesDoPedido)
 
 	return mux
 }
