@@ -18,30 +18,34 @@ const (
 )
 
 type Importacao struct {
-	ID                uuid.UUID
-	EmpresaID         uuid.UUID
-	Numero            int
-	FornecedorID      uuid.UUID
-	Referencia        *string
-	Moeda             domainfornecedor.Moeda
-	Status            Status
-	ValorTotal        ValorMoeda
-	EmbarquePrevisto  *time.Time
-	EmbarcadaEm       *time.Time
-	ChegadaPrevista   *time.Time
-	ChegadaEm         *time.Time
-	DesembaracadaEm   *time.Time
-	DocumentoEmbarque *string
-	Declaracao        *string
-	Observacoes       string
-	CanceladaMotivo   *string
-	UsuarioID         uuid.UUID
-	Versao            int
-	CriadoEm          time.Time
-	AtualizadoEm      time.Time
-	Itens             []*Item
-	Parcelas          []*Parcela
-	Custos            []*Custo
+	ID                 uuid.UUID
+	EmpresaID          uuid.UUID
+	Numero             int
+	FornecedorID       uuid.UUID
+	Referencia         *string
+	Moeda              domainfornecedor.Moeda
+	Status             Status
+	ValorTotal         ValorMoeda
+	EmbarquePrevisto   *time.Time
+	EmbarcadaEm        *time.Time
+	ChegadaPrevista    *time.Time
+	ChegadaEm          *time.Time
+	DesembaracadaEm    *time.Time
+	DocumentoEmbarque  *string
+	Declaracao         *string
+	Observacoes        string
+	CanceladaMotivo    *string
+	UsuarioID          uuid.UUID
+	Versao             int
+	CriadoEm           time.Time
+	AtualizadoEm       time.Time
+	Itens              []*Item
+	Cambio             *Cambio
+	RecebidaEm         *time.Time
+	LocalRecebimentoID *uuid.UUID
+	Parcelas           []*Parcela
+	Custos             []*Custo
+	Alocacoes          []*Alocacao
 }
 
 type DadosImportacao struct {
@@ -273,6 +277,9 @@ func (i *Importacao) aplicarDados(dados DadosImportacao, agora time.Time) error 
 	if err := i.conferirParcelasNoTotal(total, ValorMoeda{}, uuid.Nil); err != nil {
 		return err
 	}
+	if err := i.conferirAlocacoesNosItens(itens); err != nil {
+		return err
+	}
 
 	i.FornecedorID = dados.FornecedorID
 	i.Moeda = dados.Moeda
@@ -283,6 +290,29 @@ func (i *Importacao) aplicarDados(dados DadosImportacao, agora time.Time) error 
 	i.Itens = itens
 	i.ValorTotal = total
 	i.AtualizadoEm = agora
+
+	return nil
+}
+
+func (i *Importacao) conferirAlocacoesNosItens(itens []*Item) error {
+	quantidades := make(map[uuid.UUID]int, len(itens))
+	for _, item := range itens {
+		quantidades[item.ID] = item.Quantidade
+	}
+
+	alocado := make(map[uuid.UUID]int)
+	for _, alocacao := range i.Alocacoes {
+		alocado[alocacao.ImportacaoItemID] += alocacao.Quantidade
+	}
+	for itemID, quantidade := range alocado {
+		restante, ok := quantidades[itemID]
+		if !ok {
+			return domain.ErroValidacao("o item removido tem pedidos alocados; tire as alocações antes")
+		}
+		if quantidade > restante {
+			return domain.ErroValidacao("a quantidade do item ficaria menor que o alocado para pedidos")
+		}
+	}
 
 	return nil
 }

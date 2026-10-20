@@ -24,6 +24,8 @@ const (
 	AcaoParcelaReaberta      Acao = "parcela_reaberta"
 	AcaoCustoLancado         Acao = "custo_lancado"
 	AcaoCustoCancelado       Acao = "custo_cancelado"
+	AcaoAlocacaoAlterada     Acao = "alocacao_alterada"
+	AcaoRecebida             Acao = "recebida"
 )
 
 func AcaoDe(valor string) Acao {

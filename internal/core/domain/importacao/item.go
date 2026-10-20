@@ -11,12 +11,15 @@ import (
 const quantidadeMaxima = math.MaxInt32
 
 type Item struct {
-	ID           uuid.UUID
-	ImportacaoID uuid.UUID
-	ProdutoID    uuid.UUID
-	Quantidade   int
-	Valor        ValorMoeda
-	CriadoEm     time.Time
+	ID                    uuid.UUID
+	ImportacaoID          uuid.UUID
+	ProdutoID             uuid.UUID
+	Quantidade            int
+	Valor                 ValorMoeda
+	QuantidadeRecebida    *int
+	CustoUnitarioCentavos *int64
+	MovimentoID           *uuid.UUID
+	CriadoEm              time.Time
 }
 
 type ItemInput struct {
