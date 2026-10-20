@@ -208,7 +208,7 @@ rotas.go, cmd/api/main.go, test/helpers/servidor.go       bloco do M15 no fim
 
 | Fase | Entrega | Estado |
 |---|---|---|
-| **1** | Domínio: período mensal/semanal, linhas e sinais, montagem do demonstrativo, subtotais, indicadores e ponto de equilíbrio + testes | pendente |
+| **1** | Domínio: período mensal/semanal, linhas e sinais, montagem do demonstrativo, subtotais, indicadores e ponto de equilíbrio + testes | concluída |
 | **2** | `dre_resumo_repo.go` (receita, CMV, solicitação, títulos, caixa, faturamento) + índices + testes de integração com os cenários de fonte única | pendente |
 | **3** | Usecases de resumo e faturamento + permissões + testes com fakes; DTOs, handlers, rotas, `main.go`, e2e e `API.md` | pendente |
 | **4** | Relatório semanal: repositório, porta de saldos do M13, usecase, handler, e2e e `API.md` | pendente |
