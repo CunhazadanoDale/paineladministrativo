@@ -30,6 +30,7 @@ type alocacaoAbertaLinha struct {
 	ImportacaoStatus string     `db:"importacao_status"`
 	EmpresaID        uuid.UUID  `db:"empresa_id"`
 	ChegadaPrevista  *time.Time `db:"chegada_prevista"`
+	ChegadaEm        *time.Time `db:"chegada_em"`
 	PedidoID         uuid.UUID  `db:"pedido_id"`
 	PedidoNumero     int        `db:"pedido_numero"`
 	PedidoItemID     uuid.UUID  `db:"pedido_item_id"`
@@ -82,7 +83,7 @@ func (r *ImportacaoConsultaRepository) AlocacoesAbertas(ctx context.Context, fil
 	var linhas []*alocacaoAbertaLinha
 	if err := r.db.SelectContext(ctx, &linhas, `
 		SELECT i.id AS importacao_id, i.numero AS importacao_numero, i.status AS importacao_status, i.empresa_id,
-		       i.chegada_prevista, p.id AS pedido_id, p.numero AS pedido_numero, pi.id AS pedido_item_id, pi.produto_id,
+		       i.chegada_prevista, i.chegada_em, p.id AS pedido_id, p.numero AS pedido_numero, pi.id AS pedido_item_id, pi.produto_id,
 		       a.quantidade, p.prazo_limite
 		FROM importacao_alocacao a
 		JOIN importacao_item ii ON ii.id = a.importacao_item_id
@@ -104,6 +105,7 @@ func (r *ImportacaoConsultaRepository) AlocacoesAbertas(ctx context.Context, fil
 			ImportacaoStatus: domainimportacao.StatusDe(linha.ImportacaoStatus),
 			EmpresaID:        linha.EmpresaID,
 			ChegadaPrevista:  dataDaImportacao(linha.ChegadaPrevista),
+			ChegadaEm:        dataDaImportacao(linha.ChegadaEm),
 			PedidoID:         linha.PedidoID,
 			PedidoNumero:     linha.PedidoNumero,
 			PedidoItemID:     linha.PedidoItemID,

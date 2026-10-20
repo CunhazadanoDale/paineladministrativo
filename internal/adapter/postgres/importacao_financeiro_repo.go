@@ -49,9 +49,9 @@ type importacaoCustoLinha struct {
 	CriadoEm              time.Time  `db:"criado_em"`
 }
 
-func (r *ImportacaoRepository) carregarFinanceiro(ctx context.Context, importacao *domainimportacao.Importacao) error {
+func carregarFinanceiro(ctx context.Context, tx *sqlx.Tx, importacao *domainimportacao.Importacao) error {
 	var parcelas []*importacaoParcelaLinha
-	if err := r.db.SelectContext(ctx, &parcelas, `
+	if err := tx.SelectContext(ctx, &parcelas, `
 		SELECT p.id, p.importacao_id, p.descricao, p.valor_moeda_centesimos, p.vencimento_previsto, p.status,
 		       p.cambio_micro, p.valor_centavos, p.vencimento, p.solicitacao_id, s.status AS status_conta_a_pagar,
 		       p.usuario_id, p.criado_em, p.atualizado_em
@@ -64,7 +64,7 @@ func (r *ImportacaoRepository) carregarFinanceiro(ctx context.Context, importaca
 	}
 
 	var custos []*importacaoCustoLinha
-	if err := r.db.SelectContext(ctx, &custos, `
+	if err := tx.SelectContext(ctx, &custos, `
 		SELECT c.id, c.importacao_id, c.tipo, c.descricao, c.fornecedor_id, c.valor_centavos, c.vencimento,
 		       c.compoe_custo, c.posterior, c.categoria_financeira_id, c.solicitacao_id, s.status AS status_conta_a_pagar,
 		       c.cancelado_em, c.cancelado_por, c.usuario_id, c.criado_em

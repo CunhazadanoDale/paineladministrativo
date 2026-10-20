@@ -150,8 +150,23 @@ func (r *ImportacaoRepository) Gravar(ctx context.Context, gravacao *portsout.Gr
 }
 
 func (r *ImportacaoRepository) Obter(ctx context.Context, id uuid.UUID) (*domainimportacao.Importacao, error) {
+	tx, err := r.db.BeginTxx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	importacao, err := obterImportacao(ctx, tx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return importacao, tx.Commit()
+}
+
+func obterImportacao(ctx context.Context, tx *sqlx.Tx, id uuid.UUID) (*domainimportacao.Importacao, error) {
 	var linha importacaoLinha
-	if err := r.db.GetContext(ctx, &linha, `SELECT `+colunasImportacao+` FROM importacao WHERE id = $1`, id); err != nil {
+	if err := tx.GetContext(ctx, &linha, `SELECT `+colunasImportacao+` FROM importacao WHERE id = $1`, id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
@@ -159,7 +174,7 @@ func (r *ImportacaoRepository) Obter(ctx context.Context, id uuid.UUID) (*domain
 	}
 
 	var itens []*importacaoItemLinha
-	if err := r.db.SelectContext(ctx, &itens,
+	if err := tx.SelectContext(ctx, &itens,
 		`SELECT `+colunasImportacaoItem+` FROM importacao_item WHERE importacao_id = $1 ORDER BY criado_em ASC, id ASC`, id,
 	); err != nil {
 		return nil, err
@@ -180,10 +195,10 @@ func (r *ImportacaoRepository) Obter(ctx context.Context, id uuid.UUID) (*domain
 			CriadoEm:              item.CriadoEm,
 		})
 	}
-	if err := r.carregarFinanceiro(ctx, importacao); err != nil {
+	if err := carregarFinanceiro(ctx, tx, importacao); err != nil {
 		return nil, err
 	}
-	if err := r.carregarAlocacoes(ctx, importacao); err != nil {
+	if err := carregarAlocacoes(ctx, tx, importacao); err != nil {
 		return nil, err
 	}
 
@@ -385,7 +400,7 @@ func gravarItensDaImportacao(ctx context.Context, tx *sqlx.Tx, importacao *domai
 		`DELETE FROM importacao_item WHERE importacao_id = $1 AND NOT (id = ANY($2::uuid[]))`,
 		importacao.ID, pq.Array(textosDeIDs(ids)),
 	); err != nil {
-		return tratarErroDeGravacao(err)
+		return tratarErro(err)
 	}
 
 	for _, item := range importacao.Itens {
