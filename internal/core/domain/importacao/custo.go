@@ -115,6 +115,9 @@ func novoCusto(importacao *Importacao, usuarioID uuid.UUID, dados DadosCusto, ag
 	if dados.ValorCentavos <= 0 {
 		return nil, domain.ErroValidacao("valor do custo deve ser maior que zero")
 	}
+	if dados.ValorCentavos > valorMaximoCentesimos {
+		return nil, erroValorAcimaDoLimite()
+	}
 	if dados.Vencimento.IsZero() {
 		return nil, domain.ErroValidacao(masculino("vencimento do custo").obrigatorio())
 	}

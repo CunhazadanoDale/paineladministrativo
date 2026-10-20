@@ -30,6 +30,10 @@ func (i *Importacao) Receber(input RecebimentoInput, agora time.Time) (*CalculoC
 		return nil, domain.ErroValidacao("data do recebimento não pode ser anterior ao desembaraço em " + formatarData(*i.DesembaracadaEm))
 	}
 
+	if err := i.exigirContasVigentesNoCusto(); err != nil {
+		return nil, err
+	}
+
 	recebidas, err := i.quantidadesRecebidas(input.Recebidas)
 	if err != nil {
 		return nil, err
@@ -80,4 +84,21 @@ func (i *Importacao) quantidadesRecebidas(informadas map[uuid.UUID]int) (map[uui
 	}
 
 	return recebidas, nil
+}
+
+func (i *Importacao) exigirContasVigentesNoCusto() error {
+	for _, parcela := range i.Parcelas {
+		if parcela.Status == StatusParcelaCambioFechado && parcela.contaEncerrada() {
+			return domain.ErroConflito("a conta a pagar da parcela \"" + parcela.Descricao +
+				"\" foi cancelada ou rejeitada; reabra a parcela antes de receber")
+		}
+	}
+	for _, custo := range i.Custos {
+		if custo.EntraNoRateio() && custo.contaEncerrada() {
+			return domain.ErroConflito("a conta a pagar do custo \"" + custo.Descricao +
+				"\" foi cancelada ou rejeitada; cancele o custo antes de receber")
+		}
+	}
+
+	return nil
 }

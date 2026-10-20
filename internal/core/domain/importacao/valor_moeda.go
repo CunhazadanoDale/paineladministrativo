@@ -1,10 +1,10 @@
 package importacao
 
 import (
-	"math"
-
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 )
+
+const valorMaximoCentesimos = 1_000_000_000_000_000
 
 type ValorMoeda struct {
 	centesimos int64
@@ -13,6 +13,9 @@ type ValorMoeda struct {
 func NovoValorMoeda(centesimos int64) (ValorMoeda, error) {
 	if centesimos < 0 {
 		return ValorMoeda{}, domain.ErroValidacao("valor do item na moeda não pode ser negativo")
+	}
+	if centesimos > valorMaximoCentesimos {
+		return ValorMoeda{}, erroValorAcimaDoLimite()
 	}
 
 	return ValorMoeda{centesimos: centesimos}, nil
@@ -27,9 +30,13 @@ func (v ValorMoeda) Centesimos() int64 {
 }
 
 func (v ValorMoeda) Somar(outro ValorMoeda) (ValorMoeda, error) {
-	if outro.centesimos > 0 && v.centesimos > math.MaxInt64-outro.centesimos {
-		return ValorMoeda{}, domain.ErroValidacao("valor da importação acima do limite permitido")
+	if outro.centesimos > 0 && v.centesimos > valorMaximoCentesimos-outro.centesimos {
+		return ValorMoeda{}, erroValorAcimaDoLimite()
 	}
 
 	return ValorMoeda{centesimos: v.centesimos + outro.centesimos}, nil
+}
+
+func erroValorAcimaDoLimite() error {
+	return domain.ErroValidacao("valor acima do limite permitido")
 }

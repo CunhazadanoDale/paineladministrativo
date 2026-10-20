@@ -67,3 +67,13 @@ func limitarDetalhe(detalhe string) string {
 
 	return string([]rune(detalhe)[:tamanhoMaximoDetalheHistorico])
 }
+
+func (a Acao) ExpoeValores() bool {
+	switch a {
+	case AcaoParcelaIncluida, AcaoParcelaAlterada, AcaoParcelaRemovida, AcaoParcelaCambioFechado, AcaoParcelaReaberta,
+		AcaoCustoLancado, AcaoCustoCancelado, AcaoRecebida:
+		return true
+	default:
+		return false
+	}
+}

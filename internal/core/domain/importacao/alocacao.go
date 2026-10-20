@@ -58,8 +58,8 @@ type ReservaPlanejada struct {
 }
 
 func (i *Importacao) DefinirAlocacoes(usuarioID uuid.UUID, entradas []AlocacaoInput, pedidos map[uuid.UUID]*PedidoItemAlocavel, agora time.Time) error {
-	if !i.Status.Editavel() && i.Status != StatusDesembaracada {
-		return domain.ErroConflito("as alocações só mudam antes do recebimento e com a importação ativa")
+	if err := i.ExigirAlocacoesAbertas(); err != nil {
+		return err
 	}
 
 	atuais := make(map[[2]uuid.UUID]*Alocacao, len(i.Alocacoes))
@@ -197,6 +197,14 @@ func conferirPedidoAlocavel(importacao *Importacao, item *Item, pedido *PedidoIt
 		return domain.ErroValidacao(fmt.Sprintf("o pedido %d não está confirmado nem em entrega", pedido.PedidoNumero))
 	case pedido.ProdutoID != item.ProdutoID:
 		return domain.ErroValidacao(fmt.Sprintf("o item do pedido %d é de outro produto", pedido.PedidoNumero))
+	}
+
+	return nil
+}
+
+func (i *Importacao) ExigirAlocacoesAbertas() error {
+	if !i.Status.Editavel() && i.Status != StatusDesembaracada {
+		return domain.ErroConflito("as alocações só mudam antes do recebimento e com a importação ativa")
 	}
 
 	return nil

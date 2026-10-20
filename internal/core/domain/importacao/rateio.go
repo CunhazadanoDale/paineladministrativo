@@ -43,9 +43,14 @@ func (i *Importacao) CalcularCusto(cambioInformado *int64, recebidas map[uuid.UU
 	}
 	calculo.SemCambioFechado = ValorMoedaDe(max(calculo.Valor.Centesimos()-calculo.ParcelasFechadas.Centesimos(), 0))
 
+	cambioValidado, err := i.cambioInformado(cambioInformado)
+	if err != nil {
+		return nil, err
+	}
+
 	calculo.ValorMercadoriaCentavos = calculo.ParcelasFechadasCentavos
 	if calculo.SemCambioFechado.Centesimos() > 0 {
-		cambio, err := i.cambioDoRestante(cambioInformado, calculo.SemCambioFechado)
+		cambio, err := i.cambioDoRestante(cambioValidado, calculo.SemCambioFechado)
 		if err != nil {
 			return nil, err
 		}
@@ -65,6 +70,9 @@ func (i *Importacao) CalcularCusto(cambioInformado *int64, recebidas map[uuid.UU
 		case custo.Ativo():
 			calculo.CustosForaDoRateioCentavos += custo.ValorCentavos
 		}
+		if calculo.CustosCentavos > valorMaximoCentesimos || calculo.CustosForaDoRateioCentavos > valorMaximoCentesimos {
+			return nil, erroValorAcimaDoLimite()
+		}
 	}
 
 	if err := calculo.distribuir(i.Itens, recebidas); err != nil {
@@ -74,16 +82,26 @@ func (i *Importacao) CalcularCusto(cambioInformado *int64, recebidas map[uuid.UU
 	return calculo, nil
 }
 
-func (i *Importacao) cambioDoRestante(informado *int64, restante ValorMoeda) (Cambio, error) {
-	if i.Moeda == domainfornecedor.MoedaReal {
-		return CambioDoReal(), nil
+func (i *Importacao) cambioInformado(micro *int64) (*Cambio, error) {
+	if micro == nil && i.Moeda != domainfornecedor.MoedaReal {
+		return nil, nil
 	}
+
+	cambio, err := i.cambioDaParcela(micro)
+	if err != nil {
+		return nil, err
+	}
+
+	return &cambio, nil
+}
+
+func (i *Importacao) cambioDoRestante(informado *Cambio, restante ValorMoeda) (Cambio, error) {
 	if informado == nil {
 		return Cambio{}, domain.ErroValidacao("informe o câmbio para os " + strconv.FormatInt(restante.Centesimos(), 10) +
 			" centésimos de " + i.Moeda.String() + " ainda sem câmbio fechado")
 	}
 
-	return NovoCambio(*informado)
+	return *informado, nil
 }
 
 func (c *CalculoCusto) distribuir(itens []*Item, recebidas map[uuid.UUID]int) error {

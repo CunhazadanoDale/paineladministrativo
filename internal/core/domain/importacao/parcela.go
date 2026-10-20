@@ -66,6 +66,9 @@ func (p *Parcela) aplicarDados(dados DadosParcela, agora time.Time) error {
 	if dados.ValorMoedaCentesimos <= 0 {
 		return domain.ErroValidacao("valor da parcela deve ser maior que zero")
 	}
+	if dados.ValorMoedaCentesimos > valorMaximoCentesimos {
+		return erroValorAcimaDoLimite()
+	}
 	if dados.VencimentoPrevisto.IsZero() {
 		return domain.ErroValidacao(masculino("vencimento previsto da parcela").obrigatorio())
 	}

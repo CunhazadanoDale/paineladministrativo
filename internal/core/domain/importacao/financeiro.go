@@ -255,13 +255,16 @@ func (i *Importacao) parcelaAberta(id uuid.UUID) (*Parcela, error) {
 }
 
 func (i *Importacao) conferirParcelasNoTotal(total, nova ValorMoeda, ignorar uuid.UUID) error {
-	soma := nova.Centesimos()
+	restante := total.Centesimos() - nova.Centesimos()
 	for _, parcela := range i.Parcelas {
+		if restante < 0 {
+			break
+		}
 		if parcela.Ativa() && parcela.ID != ignorar {
-			soma += parcela.Valor.Centesimos()
+			restante -= parcela.Valor.Centesimos()
 		}
 	}
-	if soma > total.Centesimos() {
+	if restante < 0 {
 		return domain.ErroValidacao("a soma das parcelas não pode passar do valor dos itens da importação")
 	}
 

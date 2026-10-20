@@ -116,11 +116,37 @@ func (i *Importacao) Alterar(dados DadosImportacao, agora time.Time) error {
 	if i.Status != StatusAberta && (dados.FornecedorID != i.FornecedorID || dados.Moeda != i.Moeda) {
 		return domain.ErroConflito("fornecedor e moeda só mudam enquanto a importação está aberta")
 	}
+	if dados.Moeda != i.Moeda && i.temParcelaAtiva() {
+		return domain.ErroConflito("a moeda não muda com parcelas lançadas; remova as parcelas abertas e reabra as de câmbio fechado antes")
+	}
+	if dados.FornecedorID != i.FornecedorID && i.temCambioFechado() {
+		return domain.ErroConflito("o fornecedor não muda com parcela de câmbio fechado; reabra a parcela antes")
+	}
 	if i.Status != StatusAberta && dataOpcional(dados.ChegadaPrevista) == nil {
 		return domain.ErroValidacao("chegada prevista é obrigatória depois do embarque")
 	}
 
 	return i.aplicarDados(dados, agora)
+}
+
+func (i *Importacao) temParcelaAtiva() bool {
+	for _, parcela := range i.Parcelas {
+		if parcela.Ativa() {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (i *Importacao) temCambioFechado() bool {
+	for _, parcela := range i.Parcelas {
+		if parcela.Status == StatusParcelaCambioFechado {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (i *Importacao) Embarcar(input EmbarqueInput, agora time.Time) error {

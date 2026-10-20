@@ -29,6 +29,7 @@ type AlocacaoAberta struct {
 	ImportacaoStatus Status
 	EmpresaID        uuid.UUID
 	ChegadaPrevista  *time.Time
+	ChegadaEm        *time.Time
 	PedidoID         uuid.UUID
 	PedidoNumero     int
 	PedidoItemID     uuid.UUID
@@ -75,7 +76,11 @@ func ClassificarAlertas(folga int, alocacoes []AlocacaoAberta, pedidos []PedidoS
 	}
 
 	for _, alocacao := range alocacoes {
-		if alocacao.ChegadaPrevista == nil {
+		referencia := alocacao.ChegadaPrevista
+		if alocacao.ChegadaEm != nil {
+			referencia = alocacao.ChegadaEm
+		}
+		if referencia == nil {
 			alertas.SemPrevisao = append(alertas.SemPrevisao, alocacao)
 			continue
 		}
@@ -83,7 +88,7 @@ func ClassificarAlertas(folga int, alocacoes []AlocacaoAberta, pedidos []PedidoS
 			continue
 		}
 
-		chegada := alocacao.ChegadaPrevista.AddDate(0, 0, folga)
+		chegada := referencia.AddDate(0, 0, folga)
 		if chegada.After(*alocacao.PrazoLimite) {
 			alertas.PrazoEmRisco = append(alertas.PrazoEmRisco, PrazoEmRisco{
 				AlocacaoAberta:  alocacao,
