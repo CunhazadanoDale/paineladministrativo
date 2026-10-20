@@ -168,8 +168,8 @@ o **F0b** pode correr junto com essas telas.
 | M11 | Propostas e tabela de preços | M3 M6 | orçamentos em documento, guia de modelos de venda | concluído |
 | M12 | Importações | M2 M4 M6 M7 | parte de Entregas de importação e do painel financeiro | concluído |
 | M13 | Caixa e conciliação | M5 M7 M9 | Caixa do mês, Fluxo de caixa diário | concluído |
-| M14 | Dívidas e empréstimos | M4 M5 M7 | Dívidas do grupo | pendente |
-| M15 | DRE e painéis | M2 M7 M8 M9 M13 | DRE, Faturamento, Relatório semanal | pendente |
+| M14 | Dívidas e empréstimos | M4 M5 M7 | Dívidas do grupo | em andamento (feat/m14-dividas) |
+| M15 | DRE e painéis | M2 M7 M8 M9 M13 | DRE, Faturamento, Relatório semanal | em andamento (feat/m15-dre) |
 
 ---
 
@@ -1096,6 +1096,40 @@ próximos módulos:
   dívida ligada à original.
 - **Visões**: saldo devedor por tipo de credor e por empresa; vencido x a vencer.
 
+**Decisões fechadas antes da reserva (outubro/2026):**
+
+- **Carga inicial sem retroativo**, como os extratos (D3 do `CAIXA.md`): dívida existente entra com o
+  saldo devedor na data de corte e só as parcelas que vencem depois dela; parcelas pagas ou vencidas
+  antes do corte não geram conta a pagar. Valor original, taxa e contrato ficam como dado informativo.
+- **Crédito do empréstimo não é conciliado contra a dívida**: a linha do extrato é classificada no M13
+  como `lancamento_caixa` numa categoria de receita em `fora_dre` (captação). Nenhum port nem
+  repositório do M13 muda; a dívida guarda a conta e a data da liberação só como informação.
+
+#### Coordenação M14 × M15
+
+Acordo fechado (outubro/2026) para as duas sessões correrem em paralelo:
+
+- **A parcela vira duas contas a pagar.** Origens novas `divida_amortizacao` e `divida_juros` em
+  `Origem`, `NovaOrigem`, `Sistemica()` e `chk_solicitacao_origem`, ambas com `origem_id` = id da
+  `divida_parcela` (o `uq_solicitacao_origem (origem, origem_id)` aceita as duas). Juros, encargos e IOF
+  vão numa categoria lançável de `resultado_financeiro`; a amortização numa de `fora_dre`. Geração por
+  `gerarSolicitacaoDeOrigem` na transação do M14, como o M12: **nenhum port nem repositório do M7 muda**.
+- **Renegociação cancela o que ficou aberto.** Ao renegociar ou parcelar, as contas a pagar ainda não
+  pagas da dívida original são canceladas na mesma transação que cria a nova dívida ligada a ela, para a
+  DRE por competência não contar juros duas vezes.
+- **O M15 não filtra por `origem`.** A despesa vem da `solicitacao` por `competencia` +
+  `categoria_financeira.linha_dre`, ignorando `cancelado` e `rejeitado` e sem olhar pagamento (a DRE é
+  por competência, decisão D5 do M7). Assim as contas do M14 entram na DRE sem o M15 depender dele.
+- **Painel de endividamento é a última fase do M15.** As outras fases não leem `divida` nem
+  `divida_parcela`; o saldo devedor no relatório semanal só começa depois que o M14 estiver na `main` e
+  a branch do M15 for atualizada com ela, lendo por porta mínima declarada no M15.
+- **"Hoje" no fuso de Brasília** nos dois módulos (vencido × a vencer, títulos vencidos), como
+  `domainpedido.Hoje`; o item 11 do `PENDENCIAS.md` continua sendo do M7.
+- **Arquivos compartilhados**: o M14 cria tabelas a partir da próxima migration livre e o M15 só cria
+  índices; quem mergear depois renumera (regra 4 da seção 3). Em `rotas.go`, `cmd/api/main.go`,
+  `test/helpers/servidor.go`, `test/helpers/fixtures.go` e `API.md` cada um só acrescenta o próprio bloco
+  no fim; no `ROADMAP.md`, cada um mexe só na própria linha e na própria seção.
+
 ### M15 — DRE e painéis
 
 Somente leitura; nenhum dado digitado aqui.
@@ -1108,6 +1142,10 @@ Somente leitura; nenhum dado digitado aqui.
   baixo, saldos bancários.
 - Consultas agregadas em SQL no `adapter/postgres`, expostas como `resumo` (padrão do
   `resumo_usecase` do estoque).
+- **Faturamento histórico** (decidido em outubro/2026): mostra só as NFs já importadas, sem carga
+  retroativa; se o histórico for carregado depois pelo `POST /notas-fiscais/importacao`, o painel o
+  mostra sem mudança no M15.
+- Coordenação com o M14 em "Coordenação M14 × M15" (seção do M14).
 
 ---
 
@@ -1133,7 +1171,9 @@ Somente leitura; nenhum dado digitado aqui.
 - [ ] **Importação histórica**: quantos meses de NFs, títulos e extratos carregar.
       **Extratos decididos** (outubro/2026, D3 do `CAIXA.md`): sem retroativo; o caixa do M13
       começa no último mês encerrado e pagamentos e recebimentos anteriores ao corte ficam fora da
-      conciliação. NFs e títulos seguem em aberto.
+      conciliação. **NFs decididas** (outubro/2026, M15): sem carga retroativa; o faturamento
+      mostra o que já foi importado. **Dívidas decididas** (outubro/2026, M14): entram pelo saldo
+      devedor na data de corte. Títulos seguem em aberto.
 - [x] **Nomenclatura dos ports** de `lead`/`usuarios` (T0): traduzidos para português.
 - [x] **Modelo de permissões** (M1): flags no cargo continuam; o escopo por empresa segue
       o padrão da seção 4 do `EMPRESAS.md`.
