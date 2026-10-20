@@ -3476,11 +3476,14 @@ da seção 4 do `EMPRESAS.md`). Escopo e decisões em `IMPORTACOES.md`.
 | `POST` | `/api/v1/importacoes/{id}/custos` | **financeiro** | `201`; lança o custo e gera a conta a pagar |
 | `POST` | `/api/v1/importacoes/{id}/custos/{custo_id}/cancelar` | **financeiro** | `200`; com a conta a pagar cancelada ou rejeitada |
 | `GET` | `/api/v1/importacoes/{id}/custo-previsto` | **financeiro** | `200` prévia do rateio (`?cambio_micro=`), sem gravar |
+| `PUT` | `/api/v1/importacoes/{id}/alocacoes` | comercial ou financeiro | `200` importação com as alocações (substitui todas) |
+| `POST` | `/api/v1/importacoes/{id}/receber` | **financeiro** | `200` importação recebida: entrada no estoque e reservas para os pedidos |
 
 Leitura sem perfil comercial nem financeiro → `403 perfil sem permissão para consultar importações`;
 escrita sem financeiro → `403` do middleware. Importação de empresa fora do acesso → `403 perfil sem acesso
 a esta empresa`. **Os valores só aparecem para o financeiro**: para o comercial,
-`valor_total_moeda_centesimos`, `itens[].valor_moeda_centesimos`, `parcelas` e `custos` saem do JSON.
+`valor_total_moeda_centesimos`, `cambio_micro`, `itens[].valor_moeda_centesimos`, `itens[].custo_unitario_centavos`,
+`parcelas` e `custos` saem do JSON; itens recebidos e `alocacoes` aparecem para os dois.
 
 ### Estados
 
@@ -3490,9 +3493,9 @@ a esta empresa`. **Os valores só aparecem para o financeiro**: para o comercial
 | alterar | `aberta`, `embarcada` | igual | `versao`; fornecedor e moeda só em `aberta` (`409`); depois do embarque a chegada prevista é obrigatória |
 | embarcar | `aberta` | `embarcada` | `embarcada_em` (não futura), `chegada_prevista` (não antes do embarque), `documento_embarque` opcional (BL/AWB) |
 | desembaraçar | `embarcada` | `desembaracada` | `chegada_em` (não futura, não antes do embarque), `desembaracada_em` (não futura, não antes da chegada), `declaracao` (número da DI/DUIMP, até 30) |
+| receber | `desembaracada` | `recebida` | seção "Recebimento"; depois disso nada muda, salvo custo posterior |
 | cancelar | `aberta`, `embarcada`, `desembaracada` | `cancelada` | `motivo` (até 1000); toda conta a pagar gerada (parcela com câmbio fechado ou custo não cancelado) precisa estar `cancelado` ou `rejeitado` no M7 (`409 cancele ou rejeite antes as contas a pagar geradas pela importação`) |
 
-`recebida` existe no contrato, mas só passa a ser alcançada com o recebimento (fase 3 do `IMPORTACOES.md`).
 Toda ação exige a `versao` lida (`400 erro de validação: versão da importação é obrigatória` sem ela; `409 a
 importação foi alterada por outra pessoa; recarregue e tente de novo` divergente) e responde `409` quando o
 estado não permite (`não é possível mudar a importação de "aberta" para "desembaracada"`). "Hoje" é o dia em
@@ -3668,6 +3671,75 @@ gravar:
       "custo_unitario_centavos": 2716
     }]
   }
+}
+```
+
+### Alocação de pedidos
+
+`PUT /importacoes/{id}/alocacoes` (comercial ou financeiro) diz quais itens de pedidos de venda a importação
+atende. O corpo **substitui** todas as alocações da importação (lista vazia limpa):
+
+```json
+{ "versao": 2, "alocacoes": [{ "importacao_item_id": "…", "pedido_item_id": "…", "quantidade": 600 }] }
+```
+
+| Regra | Erro |
+| --- | --- |
+| item da importação e item de pedido existem; par sem repetir | `400` |
+| pedido de **importação**, `confirmado` ou `parcialmente_entregue`, da **mesma empresa** da importação (estoque não passa entre CNPJs) e do mesmo produto do item | `400` |
+| Σ alocações do item da importação ≤ quantidade dele | `400 erro de validação: as alocações passam da quantidade do item da importação` |
+| Σ alocações do item do pedido, somando as outras importações não canceladas e não recebidas, ≤ o que falta entregar | `400 erro de validação: as alocações do item do pedido N passam do que falta entregar (…)`; corrida com outra importação → `409` |
+| importação `aberta`, `embarcada` ou `desembaracada` | `409` |
+
+O `PUT` da importação recusa (`400`) tirar um item alocado ou reduzi-lo abaixo do alocado. Importação cancelada
+deixa de contar nas somas. Histórico: `alocacao_alterada`.
+
+### Recebimento
+
+`POST /importacoes/{id}/receber` (financeiro), com a importação `desembaracada`:
+
+```json
+{
+  "versao": 4, "recebida_em": "2026-11-20", "local_id": "…", "cambio_micro": 5500000,
+  "itens": [{ "item_id": "…", "quantidade_recebida": 950 }]
+}
+```
+
+| Campo | Regra |
+| --- | --- |
+| `recebida_em` | obrigatória, não futura, não antes do desembaraço |
+| `local_id` | local **ativo da empresa importadora** (`400` de outra empresa ou inativo) |
+| `cambio_micro` | o mesmo do custo previsto: obrigatório só quando há valor sem parcela com câmbio fechado |
+| `itens` | opcional; item que não vier é recebido inteiro. `quantidade_recebida` de `0` à quantidade do item (falta e avaria); item repetido → `400`; nada recebido → `400` (cancele a importação) |
+
+Numa transação só:
+
+1. o custo é calculado como no custo previsto, com as quantidades recebidas: o valor em reais de cada item é o
+   mesmo, dividido pela quantidade recebida (a falta encarece a unidade; item com zero não entra no estoque e
+   não recebe custos);
+2. cada item com quantidade recebida gera uma **entrada** no local, com o custo unitário e `documento_ref =
+   IMP-<numero>`: é o lote do estoque (e o CMV do M15). `itens[].movimento_id` aponta para o movimento;
+3. cada alocação vira uma **reserva** do pedido (`origem = pedido_item`) no mesmo local, do menor entre a
+   alocação, o que falta cobrir no item do pedido (restante − reservado) e o recebido ainda não reservado, por
+   ordem de prazo-limite do pedido (sem prazo por último). `alocacoes[].reservada` e `reserva_id` guardam o
+   resultado; o pedido ganha `pendencias_reservadas` no histórico. Pedido que saiu de atendimento no meio →
+   `409` e nada é gravado;
+4. o que sobra do recebido fica disponível no estoque.
+
+Estoque alterado por outra operação no mesmo produto → `409 estoque do produto alterado por outra operação,
+recarregue e tente novamente`. Depois de recebida, a importação só aceita custo novo, gravado com `posterior =
+true` (não muda o lote), e parcela.
+
+Campos que o recebimento preenche no detalhe: `recebida_em`, `local_recebimento_id`, `cambio_micro`
+(financeiro) e, nos itens, `quantidade_recebida`, `custo_unitario_centavos` (financeiro) e `movimento_id`;
+`alocacoes` vem sempre:
+
+```json
+{
+  "alocacoes": [{
+    "importacao_item_id": "…", "pedido_item_id": "…", "quantidade": 600, "reservada": 600, "reserva_id": "…",
+    "usuario_id": "…", "criado_em": "…", "atualizado_em": "…"
+  }]
 }
 ```
 

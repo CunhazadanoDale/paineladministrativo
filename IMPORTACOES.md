@@ -1,8 +1,8 @@
 # Escopo — M12 Importações
 
 > **Status:** escopo fechado — decisões D1 a D14 respondidas pelo usuário (outubro/2026), todas as
-> recomendações aceitas; fases 1 (importação, itens e estados até o desembaraço) e 2 (parcelas, câmbio e
-> custos com conta a pagar) concluídas.
+> recomendações aceitas; fases 1 (importação, itens e estados até o desembaraço), 2 (parcelas, câmbio e
+> custos com conta a pagar) e 3 (alocação de pedidos e recebimento com estoque e reserva) concluídas.
 > **Objetivo:** tirar das planilhas a parte de compra das "Entregas de importação" e do painel
 > financeiro: o processo de importação do pedido ao fornecedor até a mercadoria no estoque, com
 > câmbio, custos de nacionalização rateados no custo do lote, pagamentos ao fornecedor e aos
@@ -124,7 +124,8 @@
 | `importacao_item_id` | UUID | FK; PK composta |
 | `pedido_item_id` | UUID | FK `pedido_item`; PK composta |
 | `quantidade` | INT | `> 0` |
-| `reserva_id` | UUID NULL | FK `produto_reserva`: reserva criada no recebimento |
+| `reservada` | INT NULL | quanto a reserva do recebimento cobriu (0 quando nada) |
+| `reserva_id` | UUID NULL | FK `produto_reserva`, única: reserva criada no recebimento |
 | `usuario_id`, `criado_em`, `atualizado_em` | | |
 
 - O pedido é de **importação**, `confirmado` ou `parcialmente_entregue`, da **mesma empresa** e do mesmo
@@ -322,7 +323,7 @@ seção 3 do `ROADMAP.md`).
 |---|---|---|
 | **1** | Importação e itens (migration 000064): domínio, estados até `desembaracada`, cancelamento, repositório com sequência e histórico, usecase com escopo por empresa, rotas, e2e + `API.md` | concluída |
 | **2** | Parcelas, câmbio e custos com conta a pagar no M7 (migration 000065), cancelamento com conta gerada, prévia do custo; integração de idempotência; e2e + `API.md` | concluída |
-| **3** | Alocação de pedidos (migration 000066), recebimento com entrada, lote e reserva na mesma transação; integração de concorrência com entrega; e2e + `API.md` | pendente |
+| **3** | Alocação de pedidos (migration 000066), recebimento com entrada, lote e reserva na mesma transação; integração de concorrência com entrega; e2e + `API.md` | concluída |
 | **4** | Alertas e `GET /pedidos/{id}/importacoes`; e2e + `API.md` | pendente |
 | **5** | Frontend (lista, detalhe, parcelas, custos, recebimento, alertas) | pendente |
 
@@ -353,6 +354,21 @@ Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates ve
 - [x] **Fase 1 — moeda na alteração** (implementação): moeda vazia mantém a da importação (ou a padrão do
       fornecedor novo, quando ele é trocado com a importação aberta); fornecedor e produto já gravados não
       são conferidos de novo, e a troca de fornecedor trava o novo com `FOR SHARE` na transação.
+- [x] **Fase 3 — leitura do pedido** (implementação): o M12 lê pedido, item, reservas ativas e o alocado em outras
+      importações por consulta própria (`ImportacaoRepository.ItensDePedido`); **nenhum método novo no port nem no
+      repositório do M6**. O histórico `pendencias_reservadas` do pedido é gravado pela função interna
+      `inserirHistoricoDoPedido` na transação do recebimento, sem avançar a `versao` do pedido.
+- [x] **Fase 3 — corrida de alocação** (implementação): gravar alocações trava os `pedido_item` envolvidos
+      (`FOR UPDATE`, em ordem de id) e reconfere no banco a soma das importações abertas contra o restante (`409`).
+      O PUT de alocações fica em `protegido(...)` com a checagem de comercial ou financeiro no usecase.
+- [x] **Fase 3 — recebimento** (implementação): item omitido é recebido inteiro; a ordem das reservas é pelo
+      prazo-limite do pedido (sem prazo por último, depois a ordem de alocação); pedido fora de atendimento na
+      leitura não recebe reserva, e se sair de atendimento até a gravação (`FOR SHARE` nos pedidos atendidos) o
+      recebimento inteiro é recusado com `409`. A falta (`quantidade_recebida` menor) encarece a unidade: o valor
+      em reais do item continua o mesmo; item com zero não gera entrada e não recebe custos.
+- [x] **Fase 3 — travas** (implementação): ordem importação → pedidos → produtos (versão do estoque), a mesma
+      direção do M6 (pedido → produto), sem ciclo; entrada e reserva do mesmo produto são encadeadas com
+      `EstoqueProduto.Aplicar` e gravadas por `gravarOperacaoEstoque`.
 - [x] **Fase 2 — parcelas e custos no agregado** (implementação): parcelas e custos são lidos com a importação
       (`Importacao.Parcelas`, `Importacao.Custos`, com o status da conta a pagar por `JOIN` em `solicitacao`) e
       toda operação passa pela guarda de `versao` da importação, que serializa as escritas. Nenhum método novo
