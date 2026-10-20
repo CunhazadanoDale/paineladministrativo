@@ -2,7 +2,7 @@
 
 Resumo de como funciona cada página do front e cada funcionalidade do backend, com
 exemplos de "como fazer". Situação revisada em 19/10/2026 (T0, F0, M1 a M11 concluídos;
-M12 a M15 pendentes; front de comissões em andamento).
+API do M12 concluída, com o front pendente; M13 a M15 pendentes; front de comissões em andamento).
 
 - **Parte 1:** conceitos que valem para tudo (perfis, empresas, valores, erros).
 - **Parte 2:** frontend, ou seja, o que o usuário vê e faz em cada tela.

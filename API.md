@@ -148,6 +148,7 @@ Observações:
   | Texto acima do tamanho da coluna | `400` | `erro de validação: texto maior que o tamanho permitido` |
   | Número acima do tipo da coluna | `400` | `erro de validação: número fora do intervalo permitido` |
   | Campo obrigatório nulo | `400` | `erro de validação: campo obrigatório não informado` |
+  | Duas gravações travando os mesmos registros em ordem inversa (deadlock) | `409` | `operação concorrente no mesmo registro; recarregue e tente de novo` |
 - Mensagens iniciadas com `erro de validação:` ou `registro não encontrado:` vêm das
   regras de negócio. `403` e `409` devolvem só o detalhe, **sem** o prefixo da
   sentinela (mesmo estilo do middleware: `perfil sem permissão para esta operação`)
@@ -3525,11 +3526,13 @@ Brasília.
 | `moeda` | `BRL`, `USD`, `EUR` ou `CNY`; vazia na criação usa a `moeda_padrao` do fornecedor, vazia na alteração mantém a atual |
 | `referencia` | opcional, até 60 (proforma ou invoice do fornecedor) |
 | `embarque_previsto`, `chegada_prevista` | opcionais, `AAAA-MM-DD`; chegada não antes do embarque previsto (nem do embarque real, depois de embarcada) |
-| `itens` | pelo menos um; produto ativo ao incluir e sem repetir; `quantidade` de 1 a 2147483647; `valor_moeda_centesimos` é o **total do item** na moeda, em centésimos (`>= 0`; zero é bonificação) |
+| `itens` | pelo menos um; produto ativo ao incluir e sem repetir; `quantidade` de 1 a 2147483647; `valor_moeda_centesimos` é o **total do item** na moeda, em centésimos (`>= 0`; zero é bonificação); cada valor e o total da importação vão até `1000000000000000` (`400 erro de validação: valor acima do limite permitido`) |
 
 O `PUT` recebe o mesmo corpo sem `empresa_id` e com `versao`, e **substitui** os itens; o item de um produto
 que continua na importação mantém o `id`. Produto e fornecedor já gravados não são conferidos de novo (podem
-ter sido desativados depois).
+ter sido desativados depois). Com parcelas lançadas, a **moeda** não muda (`409`; remova as abertas e reabra as
+de câmbio fechado antes) e, com parcela de câmbio fechado, o **fornecedor** também não (`409`). Tirar um item
+alocado a pedido ou reduzi-lo abaixo do alocado, ou deixar os itens abaixo da soma das parcelas → `400`.
 
 Resposta (criar, detalhe e ações):
 
@@ -3542,12 +3545,19 @@ Resposta (criar, detalhe e ações):
     "chegada_em": null, "desembaracada_em": null, "documento_embarque": "BL-778", "declaracao": null,
     "observacoes": "", "cancelada_motivo": null, "usuario_id": "…", "versao": 3,
     "criado_em": "2026-10-19T13:00:00Z", "atualizado_em": "2026-10-19T13:05:00Z",
-    "itens": [{ "id": "…", "produto_id": "…", "quantidade": 1000, "valor_moeda_centesimos": 450000 }]
+    "recebida_em": null, "local_recebimento_id": null,
+    "itens": [{
+      "id": "…", "produto_id": "…", "quantidade": 1000, "valor_moeda_centesimos": 450000,
+      "quantidade_recebida": null, "movimento_id": null
+    }],
+    "parcelas": [], "custos": [], "alocacoes": []
   }
 }
 ```
 
-`numero` é sequencial por empresa. A lista traz os mesmos campos sem `itens`.
+`numero` é sequencial por empresa. A lista traz os mesmos campos sem `itens`, `parcelas`, `custos` e
+`alocacoes`. Depois do recebimento aparecem também `cambio_micro` e `itens[].custo_unitario_centavos` (só para
+o financeiro; ver "Recebimento").
 
 ### Ações
 
@@ -3557,13 +3567,13 @@ Resposta (criar, detalhe e ações):
 { "versao": 4, "motivo": "fornecedor desistiu" }
 ```
 
-Histórico: `id`, `usuario_id`, `acao` (`criada`, `alterada`, `embarcada`, `desembaracada`, `cancelada`),
-`status_anterior`, `status_novo`, `detalhe` (chegada prevista no embarque, declaração no desembaraço, motivo
-no cancelamento) e `criado_em`.
-
-Histórico das parcelas e custos: `parcela_incluida`, `parcela_alterada`, `parcela_removida`,
-`parcela_cambio_fechado` (detalhe com câmbio e valor em reais), `parcela_reaberta`, `custo_lancado` e
-`custo_cancelado`. Toda operação de parcela ou custo exige a `versao` da importação e a avança.
+Histórico: `id`, `usuario_id`, `acao`, `status_anterior`, `status_novo`, `detalhe` e `criado_em`, em ordem
+cronológica. Ações: `criada`, `alterada`, `embarcada` (detalhe: chegada prevista), `desembaracada` (declaração),
+`cancelada` (motivo), `alocacao_alterada` (quantas alocações e unidades), `parcela_incluida`,
+`parcela_alterada`, `parcela_removida`, `parcela_cambio_fechado` (câmbio e valor em reais), `parcela_reaberta`,
+`custo_lancado`, `custo_cancelado` e `recebida` (data, local, mercadoria, custos e unidades reservadas). **Para
+quem não é financeiro, o `detalhe` das ações de parcela, custo e recebimento vem vazio**, porque traz valores.
+Toda operação de parcela ou custo exige a `versao` da importação e a avança.
 
 Fornecedor, produto e empresa usados numa importação passam a responder `400 erro de validação: registro em
 uso por outros dados e não pode ser excluído` na exclusão.
@@ -3627,7 +3637,9 @@ antiga) e nasce uma parcela `aberta` igual, que pode ter o câmbio fechado de no
 O custo gera a conta a pagar na mesma gravação (`origem = importacao_custo`, `origem_id` = custo, fornecedor do
 custo). Custo lançado depois do recebimento sai com `posterior = true` e `compoe_custo = false` (o lote já foi
 criado). **Cancelar** (`POST .../custos/{custo_id}/cancelar { "versao": n }`) exige a conta a pagar cancelada ou
-rejeitada e marca `cancelado` (`cancelado_em`, `cancelado_por`); nada é apagado.
+rejeitada e marca `cancelado` (`cancelado_em`, `cancelado_por`); nada é apagado. Depois do recebimento, custo que
+entrou no lote (`compoe_custo = true`) não é cancelado (`409 o custo já entrou no custo dos lotes recebidos e não
+pode ser cancelado`). Valor do custo até `1000000000000000` centavos.
 
 Resposta do detalhe para o financeiro (além dos campos da importação):
 
@@ -3655,7 +3667,8 @@ gravar:
 
 1. Mercadoria em reais = valor em reais das parcelas com câmbio fechado + a parte dos itens ainda sem parcela
    fechada convertida pelo `cambio_micro` informado (obrigatório só quando essa parte existe: `400 erro de
-   validação: informe o câmbio para os N centésimos de USD ainda sem câmbio fechado`; em `BRL` vale 1).
+   validação: informe o câmbio para os N centésimos de USD ainda sem câmbio fechado`; em `BRL` vale 1). Câmbio
+   enviado é sempre validado (de 1 a 1000000000; em `BRL` só `1000000`), mesmo quando não é usado.
 2. A mercadoria é dividida entre os itens pelo valor na moeda (o resto do arredondamento vai para o último item).
 3. Os custos com `compoe_custo` (não cancelados) são divididos pelo valor em reais de cada item.
 4. `custo_unitario_centavos = (mercadoria + custos do item) ÷ quantidade`, arredondado.
@@ -3728,6 +3741,11 @@ Numa transação só:
    `409` e nada é gravado;
 4. o que sobra do recebido fica disponível no estoque.
 
+Parcela com câmbio fechado cuja conta a pagar foi cancelada ou rejeitada no M7, ou custo que compõe o custo com a
+conta nessa situação, bloqueia o recebimento (`409`): reabra a parcela ou cancele o custo antes, para o lote não
+receber valor que não será pago. Pedido que mudou durante o recebimento a ponto de ficar com reserva acima do que
+falta entregar → `409` e nada é gravado.
+
 Estoque alterado por outra operação no mesmo produto → `409 estoque do produto alterado por outra operação,
 recarregue e tente novamente`. Depois de recebida, a importação só aceita custo novo, gravado com `posterior =
 true` (não muda o lote), e parcela.
@@ -3754,7 +3772,7 @@ o tempo, em dias, entre a chegada e a entrega ao cliente (desembaraço e frete):
 
 | Lista | O que mostra |
 | --- | --- |
-| `prazo_em_risco` | alocação cuja `chegada_prevista + folga` passa do `prazo_limite` do pedido, com `chegada_com_folga` e `dias_de_atraso`; pedido sem prazo-limite (importação sem entrada paga) não entra |
+| `prazo_em_risco` | alocação cuja chegada (`chegada_em` quando já chegou, senão `chegada_prevista`) `+ folga` passa do `prazo_limite` do pedido, com `chegada_com_folga` e `dias_de_atraso`; pedido sem prazo-limite (importação sem entrada paga) não entra |
 | `sem_previsao` | alocação de importação ainda sem `chegada_prevista` |
 | `sem_importacao` | item de pedido de importação com `restante − reservado − alocado > 0` (`sem_cobertura`), somando as importações abertas |
 
@@ -3766,7 +3784,7 @@ Ordenadas pelo prazo-limite (sem prazo por último).
     "folga_dias": 10,
     "prazo_em_risco": [{
       "importacao_id": "…", "importacao_numero": 1, "importacao_status": "embarcada", "empresa_id": "…",
-      "chegada_prevista": "2027-05-07", "pedido_id": "…", "pedido_numero": 3, "pedido_item_id": "…",
+      "chegada_prevista": "2027-05-07", "chegada_em": null, "pedido_id": "…", "pedido_numero": 3, "pedido_item_id": "…",
       "produto_id": "…", "quantidade": 300, "prazo_limite": "2027-02-16",
       "chegada_com_folga": "2027-05-17", "dias_de_atraso": 90
     }],

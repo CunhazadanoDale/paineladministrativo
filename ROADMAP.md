@@ -1001,6 +1001,8 @@ Acordo fechado (outubro/2026) para as duas sessões correrem em paralelo:
 
 ### M12 — Importações
 
+Plano original (os estados e o alerta finais estão no bloco "Entregue" abaixo e no `IMPORTACOES.md`):
+
 - **Entidades**: `importacao` (fornecedor, empresa importadora, moeda, câmbio, status
   `pedido`/`embarcado`/`em_transito`/`desembaracado`/`recebido`), `importacao_item`,
   `importacao_custo` (frete, impostos, despesas aduaneiras) e datas de embarque e

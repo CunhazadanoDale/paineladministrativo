@@ -210,7 +210,7 @@ quantidade_recebida }] }`:
 ```
 POST   /api/v1/importacoes                                  (financeiro)
 GET    /api/v1/importacoes                                  ?empresa= ?fornecedor= ?status= ?numero= ?chegada_ate= (comercial ou financeiro)
-GET    /api/v1/importacoes/{id}                             itens, parcelas, custos, alocações e prévia do custo
+GET    /api/v1/importacoes/{id}                             itens, parcelas, custos e alocações (comercial ou financeiro; valores só para o financeiro)
 PUT    /api/v1/importacoes/{id}                             { versao, ... } (financeiro)
 POST   /api/v1/importacoes/{id}/embarcar                    { versao, embarcada_em, chegada_prevista, documento_embarque }
 POST   /api/v1/importacoes/{id}/desembaracar                { versao, chegada_em, desembaracada_em, declaracao }
@@ -237,11 +237,13 @@ GET    /api/v1/pedidos/{id}/importacoes                     importações que at
 
 ## 5. Permissões (D10)
 
-- Escrita (criar, alterar, transições, parcelas, câmbio, custos, recebimento) em `financeiro(...)`;
-  alocação de pedidos em `comercial(...)` **ou** financeiro; leitura em comercial ou financeiro. Regra
-  fina em `usecases/importacao/permissoes.go` (`exigeFinanceiro`, `escopoPorEmpresa`).
-- Valores (moeda, câmbio, custos e custo unitário) só para o financeiro; o comercial vê itens, datas,
-  status e alocações.
+- Escrita (criar, alterar, transições, parcelas, câmbio, custos, recebimento) em `financeiro(...)`; leitura
+  e alocação de pedidos em `protegido(...)`, com a checagem de comercial ou financeiro no usecase
+  (`exigeLeitura`). Regra fina em `usecases/importacao/permissoes.go` (`exigeFinanceiro`, `exigeLeitura`,
+  `perfilDoUsuario.escopo`).
+- Valores (valor dos itens na moeda, câmbio, parcelas, custos, custo unitário e o detalhe do histórico das
+  ações de parcela, custo e recebimento) só para o financeiro; o comercial vê a moeda, itens, quantidades,
+  datas, status e alocações.
 - Escopo por empresa pela importadora; teste de isolamento no usecase e no e2e.
 
 ---
@@ -254,11 +256,13 @@ GET    /api/v1/pedidos/{id}/importacoes                     importações que at
   `EstoqueProduto.Aplicar` para encadear a reserva; gravação por `gravarOperacaoEstoque(ctx, tx, ...)`
   dentro da transação do recebimento. **Sem mudança de schema no M2**: o lote nasce do movimento, e a
   ligação fica em `importacao_item.movimento_id`.
-- Porta mínima própria (`Carregar` do estado de estoque, `AtivasPorOrigem` de reservas, `Obter` de local).
+- Portas mínimas próprias: `EstoqueRepository.Carregar` (estado do estoque) e `LocalRepository.Obter`; as reservas
+  ativas do item de pedido são lidas na consulta própria `ImportacaoRepository.ItensDePedido`.
 
 ### 6.2 Pedidos (M6)
 
-- Porta mínima em `ports/out/importacao/` para ler pedido e itens (`Obter`) e a cobertura do item; nenhum
+- Pedido, itens, reservas ativas e o alocado em outras importações vêm da consulta própria
+  `ImportacaoRepository.ItensDePedido` (sem porta para o repositório do M6); nenhum
   método novo no port do M6. A reserva no recebimento usa `origem = pedido_item`, então o pedido as
   libera e baixa como as próprias.
 - O histórico do pedido ganha a linha `pendencias_reservadas` com o detalhe `importação <numero>`, gravada
@@ -293,21 +297,23 @@ Portas mínimas com `Obter` (fornecedor `Ativo`, `MoedaPadrao`; categoria `Lanca
 ```
 migrations/000064_create_tabela_importacao              importacao, sequencia, item, historico
 migrations/000065_create_tabela_importacao_financeiro   parcela, custo, origens no chk_solicitacao_origem
-migrations/000066_create_tabela_importacao_alocacao
+migrations/000066_create_tabela_importacao_alocacao     alocação e colunas do recebimento
 
-internal/core/domain/importacao/      status.go, importacao.go, item.go, cambio.go, valor_moeda.go,
-                                      parcela.go, custo.go, tipo_custo.go, rateio.go, alocacao.go,
-                                      recebimento.go, historico.go, alerta.go, data.go (+ testes)
-internal/core/ports/out/importacao/   importacao_repository.go, consulta_repository.go,
-                                      estoque_repository.go, reserva_repository.go, local_repository.go,
-                                      pedido_repository.go, fornecedor_repository.go,
+internal/core/domain/importacao/      status.go, importacao.go, item.go, valor_moeda.go, cambio.go, parcela.go,
+                                      custo.go, financeiro.go, rateio.go, alocacao.go, recebimento.go,
+                                      alerta.go, historico.go, data.go, texto.go, erros.go (+ testes)
+internal/core/ports/out/importacao/   importacao_repository.go, consulta_repository.go, estoque_repository.go,
+                                      local_repository.go, fornecedor_repository.go, produto_repository.go,
                                       categoria_financeira_repository.go, empresa_repository.go,
-                                      produto_repository.go, usuario_repository.go, cargo_repository.go
-internal/core/ports/in/importacao/    importacao_usecase.go, financeiro_usecase.go, consulta_usecase.go
-internal/core/usecases/importacao/    idem + recebimento.go, permissoes.go (+ testes e fakes)
-internal/core/domain/solicitacao/     origem.go (duas origens)
-internal/adapter/postgres/            importacao_repo.go, importacao_consulta_repo.go
-internal/adapter/http/dto/importacao/ + handlers/importacao/
+                                      usuario_repository.go, cargo_repository.go
+internal/core/ports/in/importacao/    importacao_usecase.go, financeiro_usecase.go, recebimento_usecase.go,
+                                      consulta_usecase.go
+internal/core/usecases/importacao/    os mesmos usecases + permissoes.go (+ testes, fakes e cenário)
+internal/core/domain/solicitacao/     origem.go, origem_sistemica.go (duas origens)
+internal/adapter/postgres/            importacao_repo.go, importacao_financeiro_repo.go,
+                                      importacao_recebimento_repo.go, importacao_consulta_repo.go;
+                                      erros.go (deadlock vira 409)
+internal/adapter/http/dto/importacao/ + handlers/importacao/ (importação, financeiro, recebimento, consulta)
 cmd/api/main.go + internal/adapter/http/rotas.go   (registro, só acréscimos)
 test/helpers + test/integration + test/e2e
 ```
@@ -354,6 +360,27 @@ Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates ve
 - [x] **Fase 1 — moeda na alteração** (implementação): moeda vazia mantém a da importação (ou a padrão do
       fornecedor novo, quando ele é trocado com a importação aberta); fornecedor e produto já gravados não
       são conferidos de novo, e a troca de fornecedor trava o novo com `FOR SHARE` na transação.
+- [x] **Revisão — limites de valor** (outubro/2026): valor do item, da parcela e do custo e o total da importação vão
+      até 10¹⁵ centésimos (ou centavos); a soma das parcelas é conferida sem estourar o `int64`. Antes, uma parcela
+      perto de `MaxInt64` passava pela checagem do total.
+- [x] **Revisão — moeda e fornecedor com parcelas** (outubro/2026): a moeda não muda com parcela ativa e o fornecedor
+      não muda com parcela de câmbio fechado (`409`); antes o `PUT` trocava a moeda e misturava reais convertidos de
+      moedas diferentes no custo.
+- [x] **Revisão — conta encerrada no custo** (outubro/2026): parcela de câmbio fechado ou custo que compõe o custo
+      com a conta a pagar cancelada ou rejeitada bloqueia o recebimento (`409`), para o lote não receber o que não
+      será pago; o câmbio enviado é sempre validado, mesmo quando não é usado.
+- [x] **Revisão — histórico sem valores** (outubro/2026): para quem não é financeiro, o `detalhe` das ações de
+      parcela, custo e recebimento sai vazio (`Acao.ExpoeValores`).
+- [x] **Revisão — ordem das checagens** (outubro/2026): permissão e escopo antes de validar categoria e fornecedor
+      (antes um usuário sem acesso descobria se a categoria existia); estado da importação antes do local no
+      recebimento e antes de ler os pedidos na alocação.
+- [x] **Revisão — corridas no recebimento e na alocação** (outubro/2026): o recebimento carrega o estoque antes de
+      ler os pedidos, trava os produtos em ordem de id (`FOR UPDATE`) e reconfere na transação que nenhum item de
+      pedido fica com reserva acima do que falta entregar (`409`); o histórico do pedido usa o status travado. A
+      alocação trava os pedidos (`FOR SHARE`) antes dos itens, na mesma ordem do M6, e recusa pedido que saiu de
+      atendimento (`409`). Deadlock no banco passa a responder `409` em todo o sistema (`erros.go`).
+- [x] **Revisão — leitura consistente** (outubro/2026): `Obter` lê cabeçalho, itens, parcelas, custos e alocações numa
+      transação somente leitura `REPEATABLE READ`; o alerta de prazo usa a chegada real quando já existe.
 - [x] **Fase 4 — alertas** (implementação): consulta própria (`ImportacaoConsultaRepository`) traz as alocações de
       importações abertas e os itens de pedido de importação com falta; a classificação (prazo em risco, sem
       previsão, sem importação) é do domínio (`ClassificarAlertas`). `folga` de 0 a 90 dias, padrão 10; pedido sem
