@@ -43,3 +43,7 @@ func formatarDataOpcional(valor *time.Time) *string {
 
 	return &texto
 }
+
+func erroItemRecebidoRepetido() error {
+	return domain.ErroValidacao("item recebido repetido; informe cada item uma vez")
+}

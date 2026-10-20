@@ -97,6 +97,7 @@ func NewRouter(
 	projecaoCaixaUseCase portsincaixa.ProjecaoUseCase,
 	importacaoUseCase portsinimportacao.ImportacaoUseCase,
 	financeiroImportacaoUseCase portsinimportacao.FinanceiroUseCase,
+	recebimentoImportacaoUseCase portsinimportacao.RecebimentoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, middleware.ErrosDeRoteamento(novasRotas(
@@ -126,7 +127,7 @@ func NewRouter(
 		lancamentoCaixaUseCase,
 		fechamentoCaixaUseCase,
 		projecaoCaixaUseCase,
-		importacaoUseCase, financeiroImportacaoUseCase,
+		importacaoUseCase, financeiroImportacaoUseCase, recebimentoImportacaoUseCase,
 		tokens,
 	)))
 }
@@ -185,6 +186,7 @@ func novasRotas(
 	projecaoCaixaUseCase portsincaixa.ProjecaoUseCase,
 	importacaoUseCase portsinimportacao.ImportacaoUseCase,
 	financeiroImportacaoUseCase portsinimportacao.FinanceiroUseCase,
+	recebimentoImportacaoUseCase portsinimportacao.RecebimentoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -596,6 +598,10 @@ func novasRotas(
 	financeiro("POST /api/v1/importacoes/{id}/custos", financeiroImportacaoHandler.LancarCusto)
 	financeiro("POST /api/v1/importacoes/{id}/custos/{custo_id}/cancelar", financeiroImportacaoHandler.CancelarCusto)
 	financeiro("GET /api/v1/importacoes/{id}/custo-previsto", financeiroImportacaoHandler.CustoPrevisto)
+
+	recebimentoImportacaoHandler := importacaohandlers.NewRecebimentoHandler(recebimentoImportacaoUseCase)
+	protegido("PUT /api/v1/importacoes/{id}/alocacoes", recebimentoImportacaoHandler.DefinirAlocacoes)
+	financeiro("POST /api/v1/importacoes/{id}/receber", recebimentoImportacaoHandler.Receber)
 
 	return mux
 }

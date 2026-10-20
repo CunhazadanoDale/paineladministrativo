@@ -84,41 +84,48 @@ type CancelarRequest struct {
 }
 
 type ItemResponse struct {
-	ID                   uuid.UUID `json:"id"`
-	ProdutoID            uuid.UUID `json:"produto_id"`
-	Quantidade           int       `json:"quantidade"`
-	ValorMoedaCentesimos *int64    `json:"valor_moeda_centesimos,omitempty"`
+	ID                    uuid.UUID  `json:"id"`
+	ProdutoID             uuid.UUID  `json:"produto_id"`
+	Quantidade            int        `json:"quantidade"`
+	ValorMoedaCentesimos  *int64     `json:"valor_moeda_centesimos,omitempty"`
+	QuantidadeRecebida    *int       `json:"quantidade_recebida"`
+	CustoUnitarioCentavos *int64     `json:"custo_unitario_centavos,omitempty"`
+	MovimentoID           *uuid.UUID `json:"movimento_id"`
 }
 
 type ImportacaoResponse struct {
-	ID                        uuid.UUID `json:"id"`
-	EmpresaID                 uuid.UUID `json:"empresa_id"`
-	Numero                    int       `json:"numero"`
-	FornecedorID              uuid.UUID `json:"fornecedor_id"`
-	Referencia                *string   `json:"referencia"`
-	Moeda                     string    `json:"moeda"`
-	Status                    string    `json:"status"`
-	ValorTotalMoedaCentesimos *int64    `json:"valor_total_moeda_centesimos,omitempty"`
-	EmbarquePrevisto          *string   `json:"embarque_previsto"`
-	EmbarcadaEm               *string   `json:"embarcada_em"`
-	ChegadaPrevista           *string   `json:"chegada_prevista"`
-	ChegadaEm                 *string   `json:"chegada_em"`
-	DesembaracadaEm           *string   `json:"desembaracada_em"`
-	DocumentoEmbarque         *string   `json:"documento_embarque"`
-	Declaracao                *string   `json:"declaracao"`
-	Observacoes               string    `json:"observacoes"`
-	CanceladaMotivo           *string   `json:"cancelada_motivo"`
-	UsuarioID                 uuid.UUID `json:"usuario_id"`
-	Versao                    int       `json:"versao"`
-	CriadoEm                  time.Time `json:"criado_em"`
-	AtualizadoEm              time.Time `json:"atualizado_em"`
+	ID                        uuid.UUID  `json:"id"`
+	EmpresaID                 uuid.UUID  `json:"empresa_id"`
+	Numero                    int        `json:"numero"`
+	FornecedorID              uuid.UUID  `json:"fornecedor_id"`
+	Referencia                *string    `json:"referencia"`
+	Moeda                     string     `json:"moeda"`
+	Status                    string     `json:"status"`
+	ValorTotalMoedaCentesimos *int64     `json:"valor_total_moeda_centesimos,omitempty"`
+	EmbarquePrevisto          *string    `json:"embarque_previsto"`
+	EmbarcadaEm               *string    `json:"embarcada_em"`
+	ChegadaPrevista           *string    `json:"chegada_prevista"`
+	ChegadaEm                 *string    `json:"chegada_em"`
+	DesembaracadaEm           *string    `json:"desembaracada_em"`
+	DocumentoEmbarque         *string    `json:"documento_embarque"`
+	Declaracao                *string    `json:"declaracao"`
+	Observacoes               string     `json:"observacoes"`
+	CanceladaMotivo           *string    `json:"cancelada_motivo"`
+	RecebidaEm                *string    `json:"recebida_em"`
+	LocalRecebimentoID        *uuid.UUID `json:"local_recebimento_id"`
+	CambioMicro               *int64     `json:"cambio_micro,omitempty"`
+	UsuarioID                 uuid.UUID  `json:"usuario_id"`
+	Versao                    int        `json:"versao"`
+	CriadoEm                  time.Time  `json:"criado_em"`
+	AtualizadoEm              time.Time  `json:"atualizado_em"`
 }
 
 type ImportacaoDetalheResponse struct {
 	ImportacaoResponse
-	Itens    []ItemResponse     `json:"itens"`
-	Parcelas *[]ParcelaResponse `json:"parcelas,omitempty"`
-	Custos   *[]CustoResponse   `json:"custos,omitempty"`
+	Itens     []ItemResponse     `json:"itens"`
+	Parcelas  *[]ParcelaResponse `json:"parcelas,omitempty"`
+	Custos    *[]CustoResponse   `json:"custos,omitempty"`
+	Alocacoes []AlocacaoResponse `json:"alocacoes"`
 }
 
 type HistoricoResponse struct {
@@ -133,30 +140,36 @@ type HistoricoResponse struct {
 
 func NovaImportacaoResponse(item *domainimportacao.Importacao, comValores bool) ImportacaoResponse {
 	resposta := ImportacaoResponse{
-		ID:                item.ID,
-		EmpresaID:         item.EmpresaID,
-		Numero:            item.Numero,
-		FornecedorID:      item.FornecedorID,
-		Referencia:        item.Referencia,
-		Moeda:             item.Moeda.String(),
-		Status:            item.Status.String(),
-		EmbarquePrevisto:  formatarDataOpcional(item.EmbarquePrevisto),
-		EmbarcadaEm:       formatarDataOpcional(item.EmbarcadaEm),
-		ChegadaPrevista:   formatarDataOpcional(item.ChegadaPrevista),
-		ChegadaEm:         formatarDataOpcional(item.ChegadaEm),
-		DesembaracadaEm:   formatarDataOpcional(item.DesembaracadaEm),
-		DocumentoEmbarque: item.DocumentoEmbarque,
-		Declaracao:        item.Declaracao,
-		Observacoes:       item.Observacoes,
-		CanceladaMotivo:   item.CanceladaMotivo,
-		UsuarioID:         item.UsuarioID,
-		Versao:            item.Versao,
-		CriadoEm:          item.CriadoEm,
-		AtualizadoEm:      item.AtualizadoEm,
+		ID:                 item.ID,
+		EmpresaID:          item.EmpresaID,
+		Numero:             item.Numero,
+		FornecedorID:       item.FornecedorID,
+		Referencia:         item.Referencia,
+		Moeda:              item.Moeda.String(),
+		Status:             item.Status.String(),
+		EmbarquePrevisto:   formatarDataOpcional(item.EmbarquePrevisto),
+		EmbarcadaEm:        formatarDataOpcional(item.EmbarcadaEm),
+		ChegadaPrevista:    formatarDataOpcional(item.ChegadaPrevista),
+		ChegadaEm:          formatarDataOpcional(item.ChegadaEm),
+		DesembaracadaEm:    formatarDataOpcional(item.DesembaracadaEm),
+		DocumentoEmbarque:  item.DocumentoEmbarque,
+		Declaracao:         item.Declaracao,
+		Observacoes:        item.Observacoes,
+		CanceladaMotivo:    item.CanceladaMotivo,
+		RecebidaEm:         formatarDataOpcional(item.RecebidaEm),
+		LocalRecebimentoID: item.LocalRecebimentoID,
+		UsuarioID:          item.UsuarioID,
+		Versao:             item.Versao,
+		CriadoEm:           item.CriadoEm,
+		AtualizadoEm:       item.AtualizadoEm,
 	}
 	if comValores {
 		total := item.ValorTotal.Centesimos()
 		resposta.ValorTotalMoedaCentesimos = &total
+		if item.Cambio != nil {
+			micro := item.Cambio.Micro()
+			resposta.CambioMicro = &micro
+		}
 	}
 
 	return resposta
@@ -165,10 +178,14 @@ func NovaImportacaoResponse(item *domainimportacao.Importacao, comValores bool) 
 func NovaImportacaoDetalheResponse(visao *portsin.Visao) ImportacaoDetalheResponse {
 	itens := make([]ItemResponse, 0, len(visao.Importacao.Itens))
 	for _, item := range visao.Importacao.Itens {
-		resposta := ItemResponse{ID: item.ID, ProdutoID: item.ProdutoID, Quantidade: item.Quantidade}
+		resposta := ItemResponse{
+			ID: item.ID, ProdutoID: item.ProdutoID, Quantidade: item.Quantidade,
+			QuantidadeRecebida: item.QuantidadeRecebida, MovimentoID: item.MovimentoID,
+		}
 		if visao.ComValores {
 			valor := item.Valor.Centesimos()
 			resposta.ValorMoedaCentesimos = &valor
+			resposta.CustoUnitarioCentavos = item.CustoUnitarioCentavos
 		}
 		itens = append(itens, resposta)
 	}
@@ -176,6 +193,7 @@ func NovaImportacaoDetalheResponse(visao *portsin.Visao) ImportacaoDetalheRespon
 	resposta := ImportacaoDetalheResponse{
 		ImportacaoResponse: NovaImportacaoResponse(visao.Importacao, visao.ComValores),
 		Itens:              itens,
+		Alocacoes:          NovasAlocacoesResponse(visao.Importacao.Alocacoes),
 	}
 	if visao.ComValores {
 		parcelas := NovasParcelasResponse(visao.Importacao.Parcelas)
