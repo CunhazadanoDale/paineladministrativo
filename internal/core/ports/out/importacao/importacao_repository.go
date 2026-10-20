@@ -5,7 +5,9 @@ import (
 	"time"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
+	domainestoque "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/estoque"
 	domainimportacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/importacao"
+	domainpedido "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/pedido"
 	domainsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/solicitacao"
 	"github.com/google/uuid"
 )
@@ -29,6 +31,11 @@ type Gravacao struct {
 	CustosCancelados         []*domainimportacao.Custo
 	ContasAPagar             []ContaAPagarGerada
 	ContasExigidasEncerradas []uuid.UUID
+	SubstituirAlocacoes      bool
+	Recebimento              bool
+	OperacoesEstoque         []*domainestoque.OperacaoEstoque
+	PedidosAtendidos         []uuid.UUID
+	HistoricosDePedido       []*domainpedido.Historico
 	Historicos               []*domainimportacao.Historico
 }
 
@@ -47,4 +54,5 @@ type ImportacaoRepository interface {
 	Obter(ctx context.Context, id uuid.UUID) (*domainimportacao.Importacao, error)
 	Listar(ctx context.Context, filtro ImportacaoFiltro) ([]*domainimportacao.Importacao, error)
 	ListarHistorico(ctx context.Context, importacaoID uuid.UUID) ([]*domainimportacao.Historico, error)
+	ItensDePedido(ctx context.Context, pedidoItemIDs []uuid.UUID, excetoImportacaoID uuid.UUID) ([]*domainimportacao.PedidoItemAlocavel, error)
 }

@@ -2,6 +2,7 @@ package importacao_test
 
 import (
 	"context"
+	"maps"
 	"slices"
 	"sort"
 
@@ -11,6 +12,7 @@ import (
 	domainfinanceiro "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/financeiro"
 	domainfornecedor "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/fornecedor"
 	domainimportacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/importacao"
+	domainpedido "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/pedido"
 	domainsolicitacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/solicitacao"
 	domainusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/usuarios"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/importacao"
@@ -18,18 +20,23 @@ import (
 )
 
 type memoria struct {
-	usuarios     map[uuid.UUID]*domainusuarios.Usuario
-	cargos       map[uuid.UUID]*domainusuarios.Cargo
-	empresas     map[uuid.UUID]*domainempresa.Empresa
-	acessos      map[uuid.UUID]domainempresa.Acesso
-	fornecedores map[uuid.UUID]*domainfornecedor.Fornecedor
-	produtos     map[uuid.UUID]*domainestoque.Produto
-	importacoes  map[uuid.UUID]*domainimportacao.Importacao
-	historicos   []*domainimportacao.Historico
-	sequencias   map[uuid.UUID]int
-	gravacoes    []*portsout.Gravacao
-	categorias   map[uuid.UUID]*domainfinanceiro.CategoriaFinanceira
-	contas       map[uuid.UUID]*domainsolicitacao.Solicitacao
+	usuarios           map[uuid.UUID]*domainusuarios.Usuario
+	cargos             map[uuid.UUID]*domainusuarios.Cargo
+	empresas           map[uuid.UUID]*domainempresa.Empresa
+	acessos            map[uuid.UUID]domainempresa.Acesso
+	fornecedores       map[uuid.UUID]*domainfornecedor.Fornecedor
+	produtos           map[uuid.UUID]*domainestoque.Produto
+	importacoes        map[uuid.UUID]*domainimportacao.Importacao
+	historicos         []*domainimportacao.Historico
+	sequencias         map[uuid.UUID]int
+	gravacoes          []*portsout.Gravacao
+	categorias         map[uuid.UUID]*domainfinanceiro.CategoriaFinanceira
+	contas             map[uuid.UUID]*domainsolicitacao.Solicitacao
+	pedidoItens        map[uuid.UUID]*domainimportacao.PedidoItemAlocavel
+	locais             map[uuid.UUID]*domainestoque.Local
+	estoques           map[uuid.UUID]*domainestoque.EstoqueProduto
+	reservas           map[uuid.UUID]*domainestoque.Reserva
+	historicosDePedido []*domainpedido.Historico
 }
 
 func novaMemoria() *memoria {
@@ -44,6 +51,10 @@ func novaMemoria() *memoria {
 		sequencias:   map[uuid.UUID]int{},
 		categorias:   map[uuid.UUID]*domainfinanceiro.CategoriaFinanceira{},
 		contas:       map[uuid.UUID]*domainsolicitacao.Solicitacao{},
+		pedidoItens:  map[uuid.UUID]*domainimportacao.PedidoItemAlocavel{},
+		locais:       map[uuid.UUID]*domainestoque.Local{},
+		estoques:     map[uuid.UUID]*domainestoque.EstoqueProduto{},
+		reservas:     map[uuid.UUID]*domainestoque.Reserva{},
 	}
 }
 
@@ -69,6 +80,10 @@ func copiarImportacao(importacao *domainimportacao.Importacao) *domainimportacao
 	copia.Custos = make([]*domainimportacao.Custo, 0, len(importacao.Custos))
 	for _, custo := range importacao.Custos {
 		copia.Custos = append(copia.Custos, copiar(custo))
+	}
+	copia.Alocacoes = make([]*domainimportacao.Alocacao, 0, len(importacao.Alocacoes))
+	for _, alocacao := range importacao.Alocacoes {
+		copia.Alocacoes = append(copia.Alocacoes, copiar(alocacao))
 	}
 
 	return &copia
@@ -142,11 +157,29 @@ func (r repoImportacoes) Gravar(_ context.Context, gravacao *portsout.Gravacao) 
 			return domain.ErroConflito("conta a pagar já gerada")
 		}
 	}
+	for _, pedidoID := range gravacao.PedidosAtendidos {
+		for _, item := range r.pedidoItens {
+			if item.PedidoID == pedidoID && !item.StatusPedido.EmAtendimento() {
+				return domain.ErroConflito("pedido atendido saiu de atendimento")
+			}
+		}
+	}
+	estoques, reservas, err := r.aplicarOperacoes(gravacao.OperacoesEstoque)
+	if err != nil {
+		return err
+	}
 
 	if gravacao.Novo {
 		r.sequencias[importacao.EmpresaID] = importacao.Numero
 	}
 	r.importacoes[importacao.ID] = importacao
+	for id, estoque := range estoques {
+		r.estoques[id] = estoque
+	}
+	for id, reserva := range reservas {
+		r.reservas[id] = reserva
+	}
+	r.historicosDePedido = append(r.historicosDePedido, gravacao.HistoricosDePedido...)
 	for _, conta := range gravacao.ContasAPagar {
 		r.contas[conta.Solicitacao.ID] = copiar(conta.Solicitacao)
 	}
@@ -213,4 +246,87 @@ type repoCategorias struct{ *memoria }
 
 func (r repoCategorias) Obter(_ context.Context, id uuid.UUID) (*domainfinanceiro.CategoriaFinanceira, error) {
 	return copiar(r.categorias[id]), nil
+}
+
+func copiarEstoque(estoque *domainestoque.EstoqueProduto) *domainestoque.EstoqueProduto {
+	return &domainestoque.EstoqueProduto{
+		Produto:      copiar(estoque.Produto),
+		Saldos:       maps.Clone(estoque.Saldos),
+		Lotes:        slices.Clone(estoque.Lotes),
+		TotalAlocado: estoque.TotalAlocado,
+	}
+}
+
+func (r repoImportacoes) aplicarOperacoes(
+	operacoes []*domainestoque.OperacaoEstoque,
+) (map[uuid.UUID]*domainestoque.EstoqueProduto, map[uuid.UUID]*domainestoque.Reserva, error) {
+	estoques := make(map[uuid.UUID]*domainestoque.EstoqueProduto)
+	reservas := make(map[uuid.UUID]*domainestoque.Reserva)
+	for _, operacao := range operacoes {
+		estoque, ok := estoques[operacao.ProdutoID]
+		if !ok {
+			original, existe := r.estoques[operacao.ProdutoID]
+			if !existe {
+				return nil, nil, domain.ErroValidacao("produto sem estoque")
+			}
+			estoque = copiarEstoque(original)
+			estoques[operacao.ProdutoID] = estoque
+		}
+		if err := estoque.Aplicar(operacao); err != nil {
+			return nil, nil, domain.ErroConflito("estoque do produto alterado por outra operação, recarregue e tente novamente")
+		}
+		if operacao.ReservaCriada != nil {
+			reservas[operacao.ReservaCriada.ID] = copiar(operacao.ReservaCriada)
+		}
+	}
+
+	return estoques, reservas, nil
+}
+
+func (r repoImportacoes) ItensDePedido(_ context.Context, ids []uuid.UUID, exceto uuid.UUID) ([]*domainimportacao.PedidoItemAlocavel, error) {
+	itens := make([]*domainimportacao.PedidoItemAlocavel, 0, len(ids))
+	for _, id := range ids {
+		item, ok := r.pedidoItens[id]
+		if !ok {
+			continue
+		}
+		copia := copiar(item)
+		copia.Reservado = 0
+		for _, reserva := range r.reservas {
+			if reserva.OrigemID != nil && *reserva.OrigemID == id && reserva.Ativa() {
+				copia.Reservado += reserva.Quantidade
+			}
+		}
+		copia.AlocadoEmOutras = 0
+		for _, importacao := range r.importacoes {
+			if importacao.ID == exceto || importacao.Status == domainimportacao.StatusCancelada || importacao.Status == domainimportacao.StatusRecebida {
+				continue
+			}
+			for _, alocacao := range importacao.Alocacoes {
+				if alocacao.PedidoItemID == id {
+					copia.AlocadoEmOutras += alocacao.Quantidade
+				}
+			}
+		}
+		itens = append(itens, copia)
+	}
+
+	return itens, nil
+}
+
+type repoEstoque struct{ *memoria }
+
+func (r repoEstoque) Carregar(_ context.Context, produtoID uuid.UUID, _ []uuid.UUID) (*domainestoque.EstoqueProduto, error) {
+	estoque, ok := r.estoques[produtoID]
+	if !ok {
+		return nil, nil
+	}
+
+	return copiarEstoque(estoque), nil
+}
+
+type repoLocais struct{ *memoria }
+
+func (r repoLocais) Obter(_ context.Context, id uuid.UUID) (*domainestoque.Local, error) {
+	return copiar(r.locais[id]), nil
 }

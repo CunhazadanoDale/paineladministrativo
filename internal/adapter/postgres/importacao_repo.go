@@ -50,6 +50,9 @@ type importacaoLinha struct {
 	Declaracao                *string    `db:"declaracao"`
 	Observacoes               string     `db:"observacoes"`
 	CanceladaMotivo           *string    `db:"cancelada_motivo"`
+	CambioMicro               *int64     `db:"cambio_micro"`
+	RecebidaEm                *time.Time `db:"recebida_em"`
+	LocalRecebimentoID        *uuid.UUID `db:"local_recebimento_id"`
 	UsuarioID                 uuid.UUID  `db:"usuario_id"`
 	Versao                    int        `db:"versao"`
 	CriadoEm                  time.Time  `db:"criado_em"`
@@ -57,12 +60,15 @@ type importacaoLinha struct {
 }
 
 type importacaoItemLinha struct {
-	ID                   uuid.UUID `db:"id"`
-	ImportacaoID         uuid.UUID `db:"importacao_id"`
-	ProdutoID            uuid.UUID `db:"produto_id"`
-	Quantidade           int       `db:"quantidade"`
-	ValorMoedaCentesimos int64     `db:"valor_moeda_centesimos"`
-	CriadoEm             time.Time `db:"criado_em"`
+	ID                    uuid.UUID  `db:"id"`
+	ImportacaoID          uuid.UUID  `db:"importacao_id"`
+	ProdutoID             uuid.UUID  `db:"produto_id"`
+	Quantidade            int        `db:"quantidade"`
+	ValorMoedaCentesimos  int64      `db:"valor_moeda_centesimos"`
+	QuantidadeRecebida    *int       `db:"quantidade_recebida"`
+	CustoUnitarioCentavos *int64     `db:"custo_unitario_centavos"`
+	MovimentoID           *uuid.UUID `db:"movimento_id"`
+	CriadoEm              time.Time  `db:"criado_em"`
 }
 
 type importacaoHistoricoLinha struct {
@@ -79,10 +85,14 @@ type importacaoHistoricoLinha struct {
 const colunasImportacao = `
 	id, empresa_id, numero, fornecedor_id, referencia, moeda, status, valor_total_moeda_centesimos,
 	embarque_previsto, embarcada_em, chegada_prevista, chegada_em, desembaracada_em, documento_embarque,
-	declaracao, observacoes, cancelada_motivo, usuario_id, versao, criado_em, atualizado_em
+	declaracao, observacoes, cancelada_motivo, usuario_id, versao, criado_em, atualizado_em, cambio_micro,
+	recebida_em, local_recebimento_id
 `
 
-const colunasImportacaoItem = `id, importacao_id, produto_id, quantidade, valor_moeda_centesimos, criado_em`
+const colunasImportacaoItem = `
+	id, importacao_id, produto_id, quantidade, valor_moeda_centesimos, criado_em, quantidade_recebida,
+	custo_unitario_centavos, movimento_id
+`
 
 func (r *ImportacaoRepository) Gravar(ctx context.Context, gravacao *portsout.Gravacao) error {
 	if gravacao == nil || gravacao.Importacao == nil {
@@ -118,6 +128,9 @@ func (r *ImportacaoRepository) Gravar(ctx context.Context, gravacao *portsout.Gr
 		}
 	}
 	if err := gravarFinanceiroDaImportacao(ctx, tx, gravacao); err != nil {
+		return err
+	}
+	if err := gravarAlocacoesERecebimento(ctx, tx, gravacao); err != nil {
 		return err
 	}
 	for _, historico := range gravacao.Historicos {
@@ -156,15 +169,21 @@ func (r *ImportacaoRepository) Obter(ctx context.Context, id uuid.UUID) (*domain
 	importacao.Itens = make([]*domainimportacao.Item, 0, len(itens))
 	for _, item := range itens {
 		importacao.Itens = append(importacao.Itens, &domainimportacao.Item{
-			ID:           item.ID,
-			ImportacaoID: item.ImportacaoID,
-			ProdutoID:    item.ProdutoID,
-			Quantidade:   item.Quantidade,
-			Valor:        domainimportacao.ValorMoedaDe(item.ValorMoedaCentesimos),
-			CriadoEm:     item.CriadoEm,
+			ID:                    item.ID,
+			ImportacaoID:          item.ImportacaoID,
+			ProdutoID:             item.ProdutoID,
+			Quantidade:            item.Quantidade,
+			Valor:                 domainimportacao.ValorMoedaDe(item.ValorMoedaCentesimos),
+			QuantidadeRecebida:    item.QuantidadeRecebida,
+			CustoUnitarioCentavos: item.CustoUnitarioCentavos,
+			MovimentoID:           item.MovimentoID,
+			CriadoEm:              item.CriadoEm,
 		})
 	}
 	if err := r.carregarFinanceiro(ctx, importacao); err != nil {
+		return nil, err
+	}
+	if err := r.carregarAlocacoes(ctx, importacao); err != nil {
 		return nil, err
 	}
 
@@ -310,7 +329,8 @@ func inserirImportacao(ctx context.Context, tx *sqlx.Tx, importacao *domainimpor
 		VALUES (
 			:id, :empresa_id, :numero, :fornecedor_id, :referencia, :moeda, :status, :valor_total_moeda_centesimos,
 			:embarque_previsto, :embarcada_em, :chegada_prevista, :chegada_em, :desembaracada_em, :documento_embarque,
-			:declaracao, :observacoes, :cancelada_motivo, :usuario_id, :versao, :criado_em, :atualizado_em
+			:declaracao, :observacoes, :cancelada_motivo, :usuario_id, :versao, :criado_em, :atualizado_em, :cambio_micro,
+			:recebida_em, :local_recebimento_id
 		)
 	`, linha); err != nil {
 		return 0, tratarErroDeGravacao(err)
@@ -339,6 +359,9 @@ func atualizarImportacao(ctx context.Context, tx *sqlx.Tx, gravacao *portsout.Gr
 		    observacoes = $13,
 		    cancelada_motivo = $14,
 		    atualizado_em = $15,
+		    cambio_micro = $19,
+		    recebida_em = $20,
+		    local_recebimento_id = $21,
 		    versao = versao + 1
 		WHERE id = $16
 		  AND versao = $17
@@ -349,6 +372,7 @@ func atualizarImportacao(ctx context.Context, tx *sqlx.Tx, gravacao *portsout.Gr
 		linha.EmbarquePrevisto, linha.EmbarcadaEm, linha.ChegadaPrevista, linha.ChegadaEm, linha.DesembaracadaEm,
 		linha.DocumentoEmbarque, linha.Declaracao, linha.Observacoes, linha.CanceladaMotivo, linha.AtualizadoEm,
 		linha.ID, gravacao.VersaoLida, gravacao.StatusAnterior.String(),
+		linha.CambioMicro, linha.RecebidaEm, linha.LocalRecebimentoID,
 	)
 }
 
@@ -367,7 +391,7 @@ func gravarItensDaImportacao(ctx context.Context, tx *sqlx.Tx, importacao *domai
 	for _, item := range importacao.Itens {
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO importacao_item (`+colunasImportacaoItem+`)
-			VALUES ($1, $2, $3, $4, $5, $6)
+			VALUES ($1, $2, $3, $4, $5, $6, NULL, NULL, NULL)
 			ON CONFLICT (id) DO UPDATE
 			SET quantidade = EXCLUDED.quantidade,
 			    valor_moeda_centesimos = EXCLUDED.valor_moeda_centesimos
@@ -401,7 +425,7 @@ func inserirHistoricoDaImportacao(ctx context.Context, tx *sqlx.Tx, historico *d
 }
 
 func paraLinhaImportacao(importacao *domainimportacao.Importacao) importacaoLinha {
-	return importacaoLinha{
+	linha := importacaoLinha{
 		ID:                        importacao.ID,
 		EmpresaID:                 importacao.EmpresaID,
 		Numero:                    importacao.Numero,
@@ -419,37 +443,53 @@ func paraLinhaImportacao(importacao *domainimportacao.Importacao) importacaoLinh
 		Declaracao:                importacao.Declaracao,
 		Observacoes:               importacao.Observacoes,
 		CanceladaMotivo:           importacao.CanceladaMotivo,
+		RecebidaEm:                importacao.RecebidaEm,
+		LocalRecebimentoID:        importacao.LocalRecebimentoID,
 		UsuarioID:                 importacao.UsuarioID,
 		Versao:                    importacao.Versao,
 		CriadoEm:                  importacao.CriadoEm,
 		AtualizadoEm:              importacao.AtualizadoEm,
 	}
+	if importacao.Cambio != nil {
+		micro := importacao.Cambio.Micro()
+		linha.CambioMicro = &micro
+	}
+
+	return linha
 }
 
 func paraDominioImportacao(linha *importacaoLinha) *domainimportacao.Importacao {
-	return &domainimportacao.Importacao{
-		ID:                linha.ID,
-		EmpresaID:         linha.EmpresaID,
-		Numero:            linha.Numero,
-		FornecedorID:      linha.FornecedorID,
-		Referencia:        linha.Referencia,
-		Moeda:             domainfornecedor.MoedaDe(linha.Moeda),
-		Status:            domainimportacao.StatusDe(linha.Status),
-		ValorTotal:        domainimportacao.ValorMoedaDe(linha.ValorTotalMoedaCentesimos),
-		EmbarquePrevisto:  dataDaImportacao(linha.EmbarquePrevisto),
-		EmbarcadaEm:       dataDaImportacao(linha.EmbarcadaEm),
-		ChegadaPrevista:   dataDaImportacao(linha.ChegadaPrevista),
-		ChegadaEm:         dataDaImportacao(linha.ChegadaEm),
-		DesembaracadaEm:   dataDaImportacao(linha.DesembaracadaEm),
-		DocumentoEmbarque: linha.DocumentoEmbarque,
-		Declaracao:        linha.Declaracao,
-		Observacoes:       linha.Observacoes,
-		CanceladaMotivo:   linha.CanceladaMotivo,
-		UsuarioID:         linha.UsuarioID,
-		Versao:            linha.Versao,
-		CriadoEm:          linha.CriadoEm,
-		AtualizadoEm:      linha.AtualizadoEm,
+	importacao := &domainimportacao.Importacao{
+		ID:                 linha.ID,
+		EmpresaID:          linha.EmpresaID,
+		Numero:             linha.Numero,
+		FornecedorID:       linha.FornecedorID,
+		Referencia:         linha.Referencia,
+		Moeda:              domainfornecedor.MoedaDe(linha.Moeda),
+		Status:             domainimportacao.StatusDe(linha.Status),
+		ValorTotal:         domainimportacao.ValorMoedaDe(linha.ValorTotalMoedaCentesimos),
+		EmbarquePrevisto:   dataDaImportacao(linha.EmbarquePrevisto),
+		EmbarcadaEm:        dataDaImportacao(linha.EmbarcadaEm),
+		ChegadaPrevista:    dataDaImportacao(linha.ChegadaPrevista),
+		ChegadaEm:          dataDaImportacao(linha.ChegadaEm),
+		DesembaracadaEm:    dataDaImportacao(linha.DesembaracadaEm),
+		DocumentoEmbarque:  linha.DocumentoEmbarque,
+		Declaracao:         linha.Declaracao,
+		Observacoes:        linha.Observacoes,
+		CanceladaMotivo:    linha.CanceladaMotivo,
+		RecebidaEm:         dataDaImportacao(linha.RecebidaEm),
+		LocalRecebimentoID: linha.LocalRecebimentoID,
+		UsuarioID:          linha.UsuarioID,
+		Versao:             linha.Versao,
+		CriadoEm:           linha.CriadoEm,
+		AtualizadoEm:       linha.AtualizadoEm,
 	}
+	if linha.CambioMicro != nil {
+		cambio := domainimportacao.CambioDe(*linha.CambioMicro)
+		importacao.Cambio = &cambio
+	}
+
+	return importacao
 }
 
 func dataDaImportacao(valor *time.Time) *time.Time {

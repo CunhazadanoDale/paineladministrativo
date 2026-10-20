@@ -10,6 +10,7 @@ import (
 	domainfinanceiro "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/financeiro"
 	domainfornecedor "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/fornecedor"
 	domainimportacao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/importacao"
+	domainpedido "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/pedido"
 	domainusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/usuarios"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/importacao"
 	importacaousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/importacao"
@@ -21,6 +22,11 @@ type cenario struct {
 	m           *memoria
 	importacoes portsin.ImportacaoUseCase
 	financas    portsin.FinanceiroUseCase
+	recebimento portsin.RecebimentoUseCase
+
+	galpao    *domainestoque.Local
+	galpaoRed *domainestoque.Local
+	fechado   *domainestoque.Local
 
 	compraMercadoria uuid.UUID
 	receita          uuid.UUID
@@ -56,6 +62,9 @@ func novoCenario(t *testing.T) *cenario {
 		financas: importacaousecases.NewFinanceiroUsecase(
 			repoImportacoes{m}, repoFornecedores{m}, repoCategorias{m}, repoEmpresas{m}, repoUsuarios{m}, repoCargos{m},
 		),
+		recebimento: importacaousecases.NewRecebimentoUsecase(
+			repoImportacoes{m}, repoEstoque{m}, repoLocais{m}, repoEmpresas{m}, repoUsuarios{m}, repoCargos{m},
+		),
 	}
 
 	c.mia = c.novaEmpresa(true)
@@ -77,6 +86,9 @@ func novoCenario(t *testing.T) *cenario {
 	c.produtoInativo = c.novoProduto("Pastilha", false)
 	c.compraMercadoria = c.novaCategoria(domainfinanceiro.NaturezaDespesa)
 	c.receita = c.novaCategoria(domainfinanceiro.NaturezaReceita)
+	c.galpao = c.novoLocal(c.mia, true)
+	c.galpaoRed = c.novoLocal(c.red, true)
+	c.fechado = c.novoLocal(c.mia, false)
 
 	return c
 }
@@ -109,8 +121,9 @@ func (c *cenario) novoFornecedor(moeda domainfornecedor.Moeda, ativo bool) *doma
 }
 
 func (c *cenario) novoProduto(nome string, ativo bool) *domainestoque.Produto {
-	produto := &domainestoque.Produto{ID: uuid.New(), Nome: nome, Ativo: ativo}
+	produto := &domainestoque.Produto{ID: uuid.New(), Nome: nome, Ativo: ativo, VersaoEstoque: 1}
 	c.m.produtos[produto.ID] = produto
+	c.m.estoques[produto.ID] = &domainestoque.EstoqueProduto{Produto: copiar(produto), Saldos: map[uuid.UUID]domainestoque.SaldoLocal{}}
 
 	return produto
 }
@@ -157,4 +170,38 @@ func (c *cenario) novaCategoria(natureza domainfinanceiro.Natureza) uuid.UUID {
 	c.m.categorias[categoria.ID] = categoria
 
 	return categoria.ID
+}
+
+func (c *cenario) novoLocal(empresaID uuid.UUID, ativo bool) *domainestoque.Local {
+	local := &domainestoque.Local{ID: uuid.New(), EmpresaID: empresaID, Nome: "Galpão", Ativo: ativo}
+	c.m.locais[local.ID] = local
+
+	return local
+}
+
+func (c *cenario) novoItemDePedido(empresaID uuid.UUID, produto *domainestoque.Produto, quantidade int, prazo *time.Time) *domainimportacao.PedidoItemAlocavel {
+	item := &domainimportacao.PedidoItemAlocavel{
+		PedidoItemID: uuid.New(), PedidoID: uuid.New(), PedidoNumero: len(c.m.pedidoItens) + 1, EmpresaID: empresaID,
+		Modelo: domainpedido.ModeloImportacao, StatusPedido: domainpedido.StatusConfirmado, PrazoLimite: prazo,
+		ProdutoID: produto.ID, Quantidade: quantidade,
+	}
+	c.m.pedidoItens[item.PedidoItemID] = item
+
+	return item
+}
+
+func (c *cenario) desembaracar(t *testing.T, importacao *domainimportacao.Importacao) *domainimportacao.Importacao {
+	t.Helper()
+
+	embarcada := c.embarcar(t, importacao)
+	hoje := domainimportacao.Hoje(time.Now())
+	visao, err := c.importacoes.Desembaracar(c.ctx, portsin.DesembaracarInput{
+		UsuarioID: c.financeiro, ImportacaoID: embarcada.ID, Versao: embarcada.Versao,
+		ChegadaEm: hoje.AddDate(0, 0, -2), DesembaracadaEm: hoje.AddDate(0, 0, -1), Declaracao: "26/0001234-5",
+	})
+	if err != nil {
+		t.Fatalf("Desembaracar falhou: %v", err)
+	}
+
+	return visao.Importacao
 }
