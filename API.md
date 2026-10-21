@@ -3816,7 +3816,7 @@ id da parcela. Escopo por empresa pela devedora (seção 4 do `EMPRESAS.md`). Es
 | Método | Rota | Perfil | Sucesso |
 | --- | --- | --- | --- |
 | `POST` | `/api/v1/dividas` | **financeiro** | `201` dívida com parcelas; gera as contas do mês corrente |
-| `GET` | `/api/v1/dividas` | **financeiro** | `200` lista paginada (`?empresa=`, `?fornecedor=`, `?credor_tipo=`, `?status=`), mais recente primeiro |
+| `GET` | `/api/v1/dividas` | **financeiro** | `200` lista paginada (`?empresa=`, `?fornecedor=`, `?credor_tipo=`, `?status=`, `?quitada=`, `?vencidas=`), mais recente primeiro, com saldo e vencido |
 | `GET` | `/api/v1/dividas/{id}` | **financeiro** | `200` dívida com parcelas, contas a pagar, situação e saldo devedor |
 | `PUT` | `/api/v1/dividas/{id}` | **financeiro** | `200`; só os campos informativos e as categorias |
 | `PUT` | `/api/v1/dividas/{id}/parcelas/{parcela_id}` | **financeiro** | `200`; vencimento e juros da parcela `prevista` |
@@ -3824,6 +3824,7 @@ id da parcela. Escopo por empresa pela devedora (seção 4 do `EMPRESAS.md`). Es
 | `POST` | `/api/v1/dividas/{id}/renegociar` | **financeiro** | `201` dívida nova ligada à original; a original fica `renegociada` e as contas abertas dela são canceladas |
 | `POST` | `/api/v1/dividas/{id}/parcelas/{parcela_id}/reabrir` | **financeiro** | `200`; parcela com as contas canceladas ou rejeitadas no M7 volta a `prevista` |
 | `GET` | `/api/v1/dividas/{id}/historico` | **financeiro** | `200` lista (`{ "dados": [...] }`) em ordem cronológica |
+| `GET` | `/api/v1/dividas/resumo` | **financeiro** | `200` saldo devedor por tipo de credor e por empresa, vencido × a vencer (`?empresa=`) |
 | `POST` | `/api/v1/dividas/gerar?competencia=AAAA-MM` | **financeiro** | `200` contas a pagar geradas das parcelas que vencem até o fim da competência (`?empresa=` opcional) |
 
 Sem perfil financeiro → `403` do middleware. Dívida de empresa fora do acesso → `403 perfil sem acesso a esta
@@ -3915,7 +3916,9 @@ Resposta (criar, detalhe e ações):
   (vencimento antes de hoje); `a_vencer`.
 - `saldo_devedor_centavos`: soma das amortizações não pagas das parcelas não canceladas (`0` em dívida
   `renegociada` ou `cancelada`). `quitada`: dívida ativa sem nenhum componente em aberto.
-- A lista traz os campos da dívida sem `saldo_devedor_centavos`, `quitada` e `parcelas`.
+- A lista traz os campos da dívida com `saldo_devedor_centavos`, `vencido_centavos` (amortização e juros em aberto
+  das parcelas vencidas antes de hoje) e `quitada`, sem `parcelas`. `?quitada=true|false` e `?vencidas=true|false`
+  (dívida `ativa` com parcela vencida em aberto) aceitam `true`/`false`/`1`/`0`; outro valor → `400`.
 
 ### Alterar e editar parcela
 
@@ -4003,6 +4006,40 @@ As contas nascem `pendente_aprovacao`, com o credor como fornecedor, a categoria
 observação "dívida <descrição> — parcela n/total — amortização|juros". Dívida com empresa ou credor inativo,
 categoria que deixou de ser lançável ou alterada ao mesmo tempo vai para `recusadas` e não grava nada. Sem
 `competencia` → `400 erro de validação: competência da geração é obrigatória`; empresa fora do acesso → `403`.
+
+### Resumo
+
+`GET /api/v1/dividas/resumo?empresa=` (empresa opcional; sem ela, todas do acesso) considera só dívidas `ativa` e
+parcelas não canceladas; componente com conta `pago` não conta, parcela `prevista` conta inteira.
+
+```json
+{
+  "dados": {
+    "hoje": "2026-10-20",
+    "saldo_devedor_centavos": 290000,
+    "dividas": 2,
+    "por_credor": [
+      { "credor_tipo": "banco", "saldo_devedor_centavos": 200000, "dividas": 1 },
+      { "credor_tipo": "investidor", "saldo_devedor_centavos": 0, "dividas": 0 },
+      { "credor_tipo": "fisco", "saldo_devedor_centavos": 90000, "dividas": 1 },
+      { "credor_tipo": "fornecedor", "saldo_devedor_centavos": 0, "dividas": 0 }
+    ],
+    "por_empresa": [{ "empresa_id": "…", "saldo_devedor_centavos": 290000, "dividas": 2 }],
+    "vencido": { "amortizacao_centavos": 30000, "juros_centavos": 600, "parcelas": 1 },
+    "a_vencer": { "amortizacao_centavos": 260000, "juros_centavos": 11700, "parcelas": 5 },
+    "a_vencer_30_dias": { "amortizacao_centavos": 30000, "juros_centavos": 5950, "parcelas": 2 },
+    "a_vencer_90_dias": { "amortizacao_centavos": 130000, "juros_centavos": 9650, "parcelas": 3 },
+    "a_vencer_365_dias": { "amortizacao_centavos": 260000, "juros_centavos": 11700, "parcelas": 5 }
+  }
+}
+```
+
+- `saldo_devedor_centavos`: soma das amortizações em aberto (o principal); os juros aparecem só nas faixas.
+- `dividas`: dívidas com algum componente em aberto. `por_credor` traz sempre os quatro tipos; `por_empresa` só as
+  empresas com saldo ou juros em aberto, do maior saldo para o menor.
+- `vencido`: vencimento antes de hoje (Brasília); `a_vencer`: de hoje em diante; as faixas contam de hoje até
+  hoje + 30, 90 e 365 dias, inclusive.
+- Empresa fora do acesso → `403`.
 
 Histórico: `criada` (saldo, data e número de parcelas), `alterada`, `parcela_alterada` (vencimento e juros antes
 e depois), `contas_geradas` (quantas contas e de quais parcelas), `parcela_reaberta`, `renegociada` (saldo em aberto,

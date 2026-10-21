@@ -36,6 +36,9 @@ type DividaFiltro struct {
 	FornecedorID *uuid.UUID
 	CredorTipo   domaindivida.TipoCredor
 	Status       domaindivida.Status
+	Quitada      *bool
+	Vencidas     *bool
+	Hoje         time.Time
 }
 
 type DividaRepository interface {

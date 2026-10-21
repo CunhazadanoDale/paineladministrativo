@@ -1,8 +1,8 @@
 # Escopo — M14 Dívidas e empréstimos
 
 > **Status:** escopo fechado — decisões D1 a D10 respondidas pelo usuário (outubro/2026), todas as
-> recomendações aceitas; fases 1 e 2 concluídas (dívida, parcelas, geração das contas a pagar, cancelamento,
-> renegociação e reabertura de parcela); fase 3 (visões) pendente.
+> recomendações aceitas; API concluída (fases 1 a 3: dívida, parcelas, geração das contas a pagar,
+> cancelamento, renegociação, reabertura de parcela e visões); front (fase 4) pendente.
 > **Objetivo:** tirar da planilha "Dívidas do grupo" os empréstimos bancários, os aportes de investidores, os
 > parcelamentos com o fisco e as dívidas parceladas com fornecedores: saldo devedor por credor e por empresa,
 > cronograma de parcelas e as contas a pagar de cada parcela no M7, com juros na DRE (`resultado_financeiro`) e
@@ -149,6 +149,9 @@ registra o saldo devedor que a original tinha, para conferência. A resposta é 
   de hoje ou a partir de hoje (Brasília), com a quantidade de parcelas; a vencer também nos próximos 30, 90 e
   365 dias.
 
+`GET /dividas` traz em cada dívida `saldo_devedor_centavos`, `vencido_centavos` e `quitada`, e aceita
+`?quitada=` e `?vencidas=`.
+
 ---
 
 ## 4. Endpoints
@@ -165,6 +168,7 @@ POST   /api/v1/dividas/{id}/cancelar                     { versao, motivo }
 GET    /api/v1/dividas/{id}/historico
 POST   /api/v1/dividas/gerar                             ?competencia=AAAA-MM
 GET    /api/v1/dividas/resumo                            ?empresa=
+GET    /api/v1/dividas                                   ?quitada= ?vencidas= (além dos filtros acima)
 ```
 
 Todas em `financeiro(...)`. `versao` de toda escrita é a da dívida (as parcelas não têm versão própria).
@@ -239,7 +243,7 @@ Numeração a partir da `000067`; renumerar antes do merge se outra sessão merg
 |---|---|---|
 | **1** | Dívida e parcelas (migration 000067): domínio, criar com carga pelo saldo, alterar, editar parcela prevista, cancelar, histórico; geração das duas contas a pagar (na criação e `POST /dividas/gerar`); integração de idempotência; e2e + `API.md` | concluída |
 | **2** | Renegociação com cancelamento das contas abertas e reabertura de parcela; integração da transação; e2e + `API.md` | concluída |
-| **3** | Visões: lista com saldo e situação, `GET /dividas/resumo` (saldo por tipo de credor e empresa, vencido × a vencer); e2e + `API.md` | pendente |
+| **3** | Visões: lista com saldo e situação, `GET /dividas/resumo` (saldo por tipo de credor e empresa, vencido × a vencer); e2e + `API.md` | concluída |
 | **4** | Frontend (lista, cadastro com cronograma, detalhe, renegociar, resumo) | pendente (sessão própria) |
 
 Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates verdes.
@@ -289,6 +293,17 @@ Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates ve
       `rejeitado` (conferidas com `FOR UPDATE` na transação); a substituta é ligada por `substituta_id`, com a FK
       `DEFERRABLE INITIALLY DEFERRED`, porque a antiga precisa sair do índice parcial de número antes de a nova
       entrar.
+- [x] **Fase 3 — resumo** (implementação): consulta própria (`DividaConsultaRepository.ParcelasEmAberto`) traz, das
+      dívidas `ativa` do escopo, cada parcela não cancelada com a amortização e os juros ainda não pagos (conta
+      `pago` zera o componente; parcela `prevista` conta inteira); o agrupamento é do domínio (`NovoResumo`). Saldo
+      devedor = soma das amortizações em aberto; `dividas` conta as dívidas com algum componente em aberto (inclusive
+      só juros). `por_credor` traz sempre os quatro tipos, na ordem banco, investidor, fisco, fornecedor;
+      `por_empresa` só as empresas com algo em aberto, do maior saldo para o menor. "Vencido" é vencimento antes de
+      hoje; as faixas de 30, 90 e 365 dias contam a partir de hoje, inclusive.
+- [x] **Fase 3 — lista** (implementação): a lista carrega as parcelas das dívidas da página (uma consulta com
+      `ANY`, na mesma transação `REPEATABLE READ`) para responder saldo, vencido e quitada; `?quitada=` e
+      `?vencidas=` são `EXISTS` sobre as parcelas em aberto. Dívida `renegociada` ou `cancelada` nunca é quitada nem
+      vencida.
 
 ## 10. Decisões do escopo
 

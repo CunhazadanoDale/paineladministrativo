@@ -89,7 +89,19 @@ type ListarDividasInput struct {
 	FornecedorID *uuid.UUID
 	CredorTipo   string
 	Status       string
+	Quitada      *bool
+	Vencidas     *bool
 	Filtro       domain.PaginacaoFiltro
+}
+
+type Lista struct {
+	Dividas []*domaindivida.Divida
+	Hoje    time.Time
+}
+
+type ResumoInput struct {
+	UsuarioID uuid.UUID
+	Empresa   *uuid.UUID
 }
 
 type GerarContasInput struct {
@@ -123,7 +135,7 @@ type Visao struct {
 type DividaUseCase interface {
 	Criar(ctx context.Context, input CriarDividaInput) (*Visao, error)
 	Obter(ctx context.Context, dividaID, usuarioID uuid.UUID) (*Visao, error)
-	Listar(ctx context.Context, input ListarDividasInput) ([]*domaindivida.Divida, error)
+	Listar(ctx context.Context, input ListarDividasInput) (*Lista, error)
 	Alterar(ctx context.Context, input AlterarDividaInput) (*Visao, error)
 	AlterarParcela(ctx context.Context, input AlterarParcelaInput) (*Visao, error)
 	Cancelar(ctx context.Context, input CancelarDividaInput) (*Visao, error)
@@ -131,4 +143,5 @@ type DividaUseCase interface {
 	ReabrirParcela(ctx context.Context, input ReabrirParcelaInput) (*Visao, error)
 	ListarHistorico(ctx context.Context, dividaID, usuarioID uuid.UUID) ([]*domaindivida.Historico, error)
 	GerarContas(ctx context.Context, input GerarContasInput) (ResultadoGeracao, error)
+	Resumo(ctx context.Context, input ResumoInput) (domaindivida.Resumo, error)
 }

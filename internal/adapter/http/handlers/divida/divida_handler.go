@@ -58,15 +58,23 @@ func (h *DividaHandler) Listar(w http.ResponseWriter, r *http.Request) {
 		resposta.ResponderErro(w, err)
 		return
 	}
+	if input.Quitada, err = resposta.ConsultaBooleanaOpcional(r, "quitada"); err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+	if input.Vencidas, err = resposta.ConsultaBooleanaOpcional(r, "vencidas"); err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
 
-	dividas, err := h.usecase.Listar(r.Context(), input)
+	lista, err := h.usecase.Listar(r.Context(), input)
 	if err != nil {
 		resposta.ResponderErro(w, err)
 		return
 	}
 
-	dto.EscreverJSON(w, http.StatusOK, dto.Paginado[dividadto.DividaResponse]{
-		Dados:   dividadto.NovasDividaResponses(dividas),
+	dto.EscreverJSON(w, http.StatusOK, dto.Paginado[dividadto.DividaDaListaResponse]{
+		Dados:   dividadto.NovasDividaResponses(lista),
 		Pagina:  input.Filtro.Page,
 		Tamanho: input.Filtro.Size,
 	})
@@ -231,6 +239,27 @@ func (h *DividaHandler) GerarContas(w http.ResponseWriter, r *http.Request) {
 	dto.EscreverJSON(w, http.StatusOK, dto.Resposta[dividadto.ResultadoGeracaoResponse]{
 		Dados: dividadto.NovoResultadoGeracaoResponse(resultado),
 	})
+}
+
+func (h *DividaHandler) Resumo(w http.ResponseWriter, r *http.Request) {
+	usuario, ok := resposta.UsuarioDoContexto(w, r)
+	if !ok {
+		return
+	}
+
+	empresa, err := resposta.ConsultaUUID(r, "empresa")
+	if err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+
+	resumo, err := h.usecase.Resumo(r.Context(), portsin.ResumoInput{UsuarioID: usuario.ID, Empresa: empresa})
+	if err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+
+	dto.EscreverJSON(w, http.StatusOK, dto.Resposta[dividadto.ResumoResponse]{Dados: dividadto.NovoResumoResponse(resumo)})
 }
 
 func escreverDetalhe(w http.ResponseWriter, status int, visao *portsin.Visao, err error) {

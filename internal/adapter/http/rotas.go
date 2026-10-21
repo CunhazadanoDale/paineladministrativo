@@ -618,6 +618,7 @@ func novasRotas(
 	financeiro("POST /api/v1/dividas", dividaHandler.Criar)
 	financeiro("GET /api/v1/dividas", dividaHandler.Listar)
 	financeiro("POST /api/v1/dividas/gerar", dividaHandler.GerarContas)
+	financeiro("GET /api/v1/dividas/resumo", dividaHandler.Resumo)
 	financeiro("GET /api/v1/dividas/{id}", dividaHandler.Obter)
 	financeiro("PUT /api/v1/dividas/{id}", dividaHandler.Alterar)
 	financeiro("PUT /api/v1/dividas/{id}/parcelas/{parcela_id}", dividaHandler.AlterarParcela)

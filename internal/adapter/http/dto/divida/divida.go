@@ -293,13 +293,87 @@ func NovaDividaResponse(divida *domaindivida.Divida) DividaResponse {
 	return resposta
 }
 
-func NovasDividaResponses(dividas []*domaindivida.Divida) []DividaResponse {
-	respostas := make([]DividaResponse, 0, len(dividas))
-	for _, divida := range dividas {
-		respostas = append(respostas, NovaDividaResponse(divida))
+type DividaDaListaResponse struct {
+	DividaResponse
+	SaldoDevedorCentavos int64 `json:"saldo_devedor_centavos"`
+	VencidoCentavos      int64 `json:"vencido_centavos"`
+	Quitada              bool  `json:"quitada"`
+}
+
+func NovasDividaResponses(lista *portsin.Lista) []DividaDaListaResponse {
+	respostas := make([]DividaDaListaResponse, 0, len(lista.Dividas))
+	for _, divida := range lista.Dividas {
+		respostas = append(respostas, DividaDaListaResponse{
+			DividaResponse:       NovaDividaResponse(divida),
+			SaldoDevedorCentavos: divida.SaldoDevedor(),
+			VencidoCentavos:      divida.VencidoCentavos(lista.Hoje),
+			Quitada:              divida.Quitada(),
+		})
 	}
 
 	return respostas
+}
+
+type TotaisResponse struct {
+	AmortizacaoCentavos int64 `json:"amortizacao_centavos"`
+	JurosCentavos       int64 `json:"juros_centavos"`
+	Parcelas            int   `json:"parcelas"`
+}
+
+type SaldoDoCredorResponse struct {
+	CredorTipo           string `json:"credor_tipo"`
+	SaldoDevedorCentavos int64  `json:"saldo_devedor_centavos"`
+	Dividas              int    `json:"dividas"`
+}
+
+type SaldoDaEmpresaResponse struct {
+	EmpresaID            uuid.UUID `json:"empresa_id"`
+	SaldoDevedorCentavos int64     `json:"saldo_devedor_centavos"`
+	Dividas              int       `json:"dividas"`
+}
+
+type ResumoResponse struct {
+	Hoje                 string                   `json:"hoje"`
+	SaldoDevedorCentavos int64                    `json:"saldo_devedor_centavos"`
+	Dividas              int                      `json:"dividas"`
+	PorCredor            []SaldoDoCredorResponse  `json:"por_credor"`
+	PorEmpresa           []SaldoDaEmpresaResponse `json:"por_empresa"`
+	Vencido              TotaisResponse           `json:"vencido"`
+	AVencer              TotaisResponse           `json:"a_vencer"`
+	AVencer30            TotaisResponse           `json:"a_vencer_30_dias"`
+	AVencer90            TotaisResponse           `json:"a_vencer_90_dias"`
+	AVencer365           TotaisResponse           `json:"a_vencer_365_dias"`
+}
+
+func novoTotaisResponse(totais domaindivida.Totais) TotaisResponse {
+	return TotaisResponse{AmortizacaoCentavos: totais.AmortizacaoCentavos, JurosCentavos: totais.JurosCentavos, Parcelas: totais.Parcelas}
+}
+
+func NovoResumoResponse(resumo domaindivida.Resumo) ResumoResponse {
+	resposta := ResumoResponse{
+		Hoje:                 resumo.Hoje.Format(formatoData),
+		SaldoDevedorCentavos: resumo.SaldoDevedorCentavos,
+		Dividas:              resumo.Dividas,
+		PorCredor:            make([]SaldoDoCredorResponse, 0, len(resumo.PorCredor)),
+		PorEmpresa:           make([]SaldoDaEmpresaResponse, 0, len(resumo.PorEmpresa)),
+		Vencido:              novoTotaisResponse(resumo.Vencido),
+		AVencer:              novoTotaisResponse(resumo.AVencer),
+		AVencer30:            novoTotaisResponse(resumo.AVencer30),
+		AVencer90:            novoTotaisResponse(resumo.AVencer90),
+		AVencer365:           novoTotaisResponse(resumo.AVencer365),
+	}
+	for _, credor := range resumo.PorCredor {
+		resposta.PorCredor = append(resposta.PorCredor, SaldoDoCredorResponse{
+			CredorTipo: credor.CredorTipo.String(), SaldoDevedorCentavos: credor.SaldoDevedorCentavos, Dividas: credor.Dividas,
+		})
+	}
+	for _, empresa := range resumo.PorEmpresa {
+		resposta.PorEmpresa = append(resposta.PorEmpresa, SaldoDaEmpresaResponse{
+			EmpresaID: empresa.EmpresaID, SaldoDevedorCentavos: empresa.SaldoDevedorCentavos, Dividas: empresa.Dividas,
+		})
+	}
+
+	return resposta
 }
 
 func NovaDividaDetalheResponse(visao *portsin.Visao) DividaDetalheResponse {

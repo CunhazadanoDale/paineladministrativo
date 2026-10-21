@@ -180,6 +180,27 @@ func (r *DividaRepository) Obter(ctx context.Context, id uuid.UUID) (*domaindivi
 		return nil, err
 	}
 
+	divida := paraDominioDivida(&linha)
+	if err := carregarParcelasDasDividas(ctx, tx, []*domaindivida.Divida{divida}); err != nil {
+		return nil, err
+	}
+
+	return divida, tx.Commit()
+}
+
+func carregarParcelasDasDividas(ctx context.Context, tx *sqlx.Tx, dividas []*domaindivida.Divida) error {
+	if len(dividas) == 0 {
+		return nil
+	}
+
+	porID := make(map[uuid.UUID]*domaindivida.Divida, len(dividas))
+	ids := make([]uuid.UUID, 0, len(dividas))
+	for _, divida := range dividas {
+		divida.Parcelas = []*domaindivida.Parcela{}
+		porID[divida.ID] = divida
+		ids = append(ids, divida.ID)
+	}
+
 	var parcelas []*dividaParcelaLinha
 	if err := tx.SelectContext(ctx, &parcelas, `
 		SELECT p.id, p.divida_id, p.numero, p.vencimento, p.amortizacao_centavos, p.juros_centavos, p.status, p.gerada_em,
@@ -189,19 +210,35 @@ func (r *DividaRepository) Obter(ctx context.Context, id uuid.UUID) (*domaindivi
 		FROM divida_parcela p
 		LEFT JOIN solicitacao sa ON sa.origem = 'divida_amortizacao' AND sa.origem_id = p.id
 		LEFT JOIN solicitacao sj ON sj.origem = 'divida_juros' AND sj.origem_id = p.id
-		WHERE p.divida_id = $1
-		ORDER BY p.numero ASC, p.criado_em ASC, p.id ASC
-	`, id); err != nil {
-		return nil, err
+		WHERE p.divida_id = ANY($1::uuid[])
+		ORDER BY p.divida_id, p.numero ASC, p.criado_em ASC, p.id ASC
+	`, pq.Array(textosDeIDs(ids))); err != nil {
+		return err
 	}
 
-	divida := paraDominioDivida(&linha)
-	divida.Parcelas = make([]*domaindivida.Parcela, 0, len(parcelas))
 	for _, parcela := range parcelas {
+		divida := porID[parcela.DividaID]
 		divida.Parcelas = append(divida.Parcelas, paraDominioParcelaDaDivida(parcela))
 	}
 
-	return divida, tx.Commit()
+	return nil
+}
+
+func condicaoDeParcelaEmAberto(vencidaAntes string) string {
+	condicao := `EXISTS (
+		SELECT 1 FROM divida_parcela p
+		WHERE p.divida_id = d.id AND p.status <> 'cancelada'
+		  AND (
+		    (p.amortizacao_centavos > 0 AND NOT EXISTS (
+		      SELECT 1 FROM solicitacao s WHERE s.origem = 'divida_amortizacao' AND s.origem_id = p.id AND s.status = 'pago'))
+		    OR (p.juros_centavos > 0 AND NOT EXISTS (
+		      SELECT 1 FROM solicitacao s WHERE s.origem = 'divida_juros' AND s.origem_id = p.id AND s.status = 'pago'))
+		  )`
+	if vencidaAntes != "" {
+		condicao += ` AND p.vencimento < ` + vencidaAntes
+	}
+
+	return condicao + `)`
 }
 
 func (r *DividaRepository) Listar(ctx context.Context, filtro portsout.DividaFiltro) ([]*domaindivida.Divida, error) {
@@ -231,16 +268,37 @@ func (r *DividaRepository) Listar(ctx context.Context, filtro portsout.DividaFil
 	if filtro.Status != "" {
 		adicionar("status", filtro.Status.String())
 	}
+	if filtro.Quitada != nil {
+		quitada := `(d.status = 'ativa' AND NOT ` + condicaoDeParcelaEmAberto("") + `)`
+		if !*filtro.Quitada {
+			quitada = `NOT ` + quitada
+		}
+		condicoes = append(condicoes, quitada)
+	}
+	if filtro.Vencidas != nil {
+		argumentos = append(argumentos, filtro.Hoje)
+		vencidas := `(d.status = 'ativa' AND ` + condicaoDeParcelaEmAberto("$"+strconv.Itoa(len(argumentos))) + `)`
+		if !*filtro.Vencidas {
+			vencidas = `NOT ` + vencidas
+		}
+		condicoes = append(condicoes, vencidas)
+	}
 
-	query := `SELECT ` + colunasDivida + ` FROM divida`
+	query := `SELECT ` + colunasDivida + ` FROM divida d`
 	if len(condicoes) > 0 {
 		query += ` WHERE ` + unirCondicoes(condicoes)
 	}
 	argumentos = append(argumentos, filtro.Size, offset)
 	query += ` ORDER BY criado_em DESC, id DESC` + limiteOffset(argumentos)
 
+	tx, err := r.db.BeginTxx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
 	var linhas []*dividaLinha
-	if err := r.db.SelectContext(ctx, &linhas, query, argumentos...); err != nil {
+	if err := tx.SelectContext(ctx, &linhas, query, argumentos...); err != nil {
 		return nil, err
 	}
 
@@ -248,8 +306,11 @@ func (r *DividaRepository) Listar(ctx context.Context, filtro portsout.DividaFil
 	for _, linha := range linhas {
 		dividas = append(dividas, paraDominioDivida(linha))
 	}
+	if err := carregarParcelasDasDividas(ctx, tx, dividas); err != nil {
+		return nil, err
+	}
 
-	return dividas, nil
+	return dividas, tx.Commit()
 }
 
 func (r *DividaRepository) ListarHistorico(ctx context.Context, dividaID uuid.UUID) ([]*domaindivida.Historico, error) {

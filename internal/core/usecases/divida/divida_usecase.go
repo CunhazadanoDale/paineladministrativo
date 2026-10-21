@@ -21,6 +21,7 @@ var _ portsin.DividaUseCase = (*DividaUsecaseImpl)(nil)
 const tamanhoMaximoDescricaoHistoricoSolicitacao = 500
 
 type DividaUsecaseImpl struct {
+	consultas    portsout.ConsultaRepository
 	fornecedores portsout.FornecedorRepository
 	categorias   portsout.CategoriaFinanceiraRepository
 	contas       portsout.ContaBancariaRepository
@@ -29,6 +30,7 @@ type DividaUsecaseImpl struct {
 
 func NewDividaUsecase(
 	dividas portsout.DividaRepository,
+	consultas portsout.ConsultaRepository,
 	fornecedores portsout.FornecedorRepository,
 	categorias portsout.CategoriaFinanceiraRepository,
 	contas portsout.ContaBancariaRepository,
@@ -37,6 +39,7 @@ func NewDividaUsecase(
 	cargos portsout.CargoRepository,
 ) *DividaUsecaseImpl {
 	return &DividaUsecaseImpl{
+		consultas:    consultas,
 		fornecedores: fornecedores,
 		categorias:   categorias,
 		contas:       contas,
@@ -201,7 +204,7 @@ func (u *DividaUsecaseImpl) Obter(ctx context.Context, dividaID, usuarioID uuid.
 	return u.visao(divida, agoraEmUTC()), nil
 }
 
-func (u *DividaUsecaseImpl) Listar(ctx context.Context, input portsin.ListarDividasInput) ([]*domaindivida.Divida, error) {
+func (u *DividaUsecaseImpl) Listar(ctx context.Context, input portsin.ListarDividasInput) (*portsin.Lista, error) {
 	perfil, err := u.exigeFinanceiro(ctx, input.UsuarioID)
 	if err != nil {
 		return nil, err
@@ -211,11 +214,15 @@ func (u *DividaUsecaseImpl) Listar(ctx context.Context, input portsin.ListarDivi
 		return nil, err
 	}
 
+	hoje := domaindivida.Hoje(agoraEmUTC())
 	filtro := portsout.DividaFiltro{
 		PaginacaoFiltro: input.Filtro.Normalizada(),
 		Empresa:         escopo.empresa,
 		EmpresaIDs:      escopo.empresaIDs,
 		FornecedorID:    input.FornecedorID,
+		Quitada:         input.Quitada,
+		Vencidas:        input.Vencidas,
+		Hoje:            hoje,
 	}
 	if input.CredorTipo != "" {
 		if filtro.CredorTipo, err = domaindivida.NovoTipoCredor(input.CredorTipo); err != nil {
@@ -228,7 +235,30 @@ func (u *DividaUsecaseImpl) Listar(ctx context.Context, input portsin.ListarDivi
 		}
 	}
 
-	return u.dividas.Listar(ctx, filtro)
+	dividas, err := u.dividas.Listar(ctx, filtro)
+	if err != nil {
+		return nil, err
+	}
+
+	return &portsin.Lista{Dividas: dividas, Hoje: hoje}, nil
+}
+
+func (u *DividaUsecaseImpl) Resumo(ctx context.Context, input portsin.ResumoInput) (domaindivida.Resumo, error) {
+	perfil, err := u.exigeFinanceiro(ctx, input.UsuarioID)
+	if err != nil {
+		return domaindivida.Resumo{}, err
+	}
+	escopo, err := perfil.escopo(input.Empresa)
+	if err != nil {
+		return domaindivida.Resumo{}, err
+	}
+
+	parcelas, err := u.consultas.ParcelasEmAberto(ctx, escopo.lista())
+	if err != nil {
+		return domaindivida.Resumo{}, err
+	}
+
+	return domaindivida.NovoResumo(parcelas, domaindivida.Hoje(agoraEmUTC())), nil
 }
 
 func (u *DividaUsecaseImpl) Alterar(ctx context.Context, input portsin.AlterarDividaInput) (*portsin.Visao, error) {

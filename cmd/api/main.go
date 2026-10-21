@@ -262,7 +262,7 @@ func executar(registrador *slog.Logger) error {
 			usuarioRepository, cargoRepository,
 		),
 		dividausecases.NewDividaUsecase(
-			postgres.NewDividaRepository(banco), postgres.NewFornecedorRepository(banco), postgres.NewCategoriaFinanceiraRepository(banco),
+			postgres.NewDividaRepository(banco), postgres.NewDividaConsultaRepository(banco), postgres.NewFornecedorRepository(banco), postgres.NewCategoriaFinanceiraRepository(banco),
 			postgres.NewContaBancariaRepository(banco), empresaRepository, usuarioRepository, cargoRepository,
 		),
 		autenticacao.NovoTokenService(cfg.JWTSecret, cfg.JWTExpiracao),

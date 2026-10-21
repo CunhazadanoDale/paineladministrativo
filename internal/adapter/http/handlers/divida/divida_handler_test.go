@@ -105,11 +105,11 @@ func (f *dividaUseCaseFalso) Obter(context.Context, uuid.UUID, uuid.UUID) (*port
 	return f.visao(), nil
 }
 
-func (f *dividaUseCaseFalso) Listar(_ context.Context, input portsin.ListarDividasInput) ([]*domaindivida.Divida, error) {
+func (f *dividaUseCaseFalso) Listar(_ context.Context, input portsin.ListarDividasInput) (*portsin.Lista, error) {
 	f.listar = input
 	f.chamadas++
 
-	return []*domaindivida.Divida{dividaDeTeste()}, nil
+	return &portsin.Lista{Dividas: []*domaindivida.Divida{dividaDeTeste()}, Hoje: time.Date(2026, 10, 20, 0, 0, 0, 0, time.UTC)}, nil
 }
 
 func (f *dividaUseCaseFalso) GerarContas(_ context.Context, input portsin.GerarContasInput) (portsin.ResultadoGeracao, error) {
@@ -188,13 +188,17 @@ func TestListarEGerarRepassamOsFiltros(t *testing.T) {
 	usecase := &dividaUseCaseFalso{}
 	handler := NewDividaHandler(usecase)
 
-	registrador := executaProtegido(t, handler.Listar, http.MethodGet, "/api/v1/dividas?credor_tipo=fisco&status=ativa", "", "")
-	if registrador.Code != http.StatusOK || usecase.listar.CredorTipo != "fisco" || usecase.listar.Status != "ativa" {
+	registrador := executaProtegido(t, handler.Listar, http.MethodGet, "/api/v1/dividas?credor_tipo=fisco&status=ativa&vencidas=true", "", "")
+	if registrador.Code != http.StatusOK || usecase.listar.CredorTipo != "fisco" || usecase.listar.Status != "ativa" ||
+		usecase.listar.Vencidas == nil || !*usecase.listar.Vencidas || usecase.listar.Quitada != nil {
 		t.Errorf("lista: status %d, entrada %+v", registrador.Code, usecase.listar)
 	}
-	if strings.Contains(registrador.Body.String(), "parcelas") {
-		t.Errorf("lista com parcelas: %s", registrador.Body.String())
+	if corpo := registrador.Body.String(); strings.Contains(corpo, "parcelas") || !strings.Contains(corpo, `"saldo_devedor_centavos":100000`) ||
+		!strings.Contains(corpo, `"vencido_centavos":2000`) {
+		t.Errorf("lista: %s", corpo)
 	}
+	registrador = executaProtegido(t, handler.Listar, http.MethodGet, "/api/v1/dividas?quitada=talvez", "", "")
+	apoioteste.VerificarEnvelopeDeErro(t, registrador, http.StatusBadRequest)
 
 	registrador = executaProtegido(t, handler.GerarContas, http.MethodPost, "/api/v1/dividas/gerar?competencia=2026-11", "", "")
 	if registrador.Code != http.StatusOK || usecase.gerar.Competencia != "2026-11" ||

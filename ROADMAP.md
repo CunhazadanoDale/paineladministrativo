@@ -168,7 +168,7 @@ o **F0b** pode correr junto com essas telas.
 | M11 | Propostas e tabela de preços | M3 M6 | orçamentos em documento, guia de modelos de venda | concluído |
 | M12 | Importações | M2 M4 M6 M7 | parte de Entregas de importação e do painel financeiro | concluído |
 | M13 | Caixa e conciliação | M5 M7 M9 | Caixa do mês, Fluxo de caixa diário | concluído |
-| M14 | Dívidas e empréstimos | M4 M5 M7 | Dívidas do grupo | em andamento (feat/m14-dividas) |
+| M14 | Dívidas e empréstimos | M4 M5 M7 | Dívidas do grupo | concluído |
 | M15 | DRE e painéis | M2 M7 M8 M9 M13 | DRE, Faturamento, Relatório semanal | em andamento (feat/m15-dre) |
 
 ---
@@ -1104,6 +1104,31 @@ próximos módulos:
 - **Crédito do empréstimo não é conciliado contra a dívida**: a linha do extrato é classificada no M13
   como `lancamento_caixa` numa categoria de receita em `fora_dre` (captação). Nenhum port nem
   repositório do M13 muda; a dívida guarda a conta e a data da liberação só como informação.
+
+**Entregue (outubro/2026):** API completa (fases 1 a 3 do `DIVIDAS.md`); front pendente (fase 4). Para os próximos
+módulos:
+
+- `divida` (empresa devedora, credor = `fornecedor_id` do M4 com `credor_tipo` `banco`/`investidor`/`fisco`/`fornecedor`,
+  `saldo_inicial_centavos` na `data_saldo`, categorias de amortização e de juros, `divida_origem_id` na renegociação,
+  `status` `ativa`/`renegociada`/`cancelada`) e `divida_parcela` (`numero`, `vencimento`, `amortizacao_centavos`,
+  `juros_centavos`, `status` `prevista`/`gerada`/`cancelada`); "quitada" é derivada, não gravada;
+- **as contas a pagar seguem o acordo**: cada parcela gera `divida_amortizacao` (categoria `fora_dre`) e `divida_juros`
+  (categoria `resultado_financeiro`), `origem_id` = id da parcela, `pendente_aprovacao`, fornecedor = credor, competência
+  do mês do vencimento; componente zero não gera conta. Nascem por competência (`POST /dividas/gerar?competencia=`, ao
+  lado da das despesas recorrentes) e na criação para o mês corrente — **parcela futura ainda `prevista` não está na
+  `solicitacao`**, então a DRE por competência só vê os juros dos meses já gerados. **Nenhum port nem repositório do M7
+  mudou**;
+- renegociar e cancelar cancelam no M7, na mesma transação, as contas `pendente_aprovacao` e `aprovado` da dívida
+  (`solicitacao_historico` `cancelada`); conta paga fica. Reabrir parcela troca a parcela cuja conta foi cancelada ou
+  rejeitada no M7 por outra `prevista` com o mesmo número;
+- **M15 — painel de endividamento**: o saldo devedor é a soma das `amortizacao_centavos` das parcelas não canceladas
+  de dívidas `ativa` cuja conta `divida_amortizacao` não está `pago` (parcela `prevista` conta inteira); vencido é
+  vencimento antes de hoje em Brasília. `DividaConsultaRepository.ParcelasEmAberto(ctx, empresaIDs)` devolve exatamente
+  essas linhas (por parcela, com empresa e tipo de credor) e `domaindivida.NovoResumo` agrupa por credor, empresa e
+  faixa: o M15 pode declarar a porta mínima com esse método, ou usar `GET /dividas/resumo`;
+- **M13**: concilia os pagamentos das contas da dívida como qualquer conta a pagar; o crédito do empréstimo continua
+  como `lancamento_caixa` em receita `fora_dre` (a dívida só guarda conta e data da liberação);
+- migration `000067`; renumerar antes do merge se outra sessão mergear antes.
 
 #### Coordenação M14 × M15
 

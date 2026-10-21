@@ -69,7 +69,7 @@ func copiarDivida(divida *domaindivida.Divida) *domaindivida.Divida {
 
 func (m *memoria) usecase() *usecases.DividaUsecaseImpl {
 	return usecases.NewDividaUsecase(
-		repoDividas{m}, repoFornecedores{m}, repoCategorias{m}, repoContas{m}, repoEmpresas{m}, repoUsuarios{m}, repoCargos{m},
+		repoDividas{m}, repoConsultas{m}, repoFornecedores{m}, repoCategorias{m}, repoContas{m}, repoEmpresas{m}, repoUsuarios{m}, repoCargos{m},
 	)
 }
 
@@ -105,6 +105,31 @@ func (m *memoria) categoria(linha domainfinanceiro.LinhaDRE) uuid.UUID {
 	m.categorias[categoria.ID] = categoria
 
 	return categoria.ID
+}
+
+type repoConsultas struct{ *memoria }
+
+func (r repoConsultas) ParcelasEmAberto(_ context.Context, empresaIDs []uuid.UUID) ([]domaindivida.ParcelaEmAberto, error) {
+	permitidas := map[uuid.UUID]bool{}
+	for _, id := range empresaIDs {
+		permitidas[id] = true
+	}
+
+	parcelas := make([]domaindivida.ParcelaEmAberto, 0)
+	for _, divida := range r.dividas {
+		if divida.Status != domaindivida.StatusAtiva || (empresaIDs != nil && !permitidas[divida.EmpresaID]) {
+			continue
+		}
+		atual, _ := repoDividas(r).Obter(context.Background(), divida.ID)
+		for _, parcela := range atual.Parcelas {
+			parcelas = append(parcelas, domaindivida.ParcelaEmAberto{
+				DividaID: divida.ID, EmpresaID: divida.EmpresaID, CredorTipo: divida.CredorTipo, Vencimento: parcela.Vencimento,
+				AmortizacaoCentavos: parcela.AmortizacaoEmAberto(), JurosCentavos: parcela.JurosEmAberto(),
+			})
+		}
+	}
+
+	return parcelas, nil
 }
 
 type repoUsuarios struct{ *memoria }

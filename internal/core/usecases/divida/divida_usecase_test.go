@@ -166,12 +166,12 @@ func TestObterRespeitaEscopoEPerfil(t *testing.T) {
 
 	outra := c.memoria.usuario(true, c.memoria.empresa(true))
 	lista, err := usecase.Listar(context.Background(), portsin.ListarDividasInput{UsuarioID: outra})
-	if err != nil || len(lista) != 0 {
-		t.Errorf("lista de outra empresa = %d, %v", len(lista), err)
+	if err != nil || len(lista.Dividas) != 0 {
+		t.Errorf("lista de outra empresa = %+v, %v", lista, err)
 	}
 	lista, err = usecase.Listar(context.Background(), portsin.ListarDividasInput{UsuarioID: c.financeiro, CredorTipo: "banco"})
-	if err != nil || len(lista) != 1 {
-		t.Errorf("lista = %d, %v", len(lista), err)
+	if err != nil || len(lista.Dividas) != 1 || !lista.Hoje.Equal(c.hoje) {
+		t.Errorf("lista = %+v, %v", lista, err)
 	}
 	if _, err := usecase.Listar(context.Background(), portsin.ListarDividasInput{UsuarioID: c.financeiro, Status: "quitada"}); !errors.Is(err, domain.ErrValidacao) {
 		t.Errorf("status inválido: %v", err)
