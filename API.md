@@ -3976,11 +3976,14 @@ banco, parcelamento com o fisco, dívida com fornecedor paga com empréstimo):
 
 ### Reabrir parcela
 
-Quando as contas de uma parcela `gerada` são canceladas ou rejeitadas no contas a pagar (situação
+Quando uma conta de uma parcela `gerada` é cancelada ou rejeitada no contas a pagar (situação
 `conta_cancelada`), `POST /api/v1/dividas/{id}/parcelas/{parcela_id}/reabrir` com `{ "versao": 4 }` marca a parcela
-`cancelada` (com `substituta_id`) e cria outra `prevista` com o mesmo número, vencimento e valores, que pode ser
-editada e gerada de novo. Com alguma conta da parcela aberta ou paga → `409 cancele ou rejeite antes as contas a
-pagar da parcela no contas a pagar`; parcela que não está `gerada` → `409`.
+`cancelada` (com `substituta_id`) e cria outra `prevista` com o mesmo número e vencimento e **só com o que não foi
+pago**: se a amortização já está `pago` e os juros foram rejeitados, a nova parcela tem amortização zero e os juros
+originais. Ela pode ser editada e gerada de novo. Com alguma conta da parcela ainda aberta → `409 cancele ou
+rejeite antes as contas a pagar da parcela no contas a pagar`; sem nenhuma conta cancelada ou rejeitada → `409 a
+parcela não tem conta a pagar cancelada ou rejeitada para reabrir`; parcela que não está `gerada` → `409`.
+A conta paga continua ligada à parcela substituída e impede cancelar a dívida.
 
 Toda escrita exige a `versao` lida (`400 erro de validação: versão da dívida é obrigatória`; `409 a dívida foi
 alterada por outra pessoa; recarregue e tente de novo`) e a avança.

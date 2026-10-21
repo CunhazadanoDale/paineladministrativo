@@ -1120,7 +1120,8 @@ módulos:
   mudou**;
 - renegociar e cancelar cancelam no M7, na mesma transação, as contas `pendente_aprovacao` e `aprovado` da dívida
   (`solicitacao_historico` `cancelada`); conta paga fica. Reabrir parcela troca a parcela cuja conta foi cancelada ou
-  rejeitada no M7 por outra `prevista` com o mesmo número;
+  rejeitada no M7 por outra `prevista` com o mesmo número e só o componente não pago (a conta paga fica na
+  parcela substituída, `cancelada`, e por isso não entra no saldo);
 - **M15 — painel de endividamento**: o saldo devedor é a soma das `amortizacao_centavos` das parcelas não canceladas
   de dívidas `ativa` cuja conta `divida_amortizacao` não está `pago` (parcela `prevista` conta inteira); vencido é
   vencimento antes de hoje em Brasília. `DividaConsultaRepository.ParcelasEmAberto(ctx, empresaIDs)` devolve exatamente

@@ -83,3 +83,32 @@ func TestDividaListaFiltraQuitadaEVencidaComAsParcelas(t *testing.T) {
 		t.Fatalf("não quitadas = %+v, %v", lista, err)
 	}
 }
+
+func TestDividaComparaDatasSemDependerDoFusoDoBanco(t *testing.T) {
+	c := novoCenarioDividas(t)
+	divida, _ := c.nova(t, c.mia)
+	if _, err := c.banco.Exec(`DO $$ BEGIN EXECUTE format('ALTER DATABASE %I SET timezone = %L', current_database(), 'America/Sao_Paulo'); END $$`); err != nil {
+		t.Fatalf("troca do fuso falhou: %v", err)
+	}
+	c.banco.SetMaxIdleConns(0)
+	var fuso string
+	if err := c.banco.Get(&fuso, `SHOW timezone`); err != nil || fuso != "America/Sao_Paulo" {
+		t.Fatalf("fuso da sessão = %q, %v", fuso, err)
+	}
+
+	segunda := c.hoje.AddDate(0, 2, 0)
+	ids, err := c.dividas.ComParcelasAGerar(c.ctx, segunda, nil)
+	if err != nil || len(ids) != 1 || ids[0] != divida.ID {
+		t.Fatalf("parcela que vence no limite = %v, %v", ids, err)
+	}
+
+	verdadeiro := true
+	lista, err := c.dividas.Listar(c.ctx, portsdivida.DividaFiltro{Vencidas: &verdadeiro, Hoje: c.hoje})
+	if err != nil || len(lista) != 0 {
+		t.Fatalf("parcela que vence hoje apareceu vencida = %+v, %v", lista, err)
+	}
+	lista, err = c.dividas.Listar(c.ctx, portsdivida.DividaFiltro{Vencidas: &verdadeiro, Hoje: c.hoje.AddDate(0, 0, 1)})
+	if err != nil || len(lista) != 1 {
+		t.Fatalf("parcela de ontem não apareceu vencida = %+v, %v", lista, err)
+	}
+}

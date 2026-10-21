@@ -120,9 +120,10 @@ Toda transição usa o `UPDATE` condicionado ao status e à `versao` e grava o h
 
 ### 3.3 Reabrir parcela (D5)
 
-`POST /dividas/{id}/parcelas/{pid}/reabrir { versao }`: com a parcela `gerada` e as contas dela todas `cancelado`
-ou `rejeitado` no M7 (travadas com `FOR SHARE`), a parcela vira `cancelada` com `substituta_id` e nasce outra
-`prevista` com o mesmo número, vencimento e valores, editável e gerável de novo.
+`POST /dividas/{id}/parcelas/{pid}/reabrir { versao }`: com a parcela `gerada`, nenhuma conta dela aberta e ao
+menos uma `cancelado` ou `rejeitado` no M7 (conferidas com `FOR UPDATE`), a parcela vira `cancelada` com
+`substituta_id` e nasce outra `prevista` com o mesmo número e vencimento e só os componentes não pagos, editável e
+gerável de novo.
 
 ### 3.4 Renegociação e parcelamento
 
@@ -289,10 +290,18 @@ Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates ve
 - [x] **Fase 2 — parcela com conta paga na renegociação** (implementação): fica `gerada` (é histórico pago) e só a
       conta aberta dela é cancelada; a original renegociada tem saldo devedor zero, então a conta cancelada não
       volta a contar.
-- [x] **Fase 2 — reabrir** (implementação): exige a parcela `gerada` com **todas** as contas `cancelado` ou
-      `rejeitado` (conferidas com `FOR UPDATE` na transação); a substituta é ligada por `substituta_id`, com a FK
-      `DEFERRABLE INITIALLY DEFERRED`, porque a antiga precisa sair do índice parcial de número antes de a nova
-      entrar.
+- [x] **Fase 2 — reabrir** (implementação): exige a parcela `gerada` sem conta aberta e com ao menos uma
+      `cancelado` ou `rejeitado` (conferidas com `FOR UPDATE` na transação); a substituta é ligada por `substituta_id`,
+      com a FK `DEFERRABLE INITIALLY DEFERRED`, porque a antiga precisa sair do índice parcial de número antes de a
+      nova entrar.
+- [x] **Revisão — reabertura parcial** (outubro/2026): a substituta leva só o componente não pago (amortização zero
+      se a conta de amortização já está `pago`, idem juros). Antes, uma parcela com a amortização paga e os juros
+      rejeitados por engano ficava presa em `conta_cancelada`, sem como voltar os juros ao contas a pagar. Cancelar a
+      dívida passou a olhar conta paga também nas parcelas substituídas.
+- [x] **Revisão — datas no SQL** (outubro/2026): as comparações de `vencimento` com o "hoje" e com o limite da
+      geração levam `::date`, como no M13; o teste de integração roda com o banco em `America/Sao_Paulo`.
+- [x] **Revisão — vencido pelo cronograma** (outubro/2026): vencido × a vencer usa o vencimento da parcela (o
+      contrato), não o da conta a pagar; adiar a conta no M7 não muda a dívida. Mudança de cronograma é renegociação.
 - [x] **Fase 3 — resumo** (implementação): consulta própria (`DividaConsultaRepository.ParcelasEmAberto`) traz, das
       dívidas `ativa` do escopo, cada parcela não cancelada com a amortização e os juros ainda não pagos (conta
       `pago` zera o componente; parcela `prevista` conta inteira); o agrupamento é do domínio (`NovoResumo`). Saldo

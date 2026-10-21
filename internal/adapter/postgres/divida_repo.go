@@ -235,7 +235,7 @@ func condicaoDeParcelaEmAberto(vencidaAntes string) string {
 		      SELECT 1 FROM solicitacao s WHERE s.origem = 'divida_juros' AND s.origem_id = p.id AND s.status = 'pago'))
 		  )`
 	if vencidaAntes != "" {
-		condicao += ` AND p.vencimento < ` + vencidaAntes
+		condicao += ` AND p.vencimento < ` + vencidaAntes + `::date`
 	}
 
 	return condicao + `)`
@@ -350,7 +350,7 @@ func (r *DividaRepository) ComParcelasAGerar(ctx context.Context, limite time.Ti
 		SELECT DISTINCT d.id
 		FROM divida d
 		JOIN divida_parcela p ON p.divida_id = d.id
-		WHERE d.status = 'ativa' AND p.status = 'prevista' AND p.vencimento <= $1
+		WHERE d.status = 'ativa' AND p.status = 'prevista' AND p.vencimento <= $1::date
 	`
 	argumentos := []any{limite}
 	if empresaIDs != nil {

@@ -68,10 +68,17 @@ func (d *Divida) ReabrirParcela(parcelaID uuid.UUID, agora time.Time) (*Parcela,
 	if antiga.Status != StatusParcelaGerada {
 		return nil, nil, domain.ErroConflito("só a parcela com contas a pagar geradas pode ser reaberta")
 	}
+	encerradas := 0
 	for _, conta := range antiga.Contas() {
-		if !conta.encerrada() {
+		if conta.aberta() {
 			return nil, nil, domain.ErroConflito("cancele ou rejeite antes as contas a pagar da parcela no contas a pagar")
 		}
+		if conta.encerrada() {
+			encerradas++
+		}
+	}
+	if encerradas == 0 {
+		return nil, nil, domain.ErroConflito("a parcela não tem conta a pagar cancelada ou rejeitada para reabrir")
 	}
 
 	nova := &Parcela{
@@ -79,8 +86,8 @@ func (d *Divida) ReabrirParcela(parcelaID uuid.UUID, agora time.Time) (*Parcela,
 		DividaID:            d.ID,
 		Numero:              antiga.Numero,
 		Vencimento:          antiga.Vencimento,
-		AmortizacaoCentavos: antiga.AmortizacaoCentavos,
-		JurosCentavos:       antiga.JurosCentavos,
+		AmortizacaoCentavos: antiga.AmortizacaoEmAberto(),
+		JurosCentavos:       antiga.JurosEmAberto(),
 		Status:              StatusParcelaPrevista,
 		CriadoEm:            agora,
 		AtualizadoEm:        agora,
@@ -92,4 +99,9 @@ func (d *Divida) ReabrirParcela(parcelaID uuid.UUID, agora time.Time) (*Parcela,
 	d.AtualizadoEm = agora
 
 	return antiga, nova, nil
+}
+
+func (d *Divida) DetalheDaReabertura(antiga, nova *Parcela) string {
+	return fmt.Sprintf("parcela %d reaberta: amortização %s e juros %s voltam a gerar conta a pagar",
+		antiga.Numero, formatarReais(nova.AmortizacaoCentavos), formatarReais(nova.JurosCentavos))
 }

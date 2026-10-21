@@ -76,8 +76,7 @@ func (u *DividaUsecaseImpl) Criar(ctx context.Context, input portsin.CriarDivida
 		Novo:   true,
 		Historicos: []*domaindivida.Historico{
 			domaindivida.NovoHistorico(divida.ID, input.UsuarioID, domaindivida.AcaoCriada, nil, divida.Status,
-				fmt.Sprintf("saldo devedor %s em %s, %d parcelas", formatarReais(divida.SaldoInicialCentavos),
-					divida.DataSaldo.Format("02/01/2006"), len(divida.Parcelas)), agora),
+				divida.DetalheDaCriacao(), agora),
 		},
 	}
 	if err := u.anexarGeracaoDoMes(gravacao, divida, input.UsuarioID, agora); err != nil {
@@ -151,7 +150,7 @@ func (u *DividaUsecaseImpl) ReabrirParcela(ctx context.Context, input portsin.Re
 
 			return &operacao{
 				acao:    domaindivida.AcaoParcelaReaberta,
-				detalhe: fmt.Sprintf("parcela %d reaberta: as contas a pagar anteriores foram canceladas ou rejeitadas", antiga.Numero),
+				detalhe: divida.DetalheDaReabertura(antiga, nova),
 				gravacao: portsout.Gravacao{
 					ParcelasAlteradas: []*domaindivida.Parcela{antiga},
 					ParcelasNovas:     []*domaindivida.Parcela{nova},
@@ -619,10 +618,6 @@ func motivoDoErro(err error) string {
 	}
 
 	return texto
-}
-
-func formatarReais(centavos int64) string {
-	return fmt.Sprintf("R$ %d,%02d", centavos/100, centavos%100)
 }
 
 func agoraEmUTC() time.Time {

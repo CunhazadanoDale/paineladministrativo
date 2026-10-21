@@ -123,3 +123,40 @@ func TestReabrirParcelaComContasEncerradas(t *testing.T) {
 		t.Fatalf("geração da reaberta = %+v, %v", geracao, err)
 	}
 }
+
+func TestReabrirParcelaSoComOComponenteNaoPago(t *testing.T) {
+	divida := novaDivida(t)
+	if _, err := divida.GerarContasAte(data(2026, 10, 31), uuid.New(), agoraDoTeste); err != nil {
+		t.Fatalf("GerarContasAte falhou: %v", err)
+	}
+	primeira := divida.Parcelas[0]
+	primeira.ContaAmortizacao.Status = domainsolicitacao.StatusPago
+	if _, _, err := divida.ReabrirParcela(primeira.ID, agoraDoTeste); !errors.Is(err, domain.ErrConflito) {
+		t.Fatalf("reabrir com juros aberto: %v", err)
+	}
+	primeira.ContaJuros.Status = domainsolicitacao.StatusPago
+	if _, _, err := divida.ReabrirParcela(primeira.ID, agoraDoTeste); !errors.Is(err, domain.ErrConflito) {
+		t.Fatalf("reabrir parcela paga: %v", err)
+	}
+	primeira.ContaJuros.Status = domainsolicitacao.StatusRejeitado
+
+	antiga, nova, err := divida.ReabrirParcela(primeira.ID, agoraDoTeste)
+	if err != nil {
+		t.Fatalf("ReabrirParcela falhou: %v", err)
+	}
+	if nova.AmortizacaoCentavos != 0 || nova.JurosCentavos != 5000 || antiga.Status != domaindivida.StatusParcelaCancelada {
+		t.Fatalf("nova = %+v", nova)
+	}
+	if divida.SaldoDevedor() != 200000 || !strings.Contains(divida.DetalheDaReabertura(antiga, nova), "juros R$ 50,00") {
+		t.Errorf("saldo = %d", divida.SaldoDevedor())
+	}
+
+	geracao, err := divida.GerarContasAte(data(2026, 10, 31), uuid.New(), agoraDoTeste)
+	if err != nil || len(geracao.Contas) != 1 || geracao.Contas[0].Solicitacao.Origem != domainsolicitacao.OrigemDividaJuros {
+		t.Fatalf("geração da reaberta = %+v, %v", geracao, err)
+	}
+
+	if _, _, err := divida.Cancelar("cadastro errado", agoraDoTeste); !errors.Is(err, domain.ErrConflito) {
+		t.Errorf("cancelar com amortização paga na parcela substituída: %v", err)
+	}
+}

@@ -356,7 +356,7 @@ func (d *Divida) Cancelar(motivo string, agora time.Time) ([]*Parcela, []ContaCa
 		return nil, nil, err
 	}
 	for _, parcela := range d.Parcelas {
-		if parcela.Status != StatusParcelaCancelada && parcela.TemContaPaga() {
+		if parcela.TemContaPaga() {
 			return nil, nil, domain.ErroConflito("dívida com parcela paga não pode ser cancelada; renegocie o saldo ou estorne o pagamento antes")
 		}
 	}
@@ -417,6 +417,11 @@ func (d *Divida) Quitada() bool {
 	}
 
 	return true
+}
+
+func (d *Divida) DetalheDaCriacao() string {
+	return fmt.Sprintf("saldo devedor %s em %s, %d parcelas", formatarReais(d.SaldoInicialCentavos),
+		formatarData(d.DataSaldo), len(d.Parcelas))
 }
 
 func formatarReais(centavos int64) string {
