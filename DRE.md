@@ -182,7 +182,7 @@ financeiro ou empresa fora do acesso.
 ## 7. Estrutura de código
 
 ```
-migrations/000067_add_indices_dre.up.sql|.down.sql     só índices (renumerar para a próxima livre no merge)
+migrations/000068_add_indices_dre.up.sql|.down.sql     só índices (renumerada depois da 000067 do M14)
 
 internal/core/domain/dre/            data.go, mes.go, periodo.go, semana.go, intervalo.go, linha.go (chaves e itens),
                                      demonstrativo.go (montagem, subtotais, indicadores),

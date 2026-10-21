@@ -24,7 +24,7 @@ type DadosSolicitacaoDeOrigem struct {
 func NovaSolicitacaoDeOrigem(dados DadosSolicitacaoDeOrigem, agora time.Time) (*Solicitacao, *Historico, error) {
 	switch {
 	case !dados.Origem.Sistemica():
-		return nil, nil, domain.ErroValidacao("origem da conta a pagar gerada deve ser recompra, repasse_fomento, comissao, importacao_parcela ou importacao_custo")
+		return nil, nil, domain.ErroValidacao("origem da conta a pagar gerada deve ser recompra, repasse_fomento, comissao, importacao_parcela, importacao_custo, divida_amortizacao ou divida_juros")
 	case dados.OrigemID == uuid.Nil:
 		return nil, nil, domain.ErroValidacao("conta a pagar gerada precisa do registro de origem")
 	case dados.EmpresaID == uuid.Nil:

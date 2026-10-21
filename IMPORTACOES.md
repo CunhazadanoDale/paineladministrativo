@@ -2,7 +2,7 @@
 
 > **Status:** escopo fechado — decisões D1 a D14 respondidas pelo usuário (outubro/2026), todas as
 > recomendações aceitas; API concluída (fases 1 a 4: importação e estados, parcelas, câmbio e custos com conta a
-> pagar, alocação de pedidos, recebimento com estoque e reserva, alertas); front (fase 5) pendente.
+> pagar, alocação de pedidos, recebimento com estoque e reserva, alertas); front (fase 5) concluído no F-M12.
 > **Objetivo:** tirar das planilhas a parte de compra das "Entregas de importação" e do painel
 > financeiro: o processo de importação do pedido ao fornecedor até a mercadoria no estoque, com
 > câmbio, custos de nacionalização rateados no custo do lote, pagamentos ao fornecedor e aos
@@ -331,7 +331,7 @@ seção 3 do `ROADMAP.md`).
 | **2** | Parcelas, câmbio e custos com conta a pagar no M7 (migration 000065), cancelamento com conta gerada, prévia do custo; integração de idempotência; e2e + `API.md` | concluída |
 | **3** | Alocação de pedidos (migration 000066), recebimento com entrada, lote e reserva na mesma transação; integração de concorrência com entrega; e2e + `API.md` | concluída |
 | **4** | Alertas e `GET /pedidos/{id}/importacoes`; e2e + `API.md` | concluída |
-| **5** | Frontend (lista, detalhe, parcelas, custos, recebimento, alertas) | pendente |
+| **5** | Frontend (lista, detalhe, parcelas, custos, recebimento, alertas) | concluída |
 
 Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates verdes.
 
@@ -422,6 +422,9 @@ Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates ve
 - [x] **Fase 2 — padrões** (implementação): `compoe_custo` vem `true` quando omitido (D4); descrição vazia do
       custo usa o nome do tipo; a observação da conta a pagar é "importação N — descrição". O custo previsto é só
       do financeiro e calcula com as quantidades da importação (o recebimento usará as recebidas).
+- [x] **Fase 5 — telas** (usuário, outubro/2026): alocação pelos itens de `sem_importacao` dos alertas do mesmo
+      produto, mais os já alocados; alertas em rota própria (`/importacoes/alertas`); painel de importações no detalhe
+      do pedido de importação; câmbio digitado com vírgula e até seis casas, convertido para `cambio_micro` sem float.
 - [x] **Fase 1 — embarque** (implementação): o embarque exige a chegada prevista; se ela ficar antes do
       embarque previsto antigo, o embarque previsto é limpo (a previsão perdeu o sentido).
 

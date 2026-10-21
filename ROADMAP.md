@@ -154,7 +154,7 @@ o **F0b** pode correr junto com essas telas.
 | F-M10 | Front de comissões | M10 F-M6 F-M7 | — | concluído |
 | F-M11 | Front de propostas e tabela de preços | M11 F-M6 | — | concluído |
 | F-M13 | Front de caixa e conciliação | M13 F-M5 F-M7 F-M9 | — | concluído |
-| F-M12 | Front de importações | M12 F-M2 F-M4 F-M6 F-M7 | — | em andamento (feat/front-m12-importacoes) |
+| F-M12 | Front de importações | M12 F-M2 F-M4 F-M6 F-M7 | — | concluído |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
 | M3 | Clientes e representantes | M1 | Base de clientes | concluído |
@@ -168,7 +168,7 @@ o **F0b** pode correr junto com essas telas.
 | M11 | Propostas e tabela de preços | M3 M6 | orçamentos em documento, guia de modelos de venda | concluído |
 | M12 | Importações | M2 M4 M6 M7 | parte de Entregas de importação e do painel financeiro | concluído |
 | M13 | Caixa e conciliação | M5 M7 M9 | Caixa do mês, Fluxo de caixa diário | concluído |
-| M14 | Dívidas e empréstimos | M4 M5 M7 | Dívidas do grupo | em andamento (feat/m14-dividas) |
+| M14 | Dívidas e empréstimos | M4 M5 M7 | Dívidas do grupo | concluído |
 | M15 | DRE e painéis | M2 M7 M8 M9 M13 | DRE, Faturamento, Relatório semanal | em andamento (feat/m15-dre) |
 
 ---
@@ -643,6 +643,34 @@ próximos fronts:
 - **Projeção** (até 90 dias, por empresa ou consolidada, com saldo de partida e em trânsito) e
   **Movimento diário** (até 92 dias), que substitui o "Fluxo de caixa diário".
 
+**Entregue o front do M12 (outubro/2026, branch `feat/front-m12-importacoes` do front):** módulo novo
+`modules/importacoes`, para o comercial e o financeiro. Para os próximos fronts (M14, M15):
+
+- `services/importacoes.js` (lista com todos os filtros, detalhe, transições, histórico, parcelas, câmbio, custos,
+  custo previsto, alocações, recebimento com `cambio_micro` só quando informado, alertas e `GET
+  /pedidos/{id}/importacoes`) e `listarTodasPendencias` em `services/pedidos.js`;
+- `importacoesUtils`: câmbio em `cambio_micro` lido do texto com vírgula (até seis casas, sem float), `formatarCambio`
+  e `cambioParaTexto`, `valorEmReais` com `BigInt` e meio para cima (o mesmo arredondamento da API),
+  `formatarValorMoeda` na moeda da importação, status, tipos de custo e rótulos do histórico — **o M14 pode
+  reaproveitar o câmbio e a moeda** se a dívida tiver moeda estrangeira;
+- `/importacoes`: lista com número, empresa, status, chegada até e fornecedor (por busca); o valor na moeda só para o
+  financeiro (o comercial vê a moeda); cadastro e edição do financeiro com fornecedor por busca, moeda padrão do
+  fornecedor, itens em centésimos, travas de fornecedor e moeda conforme estado e parcelas, chegada obrigatória depois
+  do embarque e versão otimista com `AvisoConflito`;
+- `/importacoes/:id`: dados, itens (valor e custo unitário só para o financeiro; recebida destacada na falta),
+  histórico, embarcar, desembaraçar, cancelar (recusa por conta a pagar aberta mostrada como erro) e receber (local
+  ativo da empresa, câmbio obrigatório só com valor sem câmbio fechado, quantidade recebida por item, aviso das contas
+  encerradas que bloqueiam); painéis do financeiro: parcelas (incluir, alterar, remover, fechar câmbio com prévia em
+  reais e categoria de despesa, reabrir com a conta encerrada), custos (lançar com `compoe_custo`, posterior depois do
+  recebimento, cancelar só com a conta encerrada e fora do lote) e custo previsto; toda conta a pagar gerada tem link
+  para `/solicitacoes/:id` com o status;
+- alocação de pedidos (comercial e financeiro) pelos itens de `sem_importacao` dos alertas do mesmo produto, mais os
+  já alocados; os números dos pedidos vêm de `GET /pedidos/pendencias`, porque a alocação só traz o `pedido_item_id`;
+- `/importacoes/alertas` (prazo em risco com dias de atraso, sem previsão e sem cobertura, por empresa e folga de 0 a
+  90 dias) e o painel "Importações" no detalhe do pedido de importação;
+- entradas "Importações" e "Alertas de Importação" na Sidebar (Financeiro) para comercial ou financeiro; as origens
+  `importacao_parcela`, `importacao_custo` e `comissao` ganharam rótulo no filtro e no detalhe das solicitações.
+
 ### M1 — Empresas e filiais
 
 Fundação: tudo o que é financeiro, fiscal ou de estoque passa a pertencer a uma empresa.
@@ -1039,7 +1067,7 @@ Plano original (os estados e o alerta finais estão no bloco "Entregue" abaixo e
   custos) e libera as reservas dos pedidos atendidos.
 - **Alertas**: pedidos cujo prazo de 120 dias vence antes da chegada prevista.
 
-**Entregue (outubro/2026):** API completa (fases 1 a 4 do `IMPORTACOES.md`); front pendente (fase 5). Para os
+**Entregue (outubro/2026):** API completa (fases 1 a 4 do `IMPORTACOES.md`); front no F-M12 (fase 5). Para os
 próximos módulos:
 
 - uma importação = um embarque (DI/DUIMP) de um fornecedor para uma empresa importadora, com estados `aberta` →
@@ -1104,6 +1132,32 @@ próximos módulos:
 - **Crédito do empréstimo não é conciliado contra a dívida**: a linha do extrato é classificada no M13
   como `lancamento_caixa` numa categoria de receita em `fora_dre` (captação). Nenhum port nem
   repositório do M13 muda; a dívida guarda a conta e a data da liberação só como informação.
+
+**Entregue (outubro/2026):** API completa (fases 1 a 3 do `DIVIDAS.md`); front pendente (fase 4). Para os próximos
+módulos:
+
+- `divida` (empresa devedora, credor = `fornecedor_id` do M4 com `credor_tipo` `banco`/`investidor`/`fisco`/`fornecedor`,
+  `saldo_inicial_centavos` na `data_saldo`, categorias de amortização e de juros, `divida_origem_id` na renegociação,
+  `status` `ativa`/`renegociada`/`cancelada`) e `divida_parcela` (`numero`, `vencimento`, `amortizacao_centavos`,
+  `juros_centavos`, `status` `prevista`/`gerada`/`cancelada`); "quitada" é derivada, não gravada;
+- **as contas a pagar seguem o acordo**: cada parcela gera `divida_amortizacao` (categoria `fora_dre`) e `divida_juros`
+  (categoria `resultado_financeiro`), `origem_id` = id da parcela, `pendente_aprovacao`, fornecedor = credor, competência
+  do mês do vencimento; componente zero não gera conta. Nascem por competência (`POST /dividas/gerar?competencia=`, ao
+  lado da das despesas recorrentes) e na criação para o mês corrente — **parcela futura ainda `prevista` não está na
+  `solicitacao`**, então a DRE por competência só vê os juros dos meses já gerados. **Nenhum port nem repositório do M7
+  mudou**;
+- renegociar e cancelar cancelam no M7, na mesma transação, as contas `pendente_aprovacao` e `aprovado` da dívida
+  (`solicitacao_historico` `cancelada`); conta paga fica. Reabrir parcela troca a parcela cuja conta foi cancelada ou
+  rejeitada no M7 por outra `prevista` com o mesmo número e só o componente não pago (a conta paga fica na
+  parcela substituída, `cancelada`, e por isso não entra no saldo);
+- **M15 — painel de endividamento**: o saldo devedor é a soma das `amortizacao_centavos` das parcelas não canceladas
+  de dívidas `ativa` cuja conta `divida_amortizacao` não está `pago` (parcela `prevista` conta inteira); vencido é
+  vencimento antes de hoje em Brasília. `DividaConsultaRepository.ParcelasEmAberto(ctx, empresaIDs)` devolve exatamente
+  essas linhas (por parcela, com empresa e tipo de credor) e `domaindivida.NovoResumo` agrupa por credor, empresa e
+  faixa: o M15 pode declarar a porta mínima com esse método, ou usar `GET /dividas/resumo`;
+- **M13**: concilia os pagamentos das contas da dívida como qualquer conta a pagar; o crédito do empréstimo continua
+  como `lancamento_caixa` em receita `fora_dre` (a dívida só guarda conta e data da liberação);
+- migration `000067`; renumerar antes do merge se outra sessão mergear antes.
 
 #### Coordenação M14 × M15
 

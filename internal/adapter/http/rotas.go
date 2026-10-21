@@ -7,6 +7,7 @@ import (
 	caixahandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/caixa"
 	clientehandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/cliente"
 	comissaohandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/comissao"
+	dividahandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/divida"
 	drehandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/dre"
 	empresahandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/empresa"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/estoque"
@@ -26,6 +27,7 @@ import (
 	portsincaixa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/caixa"
 	portsincliente "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/cliente"
 	portsincomissao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/comissao"
+	portsindivida "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/divida"
 	portsindre "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/dre"
 	portsinempresa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/empresa"
 	portsinestoque "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/estoque"
@@ -101,6 +103,7 @@ func NewRouter(
 	financeiroImportacaoUseCase portsinimportacao.FinanceiroUseCase,
 	recebimentoImportacaoUseCase portsinimportacao.RecebimentoUseCase,
 	consultaImportacaoUseCase portsinimportacao.ConsultaUseCase,
+	dividaUseCase portsindivida.DividaUseCase,
 	resumoDREUseCase portsindre.ResumoDREUseCase,
 	faturamentoUseCase portsindre.FaturamentoUseCase,
 	relatorioSemanalUseCase portsindre.RelatorioSemanalUseCase,
@@ -134,6 +137,7 @@ func NewRouter(
 		fechamentoCaixaUseCase,
 		projecaoCaixaUseCase,
 		importacaoUseCase, financeiroImportacaoUseCase, recebimentoImportacaoUseCase, consultaImportacaoUseCase,
+		dividaUseCase,
 		resumoDREUseCase, faturamentoUseCase, relatorioSemanalUseCase,
 		tokens,
 	)))
@@ -195,6 +199,7 @@ func novasRotas(
 	financeiroImportacaoUseCase portsinimportacao.FinanceiroUseCase,
 	recebimentoImportacaoUseCase portsinimportacao.RecebimentoUseCase,
 	consultaImportacaoUseCase portsinimportacao.ConsultaUseCase,
+	dividaUseCase portsindivida.DividaUseCase,
 	resumoDREUseCase portsindre.ResumoDREUseCase,
 	faturamentoUseCase portsindre.FaturamentoUseCase,
 	relatorioSemanalUseCase portsindre.RelatorioSemanalUseCase,
@@ -617,6 +622,19 @@ func novasRotas(
 	consultaImportacaoHandler := importacaohandlers.NewConsultaHandler(consultaImportacaoUseCase)
 	protegido("GET /api/v1/importacoes/alertas", consultaImportacaoHandler.Alertas)
 	protegido("GET /api/v1/pedidos/{id}/importacoes", consultaImportacaoHandler.ImportacoesDoPedido)
+
+	dividaHandler := dividahandlers.NewDividaHandler(dividaUseCase)
+	financeiro("POST /api/v1/dividas", dividaHandler.Criar)
+	financeiro("GET /api/v1/dividas", dividaHandler.Listar)
+	financeiro("POST /api/v1/dividas/gerar", dividaHandler.GerarContas)
+	financeiro("GET /api/v1/dividas/resumo", dividaHandler.Resumo)
+	financeiro("GET /api/v1/dividas/{id}", dividaHandler.Obter)
+	financeiro("PUT /api/v1/dividas/{id}", dividaHandler.Alterar)
+	financeiro("PUT /api/v1/dividas/{id}/parcelas/{parcela_id}", dividaHandler.AlterarParcela)
+	financeiro("POST /api/v1/dividas/{id}/cancelar", dividaHandler.Cancelar)
+	financeiro("GET /api/v1/dividas/{id}/historico", dividaHandler.ListarHistorico)
+	financeiro("POST /api/v1/dividas/{id}/renegociar", dividaHandler.Renegociar)
+	financeiro("POST /api/v1/dividas/{id}/parcelas/{parcela_id}/reabrir", dividaHandler.ReabrirParcela)
 
 	resumoDREHandler := drehandlers.NewResumoHandler(resumoDREUseCase)
 	financeiro("GET /api/v1/dre/resumo", resumoDREHandler.Consultar)
