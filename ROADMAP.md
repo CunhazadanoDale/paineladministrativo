@@ -154,7 +154,7 @@ o **F0b** pode correr junto com essas telas.
 | F-M10 | Front de comissões | M10 F-M6 F-M7 | — | concluído |
 | F-M11 | Front de propostas e tabela de preços | M11 F-M6 | — | concluído |
 | F-M13 | Front de caixa e conciliação | M13 F-M5 F-M7 F-M9 | — | concluído |
-| F-M12 | Front de importações | M12 F-M2 F-M4 F-M6 F-M7 | — | em andamento (feat/front-m12-importacoes) |
+| F-M12 | Front de importações | M12 F-M2 F-M4 F-M6 F-M7 | — | concluído |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
 | M3 | Clientes e representantes | M1 | Base de clientes | concluído |
@@ -643,6 +643,34 @@ próximos fronts:
 - **Projeção** (até 90 dias, por empresa ou consolidada, com saldo de partida e em trânsito) e
   **Movimento diário** (até 92 dias), que substitui o "Fluxo de caixa diário".
 
+**Entregue o front do M12 (outubro/2026, branch `feat/front-m12-importacoes` do front):** módulo novo
+`modules/importacoes`, para o comercial e o financeiro. Para os próximos fronts (M14, M15):
+
+- `services/importacoes.js` (lista com todos os filtros, detalhe, transições, histórico, parcelas, câmbio, custos,
+  custo previsto, alocações, recebimento com `cambio_micro` só quando informado, alertas e `GET
+  /pedidos/{id}/importacoes`) e `listarTodasPendencias` em `services/pedidos.js`;
+- `importacoesUtils`: câmbio em `cambio_micro` lido do texto com vírgula (até seis casas, sem float), `formatarCambio`
+  e `cambioParaTexto`, `valorEmReais` com `BigInt` e meio para cima (o mesmo arredondamento da API),
+  `formatarValorMoeda` na moeda da importação, status, tipos de custo e rótulos do histórico — **o M14 pode
+  reaproveitar o câmbio e a moeda** se a dívida tiver moeda estrangeira;
+- `/importacoes`: lista com número, empresa, status, chegada até e fornecedor (por busca); o valor na moeda só para o
+  financeiro (o comercial vê a moeda); cadastro e edição do financeiro com fornecedor por busca, moeda padrão do
+  fornecedor, itens em centésimos, travas de fornecedor e moeda conforme estado e parcelas, chegada obrigatória depois
+  do embarque e versão otimista com `AvisoConflito`;
+- `/importacoes/:id`: dados, itens (valor e custo unitário só para o financeiro; recebida destacada na falta),
+  histórico, embarcar, desembaraçar, cancelar (recusa por conta a pagar aberta mostrada como erro) e receber (local
+  ativo da empresa, câmbio obrigatório só com valor sem câmbio fechado, quantidade recebida por item, aviso das contas
+  encerradas que bloqueiam); painéis do financeiro: parcelas (incluir, alterar, remover, fechar câmbio com prévia em
+  reais e categoria de despesa, reabrir com a conta encerrada), custos (lançar com `compoe_custo`, posterior depois do
+  recebimento, cancelar só com a conta encerrada e fora do lote) e custo previsto; toda conta a pagar gerada tem link
+  para `/solicitacoes/:id` com o status;
+- alocação de pedidos (comercial e financeiro) pelos itens de `sem_importacao` dos alertas do mesmo produto, mais os
+  já alocados; os números dos pedidos vêm de `GET /pedidos/pendencias`, porque a alocação só traz o `pedido_item_id`;
+- `/importacoes/alertas` (prazo em risco com dias de atraso, sem previsão e sem cobertura, por empresa e folga de 0 a
+  90 dias) e o painel "Importações" no detalhe do pedido de importação;
+- entradas "Importações" e "Alertas de Importação" na Sidebar (Financeiro) para comercial ou financeiro; as origens
+  `importacao_parcela`, `importacao_custo` e `comissao` ganharam rótulo no filtro e no detalhe das solicitações.
+
 ### M1 — Empresas e filiais
 
 Fundação: tudo o que é financeiro, fiscal ou de estoque passa a pertencer a uma empresa.
@@ -1039,7 +1067,7 @@ Plano original (os estados e o alerta finais estão no bloco "Entregue" abaixo e
   custos) e libera as reservas dos pedidos atendidos.
 - **Alertas**: pedidos cujo prazo de 120 dias vence antes da chegada prevista.
 
-**Entregue (outubro/2026):** API completa (fases 1 a 4 do `IMPORTACOES.md`); front pendente (fase 5). Para os
+**Entregue (outubro/2026):** API completa (fases 1 a 4 do `IMPORTACOES.md`); front no F-M12 (fase 5). Para os
 próximos módulos:
 
 - uma importação = um embarque (DI/DUIMP) de um fornecedor para uma empresa importadora, com estados `aberta` →
