@@ -1,7 +1,8 @@
 # Escopo — M14 Dívidas e empréstimos
 
 > **Status:** escopo fechado — decisões D1 a D10 respondidas pelo usuário (outubro/2026), todas as
-> recomendações aceitas; implementação pendente (fases 1 a 3).
+> recomendações aceitas; fase 1 concluída (dívida, parcelas, geração das contas a pagar e cancelamento);
+> fases 2 e 3 pendentes.
 > **Objetivo:** tirar da planilha "Dívidas do grupo" os empréstimos bancários, os aportes de investidores, os
 > parcelamentos com o fisco e as dívidas parceladas com fornecedores: saldo devedor por credor e por empresa,
 > cronograma de parcelas e as contas a pagar de cada parcela no M7, com juros na DRE (`resultado_financeiro`) e
@@ -109,10 +110,10 @@ Toda transição usa o `UPDATE` condicionado ao status e à `versao` e grava o h
 ### 3.2 Geração das contas a pagar (D2)
 
 - `POST /dividas/gerar?competencia=AAAA-MM` (idempotente, como `POST /despesas-recorrentes/gerar`): para cada
-  parcela `prevista` de dívida `ativa` com vencimento no mês, numa transação por dívida, gera as contas por
+  parcela `prevista` de dívida `ativa` que vence até o fim do mês, numa transação por dívida, gera as contas por
   `NovaSolicitacaoDeOrigem` + `gerarSolicitacaoDeOrigem` (fornecedor = credor, `pendente_aprovacao`, forma
   `transferencia`, observação "dívida <descricao> — parcela n/total — amortização|juros") e marca a parcela
-  `gerada`. Resposta com geradas, já existentes e recusadas (empresa inativa, categoria não lançável) por dívida.
+  `gerada`. Resposta com geradas e recusadas (empresa ou credor inativo, categoria não lançável) por dívida.
 - Criar e renegociar geram na hora as parcelas que vencem até o fim do mês corrente (Brasília).
 - Parcela `prevista` aceita alterar vencimento (dentro do mesmo cronograma, sem repetir) e juros (`PUT
   .../parcelas/{pid}`): cobre parcelamento do fisco corrigido pela Selic. Amortização só muda por renegociação.
@@ -236,7 +237,7 @@ Numeração a partir da `000067`; renumerar antes do merge se outra sessão merg
 
 | Fase | Entrega | Estado |
 |---|---|---|
-| **1** | Dívida e parcelas (migration 000067): domínio, criar com carga pelo saldo, alterar, editar parcela prevista, cancelar, histórico; geração das duas contas a pagar (na criação e `POST /dividas/gerar`); integração de idempotência; e2e + `API.md` | pendente |
+| **1** | Dívida e parcelas (migration 000067): domínio, criar com carga pelo saldo, alterar, editar parcela prevista, cancelar, histórico; geração das duas contas a pagar (na criação e `POST /dividas/gerar`); integração de idempotência; e2e + `API.md` | concluída |
 | **2** | Renegociação com cancelamento das contas abertas e reabertura de parcela; integração da transação; e2e + `API.md` | pendente |
 | **3** | Visões: lista com saldo e situação, `GET /dividas/resumo` (saldo por tipo de credor e empresa, vencido × a vencer); e2e + `API.md` | pendente |
 | **4** | Frontend (lista, cadastro com cronograma, detalhe, renegociar, resumo) | pendente (sessão própria) |
@@ -256,6 +257,26 @@ Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates ve
 - [x] **"Hoje" no fuso de Brasília** (acordo M14 × M15).
 - [x] **Conta a pagar gerada** (M9, M10, M12): `NovaSolicitacaoDeOrigem` + `gerarSolicitacaoDeOrigem`; competência
       de origem sistêmica é fixa no M7.
+- [x] **Fase 1 — geração até o fim da competência** (implementação): `POST /dividas/gerar?competencia=` gera as
+      parcelas `prevista` que vencem **até** o fim do mês, não só dentro dele, para um mês esquecido não ficar para
+      trás; a resposta traz `geradas` (contas e parcelas por dívida) e `recusadas` (motivo do `400`/`409` da
+      gravação: empresa ou credor inativo, categoria não lançável, dívida alterada ao mesmo tempo). Não há "já
+      existentes": a parcela gerada sai da seleção.
+- [x] **Fase 1 — conferência das contas na transação** (implementação): cancelar trava com `FOR UPDATE` todas as
+      contas a pagar da dívida e recusa (`409`) se o status de alguma mudou desde a leitura; cada conta aberta é
+      cancelada por `UPDATE` condicionado ao status lido (`versao + 1`, `cancelado_em`) com
+      `solicitacao_historico` `cancelada` na mesma transação, sem passar pelo port do M7. O texto do histórico da
+      conta é cortado em 500 caracteres (tamanho da coluna).
+- [x] **Fase 1 — índices parciais** (implementação): número e vencimento da parcela são únicos só entre as não
+      canceladas (`uq_divida_parcela_numero`, `uq_divida_parcela_vencimento`), para a parcela reaberta (fase 2)
+      nascer com o mesmo número e vencimento da cancelada.
+- [x] **Fase 1 — alteração** (implementação): o `PUT` substitui todos os campos informativos (omitido fica vazio);
+      empresa, credor, saldo, data do saldo e cronograma não mudam. Categoria e conta de liberação só são
+      conferidas quando mudam; a conta de liberação precisa ser da empresa, mas não precisa estar ativa (é
+      informativa).
+- [x] **Fase 1 — leitura** (implementação): `Obter` lê dívida, parcelas e o status das duas contas de cada parcela
+      (`LEFT JOIN solicitacao` por `origem` + `origem_id`) numa transação somente leitura `REPEATABLE READ`; a
+      lista não traz parcelas nem saldo (a fase 3 acrescenta o saldo por consulta agregada).
 
 ## 10. Decisões do escopo
 

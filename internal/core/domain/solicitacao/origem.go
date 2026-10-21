@@ -16,6 +16,8 @@ const (
 	OrigemComissao          Origem = "comissao"
 	OrigemImportacaoParcela Origem = "importacao_parcela"
 	OrigemImportacaoCusto   Origem = "importacao_custo"
+	OrigemDividaAmortizacao Origem = "divida_amortizacao"
+	OrigemDividaJuros       Origem = "divida_juros"
 )
 
 func NovaOrigem(valor string) (Origem, error) {
@@ -23,10 +25,10 @@ func NovaOrigem(valor string) (Origem, error) {
 
 	switch origem {
 	case OrigemManual, OrigemRecorrencia, OrigemRecompra, OrigemRepasseFomento, OrigemComissao,
-		OrigemImportacaoParcela, OrigemImportacaoCusto:
+		OrigemImportacaoParcela, OrigemImportacaoCusto, OrigemDividaAmortizacao, OrigemDividaJuros:
 		return origem, nil
 	default:
-		return "", domain.ErroValidacao("origem deve ser manual, recorrencia, recompra, repasse_fomento, comissao, importacao_parcela ou importacao_custo")
+		return "", domain.ErroValidacao("origem deve ser manual, recorrencia, recompra, repasse_fomento, comissao, importacao_parcela, importacao_custo, divida_amortizacao ou divida_juros")
 	}
 }
 
@@ -40,5 +42,5 @@ func (o Origem) String() string {
 
 func (o Origem) Sistemica() bool {
 	return o == OrigemRecompra || o == OrigemRepasseFomento || o == OrigemComissao ||
-		o == OrigemImportacaoParcela || o == OrigemImportacaoCusto
+		o == OrigemImportacaoParcela || o == OrigemImportacaoCusto || o == OrigemDividaAmortizacao || o == OrigemDividaJuros
 }

@@ -643,7 +643,7 @@ Filtros de conta a pagar, combináveis com qualquer escopo (valor inválido → 
 | `fornecedor=<uuid>` | fornecedor da solicitação |
 | `categoria=<uuid>` | categoria financeira |
 | `competencia=AAAA-MM` | competência (`erro de validação: competência deve estar no formato AAAA-MM`) |
-| `origem=manual\|recorrencia\|recompra\|repasse_fomento\|comissao\|importacao_parcela\|importacao_custo` | origem da solicitação |
+| `origem=manual\|recorrencia\|recompra\|repasse_fomento\|comissao\|importacao_parcela\|importacao_custo\|divida_amortizacao\|divida_juros` | origem da solicitação |
 | `vencimento_de=AAAA-MM-DD` / `vencimento_ate=AAAA-MM-DD` | intervalo do `prazo_pagamento`, inclusivo (`erro de validação: consulta vencimento_de deve estar no formato AAAA-MM-DD`; final antes do inicial → `400 erro de validação: vencimento final não pode ser anterior ao inicial`) |
 | `vencidas=true` | `pendente_aprovacao` ou `aprovado` com vencimento antes de hoje (UTC); aceita `true`/`false`/`1`/`0`, outro valor → `400 erro de validação: consulta vencidas deve ser true ou false` |
 
@@ -3805,6 +3805,170 @@ as alocações do pedido em importações não canceladas: `importacao_id`, `imp
 recebimento), em ordem de número da importação.
 
 ---
+
+## Dívidas e empréstimos (financeiro)
+
+Empréstimos bancários, aportes de investidores, parcelamentos com o fisco e dívidas parceladas com fornecedores.
+Cada parcela vira **duas contas a pagar** no M7: a amortização (`origem = divida_amortizacao`, categoria em
+`fora_dre`) e os juros (`origem = divida_juros`, categoria em `resultado_financeiro`), as duas com `origem_id` =
+id da parcela. Escopo por empresa pela devedora (seção 4 do `EMPRESAS.md`). Escopo e decisões em `DIVIDAS.md`.
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/dividas` | **financeiro** | `201` dívida com parcelas; gera as contas do mês corrente |
+| `GET` | `/api/v1/dividas` | **financeiro** | `200` lista paginada (`?empresa=`, `?fornecedor=`, `?credor_tipo=`, `?status=`), mais recente primeiro |
+| `GET` | `/api/v1/dividas/{id}` | **financeiro** | `200` dívida com parcelas, contas a pagar, situação e saldo devedor |
+| `PUT` | `/api/v1/dividas/{id}` | **financeiro** | `200`; só os campos informativos e as categorias |
+| `PUT` | `/api/v1/dividas/{id}/parcelas/{parcela_id}` | **financeiro** | `200`; vencimento e juros da parcela `prevista` |
+| `POST` | `/api/v1/dividas/{id}/cancelar` | **financeiro** | `200` dívida `cancelada`; cancela as contas abertas |
+| `GET` | `/api/v1/dividas/{id}/historico` | **financeiro** | `200` lista (`{ "dados": [...] }`) em ordem cronológica |
+| `POST` | `/api/v1/dividas/gerar?competencia=AAAA-MM` | **financeiro** | `200` contas a pagar geradas das parcelas que vencem até o fim da competência (`?empresa=` opcional) |
+
+Sem perfil financeiro → `403` do middleware. Dívida de empresa fora do acesso → `403 perfil sem acesso a esta
+empresa`; inexistente → `404 registro não encontrado: dívida não encontrada`. "Hoje" é o dia em Brasília.
+
+### Criar
+
+A dívida entra pelo **saldo devedor na data do saldo** (data de corte da carga, ou da liberação numa dívida
+nova) e só com as parcelas que vencem **depois** dela; parcelas pagas ou vencidas antes ficam fora e não geram
+conta a pagar. Valor original, taxa, contrato e liberação são informativos.
+
+```json
+{
+  "empresa_id": "…",
+  "fornecedor_id": "…",
+  "credor_tipo": "banco",
+  "descricao": "Capital de giro Sicredi",
+  "contrato": "CG-2026-77",
+  "valor_original_centavos": 500000,
+  "contratada_em": "2026-03-10",
+  "taxa_bp": 185,
+  "taxa_periodo": "mensal",
+  "indexador": "cdi",
+  "conta_liberacao_id": "…",
+  "liberada_em": "2026-03-10",
+  "saldo_inicial_centavos": 300000,
+  "data_saldo": "2026-09-30",
+  "categoria_amortizacao_id": "…",
+  "categoria_juros_id": "…",
+  "observacoes": "",
+  "parcelas": [
+    { "vencimento": "2026-10-10", "amortizacao_centavos": 100000, "juros_centavos": 5550 },
+    { "vencimento": "2026-11-10", "amortizacao_centavos": 100000, "juros_centavos": 3700 },
+    { "vencimento": "2026-12-10", "amortizacao_centavos": 100000, "juros_centavos": 1850 }
+  ]
+}
+```
+
+| Campo | Regra |
+| --- | --- |
+| `empresa_id` | só na criação; empresa ativa e no acesso (`403` fora dele, `400` inativa) |
+| `fornecedor_id` | o credor, cadastrado no M4 (banco, investidor e Receita também); ativo ao criar (`400 erro de validação: credor "X" está inativo e não recebe dívida nova`); não muda depois |
+| `credor_tipo` | `banco`, `investidor`, `fisco` ou `fornecedor` |
+| `descricao` | obrigatória, até 120 |
+| `contrato` | opcional, até 60 |
+| `valor_original_centavos` | opcional, `> 0` |
+| `contratada_em`, `liberada_em` | opcionais, `AAAA-MM-DD`, não futuras |
+| `taxa_bp`, `taxa_periodo` | opcionais e juntos; taxa em pontos-base (`1,85%` → `185`, de 0 a 100000), período `mensal` ou `anual` |
+| `indexador` | `prefixado` (padrão), `cdi`, `selic`, `ipca`, `tr` ou `outro` |
+| `conta_liberacao_id` | opcional, junto com `liberada_em`; conta bancária da mesma empresa. Só informativo: o crédito é classificado no caixa (M13) como captação em `fora_dre` |
+| `saldo_inicial_centavos` | obrigatório, `> 0`; igual à **soma das amortizações** (`400 erro de validação: a soma das amortizações (R$ 3000,00) deve ser igual ao saldo devedor na data do saldo (R$ 3000,01)`) |
+| `data_saldo` | obrigatória, não futura |
+| `categoria_amortizacao_id` | subcategoria ativa de despesa na linha `fora_dre` |
+| `categoria_juros_id` | subcategoria ativa de despesa na linha `resultado_financeiro` (`400 erro de validação: categoria financeira de juros deve ser de despesa na linha resultado_financeiro`) |
+| `parcelas` | de 1 a 600; `vencimento` depois da `data_saldo` e sem repetir; `amortizacao_centavos` e `juros_centavos` `>= 0` (juros inclui encargos e IOF da parcela), não os dois zero, até 10^15 |
+
+As parcelas são numeradas pela ordem de vencimento. Na criação já nascem as contas a pagar das parcelas que
+vencem **até o fim do mês corrente**; as demais ficam `prevista` até a rotina de geração.
+
+Resposta (criar, detalhe e ações):
+
+```json
+{
+  "dados": {
+    "id": "…", "empresa_id": "…", "credor_tipo": "banco", "fornecedor_id": "…",
+    "descricao": "Capital de giro Sicredi", "contrato": "CG-2026-77", "valor_original_centavos": 500000,
+    "contratada_em": "2026-03-10", "taxa_bp": 185, "taxa_periodo": "mensal", "indexador": "cdi",
+    "saldo_inicial_centavos": 300000, "data_saldo": "2026-09-30",
+    "conta_liberacao_id": "…", "liberada_em": "2026-03-10",
+    "categoria_amortizacao_id": "…", "categoria_juros_id": "…", "divida_origem_id": null,
+    "status": "ativa", "motivo": null, "observacoes": "", "usuario_id": "…", "versao": 1,
+    "criado_em": "2026-10-20T13:00:00Z", "atualizado_em": "2026-10-20T13:00:00Z",
+    "saldo_devedor_centavos": 300000,
+    "quitada": false,
+    "parcelas": [{
+      "id": "…", "numero": 1, "vencimento": "2026-10-10", "amortizacao_centavos": 100000, "juros_centavos": 5550,
+      "status": "gerada", "situacao": "vencida", "gerada_em": "2026-10-20T13:00:00Z", "substituta_id": null,
+      "conta_amortizacao": { "solicitacao_id": "…", "status": "pendente_aprovacao" },
+      "conta_juros": { "solicitacao_id": "…", "status": "pendente_aprovacao" }
+    }]
+  }
+}
+```
+
+- `parcelas[].status`: `prevista` (sem conta a pagar), `gerada` ou `cancelada`. Componente zero não gera conta
+  (`conta_juros: null` numa parcela só de amortização).
+- `parcelas[].situacao`, calculada na leitura: `cancelada`; `conta_cancelada` (alguma conta da parcela foi
+  cancelada ou rejeitada no contas a pagar); `paga` (todas as contas geradas estão `pago`); `vencida`
+  (vencimento antes de hoje); `a_vencer`.
+- `saldo_devedor_centavos`: soma das amortizações não pagas das parcelas não canceladas (`0` em dívida
+  `renegociada` ou `cancelada`). `quitada`: dívida ativa sem nenhum componente em aberto.
+- A lista traz os campos da dívida sem `saldo_devedor_centavos`, `quitada` e `parcelas`.
+
+### Alterar e editar parcela
+
+`PUT /api/v1/dividas/{id}` recebe os campos informativos com a `versao` (`credor_tipo`, `descricao`, `contrato`,
+`valor_original_centavos`, `contratada_em`, `taxa_bp`, `taxa_periodo`, `indexador`, `conta_liberacao_id`,
+`liberada_em`, `categoria_amortizacao_id`, `categoria_juros_id`, `observacoes`) e **substitui** todos eles
+(campo omitido fica vazio). Empresa, credor, saldo, data do saldo e cronograma não mudam. Categorias novas
+valem para as contas ainda não geradas.
+
+`PUT /api/v1/dividas/{id}/parcelas/{parcela_id}` com `{ "versao": 1, "vencimento": "2026-11-15",
+"juros_centavos": 4100 }` ajusta a parcela `prevista` (ex.: juros do parcelamento corrigido pela Selic); o
+vencimento continua depois da data do saldo e entre o da parcela anterior e o da seguinte (`400`). Parcela
+gerada → `409 só a parcela prevista, sem contas a pagar geradas, pode ser alterada`; a amortização só muda por
+renegociação.
+
+### Cancelar
+
+`POST /api/v1/dividas/{id}/cancelar` com `{ "versao": 1, "motivo": "lançada em duplicidade" }` (motivo até
+1000) é para cadastro errado: só com nenhuma conta da dívida `pago` (`409 dívida com parcela paga não pode ser
+cancelada; renegocie o saldo ou estorne o pagamento antes`). Na mesma transação as contas `pendente_aprovacao`
+e `aprovado` viram `cancelado` (com `solicitacao_historico` `cancelada`, "dívida cancelada: motivo") e as
+parcelas viram `cancelada`. Se alguma conta da dívida mudou no M7 depois da leitura → `409 uma conta a pagar da
+dívida mudou no contas a pagar; recarregue a dívida e tente de novo`. Dívida que não está `ativa` → `409
+dívida cancelada não pode ser alterada` (ou `renegociada`).
+
+Toda escrita exige a `versao` lida (`400 erro de validação: versão da dívida é obrigatória`; `409 a dívida foi
+alterada por outra pessoa; recarregue e tente de novo`) e a avança.
+
+### Geração das contas a pagar
+
+`POST /api/v1/dividas/gerar?competencia=2026-11` (idempotente, ao lado de `POST /despesas-recorrentes/gerar`):
+para cada dívida `ativa` do acesso (ou só da `?empresa=`) com parcela `prevista` que vence **até o fim da
+competência**, gera as contas a pagar dessas parcelas numa transação por dívida e avança a `versao` dela.
+
+```json
+{
+  "dados": {
+    "competencia": "2026-11",
+    "geradas": [{ "divida_id": "…", "parcelas": 1, "contas": 2 }],
+    "recusadas": [{ "divida_id": "…", "motivo": "fornecedor inativo não recebe conta a pagar" }]
+  }
+}
+```
+
+As contas nascem `pendente_aprovacao`, com o credor como fornecedor, a categoria da dívida, forma
+`transferencia`, vencimento e **competência do mês do vencimento** da parcela, solicitante = quem gerou e
+observação "dívida <descrição> — parcela n/total — amortização|juros". Dívida com empresa ou credor inativo,
+categoria que deixou de ser lançável ou alterada ao mesmo tempo vai para `recusadas` e não grava nada. Sem
+`competencia` → `400 erro de validação: competência da geração é obrigatória`; empresa fora do acesso → `403`.
+
+Histórico: `criada` (saldo, data e número de parcelas), `alterada`, `parcela_alterada` (vencimento e juros antes
+e depois), `contas_geradas` (quantas contas e de quais parcelas) e `cancelada` (motivo).
+
+Credor, empresa, conta bancária e categorias usados numa dívida passam a responder `400 erro de validação:
+registro em uso por outros dados e não pode ser excluído` na exclusão.
 
 ## Exemplos
 
