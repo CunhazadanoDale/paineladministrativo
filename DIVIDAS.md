@@ -2,7 +2,8 @@
 
 > **Status:** escopo fechado — decisões D1 a D10 respondidas pelo usuário (outubro/2026), todas as
 > recomendações aceitas; API concluída (fases 1 a 3: dívida, parcelas, geração das contas a pagar,
-> cancelamento, renegociação, reabertura de parcela e visões); front (fase 4) pendente.
+> cancelamento, renegociação, reabertura de parcela e visões); front concluído (fase 4, branch
+> `feat/front-m14-dividas` do front).
 > **Objetivo:** tirar da planilha "Dívidas do grupo" os empréstimos bancários, os aportes de investidores, os
 > parcelamentos com o fisco e as dívidas parceladas com fornecedores: saldo devedor por credor e por empresa,
 > cronograma de parcelas e as contas a pagar de cada parcela no M7, com juros na DRE (`resultado_financeiro`) e
@@ -245,7 +246,7 @@ Numeração a partir da `000067`; renumerar antes do merge se outra sessão merg
 | **1** | Dívida e parcelas (migration 000067): domínio, criar com carga pelo saldo, alterar, editar parcela prevista, cancelar, histórico; geração das duas contas a pagar (na criação e `POST /dividas/gerar`); integração de idempotência; e2e + `API.md` | concluída |
 | **2** | Renegociação com cancelamento das contas abertas e reabertura de parcela; integração da transação; e2e + `API.md` | concluída |
 | **3** | Visões: lista com saldo e situação, `GET /dividas/resumo` (saldo por tipo de credor e empresa, vencido × a vencer); e2e + `API.md` | concluída |
-| **4** | Frontend (lista, cadastro com cronograma, detalhe, renegociar, resumo) | pendente (sessão própria) |
+| **4** | Frontend (lista, cadastro com cronograma, detalhe, renegociar, resumo) | concluída (`feat/front-m14-dividas` do front) |
 
 Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates verdes.
 
@@ -313,6 +314,12 @@ Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates ve
       `ANY`, na mesma transação `REPEATABLE READ`) para responder saldo, vencido e quitada; `?quitada=` e
       `?vencidas=` são `EXISTS` sobre as parcelas em aberto. Dívida `renegociada` ou `cancelada` nunca é quitada nem
       vencida.
+
+- [x] **Fase 4 — telas** (outubro/2026, decididas pelo usuário): `/dividas`, `/dividas/:id` e `/dividas/resumo` com
+      entradas "Dívidas" e "Resumo de Dívidas" na Sidebar; cronograma digitado com o atalho "Preencher parcelas"
+      (mensais, amortização dividida igualmente com a sobra na última, juros digitados), sem Price nem SAC; "Gerar
+      competência" na lista; renegociação com a nova pré-preenchida pela original (credor, tipo, categorias, descrição,
+      saldo devedor atual e hoje em Brasília).
 
 ## 10. Decisões do escopo
 

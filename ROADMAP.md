@@ -155,7 +155,7 @@ o **F0b** pode correr junto com essas telas.
 | F-M11 | Front de propostas e tabela de preços | M11 F-M6 | — | concluído |
 | F-M13 | Front de caixa e conciliação | M13 F-M5 F-M7 F-M9 | — | concluído |
 | F-M12 | Front de importações | M12 F-M2 F-M4 F-M6 F-M7 | — | concluído |
-| F-M14 | Front de dívidas e empréstimos | M14 F-M4 F-M5 F-M7 | — | em andamento (feat/front-m14-dividas) |
+| F-M14 | Front de dívidas e empréstimos | M14 F-M4 F-M5 F-M7 | — | concluído |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
 | M3 | Clientes e representantes | M1 | Base de clientes | concluído |
@@ -672,6 +672,37 @@ próximos fronts:
 - entradas "Importações" e "Alertas de Importação" na Sidebar (Financeiro) para comercial ou financeiro; as origens
   `importacao_parcela`, `importacao_custo` e `comissao` ganharam rótulo no filtro e no detalhe das solicitações.
 
+**Entregue o front do M14 (outubro/2026, branch `feat/front-m14-dividas` do front):** módulo novo `modules/dividas`, só
+para o financeiro. Para os próximos fronts (M15):
+
+- `services/dividas.js` (lista com todos os filtros, detalhe, criação, alteração sem empresa, credor, saldo e cronograma,
+  parcela prevista, reabrir, cancelar, renegociar sem `empresa_id` na nova, histórico, `gerarContasDividas` e
+  `obterResumoDividas`); a dívida é só em real, então o câmbio do M12 não entrou;
+- `SeletorCategoriaLancavel` (e `SeletorCategoriaDespesa`) aceita `linhaDre` para oferecer só as raízes daquela linha da DRE
+  (amortização em `fora_dre`, juros em `resultado_financeiro`); as origens `divida_amortizacao` e `divida_juros` ganharam
+  rótulo nas solicitações;
+- `dividasUtils`: tipos de credor, status com "Quitada" derivada, situação da parcela, indexadores, taxa em pontos-base
+  (`paraTaxaBp` até 1000%, `formatarTaxa` como "CDI + 1,85% a.m."), `preencherParcelas` (mensais, mesmo dia encostando
+  no fim do mês curto, amortização dividida com a sobra na última) e rótulos do histórico — **o M15 pode reaproveitar os
+  rótulos de credor** no painel de endividamento;
+- `/dividas`: lista com empresa, credor (por busca), tipo, contrato, saldo devedor, vencido em destaque e status; filtros
+  de empresa, tipo de credor, status, situação (em aberto, com parcela vencida, quitadas) e credor; "Gerar competência"
+  (mês corrente em Brasília, empresa opcional, geradas e recusadas pela descrição da dívida) e "Nova Dívida";
+- formulário (`DividaFormModal`, modos criar, editar e renegociar): credor por busca entre fornecedores ativos, taxa com
+  período e indexador, conta da liberação da empresa com a data, categorias pela linha da DRE, saldo e data do saldo (sem
+  data futura), cronograma digitado com o atalho "Preencher parcelas" e a soma das amortizações conferida ao vivo contra
+  o saldo; a edição mostra empresa e credor travados, sem saldo nem cronograma, e manda os informativos com a `versao`
+  (`AvisoConflito` com recarga, mantendo o digitado);
+- `/dividas/:id`: dados (taxa descrita, saldo na data do saldo e atual, liberação, categorias, link para a dívida
+  original e motivo), histórico e parcelas com situação e as duas contas a pagar (link para `/solicitacoes/:id` com o
+  status, "Prevista" antes da geração); alterar vencimento e juros da prevista, reabrir a parcela com conta cancelada ou
+  rejeitada, cancelar com motivo e renegociar com a nova pré-preenchida (credor, tipo, categorias, descrição, saldo
+  devedor atual e hoje em Brasília), abrindo a dívida nova; a parcela cancelada fica esmaecida;
+- `/dividas/resumo`: posição do dia, saldo devedor total e vencido, faixas vencido, 30, 90, 365 dias e a vencer com
+  amortização, juros, total e parcelas, e saldo por tipo de credor e por empresa, com filtro de empresa;
+- entradas "Dívidas" e "Resumo de Dívidas" na Sidebar (Financeiro); `useDividas`, `useDividaDetalhe`, `useDividaHistorico`
+  e `useResumoDividas` com `AbortController`, em `modules/cancelamento.test.jsx`.
+
 ### M1 — Empresas e filiais
 
 Fundação: tudo o que é financeiro, fiscal ou de estoque passa a pertencer a uma empresa.
@@ -1134,7 +1165,7 @@ próximos módulos:
   como `lancamento_caixa` numa categoria de receita em `fora_dre` (captação). Nenhum port nem
   repositório do M13 muda; a dívida guarda a conta e a data da liberação só como informação.
 
-**Entregue (outubro/2026):** API completa (fases 1 a 3 do `DIVIDAS.md`); front pendente (fase 4). Para os próximos
+**Entregue (outubro/2026):** API completa (fases 1 a 3 do `DIVIDAS.md`); front na fase 4 (F-M14). Para os próximos
 módulos:
 
 - `divida` (empresa devedora, credor = `fornecedor_id` do M4 com `credor_tipo` `banco`/`investidor`/`fisco`/`fornecedor`,
