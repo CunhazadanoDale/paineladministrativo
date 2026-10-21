@@ -232,6 +232,10 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 		dreusecases.NewFaturamentoUsecase(
 			postgres.NewDREResumoRepository(banco), usuarioRepository, cargoRepository, empresaRepository,
 		),
+		dreusecases.NewRelatorioSemanalUsecase(
+			postgres.NewDRERelatorioSemanalRepository(banco), postgres.NewCaixaSaldoRepository(banco),
+			usuarioRepository, cargoRepository, empresaRepository,
+		),
 		autenticacao.NovoTokenService(segredoDoTeste, time.Hour),
 	)
 

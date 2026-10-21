@@ -267,6 +267,10 @@ func executar(registrador *slog.Logger) error {
 		dreusecases.NewFaturamentoUsecase(
 			postgres.NewDREResumoRepository(banco), usuarioRepository, cargoRepository, empresaRepository,
 		),
+		dreusecases.NewRelatorioSemanalUsecase(
+			postgres.NewDRERelatorioSemanalRepository(banco), postgres.NewCaixaSaldoRepository(banco),
+			usuarioRepository, cargoRepository, empresaRepository,
+		),
 		autenticacao.NovoTokenService(cfg.JWTSecret, cfg.JWTExpiracao),
 	)
 

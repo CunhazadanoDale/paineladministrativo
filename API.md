@@ -3817,6 +3817,7 @@ sem `?empresa=`, só as empresas do acesso do usuário. Escopo e decisões em `D
 | --- | --- | --- | --- |
 | `GET` | `/api/v1/dre/resumo` | **financeiro** | `200` DRE por mês e empresa, consolidado e total (`?de=AAAA-MM`, `?ate=AAAA-MM`, `?empresa=`) |
 | `GET` | `/api/v1/dre/faturamento` | **financeiro** | `200` faturamento por mês e empresa (`?de=AAAA-MM`, `?ate=AAAA-MM`, `?empresa=`) |
+| `GET` | `/api/v1/dre/relatorio-semanal` | **financeiro** | `200` relatório da semana (`?semana=AAAA-MM-DD`, `?empresa=`) |
 
 Sem financeiro → `403` do middleware. `?empresa=` fora do acesso → `403 perfil sem acesso a esta empresa`.
 Mês fora do formato → `400 erro de validação: de deve estar no formato AAAA-MM` (ou `ate`); `ate` antes de
@@ -3923,6 +3924,73 @@ faturamento (`400 erro de validação: período deve ter no máximo N meses`).
 Só NF `venda` autorizada fora `entre_empresas`, pelo mês de `emitida_em` em Brasília. Mostra apenas as notas
 já importadas (sem carga retroativa); meses sem nota aparecem zerados. `ticket_medio_centavos` arredondado,
 `0` sem notas.
+
+### Relatório semanal
+
+`GET /dre/relatorio-semanal?semana=AAAA-MM-DD` mostra a semana de **segunda a domingo** que contém `semana`
+(qualquer dia dela); sem `semana`, a última semana encerrada. Semana que começa depois da corrente → `400
+erro de validação: semana não pode estar no futuro`; data fora do formato → `400 erro de validação: semana deve
+estar no formato AAAA-MM-DD`. "Hoje" é o dia de Brasília.
+
+```json
+{
+  "dados": {
+    "inicio": "2026-10-12", "fim": "2026-10-18", "hoje": "2026-10-20",
+    "notas_emitidas": {
+      "total_venda": { "quantidade": 3, "valor_centavos": 327000 },
+      "por_empresa": [{ "empresa_id": "…", "natureza": "venda", "quantidade": 3, "valor_centavos": 327000 }]
+    },
+    "pagamentos": {
+      "total": { "quantidade": 2, "valor_centavos": 150000 },
+      "por_empresa": [{ "empresa_id": "…", "linha_dre": "despesa_fixa", "quantidade": 2, "valor_centavos": 150000 }]
+    },
+    "recebimentos": {
+      "total": { "quantidade": 1, "valor_centavos": 54500 },
+      "por_empresa": [{ "empresa_id": "…", "tipo": "conta", "quantidade": 1, "valor_centavos": 54500, "juros_centavos": 0 }]
+    },
+    "titulos_vencidos": {
+      "total": { "quantidade": 2, "valor_centavos": 109000 },
+      "por_empresa": [{ "empresa_id": "…", "quantidade": 2, "valor_centavos": 109000 }],
+      "itens": [{
+        "id": "…", "empresa_id": "…", "cliente_nome": "Construtora Exemplo SPE", "numero": "123", "parcela": 1,
+        "status": "carteira", "vencimento": "2026-10-01", "saldo_centavos": 54500
+      }]
+    },
+    "contas_vencidas": {
+      "total": { "quantidade": 1, "valor_centavos": 50000 },
+      "por_empresa": [{ "empresa_id": "…", "quantidade": 1, "valor_centavos": 50000 }],
+      "itens": [{
+        "id": "…", "empresa_id": "…", "fornecedor_nome": null, "observacao": "Compra de cimento",
+        "status": "aprovado", "vencimento": "2026-10-01", "valor_centavos": 50000
+      }]
+    },
+    "estoque_baixo": {
+      "total": 1,
+      "itens": [{ "produto_id": "…", "nome": "Cimento CP II", "codigo": null, "quantidade_atual": 0, "estoque_minimo": 5 }]
+    },
+    "saldos_bancarios": {
+      "saldo_total_centavos": 193710, "contas_sem_abertura": 0,
+      "contas": [{
+        "conta_bancaria_id": "…", "empresa_id": "…", "apelido": "Sicredi", "banco": "748", "banco_nome": "Sicredi",
+        "ativa": true, "data_corte": "2026-09-30", "saldo_atual_centavos": 193710, "ultimo_lancamento_em": "2026-10-14"
+      }]
+    }
+  }
+}
+```
+
+| Bloco | O que entra |
+| --- | --- |
+| `notas_emitidas` | NF autorizada com `emitida_em` (Brasília) na semana, por empresa e natureza; `total_venda` soma só `venda` |
+| `pagamentos` | pagamentos não estornados com `pago_em` (Brasília) na semana, por empresa e `linha_dre` da categoria (`null` sem categoria) |
+| `recebimentos` | recebimentos de título não estornados com `recebido_em` na semana, por empresa e `tipo` (`conta`, `fomento`), com os juros |
+| `titulos_vencidos` | foto de hoje: títulos `carteira`, `em_banco` ou `antecipado` com vencimento antes de hoje e saldo a receber |
+| `contas_vencidas` | foto de hoje: contas a pagar `pendente_aprovacao` ou `aprovado` com vencimento antes de hoje (`valor_estimado`) |
+| `estoque_baixo` | produtos ativos com `estoque_minimo > 0` e `quantidade_atual <= estoque_minimo`, do grupo (sem filtro de empresa), por nome |
+| `saldos_bancarios` | os mesmos saldos de `GET /caixa/saldos` (M13); `saldo_total_centavos` soma as contas com saldo inicial |
+
+As listas `itens` trazem no máximo **50** linhas (vencidos mais antigos primeiro); `total` e `por_empresa`
+contam todas.
 
 ---
 

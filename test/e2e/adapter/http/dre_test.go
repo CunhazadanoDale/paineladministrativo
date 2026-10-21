@@ -104,3 +104,82 @@ func TestDREEFaturamentoPorEmpresa(t *testing.T) {
 		t.Errorf("faturamento padrão de empresa sem notas = %d meses, %+v", len(vazio.Meses), vazio.Consolidado)
 	}
 }
+
+func TestRelatorioSemanalPorEmpresa(t *testing.T) {
+	servidor, banco := servidorDoTeste(t)
+	mia := criarEmpresa(t, servidor, "11.222.333/0001-81", "MIA").ID
+	criarEmpresa(t, servidor, "33.400.004/0001-16", "Red Diamond")
+	tokenFinanceiro := tokenFinanceiroDasEmpresas(t, servidor, "Fabio Fin", "fabio@mia.exemplo.com", mia)
+	tokenSolicitante, _ := usuariosParaSolicitacao(t, servidor, "semanal")
+
+	importarNota(t, servidor, map[string]any{"arquivo_id": enviarXML(t, servidor, nfe.Nova(cnpjDaMia, cnpjDoCliente, 401).XML(), tokenDoTeste)}, tokenDoTeste)
+	importarNota(t, servidor, map[string]any{"arquivo_id": enviarXML(t, servidor, nfe.Nova(cnpjDaRed, cnpjDoCliente, 402).XML(), tokenDoTeste)}, tokenDoTeste)
+	vencida := criarSolicitacaoNaEmpresa(t, servidor, tokenSolicitante, mia)
+	criarContaE2E(t, servidor, map[string]any{
+		"empresa_id": mia, "banco": "748", "tipo": "corrente", "agencia": "0812", "conta": "54321-0", "apelido": "Sicredi",
+	}, tokenFinanceiro)
+	categoria := criarCategoria(t, servidor, "Cimentos", nil)
+	produto := criarProduto(t, servidor, criarCategoria(t, servidor, "CP II", &categoria), "Cimento CP II")
+	for _, preparo := range []struct {
+		query      string
+		argumentos []any
+	}{
+		{`UPDATE titulo_receber SET vencimento = '2026-10-01'`, nil},
+		{`UPDATE solicitacao SET prazo_pagamento = '2026-10-01' WHERE id = $1`, []any{vencida.ID}},
+		{`UPDATE produto SET estoque_minimo = 5 WHERE id = $1`, []any{produto}},
+	} {
+		if _, err := banco.Exec(preparo.query, preparo.argumentos...); err != nil {
+			t.Fatalf("preparação falhou: %v", err)
+		}
+	}
+
+	conferirStatus(t, enviaComToken(t, servidor, http.MethodGet, "/api/v1/dre/relatorio-semanal", nil, tokenSolicitante), http.StatusForbidden)
+	conferirMensagem(t, enviaComToken(t, servidor, http.MethodGet, "/api/v1/dre/relatorio-semanal?semana=07/10/2026", nil, tokenFinanceiro),
+		http.StatusBadRequest, "erro de validação: semana deve estar no formato AAAA-MM-DD")
+	conferirMensagem(t, enviaComToken(t, servidor, http.MethodGet, "/api/v1/dre/relatorio-semanal?semana=2099-01-05", nil, tokenFinanceiro),
+		http.StatusBadRequest, "erro de validação: semana não pode estar no futuro")
+
+	resposta := enviaComToken(t, servidor, http.MethodGet, "/api/v1/dre/relatorio-semanal?semana=2026-10-07", nil, tokenFinanceiro)
+	conferirStatus(t, resposta, http.StatusOK)
+	relatorio := decodificarEnvelope[dredto.RelatorioSemanalResponse](t, resposta).Dados
+	if relatorio.Inicio != "2026-10-05" || relatorio.Fim != "2026-10-11" {
+		t.Errorf("semana = %s a %s", relatorio.Inicio, relatorio.Fim)
+	}
+	if relatorio.NotasEmitidas.TotalVenda.Quantidade != 1 || relatorio.NotasEmitidas.TotalVenda.ValorCentavos != 109000 {
+		t.Errorf("notas da MIA = %+v", relatorio.NotasEmitidas)
+	}
+	if relatorio.Pagamentos.Total.Quantidade != 0 || len(relatorio.Pagamentos.PorEmpresa) != 0 || len(relatorio.Recebimentos.PorEmpresa) != 0 {
+		t.Errorf("pagamentos = %+v, recebimentos = %+v", relatorio.Pagamentos, relatorio.Recebimentos)
+	}
+	if relatorio.TitulosVencidos.Total.Quantidade != 2 || relatorio.TitulosVencidos.Total.ValorCentavos != 109000 || len(relatorio.TitulosVencidos.Itens) != 2 {
+		t.Errorf("títulos vencidos da MIA = %+v", relatorio.TitulosVencidos)
+	}
+	for _, titulo := range relatorio.TitulosVencidos.Itens {
+		if titulo.EmpresaID != mia || titulo.Vencimento != "2026-10-01" || titulo.ClienteNome == "" {
+			t.Errorf("título vencido = %+v", titulo)
+		}
+	}
+	if relatorio.ContasVencidas.Total.Quantidade != 1 || len(relatorio.ContasVencidas.Itens) != 1 || relatorio.ContasVencidas.Itens[0].ID != vencida.ID {
+		t.Errorf("contas vencidas = %+v", relatorio.ContasVencidas)
+	}
+	if relatorio.EstoqueBaixo.Total != 1 || len(relatorio.EstoqueBaixo.Itens) != 1 || relatorio.EstoqueBaixo.Itens[0].ProdutoID != produto {
+		t.Errorf("estoque baixo = %+v", relatorio.EstoqueBaixo)
+	}
+	if saldos := relatorio.SaldosBancarios; len(saldos.Contas) != 1 || saldos.ContasSemAbertura != 1 || saldos.Contas[0].BancoNome != "Sicredi" ||
+		saldos.Contas[0].SaldoAtualCentavos != nil {
+		t.Errorf("saldos = %+v", saldos)
+	}
+
+	resposta = envia(t, servidor, http.MethodGet, "/api/v1/dre/relatorio-semanal?semana=2026-10-07", nil)
+	conferirStatus(t, resposta, http.StatusOK)
+	if consolidado := decodificarEnvelope[dredto.RelatorioSemanalResponse](t, resposta).Dados; consolidado.NotasEmitidas.TotalVenda.Quantidade != 2 ||
+		consolidado.TitulosVencidos.Total.Quantidade != 4 {
+		t.Errorf("relatório consolidado = notas %+v, vencidos %+v", consolidado.NotasEmitidas.TotalVenda, consolidado.TitulosVencidos.Total)
+	}
+
+	resposta = enviaComToken(t, servidor, http.MethodGet, "/api/v1/dre/relatorio-semanal", nil, tokenFinanceiro)
+	conferirStatus(t, resposta, http.StatusOK)
+	if padrao := decodificarEnvelope[dredto.RelatorioSemanalResponse](t, resposta).Dados; padrao.Fim >= padrao.Hoje || padrao.Inicio >= padrao.Fim {
+		t.Errorf("semana padrão = %s a %s com hoje %s, esperado a última encerrada", padrao.Inicio, padrao.Fim, padrao.Hoje)
+	}
+}

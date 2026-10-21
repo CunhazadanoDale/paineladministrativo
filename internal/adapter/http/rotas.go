@@ -103,6 +103,7 @@ func NewRouter(
 	consultaImportacaoUseCase portsinimportacao.ConsultaUseCase,
 	resumoDREUseCase portsindre.ResumoDREUseCase,
 	faturamentoUseCase portsindre.FaturamentoUseCase,
+	relatorioSemanalUseCase portsindre.RelatorioSemanalUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, middleware.ErrosDeRoteamento(novasRotas(
@@ -133,7 +134,7 @@ func NewRouter(
 		fechamentoCaixaUseCase,
 		projecaoCaixaUseCase,
 		importacaoUseCase, financeiroImportacaoUseCase, recebimentoImportacaoUseCase, consultaImportacaoUseCase,
-		resumoDREUseCase, faturamentoUseCase,
+		resumoDREUseCase, faturamentoUseCase, relatorioSemanalUseCase,
 		tokens,
 	)))
 }
@@ -196,6 +197,7 @@ func novasRotas(
 	consultaImportacaoUseCase portsinimportacao.ConsultaUseCase,
 	resumoDREUseCase portsindre.ResumoDREUseCase,
 	faturamentoUseCase portsindre.FaturamentoUseCase,
+	relatorioSemanalUseCase portsindre.RelatorioSemanalUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -621,6 +623,9 @@ func novasRotas(
 
 	faturamentoHandler := drehandlers.NewFaturamentoHandler(faturamentoUseCase)
 	financeiro("GET /api/v1/dre/faturamento", faturamentoHandler.Consultar)
+
+	relatorioSemanalHandler := drehandlers.NewRelatorioSemanalHandler(relatorioSemanalUseCase)
+	financeiro("GET /api/v1/dre/relatorio-semanal", relatorioSemanalHandler.Consultar)
 
 	return mux
 }
