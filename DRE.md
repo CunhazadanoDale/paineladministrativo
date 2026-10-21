@@ -182,14 +182,14 @@ financeiro ou empresa fora do acesso.
 ## 7. Estrutura de código
 
 ```
-migrations/0000NN_add_indices_dre.up.sql|.down.sql     só índices (NN = próxima livre no merge)
+migrations/000067_add_indices_dre.up.sql|.down.sql     só índices (renumerar para a próxima livre no merge)
 
-internal/core/domain/dre/            periodo.go (mês, período, semana), linha.go (chaves e sinal),
+internal/core/domain/dre/            data.go, mes.go, periodo.go, semana.go, intervalo.go, linha.go (chaves e itens),
                                      demonstrativo.go (montagem, subtotais, indicadores),
                                      faturamento.go, relatorio_semanal.go (+ testes)
 internal/core/ports/in/dre/          resumo_usecase.go, faturamento_usecase.go,
                                      relatorio_semanal_usecase.go
-internal/core/ports/out/dre/         resumo_repository.go, relatorio_semanal_repository.go,
+internal/core/ports/out/dre/         resumo_repository.go (Lancamentos, ConsumosSemCusto, Faturamento), relatorio_semanal_repository.go,
                                      saldo_repository.go, usuario_repository.go,
                                      cargo_repository.go, empresa_repository.go
 internal/core/usecases/dre/          resumo_usecase.go, faturamento_usecase.go,
@@ -209,7 +209,7 @@ rotas.go, cmd/api/main.go, test/helpers/servidor.go       bloco do M15 no fim
 | Fase | Entrega | Estado |
 |---|---|---|
 | **1** | Domínio: período mensal/semanal, linhas e sinais, montagem do demonstrativo, subtotais, indicadores e ponto de equilíbrio + testes | concluída |
-| **2** | `dre_resumo_repo.go` (receita, CMV, solicitação, títulos, caixa, faturamento) + índices + testes de integração com os cenários de fonte única | pendente |
+| **2** | `dre_resumo_repo.go` (receita, CMV, solicitação, títulos, caixa, faturamento) + índices + testes de integração com os cenários de fonte única | concluída |
 | **3** | Usecases de resumo e faturamento + permissões + testes com fakes; DTOs, handlers, rotas, `main.go`, e2e e `API.md` | pendente |
 | **4** | Relatório semanal: repositório, porta de saldos do M13, usecase, handler, e2e e `API.md` | pendente |
 | **5** | Endividamento (depois do M14 na `main`): porta mínima de dívidas, bloco no relatório semanal, `GET /dre/endividamento`, e2e e `API.md` | pendente |
