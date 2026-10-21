@@ -7,6 +7,7 @@ import (
 	caixahandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/caixa"
 	clientehandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/cliente"
 	comissaohandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/comissao"
+	drehandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/dre"
 	empresahandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/empresa"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/estoque"
 	financeirohandlers "github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/handlers/financeiro"
@@ -25,6 +26,7 @@ import (
 	portsincaixa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/caixa"
 	portsincliente "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/cliente"
 	portsincomissao "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/comissao"
+	portsindre "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/dre"
 	portsinempresa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/empresa"
 	portsinestoque "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/estoque"
 	portsinfinanceiro "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/financeiro"
@@ -99,6 +101,8 @@ func NewRouter(
 	financeiroImportacaoUseCase portsinimportacao.FinanceiroUseCase,
 	recebimentoImportacaoUseCase portsinimportacao.RecebimentoUseCase,
 	consultaImportacaoUseCase portsinimportacao.ConsultaUseCase,
+	resumoDREUseCase portsindre.ResumoDREUseCase,
+	faturamentoUseCase portsindre.FaturamentoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, middleware.ErrosDeRoteamento(novasRotas(
@@ -129,6 +133,7 @@ func NewRouter(
 		fechamentoCaixaUseCase,
 		projecaoCaixaUseCase,
 		importacaoUseCase, financeiroImportacaoUseCase, recebimentoImportacaoUseCase, consultaImportacaoUseCase,
+		resumoDREUseCase, faturamentoUseCase,
 		tokens,
 	)))
 }
@@ -189,6 +194,8 @@ func novasRotas(
 	financeiroImportacaoUseCase portsinimportacao.FinanceiroUseCase,
 	recebimentoImportacaoUseCase portsinimportacao.RecebimentoUseCase,
 	consultaImportacaoUseCase portsinimportacao.ConsultaUseCase,
+	resumoDREUseCase portsindre.ResumoDREUseCase,
+	faturamentoUseCase portsindre.FaturamentoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -608,6 +615,12 @@ func novasRotas(
 	consultaImportacaoHandler := importacaohandlers.NewConsultaHandler(consultaImportacaoUseCase)
 	protegido("GET /api/v1/importacoes/alertas", consultaImportacaoHandler.Alertas)
 	protegido("GET /api/v1/pedidos/{id}/importacoes", consultaImportacaoHandler.ImportacoesDoPedido)
+
+	resumoDREHandler := drehandlers.NewResumoHandler(resumoDREUseCase)
+	financeiro("GET /api/v1/dre/resumo", resumoDREHandler.Consultar)
+
+	faturamentoHandler := drehandlers.NewFaturamentoHandler(faturamentoUseCase)
+	financeiro("GET /api/v1/dre/faturamento", faturamentoHandler.Consultar)
 
 	return mux
 }

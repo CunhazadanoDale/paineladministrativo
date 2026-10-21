@@ -22,6 +22,7 @@ import (
 	caixausecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/caixa"
 	clienteusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/cliente"
 	comissaousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/comissao"
+	dreusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/dre"
 	empresausecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/empresa"
 	estoqueusecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/estoque"
 	financeirousecases "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/usecases/financeiro"
@@ -259,6 +260,12 @@ func executar(registrador *slog.Logger) error {
 		importacaousecases.NewConsultaUsecase(
 			postgres.NewImportacaoConsultaRepository(banco), postgres.NewImportacaoRepository(banco), empresaRepository,
 			usuarioRepository, cargoRepository,
+		),
+		dreusecases.NewResumoDREUsecase(
+			postgres.NewDREResumoRepository(banco), usuarioRepository, cargoRepository, empresaRepository,
+		),
+		dreusecases.NewFaturamentoUsecase(
+			postgres.NewDREResumoRepository(banco), usuarioRepository, cargoRepository, empresaRepository,
 		),
 		autenticacao.NovoTokenService(cfg.JWTSecret, cfg.JWTExpiracao),
 	)
