@@ -31,14 +31,33 @@ type ParcelaInput struct {
 	JurosCentavos       int64
 }
 
-type CriarDividaInput struct {
-	UsuarioID            uuid.UUID
-	EmpresaID            uuid.UUID
+type NovaDividaInput struct {
 	FornecedorID         uuid.UUID
 	Dados                DadosInformativosInput
 	SaldoInicialCentavos int64
 	DataSaldo            time.Time
 	Parcelas             []ParcelaInput
+}
+
+type CriarDividaInput struct {
+	NovaDividaInput
+	UsuarioID uuid.UUID
+	EmpresaID uuid.UUID
+}
+
+type RenegociarDividaInput struct {
+	UsuarioID uuid.UUID
+	DividaID  uuid.UUID
+	Versao    int
+	Motivo    string
+	Nova      NovaDividaInput
+}
+
+type ReabrirParcelaInput struct {
+	UsuarioID uuid.UUID
+	DividaID  uuid.UUID
+	ParcelaID uuid.UUID
+	Versao    int
 }
 
 type AlterarDividaInput struct {
@@ -108,6 +127,8 @@ type DividaUseCase interface {
 	Alterar(ctx context.Context, input AlterarDividaInput) (*Visao, error)
 	AlterarParcela(ctx context.Context, input AlterarParcelaInput) (*Visao, error)
 	Cancelar(ctx context.Context, input CancelarDividaInput) (*Visao, error)
+	Renegociar(ctx context.Context, input RenegociarDividaInput) (*Visao, error)
+	ReabrirParcela(ctx context.Context, input ReabrirParcelaInput) (*Visao, error)
 	ListarHistorico(ctx context.Context, dividaID, usuarioID uuid.UUID) ([]*domaindivida.Historico, error)
 	GerarContas(ctx context.Context, input GerarContasInput) (ResultadoGeracao, error)
 }

@@ -120,6 +120,11 @@ func (r *DividaRepository) Gravar(ctx context.Context, gravacao *portsout.Gravac
 	} else if versao, err = atualizarDivida(ctx, tx, gravacao); err != nil {
 		return err
 	}
+	if gravacao.Substituta != nil {
+		if err := inserirDivida(ctx, tx, gravacao.Substituta); err != nil {
+			return err
+		}
+	}
 
 	if err := conferirContasDaDivida(ctx, tx, gravacao); err != nil {
 		return err
@@ -129,6 +134,11 @@ func (r *DividaRepository) Gravar(ctx context.Context, gravacao *portsout.Gravac
 	}
 	for _, parcela := range gravacao.ParcelasAlteradas {
 		if err := atualizarParcelaDaDivida(ctx, tx, parcela); err != nil {
+			return err
+		}
+	}
+	for _, parcela := range gravacao.ParcelasNovas {
+		if err := inserirParcelaDaDivida(ctx, tx, parcela); err != nil {
 			return err
 		}
 	}
@@ -317,17 +327,25 @@ func inserirDivida(ctx context.Context, tx *sqlx.Tx, divida *domaindivida.Divida
 	}
 
 	for _, parcela := range divida.Parcelas {
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO divida_parcela (
-				id, divida_id, numero, vencimento, amortizacao_centavos, juros_centavos, status, gerada_em, substituta_id,
-				criado_em, atualizado_em
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-		`,
-			parcela.ID, divida.ID, parcela.Numero, parcela.Vencimento, parcela.AmortizacaoCentavos, parcela.JurosCentavos,
-			parcela.Status.String(), parcela.GeradaEm, parcela.SubstitutaID, parcela.CriadoEm, parcela.AtualizadoEm,
-		); err != nil {
-			return tratarErroDeGravacao(err)
+		if err := inserirParcelaDaDivida(ctx, tx, parcela); err != nil {
+			return err
 		}
+	}
+
+	return nil
+}
+
+func inserirParcelaDaDivida(ctx context.Context, tx *sqlx.Tx, parcela *domaindivida.Parcela) error {
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO divida_parcela (
+			id, divida_id, numero, vencimento, amortizacao_centavos, juros_centavos, status, gerada_em, substituta_id,
+			criado_em, atualizado_em
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+	`,
+		parcela.ID, parcela.DividaID, parcela.Numero, parcela.Vencimento, parcela.AmortizacaoCentavos, parcela.JurosCentavos,
+		parcela.Status.String(), parcela.GeradaEm, parcela.SubstitutaID, parcela.CriadoEm, parcela.AtualizadoEm,
+	); err != nil {
+		return tratarErroDeGravacao(err)
 	}
 
 	return nil
@@ -396,7 +414,7 @@ func atualizarParcelaDaDivida(ctx context.Context, tx *sqlx.Tx, parcela *domaind
 }
 
 func conferirContasDaDivida(ctx context.Context, tx *sqlx.Tx, gravacao *portsout.Gravacao) error {
-	if len(gravacao.ContasCanceladas) == 0 {
+	if !gravacao.ConferirContas && len(gravacao.ContasCanceladas) == 0 {
 		return nil
 	}
 

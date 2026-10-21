@@ -275,3 +275,114 @@ func TestDividaCanceladaCancelaAsContasNoContasAPagar(t *testing.T) {
 		t.Errorf("histórico = %v", acoes)
 	}
 }
+
+func TestDividaRenegociadaCancelaOAbertoECriaANova(t *testing.T) {
+	c := novoCenarioDividasE2E(t)
+	original := c.criar(t)
+	caminho := "/api/v1/dividas/" + original.ID.String()
+	primeira := original.Parcelas[0]
+	if _, err := c.banco.Exec(`UPDATE solicitacao SET status = 'pago' WHERE id = $1`, primeira.ContaAmortizacao.SolicitacaoID); err != nil {
+		t.Fatalf("pagamento de teste falhou: %v", err)
+	}
+
+	fiscal := criarFornecedorE2E(t, c.servidor, map[string]any{"documento": "00.394.460/0001-41", "nome": "Receita Federal"}, tokenDoTeste).ID
+	nova := map[string]any{
+		"fornecedor_id": fiscal, "credor_tipo": "banco", "descricao": "Renegociação Sicredi",
+		"saldo_inicial_centavos": 210000, "data_saldo": c.data(-1, 0),
+		"categoria_amortizacao_id": c.amortizacao, "categoria_juros_id": c.juros,
+		"parcelas": []map[string]any{
+			{"vencimento": c.data(0, 0), "amortizacao_centavos": 105000, "juros_centavos": 900},
+			{"vencimento": c.data(0, 3), "amortizacao_centavos": 105000, "juros_centavos": 450},
+		},
+	}
+
+	conferirStatus(t, enviaComToken(t, c.servidor, http.MethodPost, caminho+"/renegociar", map[string]any{
+		"versao": 1, "motivo": "acordo", "nova": nova,
+	}, c.tokenRed), http.StatusForbidden)
+	conferirStatus(t, enviaComToken(t, c.servidor, http.MethodPost, caminho+"/renegociar", map[string]any{
+		"versao": 1, "motivo": " ", "nova": nova,
+	}, c.tokenMIA), http.StatusBadRequest)
+	antes := map[string]any{}
+	for chave, valor := range nova {
+		antes[chave] = valor
+	}
+	antes["data_saldo"] = c.data(-5, 0)
+	conferirStatus(t, enviaComToken(t, c.servidor, http.MethodPost, caminho+"/renegociar", map[string]any{
+		"versao": 1, "motivo": "acordo", "nova": antes,
+	}, c.tokenMIA), http.StatusBadRequest)
+
+	resposta := enviaComToken(t, c.servidor, http.MethodPost, caminho+"/renegociar", map[string]any{
+		"versao": 1, "motivo": "acordo com o banco", "nova": nova,
+	}, c.tokenMIA)
+	conferirStatus(t, resposta, http.StatusCreated)
+	substituta := decodificarEnvelope[dividadto.DividaDetalheResponse](t, resposta).Dados
+	if substituta.ID == original.ID || substituta.DividaOrigemID == nil || *substituta.DividaOrigemID != original.ID ||
+		substituta.EmpresaID != c.mia || substituta.FornecedorID != fiscal || substituta.SaldoDevedorCentavos != 210000 ||
+		substituta.Parcelas[0].Status != "gerada" || substituta.Parcelas[1].Status != "prevista" {
+		t.Fatalf("substituta = %+v", substituta)
+	}
+
+	depois := c.obter(t, original.ID)
+	if depois.Status != "renegociada" || depois.Motivo == nil || *depois.Motivo != "acordo com o banco" || depois.SaldoDevedorCentavos != 0 {
+		t.Fatalf("original = %+v", depois)
+	}
+	if depois.Parcelas[0].Status != "gerada" || depois.Parcelas[0].Situacao != "conta_cancelada" ||
+		depois.Parcelas[1].Status != "cancelada" || depois.Parcelas[2].Status != "cancelada" {
+		t.Errorf("parcelas da original = %+v", depois.Parcelas)
+	}
+	if conta := c.conta(t, primeira.ContaJuros.SolicitacaoID); conta.Status != "cancelado" {
+		t.Errorf("juros em aberto da original = %s", conta.Status)
+	}
+	if conta := c.conta(t, primeira.ContaAmortizacao.SolicitacaoID); conta.Status != "pago" {
+		t.Errorf("amortização paga da original = %s", conta.Status)
+	}
+
+	conferirStatus(t, enviaComToken(t, c.servidor, http.MethodPost, caminho+"/renegociar", map[string]any{
+		"versao": 2, "motivo": "de novo", "nova": nova,
+	}, c.tokenMIA), http.StatusConflict)
+	conferirStatus(t, enviaComToken(t, c.servidor, http.MethodPut, caminho, map[string]any{
+		"versao": 2, "credor_tipo": "banco", "descricao": "x", "categoria_amortizacao_id": c.amortizacao, "categoria_juros_id": c.juros,
+	}, c.tokenMIA), http.StatusConflict)
+
+	resposta = enviaComToken(t, c.servidor, http.MethodGet, caminho+"/historico", nil, c.tokenMIA)
+	conferirStatus(t, resposta, http.StatusOK)
+	historico := decodificarEnvelope[[]dividadto.HistoricoResponse](t, resposta).Dados
+	ultimo := historico[len(historico)-1]
+	if ultimo.Acao != "renegociada" || ultimo.StatusAnterior == nil || *ultimo.StatusAnterior != "ativa" || ultimo.StatusNovo != "renegociada" {
+		t.Errorf("histórico da original = %+v", ultimo)
+	}
+}
+
+func TestDividaReabreParcelaComContasCanceladasNoContasAPagar(t *testing.T) {
+	c := novoCenarioDividasE2E(t)
+	divida := c.criar(t)
+	primeira := divida.Parcelas[0]
+	caminho := "/api/v1/dividas/" + divida.ID.String() + "/parcelas/" + primeira.ID.String() + "/reabrir"
+
+	conferirMensagem(t, enviaComToken(t, c.servidor, http.MethodPost, caminho, map[string]any{"versao": 1}, c.tokenMIA), http.StatusConflict,
+		"cancele ou rejeite antes as contas a pagar da parcela no contas a pagar")
+	for _, id := range []uuid.UUID{primeira.ContaAmortizacao.SolicitacaoID, primeira.ContaJuros.SolicitacaoID} {
+		conferirStatus(t, enviaComToken(t, c.servidor, http.MethodPost, "/api/v1/solicitacoes/"+id.String()+"/cancelar", nil, c.tokenMIA), http.StatusOK)
+	}
+	if situacao := c.obter(t, divida.ID).Parcelas[0].Situacao; situacao != "conta_cancelada" {
+		t.Errorf("situação com as contas canceladas = %s", situacao)
+	}
+
+	resposta := enviaComToken(t, c.servidor, http.MethodPost, caminho, map[string]any{"versao": 1}, c.tokenMIA)
+	conferirStatus(t, resposta, http.StatusOK)
+	reaberta := decodificarEnvelope[dividadto.DividaDetalheResponse](t, resposta).Dados
+	if reaberta.Versao != 2 || len(reaberta.Parcelas) != 4 || reaberta.Parcelas[0].Status != "cancelada" ||
+		reaberta.Parcelas[0].SubstitutaID == nil || reaberta.Parcelas[1].Status != "prevista" || reaberta.Parcelas[1].Numero != 1 ||
+		reaberta.SaldoDevedorCentavos != 300000 {
+		t.Fatalf("dívida reaberta = %+v", reaberta)
+	}
+
+	resposta = enviaComToken(t, c.servidor, http.MethodPost, "/api/v1/dividas/gerar?competencia="+c.hoje.Format("2006-01"), nil, c.tokenMIA)
+	conferirStatus(t, resposta, http.StatusOK)
+	if resultado := decodificarEnvelope[dividadto.ResultadoGeracaoResponse](t, resposta).Dados; len(resultado.Geradas) != 1 || resultado.Geradas[0].Contas != 2 {
+		t.Fatalf("geração da reaberta = %+v", resultado)
+	}
+	if gerada := c.obter(t, divida.ID).Parcelas[1]; gerada.Status != "gerada" || gerada.ContaJuros == nil || gerada.ContaJuros.Status != "pendente_aprovacao" {
+		t.Errorf("parcela reaberta depois da geração = %+v", gerada)
+	}
+}

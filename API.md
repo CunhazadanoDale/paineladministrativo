@@ -3821,6 +3821,8 @@ id da parcela. Escopo por empresa pela devedora (seção 4 do `EMPRESAS.md`). Es
 | `PUT` | `/api/v1/dividas/{id}` | **financeiro** | `200`; só os campos informativos e as categorias |
 | `PUT` | `/api/v1/dividas/{id}/parcelas/{parcela_id}` | **financeiro** | `200`; vencimento e juros da parcela `prevista` |
 | `POST` | `/api/v1/dividas/{id}/cancelar` | **financeiro** | `200` dívida `cancelada`; cancela as contas abertas |
+| `POST` | `/api/v1/dividas/{id}/renegociar` | **financeiro** | `201` dívida nova ligada à original; a original fica `renegociada` e as contas abertas dela são canceladas |
+| `POST` | `/api/v1/dividas/{id}/parcelas/{parcela_id}/reabrir` | **financeiro** | `200`; parcela com as contas canceladas ou rejeitadas no M7 volta a `prevista` |
 | `GET` | `/api/v1/dividas/{id}/historico` | **financeiro** | `200` lista (`{ "dados": [...] }`) em ordem cronológica |
 | `POST` | `/api/v1/dividas/gerar?competencia=AAAA-MM` | **financeiro** | `200` contas a pagar geradas das parcelas que vencem até o fim da competência (`?empresa=` opcional) |
 
@@ -3939,6 +3941,44 @@ parcelas viram `cancelada`. Se alguma conta da dívida mudou no M7 depois da lei
 dívida mudou no contas a pagar; recarregue a dívida e tente de novo`. Dívida que não está `ativa` → `409
 dívida cancelada não pode ser alterada` (ou `renegociada`).
 
+### Renegociar e parcelar
+
+`POST /api/v1/dividas/{id}/renegociar` troca o saldo em aberto da dívida `ativa` por uma dívida nova (acordo com o
+banco, parcelamento com o fisco, dívida com fornecedor paga com empréstimo):
+
+```json
+{
+  "versao": 3,
+  "motivo": "acordo com o banco",
+  "nova": {
+    "fornecedor_id": "…", "credor_tipo": "banco", "descricao": "Renegociação Sicredi",
+    "saldo_inicial_centavos": 210000, "data_saldo": "2026-10-20",
+    "categoria_amortizacao_id": "…", "categoria_juros_id": "…",
+    "parcelas": [{ "vencimento": "2026-11-20", "amortizacao_centavos": 105000, "juros_centavos": 900 }]
+  }
+}
+```
+
+- `nova` tem os mesmos campos da criação, **sem** `empresa_id`: a dívida nova é da mesma empresa (que precisa
+  estar ativa). O credor pode mudar; o saldo é o informado (pode incluir multa e encargos incorporados) e o
+  histórico registra o saldo em aberto da original para conferência. `data_saldo` não pode ser futura nem
+  anterior à da original (`400`); motivo obrigatório, até 1000.
+- Numa transação: a original vira `renegociada` com o motivo; as contas `pendente_aprovacao` e `aprovado` dela
+  viram `cancelado` (histórico "dívida renegociada: motivo"); as parcelas sem nenhuma conta paga viram
+  `cancelada` e as que têm conta paga ficam `gerada` (a conta aberta delas é cancelada); a nova nasce `ativa` com
+  `divida_origem_id` e já gera as contas das parcelas que vencem até o fim do mês. Conta da original alterada no
+  M7 desde a leitura → `409`.
+- Resposta `201` com a dívida nova. Uma dívida só é renegociada uma vez (`409` depois); a nova pode ser
+  renegociada de novo.
+
+### Reabrir parcela
+
+Quando as contas de uma parcela `gerada` são canceladas ou rejeitadas no contas a pagar (situação
+`conta_cancelada`), `POST /api/v1/dividas/{id}/parcelas/{parcela_id}/reabrir` com `{ "versao": 4 }` marca a parcela
+`cancelada` (com `substituta_id`) e cria outra `prevista` com o mesmo número, vencimento e valores, que pode ser
+editada e gerada de novo. Com alguma conta da parcela aberta ou paga → `409 cancele ou rejeite antes as contas a
+pagar da parcela no contas a pagar`; parcela que não está `gerada` → `409`.
+
 Toda escrita exige a `versao` lida (`400 erro de validação: versão da dívida é obrigatória`; `409 a dívida foi
 alterada por outra pessoa; recarregue e tente de novo`) e a avança.
 
@@ -3965,7 +4005,8 @@ categoria que deixou de ser lançável ou alterada ao mesmo tempo vai para `recu
 `competencia` → `400 erro de validação: competência da geração é obrigatória`; empresa fora do acesso → `403`.
 
 Histórico: `criada` (saldo, data e número de parcelas), `alterada`, `parcela_alterada` (vencimento e juros antes
-e depois), `contas_geradas` (quantas contas e de quais parcelas) e `cancelada` (motivo).
+e depois), `contas_geradas` (quantas contas e de quais parcelas), `parcela_reaberta`, `renegociada` (saldo em aberto,
+saldo novo e motivo; a dívida nova começa com `criada` citando a original) e `cancelada` (motivo).
 
 Credor, empresa, conta bancária e categorias usados numa dívida passam a responder `400 erro de validação:
 registro em uso por outros dados e não pode ser excluído` na exclusão.

@@ -358,3 +358,126 @@ func TestDividaRecusaParcelaInvalidaNoBanco(t *testing.T) {
 		t.Fatal("número de parcela repetido aceito")
 	}
 }
+
+func canceladasDaDivida(usuarioID uuid.UUID, contas []domaindivida.ContaCancelada, descricao string) []portsdivida.ContaCancelada {
+	canceladas := make([]portsdivida.ContaCancelada, 0, len(contas))
+	for _, conta := range contas {
+		anterior := conta.StatusAnterior
+		canceladas = append(canceladas, portsdivida.ContaCancelada{
+			ContaCancelada: conta,
+			Historico: domainsolicitacao.NovoHistorico(conta.SolicitacaoID, usuarioID, &anterior, domainsolicitacao.StatusCancelado,
+				domainsolicitacao.EventoCancelada, descricao),
+		})
+	}
+
+	return canceladas
+}
+
+func TestDividaRenegociadaGravaASubstitutaNaMesmaTransacao(t *testing.T) {
+	c := novoCenarioDividas(t)
+	divida, geracao := c.nova(t, c.mia)
+	if _, err := c.banco.Exec(`UPDATE solicitacao SET status = 'pago' WHERE id = $1`, geracao.Contas[0].Solicitacao.ID); err != nil {
+		t.Fatalf("pagamento de teste falhou: %v", err)
+	}
+	lida := c.obter(t, divida.ID)
+	agora := time.Now().UTC()
+
+	renegociacao, err := lida.Renegociar("acordo", domaindivida.DadosDivida{
+		DadosInformativos:    lida.DadosInformativosAtuais(),
+		FornecedorID:         c.credorID,
+		SaldoInicialCentavos: 210000,
+		DataSaldo:            c.hoje.AddDate(0, 0, -1),
+		Parcelas: []domaindivida.ParcelaInput{
+			{Vencimento: c.hoje, AmortizacaoCentavos: 105000, JurosCentavos: 1000},
+			{Vencimento: c.hoje.AddDate(0, 1, 1), AmortizacaoCentavos: 105000, JurosCentavos: 500},
+		},
+	}, c.usuarioID, agora)
+	if err != nil {
+		t.Fatalf("Renegociar: %v", err)
+	}
+	substituta := renegociacao.Substituta
+	contasNovas, err := substituta.GerarContasAte(domaindivida.FimDoMes(c.hoje), c.usuarioID, agora)
+	if err != nil {
+		t.Fatalf("geração da substituta: %v", err)
+	}
+	if err := c.dividas.Gravar(c.ctx, &portsdivida.Gravacao{
+		Divida: lida, VersaoLida: 1, StatusAnterior: domaindivida.StatusAtiva,
+		ParcelasAlteradas: renegociacao.Parcelas, ConferirContas: true,
+		ContasCanceladas: canceladasDaDivida(c.usuarioID, renegociacao.Contas, "dívida renegociada"),
+		Substituta:       substituta,
+		ContasAPagar:     contasNovas.Contas,
+		Historicos: []*domaindivida.Historico{
+			domaindivida.NovoHistorico(lida.ID, c.usuarioID, domaindivida.AcaoRenegociada, nil, lida.Status, renegociacao.DetalheOriginal, agora),
+			domaindivida.NovoHistorico(substituta.ID, c.usuarioID, domaindivida.AcaoCriada, nil, substituta.Status, renegociacao.DetalheSubstituta, agora),
+		},
+	}); err != nil {
+		t.Fatalf("gravação da renegociação: %v", err)
+	}
+
+	original := c.obter(t, divida.ID)
+	if original.Status != domaindivida.StatusRenegociada || original.Versao != 2 {
+		t.Fatalf("original = %+v", original)
+	}
+	if original.Parcelas[0].Status != domaindivida.StatusParcelaGerada || original.Parcelas[0].ContaAmortizacao.Status != domainsolicitacao.StatusPago ||
+		original.Parcelas[0].ContaJuros.Status != domainsolicitacao.StatusCancelado {
+		t.Errorf("parcela parcialmente paga = %+v", original.Parcelas[0])
+	}
+	if original.Parcelas[1].Status != domaindivida.StatusParcelaCancelada || original.Parcelas[2].Status != domaindivida.StatusParcelaCancelada {
+		t.Errorf("parcelas futuras da original: %s %s", original.Parcelas[1].Status, original.Parcelas[2].Status)
+	}
+
+	nova := c.obter(t, substituta.ID)
+	if nova.DividaOrigemID == nil || *nova.DividaOrigemID != divida.ID || nova.SaldoInicialCentavos != 210000 ||
+		len(nova.Parcelas) != 2 || nova.Parcelas[0].ContaAmortizacao == nil {
+		t.Fatalf("substituta = %+v", nova)
+	}
+
+	segunda, err := lida.Renegociar("outra", domaindivida.DadosDivida{}, c.usuarioID, agora)
+	if segunda != nil || !errors.Is(err, domain.ErrConflito) {
+		t.Fatalf("segunda renegociação = %v", err)
+	}
+}
+
+func TestDividaReabreParcelaComOMesmoNumero(t *testing.T) {
+	c := novoCenarioDividas(t)
+	divida, geracao := c.nova(t, c.mia)
+	for _, conta := range geracao.Contas {
+		if _, err := c.banco.Exec(`UPDATE solicitacao SET status = 'rejeitado' WHERE id = $1`, conta.Solicitacao.ID); err != nil {
+			t.Fatalf("rejeição de teste falhou: %v", err)
+		}
+	}
+	lida := c.obter(t, divida.ID)
+	agora := time.Now().UTC()
+
+	antiga, nova, err := lida.ReabrirParcela(lida.Parcelas[0].ID, agora)
+	if err != nil {
+		t.Fatalf("ReabrirParcela: %v", err)
+	}
+	if err := c.dividas.Gravar(c.ctx, &portsdivida.Gravacao{
+		Divida: lida, VersaoLida: 1, StatusAnterior: domaindivida.StatusAtiva, ConferirContas: true,
+		ParcelasAlteradas: []*domaindivida.Parcela{antiga}, ParcelasNovas: []*domaindivida.Parcela{nova},
+	}); err != nil {
+		t.Fatalf("gravação da reabertura: %v", err)
+	}
+
+	depois := c.obter(t, divida.ID)
+	if len(depois.Parcelas) != 4 || depois.Parcelas[0].ID != antiga.ID || depois.Parcelas[1].ID != nova.ID ||
+		depois.Parcelas[0].SubstitutaID == nil || *depois.Parcelas[0].SubstitutaID != nova.ID ||
+		depois.Parcelas[1].Status != domaindivida.StatusParcelaPrevista || depois.Parcelas[1].ContaJuros != nil {
+		t.Fatalf("parcelas depois de reabrir = %+v", depois.Parcelas)
+	}
+
+	geracaoNova, err := depois.GerarContasAte(domaindivida.FimDoMes(c.hoje), c.usuarioID, agora)
+	if err != nil || len(geracaoNova.Contas) != 2 {
+		t.Fatalf("geração da reaberta = %+v, %v", geracaoNova, err)
+	}
+	if err := c.dividas.Gravar(c.ctx, &portsdivida.Gravacao{
+		Divida: depois, VersaoLida: 2, StatusAnterior: domaindivida.StatusAtiva,
+		ParcelasAlteradas: geracaoNova.Parcelas, ContasAPagar: geracaoNova.Contas,
+	}); err != nil {
+		t.Fatalf("gravação da geração da reaberta: %v", err)
+	}
+	if final := c.obter(t, divida.ID); final.Parcelas[1].ContaJuros == nil || final.Parcelas[1].ContaJuros.Status != domainsolicitacao.StatusPendenteAprovacao {
+		t.Errorf("reaberta gerada = %+v", final.Parcelas[1])
+	}
+}

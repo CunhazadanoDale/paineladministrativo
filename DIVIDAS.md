@@ -1,8 +1,8 @@
 # Escopo — M14 Dívidas e empréstimos
 
 > **Status:** escopo fechado — decisões D1 a D10 respondidas pelo usuário (outubro/2026), todas as
-> recomendações aceitas; fase 1 concluída (dívida, parcelas, geração das contas a pagar e cancelamento);
-> fases 2 e 3 pendentes.
+> recomendações aceitas; fases 1 e 2 concluídas (dívida, parcelas, geração das contas a pagar, cancelamento,
+> renegociação e reabertura de parcela); fase 3 (visões) pendente.
 > **Objetivo:** tirar da planilha "Dívidas do grupo" os empréstimos bancários, os aportes de investidores, os
 > parcelamentos com o fisco e as dívidas parceladas com fornecedores: saldo devedor por credor e por empresa,
 > cronograma de parcelas e as contas a pagar de cada parcela no M7, com juros na DRE (`resultado_financeiro`) e
@@ -137,8 +137,8 @@ saldo_inicial_centavos, data_saldo, parcelas } }`, numa transação:
 4. a original vira `renegociada` com o motivo; nasce a nova `ativa` com `divida_origem_id`, da **mesma empresa**
    (D7), `data_saldo` sem data futura e não anterior à `data_saldo` da original, e gera as contas do mês corrente.
 
-O saldo da nova é informado (pode incluir multa, juros e encargos incorporados); a resposta mostra o saldo
-devedor que a original tinha para conferência.
+O saldo da nova é informado (pode incluir multa, juros e encargos incorporados); o histórico das duas dívidas
+registra o saldo devedor que a original tinha, para conferência. A resposta é a dívida nova (`201`).
 
 ### 3.5 Visões
 
@@ -238,7 +238,7 @@ Numeração a partir da `000067`; renumerar antes do merge se outra sessão merg
 | Fase | Entrega | Estado |
 |---|---|---|
 | **1** | Dívida e parcelas (migration 000067): domínio, criar com carga pelo saldo, alterar, editar parcela prevista, cancelar, histórico; geração das duas contas a pagar (na criação e `POST /dividas/gerar`); integração de idempotência; e2e + `API.md` | concluída |
-| **2** | Renegociação com cancelamento das contas abertas e reabertura de parcela; integração da transação; e2e + `API.md` | pendente |
+| **2** | Renegociação com cancelamento das contas abertas e reabertura de parcela; integração da transação; e2e + `API.md` | concluída |
 | **3** | Visões: lista com saldo e situação, `GET /dividas/resumo` (saldo por tipo de credor e empresa, vencido × a vencer); e2e + `API.md` | pendente |
 | **4** | Frontend (lista, cadastro com cronograma, detalhe, renegociar, resumo) | pendente (sessão própria) |
 
@@ -277,6 +277,18 @@ Cada fase atravessa as camadas até o e2e e o `API.md` e termina com os gates ve
 - [x] **Fase 1 — leitura** (implementação): `Obter` lê dívida, parcelas e o status das duas contas de cada parcela
       (`LEFT JOIN solicitacao` por `origem` + `origem_id`) numa transação somente leitura `REPEATABLE READ`; a
       lista não traz parcelas nem saldo (a fase 3 acrescenta o saldo por consulta agregada).
+- [x] **Fase 2 — renegociação numa gravação** (implementação): a `Gravacao` da original leva a dívida nova em
+      `Substituta`; o repositório atualiza a original com a guarda de versão, insere a nova (empresa ativa e credor
+      ativo travados com `FOR SHARE`), confere e cancela as contas abertas da original, marca as parcelas e gera as
+      contas do mês da nova, tudo na mesma transação. A `data_saldo` da nova não pode ser anterior à da original.
+      Empresa inativa recusa a renegociação (`400`), como recusa dívida nova.
+- [x] **Fase 2 — parcela com conta paga na renegociação** (implementação): fica `gerada` (é histórico pago) e só a
+      conta aberta dela é cancelada; a original renegociada tem saldo devedor zero, então a conta cancelada não
+      volta a contar.
+- [x] **Fase 2 — reabrir** (implementação): exige a parcela `gerada` com **todas** as contas `cancelado` ou
+      `rejeitado` (conferidas com `FOR UPDATE` na transação); a substituta é ligada por `substituta_id`, com a FK
+      `DEFERRABLE INITIALLY DEFERRED`, porque a antiga precisa sair do índice parcial de número antes de a nova
+      entrar.
 
 ## 10. Decisões do escopo
 

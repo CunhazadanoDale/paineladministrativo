@@ -41,20 +41,22 @@ func novoCenario() *cenario {
 
 func (c *cenario) entrada() portsin.CriarDividaInput {
 	return portsin.CriarDividaInput{
-		UsuarioID:    c.financeiro,
-		EmpresaID:    c.empresa,
-		FornecedorID: c.credor,
-		Dados: portsin.DadosInformativosInput{
-			CredorTipo:             "banco",
-			Descricao:              "Capital de giro",
-			CategoriaAmortizacaoID: c.amortizacao,
-			CategoriaJurosID:       c.juros,
-		},
-		SaldoInicialCentavos: 200000,
-		DataSaldo:            c.hoje.AddDate(0, 0, -1),
-		Parcelas: []portsin.ParcelaInput{
-			{Vencimento: c.hoje, AmortizacaoCentavos: 100000, JurosCentavos: 2000},
-			{Vencimento: c.hoje.AddDate(0, 2, 0), AmortizacaoCentavos: 100000, JurosCentavos: 1000},
+		UsuarioID: c.financeiro,
+		EmpresaID: c.empresa,
+		NovaDividaInput: portsin.NovaDividaInput{
+			FornecedorID: c.credor,
+			Dados: portsin.DadosInformativosInput{
+				CredorTipo:             "banco",
+				Descricao:              "Capital de giro",
+				CategoriaAmortizacaoID: c.amortizacao,
+				CategoriaJurosID:       c.juros,
+			},
+			SaldoInicialCentavos: 200000,
+			DataSaldo:            c.hoje.AddDate(0, 0, -1),
+			Parcelas: []portsin.ParcelaInput{
+				{Vencimento: c.hoje, AmortizacaoCentavos: 100000, JurosCentavos: 2000},
+				{Vencimento: c.hoje.AddDate(0, 2, 0), AmortizacaoCentavos: 100000, JurosCentavos: 1000},
+			},
 		},
 	}
 }
@@ -314,5 +316,112 @@ func TestGerarContasRecusaCredorInativo(t *testing.T) {
 	}
 	if c.memoria.dividas[visao.Divida.ID].Parcelas[1].Status != domaindivida.StatusParcelaPrevista {
 		t.Errorf("parcela recusada ficou gerada")
+	}
+}
+
+func (c *cenario) novaDaRenegociacao() portsin.NovaDividaInput {
+	return portsin.NovaDividaInput{
+		FornecedorID: c.memoria.credor(true),
+		Dados: portsin.DadosInformativosInput{
+			CredorTipo:             "banco",
+			Descricao:              "Renegociação",
+			CategoriaAmortizacaoID: c.amortizacao,
+			CategoriaJurosID:       c.juros,
+		},
+		SaldoInicialCentavos: 150000,
+		DataSaldo:            c.hoje.AddDate(0, 0, -1),
+		Parcelas: []portsin.ParcelaInput{
+			{Vencimento: c.hoje, AmortizacaoCentavos: 50000, JurosCentavos: 900},
+			{Vencimento: c.hoje.AddDate(0, 3, 0), AmortizacaoCentavos: 100000, JurosCentavos: 600},
+		},
+	}
+}
+
+func TestRenegociarCriaASubstitutaECancelaAsContasAbertas(t *testing.T) {
+	c := novoCenario()
+	visao := c.criar(t)
+	original := visao.Divida
+	c.memoria.solicitacoes[original.Parcelas[0].ContaJuros.SolicitacaoID].Status = domainsolicitacao.StatusPago
+	nova := c.novaDaRenegociacao()
+
+	if _, err := c.memoria.usecase().Renegociar(context.Background(), portsin.RenegociarDividaInput{
+		UsuarioID: c.financeiro, DividaID: original.ID, Versao: 2, Motivo: "acordo", Nova: nova,
+	}); !errors.Is(err, domain.ErrConflito) {
+		t.Fatalf("versão divergente: %v", err)
+	}
+	inativo := nova
+	inativo.FornecedorID = c.memoria.credor(false)
+	if _, err := c.memoria.usecase().Renegociar(context.Background(), portsin.RenegociarDividaInput{
+		UsuarioID: c.financeiro, DividaID: original.ID, Versao: 1, Motivo: "acordo", Nova: inativo,
+	}); !errors.Is(err, domain.ErrValidacao) {
+		t.Fatalf("credor inativo: %v", err)
+	}
+
+	substituta, err := c.memoria.usecase().Renegociar(context.Background(), portsin.RenegociarDividaInput{
+		UsuarioID: c.financeiro, DividaID: original.ID, Versao: 1, Motivo: "acordo com o banco", Nova: nova,
+	})
+	if err != nil {
+		t.Fatalf("Renegociar falhou: %v", err)
+	}
+	if substituta.Divida.ID == original.ID || substituta.Divida.DividaOrigemID == nil || *substituta.Divida.DividaOrigemID != original.ID ||
+		substituta.Divida.FornecedorID != nova.FornecedorID || substituta.Divida.EmpresaID != c.empresa {
+		t.Fatalf("substituta = %+v", substituta.Divida)
+	}
+	if substituta.Divida.Parcelas[0].Status != domaindivida.StatusParcelaGerada {
+		t.Errorf("primeira parcela da substituta não foi gerada no mês")
+	}
+
+	gravada := c.memoria.dividas[original.ID]
+	if gravada.Status != domaindivida.StatusRenegociada || gravada.Versao != 2 {
+		t.Fatalf("original = %+v", gravada)
+	}
+	if len(c.memoria.canceladas) != 1 || c.memoria.canceladas[0].SolicitacaoID != original.Parcelas[0].ContaAmortizacao.SolicitacaoID {
+		t.Fatalf("canceladas = %+v", c.memoria.canceladas)
+	}
+	if gravada.Parcelas[0].Status != domaindivida.StatusParcelaGerada || gravada.Parcelas[1].Status != domaindivida.StatusParcelaCancelada {
+		t.Errorf("parcelas da original: %s %s", gravada.Parcelas[0].Status, gravada.Parcelas[1].Status)
+	}
+
+	acoes := map[uuid.UUID][]domaindivida.Acao{}
+	for _, historico := range c.memoria.historicos {
+		acoes[historico.DividaID] = append(acoes[historico.DividaID], historico.Acao)
+	}
+	if ultima := acoes[original.ID][len(acoes[original.ID])-1]; ultima != domaindivida.AcaoRenegociada {
+		t.Errorf("histórico da original = %v", acoes[original.ID])
+	}
+	if doNovo := acoes[substituta.Divida.ID]; len(doNovo) != 2 || doNovo[0] != domaindivida.AcaoCriada || doNovo[1] != domaindivida.AcaoContasGeradas {
+		t.Errorf("histórico da substituta = %v", doNovo)
+	}
+
+	if _, err := c.memoria.usecase().Renegociar(context.Background(), portsin.RenegociarDividaInput{
+		UsuarioID: c.financeiro, DividaID: original.ID, Versao: 2, Motivo: "de novo", Nova: c.novaDaRenegociacao(),
+	}); !errors.Is(err, domain.ErrConflito) {
+		t.Errorf("renegociar a renegociada: %v", err)
+	}
+}
+
+func TestReabrirParcelaDepoisDeCancelarAsContasNoM7(t *testing.T) {
+	c := novoCenario()
+	visao := c.criar(t)
+	primeira := visao.Divida.Parcelas[0]
+	entrada := portsin.ReabrirParcelaInput{UsuarioID: c.financeiro, DividaID: visao.Divida.ID, ParcelaID: primeira.ID, Versao: 1}
+
+	if _, err := c.memoria.usecase().ReabrirParcela(context.Background(), entrada); !errors.Is(err, domain.ErrConflito) {
+		t.Fatalf("reabrir com contas abertas: %v", err)
+	}
+	c.memoria.solicitacoes[primeira.ContaAmortizacao.SolicitacaoID].Status = domainsolicitacao.StatusCancelado
+	c.memoria.solicitacoes[primeira.ContaJuros.SolicitacaoID].Status = domainsolicitacao.StatusRejeitado
+
+	reaberta, err := c.memoria.usecase().ReabrirParcela(context.Background(), entrada)
+	if err != nil {
+		t.Fatalf("ReabrirParcela falhou: %v", err)
+	}
+	parcelas := reaberta.Divida.Parcelas
+	if len(parcelas) != 3 || parcelas[0].Status != domaindivida.StatusParcelaCancelada || parcelas[1].Status != domaindivida.StatusParcelaPrevista ||
+		parcelas[1].Numero != 1 || *parcelas[0].SubstitutaID != parcelas[1].ID || reaberta.Divida.Versao != 2 {
+		t.Fatalf("parcelas depois de reabrir = %+v", parcelas)
+	}
+	if ultimo := c.memoria.historicos[len(c.memoria.historicos)-1]; ultimo.Acao != domaindivida.AcaoParcelaReaberta {
+		t.Errorf("histórico = %+v", ultimo)
 	}
 }

@@ -57,31 +57,13 @@ func (u *DividaUsecaseImpl) Criar(ctx context.Context, input portsin.CriarDivida
 	if err := u.exigirEmpresaAtiva(ctx, perfil, input.EmpresaID); err != nil {
 		return nil, err
 	}
-	if err := u.exigirCredorAtivo(ctx, input.FornecedorID); err != nil {
-		return nil, err
-	}
-	informativos, err := u.informativosValidados(ctx, nil, input.EmpresaID, input.Dados)
+	dados, err := u.dadosDaNovaDivida(ctx, input.EmpresaID, input.NovaDividaInput)
 	if err != nil {
 		return nil, err
 	}
 
-	parcelas := make([]domaindivida.ParcelaInput, 0, len(input.Parcelas))
-	for _, parcela := range input.Parcelas {
-		parcelas = append(parcelas, domaindivida.ParcelaInput{
-			Vencimento:          parcela.Vencimento,
-			AmortizacaoCentavos: parcela.AmortizacaoCentavos,
-			JurosCentavos:       parcela.JurosCentavos,
-		})
-	}
-
 	agora := agoraEmUTC()
-	divida, err := domaindivida.NovaDivida(input.EmpresaID, input.UsuarioID, domaindivida.DadosDivida{
-		DadosInformativos:    informativos,
-		FornecedorID:         input.FornecedorID,
-		SaldoInicialCentavos: input.SaldoInicialCentavos,
-		DataSaldo:            input.DataSaldo,
-		Parcelas:             parcelas,
-	}, agora)
+	divida, err := domaindivida.NovaDivida(input.EmpresaID, input.UsuarioID, dados, agora)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +77,7 @@ func (u *DividaUsecaseImpl) Criar(ctx context.Context, input portsin.CriarDivida
 					divida.DataSaldo.Format("02/01/2006"), len(divida.Parcelas)), agora),
 		},
 	}
-	if err := u.anexarGeracaoDoMes(gravacao, input.UsuarioID, agora); err != nil {
+	if err := u.anexarGeracaoDoMes(gravacao, divida, input.UsuarioID, agora); err != nil {
 		return nil, err
 	}
 	if err := u.dividas.Gravar(ctx, gravacao); err != nil {
@@ -103,6 +85,106 @@ func (u *DividaUsecaseImpl) Criar(ctx context.Context, input portsin.CriarDivida
 	}
 
 	return u.visao(divida, agora), nil
+}
+
+func (u *DividaUsecaseImpl) Renegociar(ctx context.Context, input portsin.RenegociarDividaInput) (*portsin.Visao, error) {
+	perfil, err := u.exigeFinanceiro(ctx, input.UsuarioID)
+	if err != nil {
+		return nil, err
+	}
+	original, err := u.dividaVisivel(ctx, perfil, input.DividaID)
+	if err != nil {
+		return nil, err
+	}
+	if err := original.ConferirVersao(input.Versao); err != nil {
+		return nil, err
+	}
+	dados, err := u.dadosDaNovaDivida(ctx, original.EmpresaID, input.Nova)
+	if err != nil {
+		return nil, err
+	}
+
+	agora := agoraEmUTC()
+	renegociacao, err := original.Renegociar(input.Motivo, dados, input.UsuarioID, agora)
+	if err != nil {
+		return nil, err
+	}
+	substituta := renegociacao.Substituta
+	anterior := domaindivida.StatusAtiva
+
+	gravacao := &portsout.Gravacao{
+		Divida:            original,
+		VersaoLida:        input.Versao,
+		StatusAnterior:    anterior,
+		ParcelasAlteradas: renegociacao.Parcelas,
+		ConferirContas:    true,
+		ContasCanceladas: contasCanceladas(renegociacao.Contas, input.UsuarioID,
+			"dívida renegociada: "+*original.Motivo),
+		Substituta: substituta,
+		Historicos: []*domaindivida.Historico{
+			domaindivida.NovoHistorico(original.ID, input.UsuarioID, domaindivida.AcaoRenegociada, &anterior, original.Status,
+				renegociacao.DetalheOriginal, agora),
+			domaindivida.NovoHistorico(substituta.ID, input.UsuarioID, domaindivida.AcaoCriada, nil, substituta.Status,
+				renegociacao.DetalheSubstituta, agora),
+		},
+	}
+	if err := u.anexarGeracaoDoMes(gravacao, substituta, input.UsuarioID, agora); err != nil {
+		return nil, err
+	}
+	if err := u.dividas.Gravar(ctx, gravacao); err != nil {
+		return nil, err
+	}
+
+	return u.visao(substituta, agora), nil
+}
+
+func (u *DividaUsecaseImpl) ReabrirParcela(ctx context.Context, input portsin.ReabrirParcelaInput) (*portsin.Visao, error) {
+	return u.operar(ctx, input.UsuarioID, input.DividaID, input.Versao,
+		func(divida *domaindivida.Divida, agora time.Time) (*operacao, error) {
+			antiga, nova, err := divida.ReabrirParcela(input.ParcelaID, agora)
+			if err != nil {
+				return nil, err
+			}
+
+			return &operacao{
+				acao:    domaindivida.AcaoParcelaReaberta,
+				detalhe: fmt.Sprintf("parcela %d reaberta: as contas a pagar anteriores foram canceladas ou rejeitadas", antiga.Numero),
+				gravacao: portsout.Gravacao{
+					ParcelasAlteradas: []*domaindivida.Parcela{antiga},
+					ParcelasNovas:     []*domaindivida.Parcela{nova},
+					ConferirContas:    true,
+				},
+			}, nil
+		})
+}
+
+func (u *DividaUsecaseImpl) dadosDaNovaDivida(
+	ctx context.Context, empresaID uuid.UUID, input portsin.NovaDividaInput,
+) (domaindivida.DadosDivida, error) {
+	if err := u.exigirCredorAtivo(ctx, input.FornecedorID); err != nil {
+		return domaindivida.DadosDivida{}, err
+	}
+	informativos, err := u.informativosValidados(ctx, nil, empresaID, input.Dados)
+	if err != nil {
+		return domaindivida.DadosDivida{}, err
+	}
+
+	parcelas := make([]domaindivida.ParcelaInput, 0, len(input.Parcelas))
+	for _, parcela := range input.Parcelas {
+		parcelas = append(parcelas, domaindivida.ParcelaInput{
+			Vencimento:          parcela.Vencimento,
+			AmortizacaoCentavos: parcela.AmortizacaoCentavos,
+			JurosCentavos:       parcela.JurosCentavos,
+		})
+	}
+
+	return domaindivida.DadosDivida{
+		DadosInformativos:    informativos,
+		FornecedorID:         input.FornecedorID,
+		SaldoInicialCentavos: input.SaldoInicialCentavos,
+		DataSaldo:            input.DataSaldo,
+		Parcelas:             parcelas,
+	}, nil
 }
 
 func (u *DividaUsecaseImpl) Obter(ctx context.Context, dividaID, usuarioID uuid.UUID) (*portsin.Visao, error) {
@@ -337,8 +419,9 @@ func (u *DividaUsecaseImpl) operar(
 	return u.visao(divida, agora), nil
 }
 
-func (u *DividaUsecaseImpl) anexarGeracaoDoMes(gravacao *portsout.Gravacao, usuarioID uuid.UUID, agora time.Time) error {
-	divida := gravacao.Divida
+func (u *DividaUsecaseImpl) anexarGeracaoDoMes(
+	gravacao *portsout.Gravacao, divida *domaindivida.Divida, usuarioID uuid.UUID, agora time.Time,
+) error {
 	geracao, err := divida.GerarContasAte(domaindivida.FimDoMes(domaindivida.Hoje(agora)), usuarioID, agora)
 	if err != nil || geracao.Vazia() {
 		return err

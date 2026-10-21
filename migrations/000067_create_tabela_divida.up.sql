@@ -89,6 +89,7 @@ CREATE TABLE divida_parcela (
     CONSTRAINT chk_divida_parcela_substituta CHECK (substituta_id IS NULL OR status = 'cancelada'),
     CONSTRAINT fk_divida_parcela_divida FOREIGN KEY (divida_id) REFERENCES divida (id) ON DELETE RESTRICT,
     CONSTRAINT fk_divida_parcela_substituta FOREIGN KEY (substituta_id) REFERENCES divida_parcela (id) ON DELETE RESTRICT
+        DEFERRABLE INITIALLY DEFERRED
 );
 
 CREATE UNIQUE INDEX uq_divida_parcela_numero ON divida_parcela (divida_id, numero) WHERE status <> 'cancelada';

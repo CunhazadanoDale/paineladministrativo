@@ -148,6 +148,49 @@ func (h *DividaHandler) Cancelar(w http.ResponseWriter, r *http.Request) {
 	escreverDetalhe(w, http.StatusOK, visao, err)
 }
 
+func (h *DividaHandler) Renegociar(w http.ResponseWriter, r *http.Request) {
+	usuario, id, ok := resposta.UsuarioEId(w, r)
+	if !ok {
+		return
+	}
+
+	var requisicao dividadto.RenegociarRequest
+	if !resposta.CorpoJSON(w, r, &requisicao) {
+		return
+	}
+	nova, err := requisicao.Nova.ParaNova()
+	if err != nil {
+		resposta.ResponderErro(w, err)
+		return
+	}
+
+	visao, err := h.usecase.Renegociar(r.Context(), portsin.RenegociarDividaInput{
+		UsuarioID: usuario.ID, DividaID: id, Versao: requisicao.Versao, Motivo: requisicao.Motivo, Nova: nova,
+	})
+	escreverDetalhe(w, http.StatusCreated, visao, err)
+}
+
+func (h *DividaHandler) ReabrirParcela(w http.ResponseWriter, r *http.Request) {
+	usuario, id, ok := resposta.UsuarioEId(w, r)
+	if !ok {
+		return
+	}
+	parcelaID, ok := resposta.ParametroUUID(w, r, "parcela_id")
+	if !ok {
+		return
+	}
+
+	var requisicao dividadto.VersaoRequest
+	if !resposta.CorpoJSON(w, r, &requisicao) {
+		return
+	}
+
+	visao, err := h.usecase.ReabrirParcela(r.Context(), portsin.ReabrirParcelaInput{
+		UsuarioID: usuario.ID, DividaID: id, ParcelaID: parcelaID, Versao: requisicao.Versao,
+	})
+	escreverDetalhe(w, http.StatusOK, visao, err)
+}
+
 func (h *DividaHandler) ListarHistorico(w http.ResponseWriter, r *http.Request) {
 	usuario, id, ok := resposta.UsuarioEId(w, r)
 	if !ok {

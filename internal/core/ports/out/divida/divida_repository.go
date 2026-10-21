@@ -21,8 +21,11 @@ type Gravacao struct {
 	VersaoLida        int
 	StatusAnterior    domaindivida.Status
 	ParcelasAlteradas []*domaindivida.Parcela
-	ContasAPagar      []domaindivida.ContaGerada
+	ParcelasNovas     []*domaindivida.Parcela
+	ConferirContas    bool
 	ContasCanceladas  []ContaCancelada
+	Substituta        *domaindivida.Divida
+	ContasAPagar      []domaindivida.ContaGerada
 	Historicos        []*domaindivida.Historico
 }
 

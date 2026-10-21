@@ -167,6 +167,8 @@ func TestDataInvalidaResponde400SemChamarOUsecase(t *testing.T) {
 		{"data do saldo", handler.Criar, http.MethodPost, "/api/v1/dividas", "", `{"data_saldo": "30/09/2026"}`},
 		{"vencimento", handler.Criar, http.MethodPost, "/api/v1/dividas", "", `{"parcelas": [{"vencimento": "amanhã"}]}`},
 		{"liberação", handler.Alterar, http.MethodPut, "/api/v1/dividas/" + id, id, `{"versao": 1, "liberada_em": "2026-13-01"}`},
+		{"renegociação", handler.Renegociar, http.MethodPost, "/api/v1/dividas/" + id + "/renegociar", id, `{"versao": 1, "nova": {"data_saldo": "ontem"}}`},
+		{"campo desconhecido", handler.Renegociar, http.MethodPost, "/api/v1/dividas/" + id + "/renegociar", id, `{"versao": 1, "nova": {"empresa_id": "x"}}`},
 		{"empresa", handler.Listar, http.MethodGet, "/api/v1/dividas?empresa=x", "", ""},
 		{"empresa da geração", handler.GerarContas, http.MethodPost, "/api/v1/dividas/gerar?competencia=2026-10&empresa=x", "", ""},
 	}

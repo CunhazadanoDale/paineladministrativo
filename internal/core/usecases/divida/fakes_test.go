@@ -162,6 +162,23 @@ func (r repoDividas) Gravar(_ context.Context, gravacao *portsout.Gravacao) erro
 		divida.Versao = atual.Versao + 1
 	}
 
+	if gravacao.ConferirContas {
+		anteriores := map[uuid.UUID]domainsolicitacao.Status{}
+		for _, conta := range gravacao.ContasCanceladas {
+			anteriores[conta.SolicitacaoID] = conta.StatusAnterior
+		}
+		for _, parcela := range divida.Parcelas {
+			for _, conta := range parcela.Contas() {
+				esperado, cancelada := anteriores[conta.SolicitacaoID]
+				if !cancelada {
+					esperado = conta.Status
+				}
+				if r.solicitacoes[conta.SolicitacaoID].Status != esperado {
+					return domaindivida.ErroContaAPagarAlterada()
+				}
+			}
+		}
+	}
 	for _, conta := range gravacao.ContasCanceladas {
 		solicitacao := r.solicitacoes[conta.SolicitacaoID]
 		if solicitacao == nil || solicitacao.Status != conta.StatusAnterior {
@@ -181,6 +198,9 @@ func (r repoDividas) Gravar(_ context.Context, gravacao *portsout.Gravacao) erro
 	r.canceladas = append(r.canceladas, gravacao.ContasCanceladas...)
 	r.historicos = append(r.historicos, gravacao.Historicos...)
 	r.dividas[divida.ID] = copiarDivida(divida)
+	if gravacao.Substituta != nil {
+		r.dividas[gravacao.Substituta.ID] = copiarDivida(gravacao.Substituta)
+	}
 	r.gravacoes++
 
 	return nil

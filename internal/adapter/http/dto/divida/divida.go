@@ -96,30 +96,29 @@ type ParcelaRequest struct {
 	JurosCentavos       int64  `json:"juros_centavos"`
 }
 
-type CriarDividaRequest struct {
+type NovaDividaRequest struct {
 	DadosInformativosRequest
-	EmpresaID            uuid.UUID        `json:"empresa_id"`
 	FornecedorID         uuid.UUID        `json:"fornecedor_id"`
 	SaldoInicialCentavos int64            `json:"saldo_inicial_centavos"`
 	DataSaldo            string           `json:"data_saldo"`
 	Parcelas             []ParcelaRequest `json:"parcelas"`
 }
 
-func (r CriarDividaRequest) ParaInput(usuarioID uuid.UUID) (portsin.CriarDividaInput, error) {
+func (r NovaDividaRequest) ParaNova() (portsin.NovaDividaInput, error) {
 	dados, err := r.ParaDados()
 	if err != nil {
-		return portsin.CriarDividaInput{}, err
+		return portsin.NovaDividaInput{}, err
 	}
 	dataSaldo, err := ParaData(r.DataSaldo, "data do saldo")
 	if err != nil {
-		return portsin.CriarDividaInput{}, err
+		return portsin.NovaDividaInput{}, err
 	}
 
 	parcelas := make([]portsin.ParcelaInput, 0, len(r.Parcelas))
 	for _, parcela := range r.Parcelas {
 		vencimento, err := ParaData(parcela.Vencimento, "vencimento da parcela")
 		if err != nil {
-			return portsin.CriarDividaInput{}, err
+			return portsin.NovaDividaInput{}, err
 		}
 		parcelas = append(parcelas, portsin.ParcelaInput{
 			Vencimento:          vencimento,
@@ -128,15 +127,37 @@ func (r CriarDividaRequest) ParaInput(usuarioID uuid.UUID) (portsin.CriarDividaI
 		})
 	}
 
-	return portsin.CriarDividaInput{
-		UsuarioID:            usuarioID,
-		EmpresaID:            r.EmpresaID,
+	return portsin.NovaDividaInput{
 		FornecedorID:         r.FornecedorID,
 		Dados:                dados,
 		SaldoInicialCentavos: r.SaldoInicialCentavos,
 		DataSaldo:            dataSaldo,
 		Parcelas:             parcelas,
 	}, nil
+}
+
+type CriarDividaRequest struct {
+	NovaDividaRequest
+	EmpresaID uuid.UUID `json:"empresa_id"`
+}
+
+func (r CriarDividaRequest) ParaInput(usuarioID uuid.UUID) (portsin.CriarDividaInput, error) {
+	nova, err := r.ParaNova()
+	if err != nil {
+		return portsin.CriarDividaInput{}, err
+	}
+
+	return portsin.CriarDividaInput{NovaDividaInput: nova, UsuarioID: usuarioID, EmpresaID: r.EmpresaID}, nil
+}
+
+type RenegociarRequest struct {
+	Versao int               `json:"versao"`
+	Motivo string            `json:"motivo"`
+	Nova   NovaDividaRequest `json:"nova"`
+}
+
+type VersaoRequest struct {
+	Versao int `json:"versao"`
 }
 
 type AlterarDividaRequest struct {

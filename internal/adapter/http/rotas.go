@@ -623,6 +623,8 @@ func novasRotas(
 	financeiro("PUT /api/v1/dividas/{id}/parcelas/{parcela_id}", dividaHandler.AlterarParcela)
 	financeiro("POST /api/v1/dividas/{id}/cancelar", dividaHandler.Cancelar)
 	financeiro("GET /api/v1/dividas/{id}/historico", dividaHandler.ListarHistorico)
+	financeiro("POST /api/v1/dividas/{id}/renegociar", dividaHandler.Renegociar)
+	financeiro("POST /api/v1/dividas/{id}/parcelas/{parcela_id}/reabrir", dividaHandler.ReabrirParcela)
 
 	return mux
 }
