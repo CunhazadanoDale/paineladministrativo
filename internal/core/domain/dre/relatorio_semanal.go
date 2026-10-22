@@ -8,7 +8,10 @@ import (
 	"github.com/google/uuid"
 )
 
-const LimiteDasListasDoRelatorio = 50
+const (
+	LimiteDasListasDoRelatorio = 50
+	TipoRecebimentoNaConta     = "conta"
+)
 
 type TotalSemanal struct {
 	Quantidade    int
@@ -150,7 +153,9 @@ func NovoRelatorioSemanal(semana Semana, hoje time.Time, conteudo ConteudoDoRela
 		relatorio.TotalPagamentos = relatorio.TotalPagamentos.Somar(pagamentos.Total)
 	}
 	for _, recebimentos := range relatorio.Recebimentos {
-		relatorio.TotalRecebido = relatorio.TotalRecebido.Somar(recebimentos.Total)
+		if recebimentos.Tipo == TipoRecebimentoNaConta {
+			relatorio.TotalRecebido = relatorio.TotalRecebido.Somar(recebimentos.Total)
+		}
 	}
 	for _, conta := range relatorio.Saldos.Contas {
 		saldo := conta.SaldoAtualCentavos()

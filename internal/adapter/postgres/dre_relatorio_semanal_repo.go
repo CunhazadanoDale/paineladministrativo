@@ -34,7 +34,7 @@ func (r *DRERelatorioSemanalRepository) NotasEmitidas(ctx context.Context, filtr
 	empresas, argumentos := filtroDREPorEmpresa("empresa_id", filtro.EmpresaIDs, argumentos)
 
 	query := `
-		SELECT empresa_id, natureza, count(*) AS quantidade, sum(valor_total_centavos) AS valor
+		SELECT empresa_id, natureza, count(*) FILTER (WHERE finalidade NOT IN ('complementar', 'ajuste')) AS quantidade, sum(valor_total_centavos) AS valor
 		FROM nota_fiscal
 		WHERE status = 'autorizada'
 		  AND emitida_em >= $1 AND emitida_em < $2` + empresas + `

@@ -117,6 +117,7 @@ func TestRelatorioSemanalUsaASemanaEOEscopoDoUsuario(t *testing.T) {
 	relatorios, saldos := &repositorioRelatorios{}, &repositorioSaldos{}
 	relatorios.notas = []domaindre.NotasEmitidas{{EmpresaID: c.empresaA, Natureza: "venda", Total: domaindre.TotalSemanal{Quantidade: 1, ValorCentavos: 100}}}
 	quinta := time.Date(2026, time.October, 15, 0, 0, 0, 0, time.UTC)
+	hojeAntes := domaindre.Hoje(time.Now())
 
 	relatorio, err := c.relatorioSemanal(relatorios, saldos).Consultar(context.Background(), portsin.ConsultarSemanaInput{
 		UsuarioID: c.restrito, Semana: &quinta,
@@ -136,7 +137,7 @@ func TestRelatorioSemanalUsaASemanaEOEscopoDoUsuario(t *testing.T) {
 	if len(filtro.EmpresaIDs) != 1 || filtro.EmpresaIDs[0] != c.empresaA || filtro.Limite != domaindre.LimiteDasListasDoRelatorio {
 		t.Errorf("filtro = %+v", filtro)
 	}
-	if !filtro.Hoje.Equal(domaindre.Hoje(time.Now())) {
+	if hojeDepois := domaindre.Hoje(time.Now()); !filtro.Hoje.Equal(hojeAntes) && !filtro.Hoje.Equal(hojeDepois) {
 		t.Errorf("hoje = %s, esperado o dia de Brasília", filtro.Hoje)
 	}
 	if relatorios.limiteEstoque != domaindre.LimiteDasListasDoRelatorio {

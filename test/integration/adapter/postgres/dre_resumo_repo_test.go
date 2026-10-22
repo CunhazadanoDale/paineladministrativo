@@ -370,6 +370,11 @@ func TestDREResumoLeCadaFonteUmaVez(t *testing.T) {
 	c.recebimento(t, daNota, diaDRE(time.September, 16), 999, 999, true)
 	c.recebimento(t, daNota, diaDRE(time.September, 17), 0, 0, false)
 	c.recebimento(t, daNota, diaDRE(time.October, 2), 10, 0, false)
+	c.executar(t, `
+		INSERT INTO titulo_recebimento (
+			titulo_id, tipo, recebido_em, valor_centavos, juros_centavos, desconto_centavos, status_titulo_anterior, usuario_id
+		) VALUES ($1, 'fomento', '2026-09-18', 1000, 777, 333, 'antecipado', $2)
+	`, daNota, c.usuarioID)
 
 	c.antecipacao(t, diaDRE(time.September, 10), 10_000, 9_500, false)
 	c.antecipacao(t, diaDRE(time.September, 11), 10_000, 9_000, true)
@@ -467,5 +472,62 @@ func TestDREResumoRespeitaOEscopoDeEmpresas(t *testing.T) {
 	faturamento, err := c.resumos.Faturamento(c.ctx, c.filtro([]uuid.UUID{c.empresaA}))
 	if err != nil || len(faturamento) != 1 || faturamento[0].ValorCentavos != 100 {
 		t.Errorf("faturamento da empresa A = %+v, %v", faturamento, err)
+	}
+}
+
+func TestDREResumoDeixaForaOCustoQueJaEstaNoLoteEContaSoNotasNovas(t *testing.T) {
+	c := novoCenarioDRE(t)
+	fixa := c.categoria["Despesas fixas"]
+	importacaoID := uuid.New()
+
+	c.executar(t, `
+		INSERT INTO importacao (id, empresa_id, numero, fornecedor_id, moeda, status, valor_total_moeda_centesimos, usuario_id)
+		VALUES ($1, $2, 1, $3, 'USD', 'aberta', 100000, $4)
+	`, importacaoID, c.empresaA, c.fomentoID, c.usuarioID)
+
+	parcela := c.conta(t, "aprovado", diaDRE(time.September, 1), &fixa, 5_000, "importacao_parcela")
+	c.executar(t, `
+		INSERT INTO importacao_parcela (
+			importacao_id, descricao, valor_moeda_centesimos, vencimento_previsto, status, cambio_micro, valor_centavos,
+			vencimento, solicitacao_id, usuario_id
+		) VALUES ($1, 'Sinal', 1000, '2026-09-10', 'cambio_fechado', 5000000, 5000, '2026-09-10', $2, $3)
+	`, importacaoID, parcela, c.usuarioID)
+
+	for _, custo := range []struct {
+		compoe bool
+		valor  int64
+	}{{true, 700}, {false, 90}} {
+		conta := c.conta(t, "aprovado", diaDRE(time.September, 1), &fixa, custo.valor, "importacao_custo")
+		c.executar(t, `
+			INSERT INTO importacao_custo (
+				importacao_id, tipo, descricao, fornecedor_id, valor_centavos, vencimento, compoe_custo,
+				categoria_financeira_id, solicitacao_id, usuario_id
+			) VALUES ($1, 'despachante', 'Despachante', $2, $3, '2026-09-10', $4, $5, $6, $7)
+		`, importacaoID, c.fomentoID, custo.valor, custo.compoe, fixa, conta, c.usuarioID)
+	}
+
+	c.nota(t, c.empresaA, "venda", "saida", "autorizada", brasilia(2026, time.September, 15, 10), 1_000)
+	c.nota(t, c.empresaA, "venda", "saida", "autorizada", brasilia(2026, time.September, 16, 10), 333)
+	c.executar(t, `UPDATE nota_fiscal SET finalidade = 'complementar' WHERE valor_total_centavos = 333`)
+
+	lancamentos, err := c.resumos.Lancamentos(c.ctx, c.filtro(nil))
+	if err != nil {
+		t.Fatalf("Lancamentos = %v", err)
+	}
+	if fixas := somaDRE(lancamentos, "2026-09", c.empresaA, domaindre.LinhaDespesasFixas, c.categoria["raiz Despesas fixas"].String()); fixas != (totalDRE{-90, 1}) {
+		t.Errorf("despesas fixas = %+v, esperado só o custo que não compõe o lote", fixas)
+	}
+	if receita := somaDRE(lancamentos, "2026-09", c.empresaA, domaindre.LinhaReceitaBruta, domaindre.ItemNFVenda); receita != (totalDRE{1_333, 1}) {
+		t.Errorf("receita = %+v, esperado o valor da complementar sem contar outra nota", receita)
+	}
+
+	faturamento, err := c.resumos.Faturamento(c.ctx, c.filtro(nil))
+	if err != nil || len(faturamento) != 1 || faturamento[0].Quantidade != 1 || faturamento[0].ValorCentavos != 1_333 {
+		t.Errorf("faturamento = %+v, %v", faturamento, err)
+	}
+
+	notas, err := postgres.NewDRERelatorioSemanalRepository(c.banco).NotasEmitidas(c.ctx, filtroDaSemana(nil))
+	if err != nil || len(notas) != 1 || notas[0].Total != (domaindre.TotalSemanal{Quantidade: 1, ValorCentavos: 1_333}) {
+		t.Errorf("notas da semana = %+v, %v", notas, err)
 	}
 }

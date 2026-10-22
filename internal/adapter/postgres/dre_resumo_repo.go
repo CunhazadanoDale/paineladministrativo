@@ -130,7 +130,7 @@ func (r *DREResumoRepository) notasFiscais(ctx context.Context, filtro portsout.
 		       empresa_id,
 		       CASE WHEN natureza = 'venda' THEN '` + domaindre.ItemNFVenda + `' ELSE '` + domaindre.ItemNFDevolucao + `' END AS chave,
 		       sum(CASE WHEN natureza = 'venda' THEN valor_total_centavos ELSE -valor_total_centavos END) AS valor,
-		       count(*) AS quantidade
+		       count(*) FILTER (WHERE finalidade NOT IN ('complementar', 'ajuste')) AS quantidade
 		FROM nota_fiscal
 		WHERE status = 'autorizada'
 		  AND NOT entre_empresas
@@ -181,6 +181,7 @@ func (r *DREResumoRepository) recebimentos(ctx context.Context, filtro portsout.
 			FROM titulo_recebimento r
 			JOIN titulo_receber t ON t.id = r.titulo_id
 			WHERE NOT r.estornado
+			  AND r.tipo = 'conta'
 			  AND (r.juros_centavos > 0 OR r.desconto_centavos > 0)
 			  AND r.recebido_em >= $1 AND r.recebido_em < $2` + empresas + `
 			GROUP BY 1, 2
@@ -235,7 +236,9 @@ func (r *DREResumoRepository) contasAPagar(ctx context.Context, filtro portsout.
 		LEFT JOIN pagamento p ON p.solicitacao_id = s.id AND NOT p.estornado
 		WHERE s.status NOT IN ('cancelado', 'rejeitado')
 		  AND s.competencia >= $1 AND s.competencia < $2
-		  AND (c.id IS NULL OR c.linha_dre = ANY($3::text[]))` + empresas + `
+		  AND (c.id IS NULL OR c.linha_dre = ANY($3::text[]))
+		  AND NOT EXISTS (SELECT 1 FROM importacao_parcela ip WHERE ip.solicitacao_id = s.id)
+		  AND NOT EXISTS (SELECT 1 FROM importacao_custo ic WHERE ic.solicitacao_id = s.id AND ic.compoe_custo)` + empresas + `
 		GROUP BY 1, 2, 3, 4, 5
 		ORDER BY 1, 2, 3, 4
 	`
@@ -362,7 +365,7 @@ func (r *DREResumoRepository) Faturamento(ctx context.Context, filtro portsout.F
 		       empresa_id,
 		       '` + domaindre.ItemNFVenda + `' AS chave,
 		       sum(valor_total_centavos) AS valor,
-		       count(*) AS quantidade
+		       count(*) FILTER (WHERE finalidade NOT IN ('complementar', 'ajuste')) AS quantidade
 		FROM nota_fiscal
 		WHERE status = 'autorizada'
 		  AND NOT entre_empresas

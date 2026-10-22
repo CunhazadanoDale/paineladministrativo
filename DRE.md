@@ -72,7 +72,8 @@ Toda consulta filtra `empresa_id = ANY($n)` quando o usuário não tem acesso a 
 
 - `natureza = 'venda' AND status = 'autorizada' AND NOT entre_empresas`;
 - mês = `date_trunc('month', emitida_em AT TIME ZONE 'America/Sao_Paulo')`;
-- valor = `valor_total_centavos`; quantidade de notas para o faturamento;
+- valor = `valor_total_centavos`; a quantidade de notas não conta NF `complementar` nem `ajuste` (o valor
+  delas soma, mas não são uma venda nova e distorceriam o ticket médio);
 - NF cancelada depois sai da DRE do mês dela (o painel é sempre recalculado).
 
 ### 3.2 CMV — `produto_movimento_lote`
@@ -90,17 +91,21 @@ Toda consulta filtra `empresa_id = ANY($n)` quando o usuário não tem acesso a 
 - `status NOT IN ('cancelado', 'rejeitado')`, **sem filtro por `origem`** (as contas do M10, M12 e
   M14 entram pela categoria: juros do M14 em `resultado_financeiro`, amortização em `fora_dre`);
 - valor: ver D3;
-- `compra_mercadoria` e `entre_contas` ficam fora.
+- `compra_mercadoria` e `entre_contas` ficam fora;
+- a conta de uma `importacao_parcela` e a de um `importacao_custo` com `compoe_custo` ficam fora **qualquer
+  que seja a categoria** (o M12 só sugere `compra_mercadoria`): esse valor já está no custo do lote e entra como
+  CMV na saída (3.2). Custo com `compoe_custo = false` entra pela própria categoria.
 
 ### 3.4 Contas a receber — `titulo_receber`, `titulo_recebimento`, `antecipacao`
 
 - título `origem = 'manual'`, `status <> 'cancelado'`, por `competencia` + `linha_dre` da categoria,
   valor = `valor_centavos` (títulos de NF e de pedido ficam fora: a receita vem da NF);
-- **juros recebidos**: `titulo_recebimento.juros_centavos` com `NOT estornado`, mês de
+- **juros recebidos**: `titulo_recebimento.juros_centavos` com `NOT estornado` e `tipo = 'conta'` (no tipo
+  `fomento` o cliente pagou direto ao fomento e o dinheiro não entrou na empresa), mês de
   `recebido_em`, empresa do título → `resultado_financeiro` (+);
 - **encargos do borderô**: `valor_bruto_centavos − valor_liquido_centavos` de `antecipacao` com
   `status = 'ativa'`, mês de `operado_em` → `resultado_financeiro` (−);
-- descontos concedidos no recebimento: ver D4;
+- descontos concedidos no recebimento: ver D4 (só tipo `conta`, como os juros);
 - recompra e repasse ao fomento entram pela conta a pagar do M7 (3.3), nunca daqui.
 
 ### 3.5 Caixa — `lancamento_caixa`
@@ -247,7 +252,8 @@ rotas.go, cmd/api/main.go, test/helpers/servidor.go       bloco do M15 no fim
       `nf_devolucao`.
 - [x] **D3 — Valor da conta a pagar.** `pago` usa o `valor` do pagamento vigente (`NOT estornado`); os
       demais status usam `valor_estimado`.
-- [x] **D4 — Desconto concedido no recebimento.** `titulo_recebimento.desconto_centavos` não estornado,
+- [x] **D4 — Desconto concedido no recebimento.** `titulo_recebimento.desconto_centavos` não estornado e do
+      tipo `conta` (no `fomento` o cliente pagou direto ao fomento; o prejuízo dele volta pela recompra),
       mês de `recebido_em`, entra em `resultado_financeiro` (−) como item fixo `descontos_concedidos`.
 - [x] **D5 — Conta a pagar sem categoria.** Linha `nao_classificado`, dentro do resultado operacional,
       com quantidade, para o financeiro classificar.

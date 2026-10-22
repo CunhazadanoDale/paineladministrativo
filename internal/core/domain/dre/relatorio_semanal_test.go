@@ -31,6 +31,7 @@ func TestRelatorioSemanalSomaOsBlocosESaldos(t *testing.T) {
 		},
 		Recebimentos: []domaindre.RecebimentosFeitos{
 			{EmpresaID: empresaA, Tipo: "conta", Total: domaindre.TotalSemanal{Quantidade: 3, ValorCentavos: 900}, JurosCentavos: 10},
+			{EmpresaID: empresaA, Tipo: "fomento", Total: domaindre.TotalSemanal{Quantidade: 1, ValorCentavos: 400}},
 		},
 		TitulosVencidos: domaindre.NovosVencidos([]domaindre.VencidosPorEmpresa{
 			{EmpresaID: empresaA, Total: domaindre.TotalSemanal{Quantidade: 2, ValorCentavos: 700}},
@@ -54,7 +55,7 @@ func TestRelatorioSemanalSomaOsBlocosESaldos(t *testing.T) {
 		t.Errorf("pagamentos = %+v", relatorio.TotalPagamentos)
 	}
 	if relatorio.TotalRecebido != (domaindre.TotalSemanal{Quantidade: 3, ValorCentavos: 900}) {
-		t.Errorf("recebido = %+v", relatorio.TotalRecebido)
+		t.Errorf("recebido = %+v, esperado só o que entrou na conta", relatorio.TotalRecebido)
 	}
 	if relatorio.TitulosVencidos.Total != (domaindre.TotalSemanal{Quantidade: 3, ValorCentavos: 800}) || len(relatorio.TitulosVencidos.Itens) != 1 {
 		t.Errorf("títulos vencidos = %+v", relatorio.TitulosVencidos)

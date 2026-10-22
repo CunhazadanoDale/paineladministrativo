@@ -4089,9 +4089,11 @@ faturamento (`400 erro de validação: período deve ter no máximo N meses`).
 
 - **Contas a pagar** (`solicitacao`): por `competencia`, todos os status menos `cancelado` e `rejeitado`,
   qualquer `origem` (M10, M12 e M14 entram pela categoria). Conta `pago` usa o valor do pagamento vigente;
-  as demais, `valor_estimado`.
+  as demais, `valor_estimado`. A conta de parcela de importação e a de custo de importação que compõe o custo
+  do lote ficam fora em qualquer categoria: esse valor já entra como CMV.
 - **Títulos**: só `manual`, por `competencia`; títulos de NF e de pedido ficam fora (a receita vem da NF).
-  Juros e descontos pelo `recebido_em` dos recebimentos não estornados.
+  Juros e descontos pelo `recebido_em` dos recebimentos não estornados do tipo `conta` (no tipo `fomento` o
+  cliente pagou direto ao fomento).
 - **Caixa**: `lancamento_caixa` não estornado, por `competencia`, com o sinal da linha do extrato.
 - **Nunca entram**: categorias `compra_mercadoria` (o custo vem dos lotes) e `entre_contas`,
   `transferencia_conta`, NF `remessa`, `transferencia` e devolução de saída, movimento `transferencia`.
@@ -4168,7 +4170,8 @@ faturamento (`400 erro de validação: período deve ter no máximo N meses`).
 }
 ```
 
-Só NF `venda` autorizada fora `entre_empresas`, pelo mês de `emitida_em` em Brasília. Mostra apenas as notas
+Só NF `venda` autorizada fora `entre_empresas`, pelo mês de `emitida_em` em Brasília; NF `complementar` e de
+`ajuste` somam o valor, mas não contam em `quantidade`. Mostra apenas as notas
 já importadas (sem carga retroativa); meses sem nota aparecem zerados. `ticket_medio_centavos` arredondado,
 `0` sem notas.
 
@@ -4245,7 +4248,7 @@ estar no formato AAAA-MM-DD`. "Hoje" é o dia de Brasília.
 | --- | --- |
 | `notas_emitidas` | NF autorizada com `emitida_em` (Brasília) na semana, por empresa e natureza; `total_venda` soma só `venda` |
 | `pagamentos` | pagamentos não estornados com `pago_em` (Brasília) na semana, por empresa e `linha_dre` da categoria (`null` sem categoria) |
-| `recebimentos` | recebimentos de título não estornados com `recebido_em` na semana, por empresa e `tipo` (`conta`, `fomento`), com os juros |
+| `recebimentos` | recebimentos de título não estornados com `recebido_em` na semana, por empresa e `tipo` (`conta`, `fomento`), com os juros; `total` soma só o tipo `conta` (o `fomento` foi pago direto ao fomento) |
 | `titulos_vencidos` | foto de hoje: títulos `carteira`, `em_banco` ou `antecipado` com vencimento antes de hoje e saldo a receber |
 | `contas_vencidas` | foto de hoje: contas a pagar `pendente_aprovacao` ou `aprovado` com vencimento antes de hoje (`valor_estimado`) |
 | `estoque_baixo` | produtos ativos com `estoque_minimo > 0` e `quantidade_atual <= estoque_minimo`, do grupo (sem filtro de empresa), por nome |
