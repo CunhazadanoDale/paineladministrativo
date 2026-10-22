@@ -14,12 +14,14 @@ var _ portsin.RelatorioSemanalUseCase = (*RelatorioSemanalUsecaseImpl)(nil)
 type RelatorioSemanalUsecaseImpl struct {
 	relatorios portsout.RelatorioSemanalRepository
 	saldos     portsout.SaldoRepository
+	dividas    portsout.DividaRepository
 	permissoes
 }
 
 func NewRelatorioSemanalUsecase(
 	relatorios portsout.RelatorioSemanalRepository,
 	saldos portsout.SaldoRepository,
+	dividas portsout.DividaRepository,
 	usuarios portsout.UsuarioRepository,
 	cargos portsout.CargoRepository,
 	empresas portsout.EmpresaRepository,
@@ -27,6 +29,7 @@ func NewRelatorioSemanalUsecase(
 	return &RelatorioSemanalUsecaseImpl{
 		relatorios: relatorios,
 		saldos:     saldos,
+		dividas:    dividas,
 		permissoes: permissoes{usuarios: usuarios, cargos: cargos, empresas: empresas},
 	}
 }
@@ -70,6 +73,9 @@ func (u *RelatorioSemanalUsecaseImpl) Consultar(ctx context.Context, input ports
 		return domaindre.RelatorioSemanal{}, err
 	}
 	if conteudo.Saldos, err = u.saldos.Saldos(ctx, escopo.empresaIDs); err != nil {
+		return domaindre.RelatorioSemanal{}, err
+	}
+	if conteudo.Parcelas, err = u.dividas.ParcelasEmAberto(ctx, escopo.empresaIDs); err != nil {
 		return domaindre.RelatorioSemanal{}, err
 	}
 

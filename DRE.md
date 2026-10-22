@@ -1,6 +1,6 @@
 # Escopo — M15 DRE e painéis
 
-> **Status:** escopo aprovado (outubro/2026) — pronto para implementação.
+> **Status:** concluído (outubro/2026) — API completa (fases 1 a 5); front pendente (fase 6).
 > **Objetivo:** substituir as planilhas de DRE, Faturamento e Relatório semanal por consultas
 > somente leitura sobre o que os módulos M2, M7, M8, M9, M12 e M13 já gravam.
 > **Nome do módulo:** `dre` (pastas `domain/dre`, `ports/in|out/dre`, `usecases/dre`,
@@ -121,7 +121,7 @@ Semana de segunda a domingo (`InicioDaSemana` do M7). Ver D7 para o que entra.
 | Títulos vencidos | `titulo_receber` em `carteira`, `em_banco` ou `antecipado` com `vencimento < hoje` e saldo; contas a pagar `pendente_aprovacao`/`aprovado` com `prazo_pagamento < hoje` — foto de "hoje", por empresa |
 | Estoque baixo | produtos ativos com `estoque_minimo > 0 AND quantidade_atual <= estoque_minimo` (mesma regra de `GET /produtos?estoque_baixo=true`; produto é do grupo) |
 | Saldos bancários | porta mínima `Saldos(ctx, empresaIDs)` satisfeita pelo `SaldoRepository` do M13 (o mesmo de `GET /caixa/saldos`) |
-| Endividamento | só na fase 5 (seção 8) |
+| Endividamento | porta mínima `ParcelasEmAberto(ctx, empresaIDs)` satisfeita pelo `DividaConsultaRepository` do M14, resumida por `domaindivida.NovoResumo` com o "hoje" do relatório (D8) |
 
 ### 3.7 Faturamento histórico
 
@@ -148,8 +148,8 @@ GET /api/v1/dre/relatorio-semanal?semana=AAAA-MM-DD&empresa=<uuid>
     blocos da seção 3.6. `semana` é qualquer dia da semana desejada; padrão: a última
     semana encerrada. Listas com corte de 50 itens e total completo.
 
-GET /api/v1/dre/endividamento?empresa=<uuid>                       (fase 5)
-    saldo devedor por tipo de credor e por empresa; vencido × a vencer.
+O endividamento é o bloco `endividamento` do relatório semanal; o painel completo de dívidas é o
+`GET /api/v1/dividas/resumo` do M14 (D8).
 ```
 
 Erros: `400` para mês/data inválidos, `de > ate` ou período acima do máximo; `403` para perfil sem
@@ -212,7 +212,7 @@ rotas.go, cmd/api/main.go, test/helpers/servidor.go       bloco do M15 no fim
 | **2** | `dre_resumo_repo.go` (receita, CMV, solicitação, títulos, caixa, faturamento) + índices + testes de integração com os cenários de fonte única | concluída |
 | **3** | Usecases de resumo e faturamento + permissões + testes com fakes; DTOs, handlers, rotas, `main.go`, e2e e `API.md` | concluída |
 | **4** | Relatório semanal: repositório, porta de saldos do M13, usecase, handler, e2e e `API.md` | concluída |
-| **5** | Endividamento (depois do M14 na `main`): porta mínima de dívidas, bloco no relatório semanal, `GET /dre/endividamento`, e2e e `API.md` | pendente |
+| **5** | Endividamento (depois do M14 na `main`): porta mínima de dívidas, bloco no relatório semanal, e2e e `API.md` | concluída |
 | **6** | Front (repo irmão ou sessão própria F-M15) | pendente |
 
 ---
@@ -256,6 +256,10 @@ rotas.go, cmd/api/main.go, test/helpers/servidor.go       bloco do M15 no fim
       é ≤ 0 ou a receita líquida é 0.
 - [x] **D7 — Relatório semanal.** Blocos da 3.6 com recebimentos da semana, títulos vencidos a receber e
       contas a pagar vencidas; padrão = última semana encerrada (segunda a domingo).
+- [x] **D8 — Endividamento sem rota própria** (outubro/2026, depois do M14 na `main`): o M14 já entrega
+      `GET /dividas/resumo` com saldo devedor por credor e por empresa e vencido × a vencer; o M15 só acrescenta o
+      bloco `endividamento` ao relatório semanal, com o mesmo cálculo (`ParcelasEmAberto` + `NovoResumo`), e não
+      cria `GET /dre/endividamento`.
 
 ## 11. Decisões pendentes
 

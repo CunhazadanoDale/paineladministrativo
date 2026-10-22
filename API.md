@@ -4221,6 +4221,21 @@ estar no formato AAAA-MM-DD`. "Hoje" é o dia de Brasília.
         "conta_bancaria_id": "…", "empresa_id": "…", "apelido": "Sicredi", "banco": "748", "banco_nome": "Sicredi",
         "ativa": true, "data_corte": "2026-09-30", "saldo_atual_centavos": 193710, "ultimo_lancamento_em": "2026-10-14"
       }]
+    },
+    "endividamento": {
+      "saldo_devedor_centavos": 300000, "dividas": 1,
+      "por_credor": [
+        { "credor_tipo": "banco", "saldo_devedor_centavos": 300000, "dividas": 1 },
+        { "credor_tipo": "investidor", "saldo_devedor_centavos": 0, "dividas": 0 },
+        { "credor_tipo": "fisco", "saldo_devedor_centavos": 0, "dividas": 0 },
+        { "credor_tipo": "fornecedor", "saldo_devedor_centavos": 0, "dividas": 0 }
+      ],
+      "por_empresa": [{ "empresa_id": "…", "saldo_devedor_centavos": 300000, "dividas": 1 }],
+      "vencido": { "amortizacao_centavos": 0, "juros_centavos": 0, "parcelas": 0 },
+      "a_vencer": { "amortizacao_centavos": 300000, "juros_centavos": 11100, "parcelas": 3 },
+      "a_vencer_30": { "amortizacao_centavos": 100000, "juros_centavos": 5550, "parcelas": 1 },
+      "a_vencer_90": { "amortizacao_centavos": 200000, "juros_centavos": 9250, "parcelas": 2 },
+      "a_vencer_365": { "amortizacao_centavos": 300000, "juros_centavos": 11100, "parcelas": 3 }
     }
   }
 }
@@ -4235,6 +4250,7 @@ estar no formato AAAA-MM-DD`. "Hoje" é o dia de Brasília.
 | `contas_vencidas` | foto de hoje: contas a pagar `pendente_aprovacao` ou `aprovado` com vencimento antes de hoje (`valor_estimado`) |
 | `estoque_baixo` | produtos ativos com `estoque_minimo > 0` e `quantidade_atual <= estoque_minimo`, do grupo (sem filtro de empresa), por nome |
 | `saldos_bancarios` | os mesmos saldos de `GET /caixa/saldos` (M13); `saldo_total_centavos` soma as contas com saldo inicial |
+| `endividamento` | o mesmo cálculo de `GET /dividas/resumo` (M14): saldo devedor das dívidas `ativa` por tipo de credor e por empresa, vencido × a vencer (30, 90 e 365 dias), pelo "hoje" do relatório |
 
 As listas `itens` trazem no máximo **50** linhas (vencidos mais antigos primeiro); `total` e `por_empresa`
 contam todas.

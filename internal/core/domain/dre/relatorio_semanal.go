@@ -4,6 +4,7 @@ import (
 	"time"
 
 	domaincaixa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/caixa"
+	domaindivida "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/divida"
 	"github.com/google/uuid"
 )
 
@@ -111,6 +112,7 @@ type RelatorioSemanal struct {
 	ContasVencidas  Vencidos[ContaVencida]
 	EstoqueBaixo    EstoqueBaixo
 	Saldos          SaldosBancarios
+	Endividamento   domaindivida.Resumo
 }
 
 type ConteudoDoRelatorio struct {
@@ -121,6 +123,7 @@ type ConteudoDoRelatorio struct {
 	ContasVencidas  Vencidos[ContaVencida]
 	EstoqueBaixo    EstoqueBaixo
 	Saldos          []*domaincaixa.SaldoConta
+	Parcelas        []domaindivida.ParcelaEmAberto
 }
 
 func NovoRelatorioSemanal(semana Semana, hoje time.Time, conteudo ConteudoDoRelatorio) RelatorioSemanal {
@@ -135,6 +138,7 @@ func NovoRelatorioSemanal(semana Semana, hoje time.Time, conteudo ConteudoDoRela
 		ContasVencidas:  NovosVencidos(conteudo.ContasVencidas.PorEmpresa, conteudo.ContasVencidas.Itens),
 		EstoqueBaixo:    EstoqueBaixo{Total: conteudo.EstoqueBaixo.Total, Itens: listaNaoNula(conteudo.EstoqueBaixo.Itens)},
 		Saldos:          SaldosBancarios{Contas: listaNaoNula(conteudo.Saldos)},
+		Endividamento:   domaindivida.NovoResumo(conteudo.Parcelas, hoje),
 	}
 
 	for _, notas := range relatorio.Notas {

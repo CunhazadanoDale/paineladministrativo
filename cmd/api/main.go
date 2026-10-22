@@ -274,6 +274,7 @@ func executar(registrador *slog.Logger) error {
 		),
 		dreusecases.NewRelatorioSemanalUsecase(
 			postgres.NewDRERelatorioSemanalRepository(banco), postgres.NewCaixaSaldoRepository(banco),
+			postgres.NewDividaConsultaRepository(banco),
 			usuarioRepository, cargoRepository, empresaRepository,
 		),
 		autenticacao.NovoTokenService(cfg.JWTSecret, cfg.JWTExpiracao),

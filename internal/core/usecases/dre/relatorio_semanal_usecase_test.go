@@ -8,6 +8,7 @@ import (
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	domaincaixa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/caixa"
+	domaindivida "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/divida"
 	domaindre "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/dre"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/dre"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/dre"
@@ -18,6 +19,7 @@ import (
 var (
 	_ portsout.RelatorioSemanalRepository = (*repositorioRelatorios)(nil)
 	_ portsout.SaldoRepository            = (*repositorioSaldos)(nil)
+	_ portsout.DividaRepository           = (*repositorioDividas)(nil)
 )
 
 type repositorioRelatorios struct {
@@ -74,8 +76,24 @@ func (r *repositorioSaldos) Saldos(_ context.Context, empresaIDs []uuid.UUID) ([
 	return []*domaincaixa.SaldoConta{{EmpresaID: uuid.New()}}, r.erro
 }
 
+type repositorioDividas struct {
+	empresas [][]uuid.UUID
+	parcelas []domaindivida.ParcelaEmAberto
+	erro     error
+}
+
+func (r *repositorioDividas) ParcelasEmAberto(_ context.Context, empresaIDs []uuid.UUID) ([]domaindivida.ParcelaEmAberto, error) {
+	r.empresas = append(r.empresas, empresaIDs)
+
+	return r.parcelas, r.erro
+}
+
 func (c *cenario) relatorioSemanal(relatorios *repositorioRelatorios, saldos *repositorioSaldos) *usecasedre.RelatorioSemanalUsecaseImpl {
-	return usecasedre.NewRelatorioSemanalUsecase(relatorios, saldos, c.usuarios, c.cargos, c.empresas)
+	return c.relatorioSemanalComDividas(relatorios, saldos, &repositorioDividas{})
+}
+
+func (c *cenario) relatorioSemanalComDividas(relatorios *repositorioRelatorios, saldos *repositorioSaldos, dividas *repositorioDividas) *usecasedre.RelatorioSemanalUsecaseImpl {
+	return usecasedre.NewRelatorioSemanalUsecase(relatorios, saldos, dividas, c.usuarios, c.cargos, c.empresas)
 }
 
 func TestRelatorioSemanalExigeFinanceiroEAcessoAEmpresa(t *testing.T) {
@@ -148,5 +166,34 @@ func TestRelatorioSemanalRecusaSemanaFuturaEPropagaErros(t *testing.T) {
 	}
 	if _, err := c.relatorioSemanal(&repositorioRelatorios{}, &repositorioSaldos{erro: errBanco}).Consultar(context.Background(), portsin.ConsultarSemanaInput{UsuarioID: c.financeiro}); !errors.Is(err, errBanco) {
 		t.Errorf("erro dos saldos = %v", err)
+	}
+}
+
+func TestRelatorioSemanalTrazOEndividamentoDoEscopo(t *testing.T) {
+	c := novoCenario(t)
+	vencida := domaindre.Hoje(time.Now()).AddDate(0, 0, -3)
+	dividas := &repositorioDividas{parcelas: []domaindivida.ParcelaEmAberto{
+		{DividaID: uuid.New(), EmpresaID: c.empresaA, CredorTipo: domaindivida.CredorBanco, Vencimento: vencida, AmortizacaoCentavos: 1000, JurosCentavos: 100},
+	}}
+
+	relatorio, err := c.relatorioSemanalComDividas(&repositorioRelatorios{}, &repositorioSaldos{}, dividas).Consultar(context.Background(), portsin.ConsultarSemanaInput{
+		UsuarioID: c.restrito,
+	})
+	if err != nil {
+		t.Fatalf("Consultar = %v", err)
+	}
+
+	if len(dividas.empresas) != 1 || len(dividas.empresas[0]) != 1 || dividas.empresas[0][0] != c.empresaA {
+		t.Errorf("dívidas consultadas para %v, esperado só a empresa A", dividas.empresas)
+	}
+	endividamento := relatorio.Endividamento
+	if endividamento.SaldoDevedorCentavos != 1000 || endividamento.Dividas != 1 || endividamento.Vencido.JurosCentavos != 100 {
+		t.Errorf("endividamento = %+v", endividamento)
+	}
+
+	if _, err := c.relatorioSemanalComDividas(&repositorioRelatorios{}, &repositorioSaldos{}, &repositorioDividas{erro: errBanco}).Consultar(
+		context.Background(), portsin.ConsultarSemanaInput{UsuarioID: c.financeiro},
+	); !errors.Is(err, errBanco) {
+		t.Errorf("erro das dívidas = %v", err)
 	}
 }

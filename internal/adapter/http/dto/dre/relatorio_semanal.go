@@ -6,6 +6,7 @@ import (
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	domaincaixa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/caixa"
+	domaindivida "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/divida"
 	domaindre "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/dre"
 	"github.com/google/uuid"
 )
@@ -159,6 +160,7 @@ type RelatorioSemanalResponse struct {
 	ContasVencidas  BlocoContasVencidasResponse  `json:"contas_vencidas"`
 	EstoqueBaixo    BlocoEstoqueBaixoResponse    `json:"estoque_baixo"`
 	SaldosBancarios BlocoSaldosResponse          `json:"saldos_bancarios"`
+	Endividamento   BlocoEndividamentoResponse   `json:"endividamento"`
 }
 
 func NovoRelatorioSemanalResponse(relatorio domaindre.RelatorioSemanal) RelatorioSemanalResponse {
@@ -197,6 +199,7 @@ func NovoRelatorioSemanalResponse(relatorio domaindre.RelatorioSemanal) Relatori
 			ContasSemAbertura:  relatorio.Saldos.ContasSemAbertura,
 			Contas:             novosSaldosBancarios(relatorio.Saldos.Contas),
 		},
+		Endividamento: novoEndividamento(relatorio.Endividamento),
 	}
 
 	for _, notas := range relatorio.Notas {
@@ -264,4 +267,69 @@ func novosSaldosBancarios(contas []*domaincaixa.SaldoConta) []SaldoBancarioRespo
 	}
 
 	return respostas
+}
+
+type TotaisDividaResponse struct {
+	AmortizacaoCentavos int64 `json:"amortizacao_centavos"`
+	JurosCentavos       int64 `json:"juros_centavos"`
+	Parcelas            int   `json:"parcelas"`
+}
+
+type SaldoDoCredorResponse struct {
+	CredorTipo           string `json:"credor_tipo"`
+	SaldoDevedorCentavos int64  `json:"saldo_devedor_centavos"`
+	Dividas              int    `json:"dividas"`
+}
+
+type SaldoDaEmpresaResponse struct {
+	EmpresaID            uuid.UUID `json:"empresa_id"`
+	SaldoDevedorCentavos int64     `json:"saldo_devedor_centavos"`
+	Dividas              int       `json:"dividas"`
+}
+
+type BlocoEndividamentoResponse struct {
+	SaldoDevedorCentavos int64                    `json:"saldo_devedor_centavos"`
+	Dividas              int                      `json:"dividas"`
+	PorCredor            []SaldoDoCredorResponse  `json:"por_credor"`
+	PorEmpresa           []SaldoDaEmpresaResponse `json:"por_empresa"`
+	Vencido              TotaisDividaResponse     `json:"vencido"`
+	AVencer              TotaisDividaResponse     `json:"a_vencer"`
+	AVencer30            TotaisDividaResponse     `json:"a_vencer_30"`
+	AVencer90            TotaisDividaResponse     `json:"a_vencer_90"`
+	AVencer365           TotaisDividaResponse     `json:"a_vencer_365"`
+}
+
+func novoEndividamento(resumo domaindivida.Resumo) BlocoEndividamentoResponse {
+	resposta := BlocoEndividamentoResponse{
+		SaldoDevedorCentavos: resumo.SaldoDevedorCentavos,
+		Dividas:              resumo.Dividas,
+		PorCredor:            make([]SaldoDoCredorResponse, 0, len(resumo.PorCredor)),
+		PorEmpresa:           make([]SaldoDaEmpresaResponse, 0, len(resumo.PorEmpresa)),
+		Vencido:              novosTotaisDivida(resumo.Vencido),
+		AVencer:              novosTotaisDivida(resumo.AVencer),
+		AVencer30:            novosTotaisDivida(resumo.AVencer30),
+		AVencer90:            novosTotaisDivida(resumo.AVencer90),
+		AVencer365:           novosTotaisDivida(resumo.AVencer365),
+	}
+
+	for _, credor := range resumo.PorCredor {
+		resposta.PorCredor = append(resposta.PorCredor, SaldoDoCredorResponse{
+			CredorTipo: credor.CredorTipo.String(), SaldoDevedorCentavos: credor.SaldoDevedorCentavos, Dividas: credor.Dividas,
+		})
+	}
+	for _, empresa := range resumo.PorEmpresa {
+		resposta.PorEmpresa = append(resposta.PorEmpresa, SaldoDaEmpresaResponse{
+			EmpresaID: empresa.EmpresaID, SaldoDevedorCentavos: empresa.SaldoDevedorCentavos, Dividas: empresa.Dividas,
+		})
+	}
+
+	return resposta
+}
+
+func novosTotaisDivida(totais domaindivida.Totais) TotaisDividaResponse {
+	return TotaisDividaResponse{
+		AmortizacaoCentavos: totais.AmortizacaoCentavos,
+		JurosCentavos:       totais.JurosCentavos,
+		Parcelas:            totais.Parcelas,
+	}
 }

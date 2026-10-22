@@ -183,3 +183,39 @@ func TestRelatorioSemanalPorEmpresa(t *testing.T) {
 		t.Errorf("semana padrão = %s a %s com hoje %s, esperado a última encerrada", padrao.Inicio, padrao.Fim, padrao.Hoje)
 	}
 }
+
+func TestDREEEndividamentoComAsContasDasDividas(t *testing.T) {
+	c := novoCenarioDividasE2E(t)
+	c.criar(t)
+	mes := c.hoje.Format("2006-01")
+
+	resposta := enviaComToken(t, c.servidor, http.MethodGet, "/api/v1/dre/resumo?de="+mes+"&ate="+mes, nil, c.tokenMIA)
+	conferirStatus(t, resposta, http.StatusOK)
+	total := decodificarEnvelope[dredto.ResumoDREResponse](t, resposta).Dados.Total.Consolidado
+	if financeiro := linhaDaDRE(t, total, "resultado_financeiro"); financeiro.ValorCentavos != -5550 || financeiro.Quantidade != 1 {
+		t.Errorf("juros da parcela do mês = %+v", financeiro)
+	}
+	if fora := linhaDaDRE(t, total, "fora_dre"); fora.ValorCentavos != -100000 || fora.Quantidade != 1 {
+		t.Errorf("amortização do mês = %+v", fora)
+	}
+	if total.Subtotais.ResultadoCentavos != -5550 {
+		t.Errorf("resultado = %d, esperado só os juros (amortização fora da DRE)", total.Subtotais.ResultadoCentavos)
+	}
+
+	resposta = enviaComToken(t, c.servidor, http.MethodGet, "/api/v1/dre/relatorio-semanal", nil, c.tokenMIA)
+	conferirStatus(t, resposta, http.StatusOK)
+	endividamento := decodificarEnvelope[dredto.RelatorioSemanalResponse](t, resposta).Dados.Endividamento
+	if endividamento.SaldoDevedorCentavos != 300000 || endividamento.Dividas != 1 || len(endividamento.PorCredor) != 4 ||
+		endividamento.PorCredor[0].CredorTipo != "banco" || endividamento.PorCredor[0].SaldoDevedorCentavos != 300000 {
+		t.Errorf("endividamento da MIA = %+v", endividamento)
+	}
+	if len(endividamento.PorEmpresa) != 1 || endividamento.PorEmpresa[0].EmpresaID != c.mia || endividamento.AVencer.Parcelas != 3 {
+		t.Errorf("endividamento por empresa = %+v, a vencer = %+v", endividamento.PorEmpresa, endividamento.AVencer)
+	}
+
+	resposta = enviaComToken(t, c.servidor, http.MethodGet, "/api/v1/dre/relatorio-semanal", nil, c.tokenRed)
+	conferirStatus(t, resposta, http.StatusOK)
+	if daRed := decodificarEnvelope[dredto.RelatorioSemanalResponse](t, resposta).Dados.Endividamento; daRed.SaldoDevedorCentavos != 0 || len(daRed.PorEmpresa) != 0 {
+		t.Errorf("endividamento visto pela Red = %+v", daRed)
+	}
+}

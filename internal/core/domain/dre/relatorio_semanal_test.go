@@ -5,7 +5,9 @@ import (
 	"time"
 
 	domaincaixa "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/caixa"
+	domaindivida "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/divida"
 	domaindre "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/dre"
+	"github.com/google/uuid"
 )
 
 func centavos(valor int64) *int64 {
@@ -69,5 +71,28 @@ func TestRelatorioSemanalVazioDevolveListasVazias(t *testing.T) {
 		relatorio.TitulosVencidos.PorEmpresa == nil || relatorio.TitulosVencidos.Itens == nil ||
 		relatorio.ContasVencidas.Itens == nil || relatorio.EstoqueBaixo.Itens == nil || relatorio.Saldos.Contas == nil {
 		t.Errorf("relatório vazio com listas nulas: %+v", relatorio)
+	}
+}
+
+func TestRelatorioSemanalResumeOEndividamentoPeloHojeDoRelatorio(t *testing.T) {
+	hoje := time.Date(2026, time.October, 21, 0, 0, 0, 0, time.UTC)
+	divida := uuid.New()
+
+	relatorio := domaindre.NovoRelatorioSemanal(domaindre.SemanaDe(hoje), hoje, domaindre.ConteudoDoRelatorio{
+		Parcelas: []domaindivida.ParcelaEmAberto{
+			{DividaID: divida, EmpresaID: empresaA, CredorTipo: domaindivida.CredorBanco, Vencimento: hoje.AddDate(0, 0, -1), AmortizacaoCentavos: 500, JurosCentavos: 50},
+			{DividaID: divida, EmpresaID: empresaA, CredorTipo: domaindivida.CredorBanco, Vencimento: hoje.AddDate(0, 0, 20), AmortizacaoCentavos: 700, JurosCentavos: 40},
+		},
+	})
+
+	endividamento := relatorio.Endividamento
+	if endividamento.SaldoDevedorCentavos != 1200 || endividamento.Dividas != 1 {
+		t.Errorf("saldo devedor = %d em %d dívidas", endividamento.SaldoDevedorCentavos, endividamento.Dividas)
+	}
+	if endividamento.Vencido.AmortizacaoCentavos != 500 || endividamento.AVencer30.AmortizacaoCentavos != 700 {
+		t.Errorf("vencido = %+v, a vencer em 30 dias = %+v", endividamento.Vencido, endividamento.AVencer30)
+	}
+	if len(endividamento.PorEmpresa) != 1 || endividamento.PorEmpresa[0].EmpresaID != empresaA {
+		t.Errorf("por empresa = %+v", endividamento.PorEmpresa)
 	}
 }
