@@ -156,7 +156,7 @@ o **F0b** pode correr junto com essas telas.
 | F-M13 | Front de caixa e conciliação | M13 F-M5 F-M7 F-M9 | — | concluído |
 | F-M12 | Front de importações | M12 F-M2 F-M4 F-M6 F-M7 | — | concluído |
 | F-M14 | Front de dívidas e empréstimos | M14 F-M4 F-M5 F-M7 | — | concluído |
-| F-M15 | Front de DRE e painéis | M15 F-M7 F-M8 F-M9 F-M13 F-M14 | — | em andamento (feat/front-m15-dre) |
+| F-M15 | Front de DRE e painéis | M15 F-M7 F-M8 F-M9 F-M13 F-M14 | — | concluído |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
 | M3 | Clientes e representantes | M1 | Base de clientes | concluído |
@@ -704,6 +704,29 @@ para o financeiro. Para os próximos fronts (M15):
 - entradas "Dívidas" e "Resumo de Dívidas" na Sidebar (Financeiro); `useDividas`, `useDividaDetalhe`, `useDividaHistorico`
   e `useResumoDividas` com `AbortController`, em `modules/cancelamento.test.jsx`.
 
+**Entregue o front do M15 (outubro/2026, branch `feat/front-m15-dre` do front):** módulo novo `modules/dre`, só para
+o financeiro, somente leitura:
+
+- `services/dre.js` (`obterResumoDre`, `obterFaturamento` e `obterRelatorioSemanal`, com `{ sinal }`); `useConsultaDre`
+  é o hook genérico das três telas (chave pelos parâmetros, `AbortController`, erro com nova tentativa);
+- `dreUtils`: `ESTRUTURA_DRE` (as dez linhas com os cinco subtotais na ordem do `DRE.md`, `fora_dre` por último),
+  meses (`mesesAntes`, `mesesNoPeriodo`, `formatarMes`), `somarDias` sem fuso, `formatarPontosBase` e o detalhamento por
+  categoria juntado entre os meses (`itensDasLinhas`, `valorDoItem`); `PeriodoMensal` valida o período (inicial antes
+  do final, até 24 meses na DRE e 60 no faturamento) antes de pedir;
+- `/dre`: planilha linhas × meses com a coluna de total, subtotais destacados, linhas com categoria que abrem o
+  detalhamento com um clique, `fora_dre` separado no fim, margem de contribuição em % e ponto de equilíbrio, aviso das
+  unidades saídas de lote sem custo; período padrão dos últimos 12 meses e filtro de empresa (sem ela, o consolidado
+  do acesso);
+- `/dre/faturamento`: totais do período (valor, notas, ticket médio), meses do mais recente para o mais antigo com barra
+  proporcional ao maior mês (CSS, sem biblioteca de gráfico) e o total por empresa;
+- `/dre/relatorio-semanal`: abre na última semana encerrada (padrão da API), semana anterior e seguinte (a seguinte
+  trava quando começaria depois de hoje), escolha por qualquer dia, filtro de empresa e "Imprimir" (o CSS de impressão
+  esconde a Sidebar, a barra do topo e os controles); blocos de notas, pagamentos, recebimentos, títulos e contas
+  vencidos (com links e o aviso do corte em 50), estoque baixo, saldos bancários e endividamento com link para
+  `/dividas/resumo`;
+- Sidebar: "DRE" e "Faturamento" em Financeiro; o item "Relatórios" (antes uma tela vazia) abre o relatório semanal e
+  ficou só para o financeiro; `/relatorios` redireciona para `/dre/relatorio-semanal`.
+
 ### M1 — Empresas e filiais
 
 Fundação: tudo o que é financeiro, fiscal ou de estoque passa a pertencer a uma empresa.
@@ -1234,7 +1257,7 @@ Somente leitura; nenhum dado digitado aqui.
   mostra sem mudança no M15.
 - Coordenação com o M14 em "Coordenação M14 × M15" (seção do M14).
 
-**Entregue (outubro/2026):** API completa (fases 1 a 5 do `DRE.md`); front pendente (fase 6). Para os próximos
+**Entregue (outubro/2026):** API completa (fases 1 a 5 do `DRE.md`); front na fase 6 (F-M15). Para os próximos
 módulos:
 
 - `GET /dre/resumo` (DRE por competência, mês × empresa, consolidado e total, até 24 meses), `GET /dre/faturamento`

@@ -1,6 +1,7 @@
 # Escopo — M15 DRE e painéis
 
-> **Status:** concluído (outubro/2026) — API completa (fases 1 a 5); front pendente (fase 6).
+> **Status:** concluído (outubro/2026) — API completa (fases 1 a 5); front concluído (fase 6, branch
+> `feat/front-m15-dre` do front).
 > **Objetivo:** substituir as planilhas de DRE, Faturamento e Relatório semanal por consultas
 > somente leitura sobre o que os módulos M2, M7, M8, M9, M12 e M13 já gravam.
 > **Nome do módulo:** `dre` (pastas `domain/dre`, `ports/in|out/dre`, `usecases/dre`,
@@ -218,7 +219,7 @@ rotas.go, cmd/api/main.go, test/helpers/servidor.go       bloco do M15 no fim
 | **3** | Usecases de resumo e faturamento + permissões + testes com fakes; DTOs, handlers, rotas, `main.go`, e2e e `API.md` | concluída |
 | **4** | Relatório semanal: repositório, porta de saldos do M13, usecase, handler, e2e e `API.md` | concluída |
 | **5** | Endividamento (depois do M14 na `main`): porta mínima de dívidas, bloco no relatório semanal, e2e e `API.md` | concluída |
-| **6** | Front (repo irmão ou sessão própria F-M15) | pendente |
+| **6** | Front (repo irmão ou sessão própria F-M15) | concluída (`feat/front-m15-dre` do front) |
 
 ---
 
@@ -266,6 +267,11 @@ rotas.go, cmd/api/main.go, test/helpers/servidor.go       bloco do M15 no fim
       `GET /dividas/resumo` com saldo devedor por credor e por empresa e vencido × a vencer; o M15 só acrescenta o
       bloco `endividamento` ao relatório semanal, com o mesmo cálculo (`ParcelasEmAberto` + `NovoResumo`), e não
       cria `GET /dre/endividamento`.
+
+- [x] **Fase 6 — telas** (outubro/2026, decididas pelo usuário): `/dre`, `/dre/faturamento` e
+      `/dre/relatorio-semanal`; o item "Relatórios" da Sidebar abre o relatório semanal; DRE em planilha linhas × meses
+      com total, detalhamento por categoria com um clique e `fora_dre` separado; faturamento em tabela com barra em CSS,
+      sem biblioteca de gráfico; relatório semanal com navegação de semana e impressão; filtro de empresa nas três.
 
 ## 11. Decisões pendentes
 
