@@ -4051,6 +4051,215 @@ saldo novo e motivo; a dívida nova começa com `criada` citando a original) e `
 Credor, empresa, conta bancária e categorias usados numa dívida passam a responder `400 erro de validação:
 registro em uso por outros dados e não pode ser excluído` na exclusão.
 
+---
+
+## DRE e painéis (financeiro)
+
+Somente leitura: nada é digitado aqui. A DRE é por **competência** e soma o que os outros módulos já
+gravam, cada número de uma única fonte (NF de venda, lotes do estoque, contas a pagar, títulos manuais,
+recebimentos, borderôs e lançamentos de caixa). Escopo por empresa (padrão da seção 4 do `EMPRESAS.md`);
+sem `?empresa=`, só as empresas do acesso do usuário. Escopo e decisões em `DRE.md`.
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/dre/resumo` | **financeiro** | `200` DRE por mês e empresa, consolidado e total (`?de=AAAA-MM`, `?ate=AAAA-MM`, `?empresa=`) |
+| `GET` | `/api/v1/dre/faturamento` | **financeiro** | `200` faturamento por mês e empresa (`?de=AAAA-MM`, `?ate=AAAA-MM`, `?empresa=`) |
+| `GET` | `/api/v1/dre/relatorio-semanal` | **financeiro** | `200` relatório da semana (`?semana=AAAA-MM-DD`, `?empresa=`) |
+
+Sem financeiro → `403` do middleware. `?empresa=` fora do acesso → `403 perfil sem acesso a esta empresa`.
+Mês fora do formato → `400 erro de validação: de deve estar no formato AAAA-MM` (ou `ate`); `ate` antes de
+`de` → `400 erro de validação: mês final não pode ser anterior ao mês inicial`. Sem `de`, o período começa
+11 meses antes de `ate`; sem `ate`, termina no mês corrente (Brasília). Máximo de 24 meses na DRE e de 60 no
+faturamento (`400 erro de validação: período deve ter no máximo N meses`).
+
+### Fontes e linhas
+
+| `linha` | De onde vem | Sinal |
+| --- | --- | --- |
+| `receita_bruta` | NF `venda` autorizada, fora `entre_empresas`, `valor_total_centavos`, mês de `emitida_em` em Brasília (item `nf_venda`) | + |
+| `outras_receitas` | categorias `receita_operacional` (títulos `manual`, lançamentos de caixa) | + |
+| `deducoes` | categorias `deducao_venda` + NF `devolucao` autorizada de entrada (item `nf_devolucao`) | − |
+| `cmv` | lotes consumidos por movimento `saida` (`Σ quantidade × custo do lote`), mês do movimento (item `cmv`) | − |
+| `perdas_estoque` | lotes consumidos por `perda` e `ajuste` negativo (item `perdas_estoque`) | − |
+| `despesas_variaveis` | categorias `despesa_variavel` | − |
+| `despesas_fixas` | categorias `despesa_fixa` | − |
+| `nao_classificado` | contas a pagar sem categoria (item `sem_categoria`) | − |
+| `resultado_financeiro` | categorias `resultado_financeiro` + juros recebidos (`juros_recebidos`), descontos concedidos no recebimento (`descontos_concedidos`) e encargos do borderô ativo, bruto − líquido (`encargos_antecipacao`) | ± |
+| `fora_dre` | categorias `fora_dre` (empréstimo, aporte, distribuição); fica **fora** do resultado | ± |
+
+- **Contas a pagar** (`solicitacao`): por `competencia`, todos os status menos `cancelado` e `rejeitado`,
+  qualquer `origem` (M10, M12 e M14 entram pela categoria). Conta `pago` usa o valor do pagamento vigente;
+  as demais, `valor_estimado`. A conta de parcela de importação e a de custo de importação que compõe o custo
+  do lote ficam fora em qualquer categoria: esse valor já entra como CMV.
+- **Títulos**: só `manual`, por `competencia`; títulos de NF e de pedido ficam fora (a receita vem da NF).
+  Juros e descontos pelo `recebido_em` dos recebimentos não estornados do tipo `conta` (no tipo `fomento` o
+  cliente pagou direto ao fomento).
+- **Caixa**: `lancamento_caixa` não estornado, por `competencia`, com o sinal da linha do extrato.
+- **Nunca entram**: categorias `compra_mercadoria` (o custo vem dos lotes) e `entre_contas`,
+  `transferencia_conta`, NF `remessa`, `transferencia` e devolução de saída, movimento `transferencia`.
+- O detalhamento (`itens`) agrupa pela **categoria raiz** (`chave = "categoria"`, `categoria_id`, `nome`); as
+  fontes sem categoria aparecem com a `chave` fixa e `categoria_id` nulo, antes das categorias.
+
+### Resumo da DRE
+
+```json
+{
+  "dados": {
+    "de": "2026-09",
+    "ate": "2026-10",
+    "meses": [
+      {
+        "mes": "2026-09",
+        "empresas": [{ "empresa_id": "…", "linhas": [], "subtotais": {}, "indicadores": {}, "quantidade_sem_custo": 0 }],
+        "consolidado": { "linhas": [], "subtotais": {}, "indicadores": {}, "quantidade_sem_custo": 0 }
+      }
+    ],
+    "total": {
+      "empresas": [{ "empresa_id": "…", "linhas": [], "subtotais": {}, "indicadores": {}, "quantidade_sem_custo": 0 }],
+      "consolidado": {
+        "linhas": [
+          {
+            "linha": "receita_bruta", "valor_centavos": 10000000, "quantidade": 12,
+            "itens": [{ "chave": "nf_venda", "categoria_id": null, "nome": "Notas fiscais de venda", "valor_centavos": 10000000, "quantidade": 12 }]
+          },
+          {
+            "linha": "despesas_fixas", "valor_centavos": -2000000, "quantidade": 3,
+            "itens": [{ "chave": "categoria", "categoria_id": "…", "nome": "Custos fixos", "valor_centavos": -2000000, "quantidade": 3 }]
+          }
+        ],
+        "subtotais": {
+          "receita_liquida_centavos": 9500000, "lucro_bruto_centavos": 5400000, "margem_contribuicao_centavos": 5000000,
+          "resultado_operacional_centavos": 2800000, "resultado_centavos": 2700000
+        },
+        "indicadores": { "margem_contribuicao_bp": 5263, "ponto_equilibrio_centavos": 3800000 },
+        "quantidade_sem_custo": 2
+      }
+    }
+  }
+}
+```
+
+- `linhas` traz sempre as dez linhas, na ordem da tabela acima, com valor já com sinal (despesa negativa).
+- `empresas` lista, em todos os meses, as empresas com algum valor no período (e a de `?empresa=`, mesmo
+  zerada), na mesma ordem.
+- Subtotais: `receita_liquida` = receita bruta + outras receitas + deduções; `lucro_bruto` = receita líquida +
+  CMV + perdas; `margem_contribuicao` = lucro bruto + despesas variáveis; `resultado_operacional` = margem +
+  despesas fixas + não classificado; `resultado` = operacional + resultado financeiro (`fora_dre` não entra).
+- `margem_contribuicao_bp` = margem ÷ receita líquida em pontos-base; `ponto_equilibrio_centavos` = despesas
+  fixas ÷ (margem ÷ receita líquida). Os dois são nulos sem receita líquida positiva; o ponto de equilíbrio
+  também com margem ≤ 0.
+- `quantidade_sem_custo`: unidades saídas de lote com custo desconhecido (contadas como zero no CMV).
+
+### Faturamento
+
+```json
+{
+  "dados": {
+    "de": "2025-11",
+    "ate": "2026-10",
+    "meses": [
+      {
+        "mes": "2026-10",
+        "empresas": [{ "empresa_id": "…", "quantidade": 4, "valor_centavos": 436000, "ticket_medio_centavos": 109000 }],
+        "consolidado": { "quantidade": 4, "valor_centavos": 436000, "ticket_medio_centavos": 109000 }
+      }
+    ],
+    "empresas": [{ "empresa_id": "…", "quantidade": 30, "valor_centavos": 3270000, "ticket_medio_centavos": 109000 }],
+    "consolidado": { "quantidade": 30, "valor_centavos": 3270000, "ticket_medio_centavos": 109000 }
+  }
+}
+```
+
+Só NF `venda` autorizada fora `entre_empresas`, pelo mês de `emitida_em` em Brasília; NF `complementar` e de
+`ajuste` somam o valor, mas não contam em `quantidade`. Mostra apenas as notas
+já importadas (sem carga retroativa); meses sem nota aparecem zerados. `ticket_medio_centavos` arredondado,
+`0` sem notas.
+
+### Relatório semanal
+
+`GET /dre/relatorio-semanal?semana=AAAA-MM-DD` mostra a semana de **segunda a domingo** que contém `semana`
+(qualquer dia dela); sem `semana`, a última semana encerrada. Semana que começa depois da corrente → `400
+erro de validação: semana não pode estar no futuro`; data fora do formato → `400 erro de validação: semana deve
+estar no formato AAAA-MM-DD`. "Hoje" é o dia de Brasília.
+
+```json
+{
+  "dados": {
+    "inicio": "2026-10-12", "fim": "2026-10-18", "hoje": "2026-10-20",
+    "notas_emitidas": {
+      "total_venda": { "quantidade": 3, "valor_centavos": 327000 },
+      "por_empresa": [{ "empresa_id": "…", "natureza": "venda", "quantidade": 3, "valor_centavos": 327000 }]
+    },
+    "pagamentos": {
+      "total": { "quantidade": 2, "valor_centavos": 150000 },
+      "por_empresa": [{ "empresa_id": "…", "linha_dre": "despesa_fixa", "quantidade": 2, "valor_centavos": 150000 }]
+    },
+    "recebimentos": {
+      "total": { "quantidade": 1, "valor_centavos": 54500 },
+      "por_empresa": [{ "empresa_id": "…", "tipo": "conta", "quantidade": 1, "valor_centavos": 54500, "juros_centavos": 0 }]
+    },
+    "titulos_vencidos": {
+      "total": { "quantidade": 2, "valor_centavos": 109000 },
+      "por_empresa": [{ "empresa_id": "…", "quantidade": 2, "valor_centavos": 109000 }],
+      "itens": [{
+        "id": "…", "empresa_id": "…", "cliente_nome": "Construtora Exemplo SPE", "numero": "123", "parcela": 1,
+        "status": "carteira", "vencimento": "2026-10-01", "saldo_centavos": 54500
+      }]
+    },
+    "contas_vencidas": {
+      "total": { "quantidade": 1, "valor_centavos": 50000 },
+      "por_empresa": [{ "empresa_id": "…", "quantidade": 1, "valor_centavos": 50000 }],
+      "itens": [{
+        "id": "…", "empresa_id": "…", "fornecedor_nome": null, "observacao": "Compra de cimento",
+        "status": "aprovado", "vencimento": "2026-10-01", "valor_centavos": 50000
+      }]
+    },
+    "estoque_baixo": {
+      "total": 1,
+      "itens": [{ "produto_id": "…", "nome": "Cimento CP II", "codigo": null, "quantidade_atual": 0, "estoque_minimo": 5 }]
+    },
+    "saldos_bancarios": {
+      "saldo_total_centavos": 193710, "contas_sem_abertura": 0,
+      "contas": [{
+        "conta_bancaria_id": "…", "empresa_id": "…", "apelido": "Sicredi", "banco": "748", "banco_nome": "Sicredi",
+        "ativa": true, "data_corte": "2026-09-30", "saldo_atual_centavos": 193710, "ultimo_lancamento_em": "2026-10-14"
+      }]
+    },
+    "endividamento": {
+      "saldo_devedor_centavos": 300000, "dividas": 1,
+      "por_credor": [
+        { "credor_tipo": "banco", "saldo_devedor_centavos": 300000, "dividas": 1 },
+        { "credor_tipo": "investidor", "saldo_devedor_centavos": 0, "dividas": 0 },
+        { "credor_tipo": "fisco", "saldo_devedor_centavos": 0, "dividas": 0 },
+        { "credor_tipo": "fornecedor", "saldo_devedor_centavos": 0, "dividas": 0 }
+      ],
+      "por_empresa": [{ "empresa_id": "…", "saldo_devedor_centavos": 300000, "dividas": 1 }],
+      "vencido": { "amortizacao_centavos": 0, "juros_centavos": 0, "parcelas": 0 },
+      "a_vencer": { "amortizacao_centavos": 300000, "juros_centavos": 11100, "parcelas": 3 },
+      "a_vencer_30": { "amortizacao_centavos": 100000, "juros_centavos": 5550, "parcelas": 1 },
+      "a_vencer_90": { "amortizacao_centavos": 200000, "juros_centavos": 9250, "parcelas": 2 },
+      "a_vencer_365": { "amortizacao_centavos": 300000, "juros_centavos": 11100, "parcelas": 3 }
+    }
+  }
+}
+```
+
+| Bloco | O que entra |
+| --- | --- |
+| `notas_emitidas` | NF autorizada com `emitida_em` (Brasília) na semana, por empresa e natureza; `total_venda` soma só `venda` |
+| `pagamentos` | pagamentos não estornados com `pago_em` (Brasília) na semana, por empresa e `linha_dre` da categoria (`null` sem categoria) |
+| `recebimentos` | recebimentos de título não estornados com `recebido_em` na semana, por empresa e `tipo` (`conta`, `fomento`), com os juros; `total` soma só o tipo `conta` (o `fomento` foi pago direto ao fomento) |
+| `titulos_vencidos` | foto de hoje: títulos `carteira`, `em_banco` ou `antecipado` com vencimento antes de hoje e saldo a receber |
+| `contas_vencidas` | foto de hoje: contas a pagar `pendente_aprovacao` ou `aprovado` com vencimento antes de hoje (`valor_estimado`) |
+| `estoque_baixo` | produtos ativos com `estoque_minimo > 0` e `quantidade_atual <= estoque_minimo`, do grupo (sem filtro de empresa), por nome |
+| `saldos_bancarios` | os mesmos saldos de `GET /caixa/saldos` (M13); `saldo_total_centavos` soma as contas com saldo inicial |
+| `endividamento` | o mesmo cálculo de `GET /dividas/resumo` (M14): saldo devedor das dívidas `ativa` por tipo de credor e por empresa, vencido × a vencer (30, 90 e 365 dias), pelo "hoje" do relatório |
+
+As listas `itens` trazem no máximo **50** linhas (vencidos mais antigos primeiro); `total` e `por_empresa`
+contam todas.
+
+---
+
 ## Exemplos
 
 ### PowerShell

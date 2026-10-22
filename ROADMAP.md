@@ -170,7 +170,7 @@ o **F0b** pode correr junto com essas telas.
 | M12 | Importações | M2 M4 M6 M7 | parte de Entregas de importação e do painel financeiro | concluído |
 | M13 | Caixa e conciliação | M5 M7 M9 | Caixa do mês, Fluxo de caixa diário | concluído |
 | M14 | Dívidas e empréstimos | M4 M5 M7 | Dívidas do grupo | concluído |
-| M15 | DRE e painéis | M2 M7 M8 M9 M13 | DRE, Faturamento, Relatório semanal | em andamento (feat/m15-dre) |
+| M15 | DRE e painéis | M2 M7 M8 M9 M13 | DRE, Faturamento, Relatório semanal | concluído |
 
 ---
 
@@ -1232,6 +1232,24 @@ Somente leitura; nenhum dado digitado aqui.
   retroativa; se o histórico for carregado depois pelo `POST /notas-fiscais/importacao`, o painel o
   mostra sem mudança no M15.
 - Coordenação com o M14 em "Coordenação M14 × M15" (seção do M14).
+
+**Entregue (outubro/2026):** API completa (fases 1 a 5 do `DRE.md`); front pendente (fase 6). Para os próximos
+módulos:
+
+- `GET /dre/resumo` (DRE por competência, mês × empresa, consolidado e total, até 24 meses), `GET /dre/faturamento`
+  (NF de venda por mês, até 60 meses) e `GET /dre/relatorio-semanal` (semana de segunda a domingo), todos em
+  `financeiro(...)` com escopo por empresa; somente leitura, sem tabela nova;
+- cada número tem uma fonte só: receita da NF `venda` autorizada fora `entre_empresas` (devolução de entrada deduz),
+  CMV dos lotes de `saida` (perda e ajuste negativo em `perdas_estoque`), despesas da `solicitacao` por `competencia`
+  + `linha_dre` sem filtrar `origem` (pago pelo valor do pagamento), títulos `manual`, juros e descontos dos
+  recebimentos, encargos do borderô e `lancamento_caixa`; conta sem categoria cai em `nao_classificado`;
+- **módulo novo que gere despesa ou receita** entra na DRE sozinho se gravar conta a pagar, título `manual` ou
+  lançamento de caixa com categoria lançável; tabela própria com valor de resultado precisa de consulta nova no
+  `dre_resumo_repo.go`;
+- o relatório semanal lê os saldos pelo `SaldoRepository` do M13 e o endividamento pelo
+  `DividaConsultaRepository.ParcelasEmAberto` do M14, por portas mínimas em `ports/out/dre`: **nenhum port nem
+  repositório de outro módulo mudou**;
+- migration `000068` (só índices), renumerada depois da `000067` do M14.
 
 ---
 
