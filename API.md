@@ -1623,9 +1623,9 @@ Lead convertido não pode ser excluído (`DELETE /api/v1/leads/{id}` → `400 re
 | --- | --- | --- | --- |
 | `POST` | `/api/v1/clientes/importacao` | **administrador** | `200` relatório (`?simular=true` valida sem gravar) |
 
-Corpo: o arquivo CSV cru (`Content-Type: text/csv`), **UTF-8** (com ou sem BOM; arquivo em outra
-codificação, como o CSV padrão do Excel em Windows-1252, é recusado inteiro com
-`400 linha N não está em UTF-8; salve o arquivo como CSV UTF-8`), separador `;`,
+Corpo: o arquivo CSV cru (`Content-Type: text/csv`), em **UTF-8** (com ou sem BOM) ou em
+**Windows-1252** (o "CSV (separado por vírgulas)" padrão do Excel em português; o arquivo que não
+é UTF-8 válido é lido como Windows-1252), separador `;`,
 campos com `;` entre aspas, até 5 MB (`413` acima) e 5.000 linhas (`400` acima). Cabeçalho
 fixo, nesta ordem:
 

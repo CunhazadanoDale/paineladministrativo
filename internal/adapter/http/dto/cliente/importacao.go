@@ -1,16 +1,9 @@
 package cliente
 
 import (
-	"bufio"
-	"bytes"
-	"encoding/csv"
-	"errors"
 	"io"
-	"strconv"
-	"strings"
-	"unicode/utf8"
 
-	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
+	"github.com/CunhazadanoDale/paineladministrativo.git/internal/adapter/http/dto"
 	domaincliente "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/cliente"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/cliente"
 )
@@ -20,54 +13,17 @@ var CabecalhoImportacao = []string{
 	"representante_documento", "exige_numero_pedido_na_nf", "proibe_antecipacao", "observacoes",
 }
 
-var marcaDeOrdemDeBytes = []byte{0xEF, 0xBB, 0xBF}
-
 func LerLinhasCSV(conteudo io.Reader) ([]portsin.LinhaImportacao, error) {
-	leitor := bufio.NewReader(conteudo)
-	if inicio, err := leitor.Peek(len(marcaDeOrdemDeBytes)); err == nil && bytes.Equal(inicio, marcaDeOrdemDeBytes) {
-		_, _ = leitor.Discard(len(marcaDeOrdemDeBytes))
-	}
-
-	csvLeitor := csv.NewReader(leitor)
-	csvLeitor.Comma = ';'
-	csvLeitor.FieldsPerRecord = len(CabecalhoImportacao)
-	csvLeitor.TrimLeadingSpace = true
-
-	cabecalho, err := csvLeitor.Read()
-	if errors.Is(err, io.EOF) {
-		return nil, domain.ErroValidacao("arquivo vazio")
-	}
+	linhasCSV, err := dto.LerCSV(conteudo, CabecalhoImportacao, domaincliente.LimiteDeLinhasDaImportacao)
 	if err != nil {
-		return nil, erroDeLeitura(err)
-	}
-	if err := exigirUTF8(csvLeitor, cabecalho); err != nil {
 		return nil, err
 	}
-	for indice, coluna := range cabecalho {
-		if strings.ToLower(strings.TrimSpace(coluna)) != CabecalhoImportacao[indice] {
-			return nil, domain.ErroValidacao("cabeçalho deve ser " + strings.Join(CabecalhoImportacao, ";"))
-		}
-	}
 
-	linhas := make([]portsin.LinhaImportacao, 0)
-	for {
-		campos, err := csvLeitor.Read()
-		if errors.Is(err, io.EOF) {
-			return linhas, nil
-		}
-		if err != nil {
-			return nil, erroDeLeitura(err)
-		}
-		if err := exigirUTF8(csvLeitor, campos); err != nil {
-			return nil, err
-		}
-		if len(linhas) == domaincliente.LimiteDeLinhasDaImportacao {
-			return nil, domain.ErroValidacao("arquivo com mais de " + strconv.Itoa(domaincliente.LimiteDeLinhasDaImportacao) + " linhas")
-		}
-
-		numero, _ := csvLeitor.FieldPos(0)
+	linhas := make([]portsin.LinhaImportacao, 0, len(linhasCSV))
+	for _, linha := range linhasCSV {
+		campos := linha.Campos
 		linhas = append(linhas, portsin.LinhaImportacao{
-			Numero:                 numero,
+			Numero:                 linha.Numero,
 			Documento:              campos[0],
 			Nome:                   campos[1],
 			NomeFantasia:           campos[2],
@@ -83,29 +39,8 @@ func LerLinhasCSV(conteudo io.Reader) ([]portsin.LinhaImportacao, error) {
 			Observacoes:            campos[12],
 		})
 	}
-}
 
-func exigirUTF8(csvLeitor *csv.Reader, campos []string) error {
-	for indice, campo := range campos {
-		if !utf8.ValidString(campo) {
-			linha, _ := csvLeitor.FieldPos(indice)
-			return domain.ErroValidacao("linha " + strconv.Itoa(linha) + " não está em UTF-8; salve o arquivo como CSV UTF-8")
-		}
-	}
-
-	return nil
-}
-
-func erroDeLeitura(err error) error {
-	var erroCSV *csv.ParseError
-	if errors.As(err, &erroCSV) {
-		if errors.Is(erroCSV.Err, csv.ErrFieldCount) {
-			return domain.ErroValidacao("linha " + strconv.Itoa(erroCSV.Line) + " deve ter " + strconv.Itoa(len(CabecalhoImportacao)) + " colunas separadas por ;")
-		}
-		return domain.ErroValidacao("csv inválido na linha " + strconv.Itoa(erroCSV.Line))
-	}
-
-	return err
+	return linhas, nil
 }
 
 type LinhaRejeitadaResponse struct {

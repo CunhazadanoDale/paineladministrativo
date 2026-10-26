@@ -130,9 +130,13 @@ func TestImportarClientesPorCSV(t *testing.T) {
 		strings.SplitN(csv, "\n", 2)[0],
 		"77888999000181;Loja Nova;;loja;Grupo Novo;SP;S\xe3o Paulo;;;;;;",
 	}, "\n")
-	conferirStatus(t, enviarCSV(t, servidor, "/api/v1/clientes/importacao", latin1, tokenDoTeste), http.StatusBadRequest)
-	resposta = envia(t, servidor, http.MethodGet, "/api/v1/cliente-grupos?busca=novo", nil)
-	if grupos := decodificarPagina[clientedto.GrupoResponse](t, resposta).Dados; len(grupos) != 0 {
-		t.Errorf("arquivo fora de UTF-8 criou grupo: %+v", grupos)
+	resposta = enviarCSV(t, servidor, "/api/v1/clientes/importacao", latin1, tokenDoTeste)
+	conferirStatus(t, resposta, http.StatusOK)
+	if relatorio := decodificarEnvelope[clientedto.RelatorioImportacaoResponse](t, resposta).Dados; relatorio.Importadas != 1 {
+		t.Errorf("csv do excel em windows-1252 = %+v, esperado 1 importada", relatorio)
+	}
+	resposta = envia(t, servidor, http.MethodGet, "/api/v1/clientes?busca=loja%20nova", nil)
+	if clientes := decodificarPagina[clientedto.ClienteResponse](t, resposta).Dados; len(clientes) != 1 || clientes[0].Cidade != "São Paulo" {
+		t.Errorf("cliente do csv windows-1252 = %+v", clientes)
 	}
 }

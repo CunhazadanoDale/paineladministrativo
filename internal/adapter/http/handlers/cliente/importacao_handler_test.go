@@ -125,18 +125,20 @@ func TestConverterLeadRepassaLeadEDados(t *testing.T) {
 	}
 }
 
-func TestImportarRecusaArquivoForaDeUTF8SemChegarAoUsecase(t *testing.T) {
+func TestImportarConverteCSVDoExcelEmWindows1252(t *testing.T) {
 	usecase := &importacaoUseCaseFalso{}
-	corpo := cabecalhoCSV + "\n11222333000181;Construtora Aguia;;construtora;;SP;S\xe3o Paulo;;;;;;\n"
+	corpo := cabecalhoCSV + "\r\n11222333000181;Constru\xe7\xe3o \x93\xc1guia\x94;;construtora;;SP;S\xe3o Paulo;;;;;;\r\n"
 
 	resposta := executaProtegido(t, NewImportacaoHandler(usecase).Importar, http.MethodPost, "/api/v1/clientes/importacao", "", corpo)
 
-	apoioteste.VerificarEnvelopeDeErro(t, resposta, http.StatusBadRequest)
-	if mensagem := apoioteste.MensagemDoEnvelope(t, resposta); mensagem != "erro de validação: linha 2 não está em UTF-8; salve o arquivo como CSV UTF-8" {
-		t.Errorf("mensagem %q", mensagem)
+	if resposta.Code != http.StatusOK {
+		t.Fatalf("status %d, esperado %d: %s", resposta.Code, http.StatusOK, resposta.Body.String())
 	}
-	if usecase.input.Linhas != nil {
-		t.Error("arquivo fora de UTF-8 não pode chegar ao usecase")
+	if len(usecase.input.Linhas) != 1 {
+		t.Fatalf("linhas repassadas = %+v", usecase.input.Linhas)
+	}
+	if linha := usecase.input.Linhas[0]; linha.Nome != "Construção “Águia”" || linha.Cidade != "São Paulo" {
+		t.Errorf("linha convertida = %+v", linha)
 	}
 }
 
