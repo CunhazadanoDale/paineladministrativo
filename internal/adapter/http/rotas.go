@@ -110,6 +110,7 @@ func NewRouter(
 	importacaoLeadsUseCase portsinlead.ImportacaoUseCase,
 	importacaoProdutosUseCase portsinestoque.ImportacaoProdutoUseCase,
 	importacaoTabelaPrecoUseCase portsintabelapreco.ImportacaoUseCase,
+	importacaoFornecedoresUseCase portsinfornecedor.ImportacaoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, middleware.ErrosDeRoteamento(novasRotas(
@@ -145,6 +146,7 @@ func NewRouter(
 		importacaoLeadsUseCase,
 		importacaoProdutosUseCase,
 		importacaoTabelaPrecoUseCase,
+		importacaoFornecedoresUseCase,
 		tokens,
 	)))
 }
@@ -212,6 +214,7 @@ func novasRotas(
 	importacaoLeadsUseCase portsinlead.ImportacaoUseCase,
 	importacaoProdutosUseCase portsinestoque.ImportacaoProdutoUseCase,
 	importacaoTabelaPrecoUseCase portsintabelapreco.ImportacaoUseCase,
+	importacaoFornecedoresUseCase portsinfornecedor.ImportacaoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -665,6 +668,10 @@ func novasRotas(
 	importacaoTabelaPrecoHandler := tabelaprecohandlers.NewImportacaoHandler(importacaoTabelaPrecoUseCase)
 	administrador("POST /api/v1/tabela-precos/importacao", middleware.EstenderPrazo(prazoDeArquivo, importacaoTabelaPrecoHandler.Importar))
 	administrador("GET /api/v1/tabela-precos/importacao/modelo", importacaoTabelaPrecoHandler.Modelo)
+
+	importacaoFornecedoresHandler := fornecedorhandlers.NewImportacaoHandler(importacaoFornecedoresUseCase)
+	financeiro("POST /api/v1/fornecedores/importacao", middleware.EstenderPrazo(prazoDeArquivo, importacaoFornecedoresHandler.Importar))
+	financeiro("GET /api/v1/fornecedores/importacao/modelo", importacaoFornecedoresHandler.Modelo)
 
 	return mux
 }

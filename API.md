@@ -1887,6 +1887,32 @@ Ativar um fornecedor já ativo (ou desativar um já inativo) responde `200` sem 
 `PUT` substitui o cadastro inteiro: campo opcional omitido fica vazio e `moeda_padrao` omitida
 volta a `BRL`.
 
+### Importação de fornecedores por CSV
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/fornecedores/importacao` | **financeiro** | `200` relatório (`?simular=true` valida sem gravar) |
+| `GET` | `/api/v1/fornecedores/importacao/modelo` | **financeiro** | `200` `modelo-fornecedores.csv` com o cabeçalho e uma linha de exemplo |
+
+Mesmo formato de arquivo da importação de clientes (UTF-8 ou Windows-1252, `;`, até 5 MB e
+5.000 linhas). Cabeçalho fixo:
+
+```
+pais;documento;identificacao_estrangeira;nome;nome_fantasia;moeda_padrao;uf;cidade;contato_nome;email;telefone;observacoes
+```
+
+- Cada linha segue as regras de `POST /api/v1/fornecedores`: `pais` vazio = `BR`, documento
+  obrigatório no Brasil e proibido fora dele, identificação estrangeira só fora do Brasil.
+  Coluna vazia = campo não informado.
+- Nada é sobrescrito: documento já cadastrado ou repetido no arquivo, e identificação estrangeira
+  já cadastrada no mesmo país ou repetida no arquivo, rejeitam a linha.
+- `chave` do relatório é o documento, ou a identificação estrangeira, ou o nome, o primeiro que
+  vier preenchido.
+
+Motivos próprios da importação: `documento repetido no arquivo (linha N)` e
+`identificação estrangeira repetida no arquivo (linha N)`; os demais são as mensagens do
+cadastro (`já existe um fornecedor com este documento`, ...).
+
 ---
 
 ## Contas bancárias
