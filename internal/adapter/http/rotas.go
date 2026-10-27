@@ -108,6 +108,7 @@ func NewRouter(
 	faturamentoUseCase portsindre.FaturamentoUseCase,
 	relatorioSemanalUseCase portsindre.RelatorioSemanalUseCase,
 	importacaoLeadsUseCase portsinlead.ImportacaoUseCase,
+	importacaoProdutosUseCase portsinestoque.ImportacaoProdutoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, middleware.ErrosDeRoteamento(novasRotas(
@@ -141,6 +142,7 @@ func NewRouter(
 		dividaUseCase,
 		resumoDREUseCase, faturamentoUseCase, relatorioSemanalUseCase,
 		importacaoLeadsUseCase,
+		importacaoProdutosUseCase,
 		tokens,
 	)))
 }
@@ -206,6 +208,7 @@ func novasRotas(
 	faturamentoUseCase portsindre.FaturamentoUseCase,
 	relatorioSemanalUseCase portsindre.RelatorioSemanalUseCase,
 	importacaoLeadsUseCase portsinlead.ImportacaoUseCase,
+	importacaoProdutosUseCase portsinestoque.ImportacaoProdutoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -651,6 +654,10 @@ func novasRotas(
 	importacaoLeadsHandler := lead.NewImportacaoHandler(importacaoLeadsUseCase)
 	comercial("POST /api/v1/leads/importacao", middleware.EstenderPrazo(prazoDeArquivo, importacaoLeadsHandler.Importar))
 	comercial("GET /api/v1/leads/importacao/modelo", importacaoLeadsHandler.Modelo)
+
+	importacaoProdutosHandler := estoque.NewImportacaoProdutoHandler(importacaoProdutosUseCase)
+	administrador("POST /api/v1/produtos/importacao", middleware.EstenderPrazo(prazoDeArquivo, importacaoProdutosHandler.Importar))
+	administrador("GET /api/v1/produtos/importacao/modelo", importacaoProdutosHandler.Modelo)
 
 	return mux
 }

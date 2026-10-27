@@ -123,10 +123,10 @@ func (u *ClienteUsecaseImpl) dadosDaLinha(ctx context.Context, estado *importaca
 	}
 
 	var err error
-	if dados.ExigeNumeroPedidoNaNF, err = domaincliente.FlagDeImportacao(linha.ExigeNumeroPedidoNaNF, "exige_numero_pedido_na_nf"); err != nil {
+	if dados.ExigeNumeroPedidoNaNF, err = domain.FlagDeImportacao(linha.ExigeNumeroPedidoNaNF, "exige_numero_pedido_na_nf"); err != nil {
 		return dados, err
 	}
-	if dados.ProibeAntecipacao, err = domaincliente.FlagDeImportacao(linha.ProibeAntecipacao, "proibe_antecipacao"); err != nil {
+	if dados.ProibeAntecipacao, err = domain.FlagDeImportacao(linha.ProibeAntecipacao, "proibe_antecipacao"); err != nil {
 		return dados, err
 	}
 	if dados.RepresentanteID, err = u.representanteDaLinha(ctx, estado, linha.RepresentanteDocumento); err != nil {

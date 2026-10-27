@@ -15,7 +15,10 @@ import (
 	"github.com/lib/pq"
 )
 
-var _ portsout.ProdutoRepository = (*ProdutoRepository)(nil)
+var (
+	_ portsout.ProdutoRepository           = (*ProdutoRepository)(nil)
+	_ portsout.ProdutoImportacaoRepository = (*ProdutoRepository)(nil)
+)
 
 type ProdutoRepository struct {
 	db *sqlx.DB

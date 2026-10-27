@@ -1157,6 +1157,35 @@ categoria **raiz**: o filtro inclui os produtos das subcategorias dela.
 O objeto devolvido traz `saldo`, `estoque_baixo` (saldo ≤ `estoque_minimo`), `slug` e
 `ativo`. Nome repetido devolve `409 já existe um produto com este nome`.
 
+### Importação de produtos por CSV
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/produtos/importacao` | **administrador** | `200` relatório (`?simular=true` valida sem gravar) |
+| `GET` | `/api/v1/produtos/importacao/modelo` | **administrador** | `200` `modelo-produtos.csv` com o cabeçalho e uma linha de exemplo |
+
+Mesmo formato de arquivo da importação de clientes (UTF-8 ou Windows-1252, `;`, até 5 MB e
+5.000 linhas). Cabeçalho fixo:
+
+```
+nome;codigo;categoria;unidade_medida;preco;preco_promocional;estoque_minimo;peso_kg;descricao;destaque
+```
+
+- Cada linha segue as regras de `POST /api/v1/produtos`. Só cadastra: saldo inicial entra por
+  movimentação, não pela importação.
+- `categoria` pelo nome da **subcategoria** (sem diferenciar acento e maiúscula); categoria
+  inexistente rejeita a linha e não é criada.
+- `preco` e `preco_promocional` em reais, como o Excel grava: `1234,56`, `1.234,56`,
+  `R$ 1.234,56` ou `1234.56`; no máximo dois decimais. Vazio = sem preço ("sob consulta").
+- `estoque_minimo` inteiro; `peso_kg` aceita vírgula (`50,5`); `destaque` `sim`/`nao` (vazio = `nao`).
+- Nada é sobrescrito: nome (pelo slug) ou código já cadastrado, ou repetido no arquivo, rejeita a
+  linha. `chave` do relatório é o nome informado.
+
+Motivos próprios da importação: `nome repetido no arquivo (linha N)`,
+`código repetido no arquivo (linha N)`, `já existe um produto com este nome`,
+`já existe um produto com este código`, `categoria X não encontrada`,
+`preco deve ser um valor em reais, como 1234,56`.
+
 ---
 
 ## Estoque — movimentações

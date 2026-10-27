@@ -18,6 +18,7 @@ import (
 var (
 	_ portsout.CategoriaRepository          = (*repositorioCategorias)(nil)
 	_ portsout.ProdutoRepository            = (*repositorioProdutos)(nil)
+	_ portsout.ProdutoImportacaoRepository  = (*repositorioProdutos)(nil)
 	_ portsout.MovimentoRepository          = (*repositorioMovimentos)(nil)
 	_ portsout.ImagemRepository             = (*repositorioImagens)(nil)
 	_ portsoutsolicitacao.ArquivoRepository = (*repositorioArquivos)(nil)
@@ -150,6 +151,19 @@ func (r *repositorioProdutos) ObterPorSlug(_ context.Context, slug string) (*dom
 	}
 
 	return nil, nil
+}
+
+func (r *repositorioProdutos) IDsPorCodigos(_ context.Context, codigos []string) (map[string]uuid.UUID, error) {
+	encontrados := map[string]uuid.UUID{}
+	for _, codigo := range codigos {
+		for _, produto := range r.itens {
+			if produto.Codigo != nil && *produto.Codigo == codigo {
+				encontrados[codigo] = produto.ID
+			}
+		}
+	}
+
+	return encontrados, nil
 }
 
 func (r *repositorioProdutos) Listar(_ context.Context, filtro portsout.ProdutoFiltro) ([]*domainestoque.Produto, error) {
