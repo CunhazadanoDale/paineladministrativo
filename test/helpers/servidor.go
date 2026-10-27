@@ -242,6 +242,7 @@ func NovoServidor(t *testing.T, banco *sqlx.DB) *httptest.Server {
 			postgres.NewDividaConsultaRepository(banco),
 			usuarioRepository, cargoRepository, empresaRepository,
 		),
+		leadusecases.NewLeadImportacaoUsecase(postgres.NewLeadRepository(banco), postgres.NewEtapaRepository(banco)),
 		autenticacao.NovoTokenService(segredoDoTeste, time.Hour),
 	)
 

@@ -107,6 +107,7 @@ func NewRouter(
 	resumoDREUseCase portsindre.ResumoDREUseCase,
 	faturamentoUseCase portsindre.FaturamentoUseCase,
 	relatorioSemanalUseCase portsindre.RelatorioSemanalUseCase,
+	importacaoLeadsUseCase portsinlead.ImportacaoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) http.Handler {
 	return middleware.CORS(origensCORS, middleware.ErrosDeRoteamento(novasRotas(
@@ -139,6 +140,7 @@ func NewRouter(
 		importacaoUseCase, financeiroImportacaoUseCase, recebimentoImportacaoUseCase, consultaImportacaoUseCase,
 		dividaUseCase,
 		resumoDREUseCase, faturamentoUseCase, relatorioSemanalUseCase,
+		importacaoLeadsUseCase,
 		tokens,
 	)))
 }
@@ -203,6 +205,7 @@ func novasRotas(
 	resumoDREUseCase portsindre.ResumoDREUseCase,
 	faturamentoUseCase portsindre.FaturamentoUseCase,
 	relatorioSemanalUseCase portsindre.RelatorioSemanalUseCase,
+	importacaoLeadsUseCase portsinlead.ImportacaoUseCase,
 	tokens portsinautenticacao.TokenService,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -644,6 +647,10 @@ func novasRotas(
 
 	relatorioSemanalHandler := drehandlers.NewRelatorioSemanalHandler(relatorioSemanalUseCase)
 	financeiro("GET /api/v1/dre/relatorio-semanal", relatorioSemanalHandler.Consultar)
+
+	importacaoLeadsHandler := lead.NewImportacaoHandler(importacaoLeadsUseCase)
+	comercial("POST /api/v1/leads/importacao", middleware.EstenderPrazo(prazoDeArquivo, importacaoLeadsHandler.Importar))
+	comercial("GET /api/v1/leads/importacao/modelo", importacaoLeadsHandler.Modelo)
 
 	return mux
 }

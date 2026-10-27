@@ -277,6 +277,7 @@ func executar(registrador *slog.Logger) error {
 			postgres.NewDividaConsultaRepository(banco),
 			usuarioRepository, cargoRepository, empresaRepository,
 		),
+		leadusecases.NewLeadImportacaoUsecase(postgres.NewLeadRepository(banco), postgres.NewEtapaRepository(banco)),
 		autenticacao.NovoTokenService(cfg.JWTSecret, cfg.JWTExpiracao),
 	)
 

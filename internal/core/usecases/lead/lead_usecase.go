@@ -189,7 +189,11 @@ func (l *LeadUsecaseImpl) buscar(ctx context.Context, id uuid.UUID) (*domainlead
 }
 
 func (l *LeadUsecaseImpl) etapaAtiva(ctx context.Context, etapaID uuid.UUID, descricao string) (*domainlead.Etapa, error) {
-	etapa, err := l.etapas.Obter(ctx, etapaID)
+	return etapaAtiva(ctx, l.etapas, etapaID, descricao)
+}
+
+func etapaAtiva(ctx context.Context, etapas portsout.EtapaRepository, etapaID uuid.UUID, descricao string) (*domainlead.Etapa, error) {
+	etapa, err := etapas.Obter(ctx, etapaID)
 	if err != nil {
 		return nil, err
 	}

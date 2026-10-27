@@ -2,6 +2,7 @@ package lead_test
 
 import (
 	"context"
+	"strings"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	domainlead "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/lead"
@@ -10,8 +11,9 @@ import (
 )
 
 var (
-	_ portsout.LeadRepository  = (*repositorioLeads)(nil)
-	_ portsout.EtapaRepository = (*repositorioEtapas)(nil)
+	_ portsout.LeadRepository           = (*repositorioLeads)(nil)
+	_ portsout.LeadImportacaoRepository = (*repositorioLeads)(nil)
+	_ portsout.EtapaRepository          = (*repositorioEtapas)(nil)
 )
 
 type movimentacao struct {
@@ -100,6 +102,41 @@ func (r *repositorioLeads) MoverParaEtapa(_ context.Context, leadID, anterior, a
 	r.movimentacoes = append(r.movimentacoes, movimentacao{leadID: leadID, anterior: anterior, atual: atual})
 
 	return nil
+}
+
+func (r *repositorioLeads) EmailsCadastrados(_ context.Context, emails []string) (map[string]bool, error) {
+	cadastrados := map[string]bool{}
+	for _, email := range emails {
+		for _, item := range r.itens {
+			if item.Ativo && strings.EqualFold(item.Email, email) {
+				cadastrados[email] = true
+			}
+		}
+	}
+
+	return cadastrados, nil
+}
+
+func (r *repositorioLeads) TelefonesCadastrados(_ context.Context, telefones []string) (map[string]bool, error) {
+	cadastrados := map[string]bool{}
+	for _, telefone := range telefones {
+		for _, item := range r.itens {
+			if item.Ativo && soDigitos(item.Telefone) == telefone {
+				cadastrados[telefone] = true
+			}
+		}
+	}
+
+	return cadastrados, nil
+}
+
+func soDigitos(valor string) string {
+	return strings.Map(func(r rune) rune {
+		if r >= '0' && r <= '9' {
+			return r
+		}
+		return -1
+	}, valor)
 }
 
 type repositorioEtapas struct {

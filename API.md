@@ -467,6 +467,45 @@ que é quem grava o histórico.
 }
 ```
 
+### Importação de leads por CSV
+
+| Método | Rota | Sucesso | Descrição |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/leads/importacao?etapa_id={uuid}` | `200` | Relatório (`?simular=true` valida sem gravar) |
+| `GET` | `/api/v1/leads/importacao/modelo` | `200` | `modelo-leads.csv` com o cabeçalho e uma linha de exemplo |
+
+O arquivo segue as mesmas regras de formato da importação de clientes: CSV cru
+(`Content-Type: text/csv`) em UTF-8 ou Windows-1252, separador `;`, até 5 MB (`413`) e 5.000
+linhas (`400`). Cabeçalho fixo:
+
+```
+nome;email;telefone;origem
+```
+
+- Todos os leads do arquivo entram na etapa do `etapa_id`, que precisa existir e estar ativa
+  (`400` sem gravar nada se faltar, se não existir ou se estiver inativa).
+- Cada linha segue os limites de `POST /api/v1/leads`.
+- Duplicado rejeita a linha: e-mail (sem diferenciar maiúscula) ou telefone (só os dígitos) igual
+  ao de um lead ativo ou de uma linha anterior do arquivo. E-mail e telefone vazios não contam.
+- `chave` do relatório é o nome informado na linha.
+
+```json
+{
+  "dados": {
+    "simulacao": false,
+    "total": 5,
+    "importadas": 3,
+    "rejeitadas": [
+      { "linha": 4, "chave": "Águia repetida", "motivo": "email repetido no arquivo (linha 2)" },
+      { "linha": 5, "chave": "", "motivo": "nome do lead é obrigatório" }
+    ]
+  }
+}
+```
+
+Outros motivos: `telefone repetido no arquivo (linha N)`, `já existe um lead com este email`,
+`já existe um lead com este telefone` e as mensagens de validação do cadastro.
+
 ---
 
 ## Funis — comercial lê, administrador escreve

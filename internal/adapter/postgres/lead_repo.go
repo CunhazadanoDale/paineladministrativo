@@ -4,15 +4,20 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/lead"
 	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/leads"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 )
 
-var _ leads.LeadRepository = (*LeadRepository)(nil)
+var (
+	_ leads.LeadRepository           = (*LeadRepository)(nil)
+	_ leads.LeadImportacaoRepository = (*LeadRepository)(nil)
+)
 
 type LeadRepository struct {
 	db *sqlx.DB
@@ -221,4 +226,44 @@ func (l *LeadRepository) MoverParaEtapa(ctx context.Context, leadID uuid.UUID, e
 	}
 
 	return tratarErroDeGravacao(tx.Commit())
+}
+
+func (l *LeadRepository) EmailsCadastrados(ctx context.Context, emails []string) (map[string]bool, error) {
+	query := `
+		SELECT DISTINCT LOWER(email)
+		FROM lead
+		WHERE ativo = TRUE
+		  AND email <> ''
+		  AND LOWER(email) = ANY($1)
+	`
+
+	return l.contatosCadastrados(ctx, query, emails)
+}
+
+func (l *LeadRepository) TelefonesCadastrados(ctx context.Context, telefones []string) (map[string]bool, error) {
+	query := `
+		SELECT DISTINCT regexp_replace(telefone, '[^0-9]', '', 'g')
+		FROM lead
+		WHERE ativo = TRUE
+		  AND regexp_replace(telefone, '[^0-9]', '', 'g') = ANY($1)
+	`
+
+	return l.contatosCadastrados(ctx, query, telefones)
+}
+
+func (l *LeadRepository) contatosCadastrados(ctx context.Context, query string, valores []string) (map[string]bool, error) {
+	cadastrados := map[string]bool{}
+	if len(valores) == 0 {
+		return cadastrados, nil
+	}
+
+	var encontrados []string
+	if err := l.db.SelectContext(ctx, &encontrados, query, pq.Array(valores)); err != nil {
+		return nil, fmt.Errorf("buscar contatos de leads: %w", err)
+	}
+	for _, valor := range encontrados {
+		cadastrados[valor] = true
+	}
+
+	return cadastrados, nil
 }
