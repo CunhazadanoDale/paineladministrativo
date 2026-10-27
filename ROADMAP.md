@@ -157,6 +157,7 @@ o **F0b** pode correr junto com essas telas.
 | F-M12 | Front de importações | M12 F-M2 F-M4 F-M6 F-M7 | — | concluído |
 | F-M14 | Front de dívidas e empréstimos | M14 F-M4 F-M5 F-M7 | — | concluído |
 | F-M15 | Front de DRE e painéis | M15 F-M7 F-M8 F-M9 F-M13 F-M14 | — | concluído |
+| F-PREF | Preferências do usuário (tema, tela inicial, empresa padrão) | F0a | — | concluído |
 | M1 | Empresas e filiais | T0 | separação por empresa feita à mão em todos os controles | concluído |
 | M2 | Estoque por local, lote e reserva | M1 | Estoque geral, Pendências de envio | concluído |
 | M3 | Clientes e representantes | M1 | Base de clientes | concluído |

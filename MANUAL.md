@@ -82,8 +82,8 @@ Repo: `D:\PROJETOS\FRONT\painelMiaConstrutora`. As rotas ficam em `src/App.jsx`,
   - avatar, que leva a **Meu perfil**;
   - botão **Sair**, que encerra a sessão no servidor e em todas as abas.
 - **Contador de Solicitações** no menu: "X para aprovar · Y para pagar · Z vencidas".
-- **Páginas provisórias**, que ainda não fazem nada: Negociações, Formulários,
-  Relatórios e Configurações.
+- **Páginas provisórias**, que ainda não fazem nada: Negociações, Formulários e
+  Relatórios.
 
 ## 2.2 Login (`/login`)
 
@@ -97,6 +97,20 @@ Mostra nome, e-mail, cargo e o último acesso.
 **Como trocar a própria senha:** Avatar → Trocar senha → Senha atual, Nova senha
 (mínimo 8 caracteres) e Confirmação → Salvar. A sessão é encerrada e é preciso entrar de
 novo com a senha nova.
+
+## 2.3.1 Configurações (`/configuracoes`)
+
+Preferências de cada pessoa, salvas na hora no próprio navegador (não vão para o servidor,
+então não acompanham a pessoa em outro computador):
+
+| Preferência | Efeito |
+|---|---|
+| **Tema** — Igual ao sistema, Claro ou Escuro | Vale para o aparelho, inclusive na tela de login. A impressão sai sempre no tema claro |
+| **Tela inicial** | Página aberta depois de entrar, entre as que o perfil enxerga. Um link direto tem prioridade; se a tela sair do perfil, volta o Dashboard |
+| **Empresa padrão** | Já vem selecionada nos formulários de lançamento. Filtros (vazio = todas) e confirmações como fechar mês ou importar extrato continuam pedindo a escolha. Se a empresa sair do acesso, a preferência é ignorada |
+
+Duas pessoas no mesmo navegador têm a tela inicial e a empresa padrão separadas; o tema é
+do aparelho.
 
 ## 2.4 Dashboard (`/`)
 
@@ -987,7 +1001,7 @@ GET  /api/v1/pedidos/<id>/proposta
    - não há botão para imprimir a proposta;
    - o front usa uma lista fixa de modelos em vez de `GET /modelos-venda`;
    - o preço sugerido vem só do cadastro do produto.
-3. **Páginas provisórias:** Negociações, Formulários, Relatórios e Configurações.
+3. **Páginas provisórias:** Negociações, Formulários e Relatórios.
 
 **Regras de negócio**
 4. **Fuso no M7:** o "hoje" do M7 é calculado em UTC, enquanto M6, M9, M10 e M11 usam o
