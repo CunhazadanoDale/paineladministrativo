@@ -438,6 +438,7 @@ func novasRotas(
 	comercial("POST /api/v1/leads/{id}/converter", clienteHandler.ConverterLead)
 	importacaoClientesHandler := clientehandlers.NewImportacaoHandler(importacaoClientesUseCase)
 	administrador("POST /api/v1/clientes/importacao", middleware.EstenderPrazo(prazoDeArquivo, importacaoClientesHandler.Importar))
+	administrador("GET /api/v1/clientes/importacao/modelo", importacaoClientesHandler.Modelo)
 
 	fornecedorHandler := fornecedorhandlers.NewFornecedorHandler(fornecedorUseCase)
 	financeiro("POST /api/v1/fornecedores", fornecedorHandler.Criar)

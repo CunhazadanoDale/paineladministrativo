@@ -160,3 +160,14 @@ func TestImportarRecusaSimularComValorInvalido(t *testing.T) {
 		t.Errorf("simular=false: status %d, simular %v", resposta.Code, usecase.input.Simular)
 	}
 }
+
+func TestModeloDeClientesDevolveCabecalhoEExemplo(t *testing.T) {
+	resposta := executaProtegido(t, NewImportacaoHandler(&importacaoUseCaseFalso{}).Modelo, http.MethodGet, "/api/v1/clientes/importacao/modelo", "", "")
+
+	if resposta.Code != http.StatusOK || !strings.HasPrefix(resposta.Body.String(), "\xef\xbb\xbf"+cabecalhoCSV+"\r\n11.222.333/0001-81;") {
+		t.Errorf("status %d, corpo %q", resposta.Code, resposta.Body.String())
+	}
+	if disposicao := resposta.Header().Get("Content-Disposition"); !strings.Contains(disposicao, "modelo-clientes.csv") {
+		t.Errorf("Content-Disposition = %q", disposicao)
+	}
+}

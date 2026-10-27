@@ -1690,6 +1690,7 @@ Lead convertido não pode ser excluído (`DELETE /api/v1/leads/{id}` → `400 re
 | Método | Rota | Perfil | Sucesso |
 | --- | --- | --- | --- |
 | `POST` | `/api/v1/clientes/importacao` | **administrador** | `200` relatório (`?simular=true` valida sem gravar) |
+| `GET` | `/api/v1/clientes/importacao/modelo` | **administrador** | `200` `modelo-clientes.csv` com o cabeçalho e uma linha de exemplo |
 
 Corpo: o arquivo CSV cru (`Content-Type: text/csv`), em **UTF-8** (com ou sem BOM) ou em
 **Windows-1252** (o "CSV (separado por vírgulas)" padrão do Excel em português; o arquivo que não

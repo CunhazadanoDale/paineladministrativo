@@ -124,6 +124,8 @@ func TestImportarClientesPorCSV(t *testing.T) {
 	}
 
 	conferirStatus(t, enviarCSV(t, servidor, "/api/v1/clientes/importacao", "documento;nome\n", tokenDoTeste), http.StatusBadRequest)
+	conferirStatus(t, enviaComToken(t, servidor, http.MethodGet, "/api/v1/clientes/importacao/modelo", nil, tokenComercial), http.StatusForbidden)
+	conferirStatus(t, enviaComToken(t, servidor, http.MethodGet, "/api/v1/clientes/importacao/modelo", nil, tokenDoTeste), http.StatusOK)
 	conferirStatus(t, enviarCSV(t, servidor, "/api/v1/clientes/importacao?simular=sim", csv, tokenDoTeste), http.StatusBadRequest)
 
 	latin1 := strings.Join([]string{

@@ -13,6 +13,11 @@ var CabecalhoImportacao = []string{
 	"representante_documento", "exige_numero_pedido_na_nf", "proibe_antecipacao", "observacoes",
 }
 
+var ExemploImportacao = []string{
+	"11.222.333/0001-81", "Construtora Exemplo LTDA", "Exemplo", "construtora", "Grupo Exemplo", "PB", "João Pessoa",
+	"nf@exemplo.com.br", "83 3333-0000", "", "nao", "nao", "",
+}
+
 func LerLinhasCSV(conteudo io.Reader) ([]portsin.LinhaImportacao, error) {
 	linhasCSV, err := dto.LerCSV(conteudo, CabecalhoImportacao, domaincliente.LimiteDeLinhasDaImportacao)
 	if err != nil {

@@ -51,6 +51,10 @@ func (h *ImportacaoHandler) Importar(w http.ResponseWriter, r *http.Request) {
 	escreverItem(w, http.StatusOK, relatorio, err, clientedto.NovoRelatorioImportacaoResponse)
 }
 
+func (h *ImportacaoHandler) Modelo(w http.ResponseWriter, _ *http.Request) {
+	resposta.ModeloCSV(w, "modelo-clientes.csv", clientedto.CabecalhoImportacao, clientedto.ExemploImportacao)
+}
+
 func (h *ClienteHandler) ConverterLead(w http.ResponseWriter, r *http.Request) {
 	usuario, leadID, ok := resposta.UsuarioEId(w, r)
 	if !ok {
