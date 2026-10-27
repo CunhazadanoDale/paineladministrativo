@@ -3,6 +3,7 @@ package domain
 import (
 	"strconv"
 	"strings"
+	"time"
 )
 
 const digitosMaximosDeReais = 13
@@ -64,6 +65,21 @@ func DecimalDeImportacao(valor, campo string) (*float64, error) {
 	}
 
 	return &decimal, nil
+}
+
+func DataDeImportacao(valor, campo string) (*time.Time, error) {
+	limpo := strings.TrimSpace(valor)
+	if limpo == "" {
+		return nil, nil
+	}
+
+	for _, formato := range []string{"02/01/2006", "2/1/2006", "2006-01-02"} {
+		if data, err := time.Parse(formato, limpo); err == nil {
+			return &data, nil
+		}
+	}
+
+	return nil, ErroValidacao(campo + " deve ser uma data como 31/12/2026")
 }
 
 func numeroDaPlanilha(valor string) string {

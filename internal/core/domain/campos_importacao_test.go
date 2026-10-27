@@ -3,6 +3,7 @@ package domain
 import (
 	"errors"
 	"testing"
+	"time"
 )
 
 func TestCentavosDeImportacaoAceitaFormatosDoExcel(t *testing.T) {
@@ -62,5 +63,22 @@ func TestFlagDeImportacao(t *testing.T) {
 	}
 	if _, err := FlagDeImportacao("talvez", "destaque"); err == nil || err.Error() != "erro de validação: destaque deve ser sim ou nao" {
 		t.Errorf("erro = %v", err)
+	}
+}
+
+func TestDataDeImportacao(t *testing.T) {
+	esperada := time.Date(2026, time.November, 5, 0, 0, 0, 0, time.UTC)
+	for _, entrada := range []string{"05/11/2026", "5/11/2026", " 2026-11-05 "} {
+		if data, err := DataDeImportacao(entrada, "vigente_de"); err != nil || !data.Equal(esperada) {
+			t.Errorf("%q = %v, %v", entrada, data, err)
+		}
+	}
+	if data, err := DataDeImportacao("", "vigente_de"); data != nil || err != nil {
+		t.Errorf("vazia = %v, %v", data, err)
+	}
+	for _, entrada := range []string{"31/02/2026", "11/2026", "amanhã"} {
+		if _, err := DataDeImportacao(entrada, "vigente_de"); err == nil || err.Error() != "erro de validação: vigente_de deve ser uma data como 31/12/2026" {
+			t.Errorf("%q, erro = %v", entrada, err)
+		}
 	}
 }

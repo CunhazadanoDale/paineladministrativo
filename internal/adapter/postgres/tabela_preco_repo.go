@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -16,7 +17,10 @@ import (
 	"github.com/lib/pq/pqerror"
 )
 
-var _ portsout.TabelaPrecoRepository = (*TabelaPrecoRepository)(nil)
+var (
+	_ portsout.TabelaPrecoRepository           = (*TabelaPrecoRepository)(nil)
+	_ portsout.TabelaPrecoImportacaoRepository = (*TabelaPrecoRepository)(nil)
+)
 
 type TabelaPrecoRepository struct {
 	db *sqlx.DB
@@ -233,4 +237,17 @@ func (r *TabelaPrecoRepository) PrecoVigente(ctx context.Context, produtoID uuid
 	}
 
 	return preco, nil
+}
+
+func (r *TabelaPrecoRepository) ExisteVigencia(ctx context.Context, produtoID uuid.UUID, modelo domainpedido.Modelo, vigenteDe time.Time) (bool, error) {
+	var existe bool
+	if err := r.db.GetContext(ctx, &existe, `
+		SELECT EXISTS (
+			SELECT 1 FROM tabela_preco_item WHERE produto_id = $1 AND modelo = $2 AND vigente_de = $3
+		)
+	`, produtoID, string(modelo), vigenteDe); err != nil {
+		return false, fmt.Errorf("verificar vigência da tabela de preços: %w", err)
+	}
+
+	return existe, nil
 }

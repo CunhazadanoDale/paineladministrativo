@@ -3116,6 +3116,33 @@ Escopo e decisões em `PROPOSTAS.md`.
 | Produto inativo | `400` | `erro de validação: produto inativo não recebe preço novo` |
 | Exclusão de vigência que já começou | `409` | `só é possível excluir preço cuja vigência ainda não começou` |
 
+### Importação da tabela de preços por CSV
+
+| Método | Rota | Perfil | Sucesso |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/tabela-precos/importacao` | **administrador** | `200` relatório (`?simular=true` valida sem gravar) |
+| `GET` | `/api/v1/tabela-precos/importacao/modelo` | **administrador** | `200` `modelo-tabela-precos.csv` com o cabeçalho e uma linha de exemplo |
+
+Mesmo formato de arquivo da importação de clientes (UTF-8 ou Windows-1252, `;`, até 5 MB e
+5.000 linhas). Cada linha é um **lançamento de vigência**, com as regras de `POST /api/v1/tabela-precos`.
+Cabeçalho fixo:
+
+```
+codigo;modelo;preco;vigente_de;observacao
+```
+
+- `codigo`: código do produto (produto sem código não entra pela importação); produto inativo rejeita a linha.
+- `modelo`: `pronta_entrega` ou `importacao`.
+- `preco` obrigatório, em reais como o Excel grava (`139,90`, `1.239,90`, `R$ 139,90`).
+- `vigente_de` obrigatório: `DD/MM/AAAA` ou `AAAA-MM-DD`; data passada é aceita, como no lançamento manual.
+- Nada é sobrescrito: mesmo produto, modelo e início já lançado ou repetido no arquivo rejeita a linha.
+  Reajuste em massa é um arquivo com a nova data de início. `chave` do relatório é o código informado.
+
+Motivos próprios da importação: `código do produto é obrigatório`,
+`produto com código X não encontrado`, `preco é obrigatório`, `vigente_de é obrigatório`,
+`vigente_de deve ser uma data como 31/12/2026`,
+`produto, modelo e início repetidos no arquivo (linha N)`.
+
 ---
 
 ## Caixa — saldo inicial, extrato, conciliação, fechamento e projeção (financeiro)

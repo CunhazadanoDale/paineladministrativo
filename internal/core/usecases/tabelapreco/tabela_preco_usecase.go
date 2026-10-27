@@ -5,10 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain"
 	domainpedido "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/pedido"
 	domaintabelapreco "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/tabelapreco"
-	domainusuarios "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/domain/usuarios"
 	portsin "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/in/tabelapreco"
 	portsout "github.com/CunhazadanoDale/paineladministrativo.git/internal/core/ports/out/tabelapreco"
 	"github.com/google/uuid"
@@ -19,8 +17,7 @@ var _ portsin.TabelaPrecoUseCase = (*TabelaPrecoUsecaseImpl)(nil)
 type TabelaPrecoUsecaseImpl struct {
 	itens    portsout.TabelaPrecoRepository
 	produtos portsout.ProdutoRepository
-	usuarios portsout.UsuarioRepository
-	cargos   portsout.CargoRepository
+	permissoes
 }
 
 func NewTabelaPrecoUsecase(
@@ -29,7 +26,7 @@ func NewTabelaPrecoUsecase(
 	usuarios portsout.UsuarioRepository,
 	cargos portsout.CargoRepository,
 ) *TabelaPrecoUsecaseImpl {
-	return &TabelaPrecoUsecaseImpl{itens: itens, produtos: produtos, usuarios: usuarios, cargos: cargos}
+	return &TabelaPrecoUsecaseImpl{itens: itens, produtos: produtos, permissoes: permissoes{usuarios: usuarios, cargos: cargos}}
 }
 
 func (u *TabelaPrecoUsecaseImpl) Criar(ctx context.Context, input portsin.CriarItemInput) (*domaintabelapreco.Item, error) {
@@ -107,52 +104,4 @@ func (u *TabelaPrecoUsecaseImpl) Remover(ctx context.Context, itemID, usuarioID 
 	}
 
 	return u.itens.RemoverFuturo(ctx, itemID, domainpedido.Hoje(time.Now().UTC()))
-}
-
-func (u *TabelaPrecoUsecaseImpl) cargoDoUsuario(ctx context.Context, usuarioID uuid.UUID) (*domainusuarios.Cargo, error) {
-	if usuarioID == uuid.Nil {
-		return nil, domain.ErroValidacao("usuário não informado")
-	}
-
-	usuario, err := u.usuarios.Obter(ctx, usuarioID)
-	if err != nil {
-		return nil, err
-	}
-	if usuario == nil {
-		return nil, domain.ErroNaoEncontrado("usuário não encontrado")
-	}
-
-	cargo, err := u.cargos.Obter(ctx, usuario.CargoID)
-	if err != nil {
-		return nil, err
-	}
-	if cargo == nil {
-		return &domainusuarios.Cargo{}, nil
-	}
-
-	return cargo, nil
-}
-
-func (u *TabelaPrecoUsecaseImpl) exigeAdministrador(ctx context.Context, usuarioID uuid.UUID) error {
-	cargo, err := u.cargoDoUsuario(ctx, usuarioID)
-	if err != nil {
-		return err
-	}
-	if !cargo.Administrador {
-		return domain.ErroPermissao("perfil sem permissão para alterar a tabela de preços")
-	}
-
-	return nil
-}
-
-func (u *TabelaPrecoUsecaseImpl) exigeLeitura(ctx context.Context, usuarioID uuid.UUID) error {
-	cargo, err := u.cargoDoUsuario(ctx, usuarioID)
-	if err != nil {
-		return err
-	}
-	if !cargo.Administrador && !cargo.Comercial && !cargo.Financeiro {
-		return domain.ErroPermissao("perfil sem permissão para ver a tabela de preços")
-	}
-
-	return nil
 }
