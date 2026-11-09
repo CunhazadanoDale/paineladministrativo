@@ -9,6 +9,8 @@ COPY . .
 
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /bin/api ./cmd/api
 
+FROM migrate/migrate:v4.20.1 AS migrate
+
 FROM alpine:3.24
 
 RUN apk add --no-cache ca-certificates \
@@ -18,6 +20,8 @@ RUN apk add --no-cache ca-certificates \
     && chown app:app /storage_local
 
 COPY --from=build /bin/api /api
+COPY --from=migrate /usr/local/bin/migrate /usr/local/bin/migrate
+COPY migrations /migrations
 
 USER app
 

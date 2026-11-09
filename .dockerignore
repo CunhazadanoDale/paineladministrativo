@@ -4,6 +4,5 @@
 .dockerignore
 Dockerfile
 docker-compose.yml
-migrations
 test
 *.md

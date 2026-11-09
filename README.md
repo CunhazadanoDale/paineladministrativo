@@ -50,6 +50,19 @@ go run ./cmd/api
 
 As migrations criam um administrador inicial; as credenciais estão na `API.md`.
 
+## Deploy no Railway
+
+A imagem do `Dockerfile` leva a pasta `migrations` e o CLI `migrate`. No serviço da API,
+em Settings → Deploy → Pre-Deploy Command, configure:
+
+```bash
+migrate -path /migrations -database "$DATABASE_URL" up
+```
+
+O comando roda antes de cada deploy; se uma migration falhar, a versão nova não entra no ar.
+Variáveis do serviço: `DATABASE_URL` e `JWT_SECRET` (obrigatórias) e `CORS_ORIGINS` com a URL
+do frontend.
+
 ## Testes
 
 ```bash
