@@ -56,8 +56,11 @@ A imagem do `Dockerfile` leva a pasta `migrations` e o CLI `migrate`. No serviç
 em Settings → Deploy → Pre-Deploy Command, configure:
 
 ```bash
-migrate -path /migrations -database "$DATABASE_URL" up
+/bin/sh -c "migrate -path /migrations -database \"$DATABASE_URL\" up"
 ```
+
+O `sh -c` é necessário porque o Railway executa o comando sem shell em serviços com
+Dockerfile, e sem ele o `$DATABASE_URL` não é expandido.
 
 O comando roda antes de cada deploy; se uma migration falhar, a versão nova não entra no ar.
 Variáveis do serviço: `DATABASE_URL` e `JWT_SECRET` (obrigatórias) e `CORS_ORIGINS` com a URL
